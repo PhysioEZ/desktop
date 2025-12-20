@@ -1,0 +1,26 @@
+# Nodejs
+node_modules
+dist
+.env
+
+# Rust
+src-tauri/target/
+src-tauri/gen/schemas/
+target/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode
+.idea
+
+# Build Artifacts (Binaries)
+*.exe
+*.deb
+*.rpm
+*.app
+*.msi
+*.dmg
+CareSyncOS_*
