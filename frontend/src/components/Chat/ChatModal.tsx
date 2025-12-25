@@ -231,13 +231,13 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                         href={`${serverOrigin}/${msg.message_text}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`flex items-center gap-3 p-3 rounded-lg ${
+                        className={`flex items-center gap-3 p-3 rounded-xl ${
                             msg.is_sender 
-                                ? 'bg-teal-700 hover:bg-teal-800' 
-                                : 'bg-slate-100 dark:bg-slate-600 hover:bg-slate-200 dark:hover:bg-slate-500'
+                                ? 'bg-[#00390a] hover:bg-[#005313] text-[#ccebc4]' 
+                                : 'bg-[#e0e2ec] dark:bg-[#43474e] hover:bg-[#d2d5db] dark:hover:bg-[#50545c] text-[#1a1c1e] dark:text-[#c4c7c5]'
                         } transition-colors`}
                     >
-                        <FileText className="w-8 h-8 text-red-500" />
+                        <FileText className="w-8 h-8 text-[#b3261e] dark:text-[#ffb4ab]" />
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{getFileName(msg.message_text)}</p>
                             <p className="text-xs opacity-70">PDF Document</p>
@@ -251,13 +251,13 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                         href={`${serverOrigin}/${msg.message_text}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`flex items-center gap-3 p-3 rounded-lg ${
+                        className={`flex items-center gap-3 p-3 rounded-xl ${
                             msg.is_sender 
-                                ? 'bg-teal-700 hover:bg-teal-800' 
-                                : 'bg-slate-100 dark:bg-slate-600 hover:bg-slate-200 dark:hover:bg-slate-500'
+                                ? 'bg-[#00390a] hover:bg-[#005313] text-[#ccebc4]' 
+                                : 'bg-[#e0e2ec] dark:bg-[#43474e] hover:bg-[#d2d5db] dark:hover:bg-[#50545c] text-[#1a1c1e] dark:text-[#c4c7c5]'
                         } transition-colors`}
                     >
-                        <FileText className="w-8 h-8 text-blue-500" />
+                        <FileText className="w-8 h-8 text-[#00639b] dark:text-[#7fcfff]" />
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{getFileName(msg.message_text)}</p>
                             <p className="text-xs opacity-70">Document</p>
@@ -287,24 +287,24 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                 onClick={(e) => e.target === e.currentTarget && onClose()}
             >
                 <motion.div 
-                    className="w-full max-w-4xl h-[85vh] bg-white dark:bg-slate-800 rounded-2xl shadow-2xl overflow-hidden flex"
+                    className="w-full max-w-4xl h-[85vh] bg-[#fdfcff] dark:bg-[#1a1c1e] rounded-[28px] shadow-2xl overflow-hidden flex font-sans"
                     initial={{ opacity: 0, y: 100, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 100, scale: 0.95 }}
                     transition={{ type: 'spring', damping: 25, stiffness: 300 }}
                 >
                     {/* Sidebar - User List */}
-                    <div className="w-80 border-r border-slate-200 dark:border-slate-700 flex flex-col">
+                    <div className="w-80 border-r border-[#e0e2ec] dark:border-[#43474e] flex flex-col bg-[#f0f2f5] dark:bg-[#1a1c1e]">
                         {/* Sidebar Header */}
-                        <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+                        <div className="p-4 border-b border-[#e0e2ec] dark:border-[#43474e] flex items-center gap-2">
                             <div className="relative flex-1">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#43474e] dark:text-[#c4c7c5]" />
                                 <input
                                     type="text"
                                     placeholder="Search users..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-2 bg-slate-100 dark:bg-slate-700 border-0 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500"
+                                    className="w-full pl-9 pr-3 py-2 bg-[#e0e2ec] dark:bg-[#43474e]/50 border-0 rounded-full text-sm text-[#1a1c1e] dark:text-[#e3e2e6] focus:outline-none focus:ring-2 focus:ring-[#006e1c] dark:focus:ring-[#88d99d] placeholder:text-[#43474e]/50"
                                 />
                             </div>
                             <button 
@@ -326,10 +326,10 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                         <div className="flex-1 overflow-y-auto p-2 space-y-1">
                             {isLoadingUsers ? (
                                 <div className="flex items-center justify-center py-8">
-                                    <Loader2 className="w-6 h-6 animate-spin text-teal-500" />
+                                    <Loader2 className="w-6 h-6 animate-spin text-[#006e1c]" />
                                 </div>
                             ) : filteredUsers.length === 0 ? (
-                                <div className="text-center py-8 text-slate-400 text-sm">
+                                <div className="text-center py-8 text-[#43474e] dark:text-[#c4c7c5] text-sm">
                                     No users found
                                 </div>
                             ) : (
@@ -337,27 +337,31 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                                     <motion.div
                                         key={chatUser.id}
                                         onClick={() => selectUser(chatUser)}
-                                        className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-colors ${
+                                        className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-colors mx-2 ${
                                             activePartner?.id === chatUser.id 
-                                                ? 'bg-teal-50 dark:bg-teal-900/30' 
-                                                : 'hover:bg-slate-100 dark:hover:bg-slate-700'
+                                                ? 'bg-[#ccebc4] dark:bg-[#0c3b10] text-[#001e2f] dark:text-[#ccebc4]' 
+                                                : 'hover:bg-[#e0e2ec]/50 dark:hover:bg-[#43474e]/30'
                                         }`}
                                         whileHover={{ scale: 1.02 }}
                                         whileTap={{ scale: 0.98 }}
                                     >
-                                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                                            activePartner?.id === chatUser.id 
+                                            ? 'bg-[#006e1c] text-white' 
+                                            : 'bg-[#e0e2ec] dark:bg-[#43474e] text-[#1a1c1e] dark:text-[#c4c7c5]'
+                                        }`}>
                                             {(chatUser.full_name || chatUser.username).charAt(0).toUpperCase()}
                                         </div>
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">
+                                            <p className={`font-semibold text-sm truncate ${activePartner?.id === chatUser.id ? 'text-[#001d36] dark:text-[#ccebc4]' : 'text-[#1a1c1e] dark:text-[#e3e2e6]'}`}>
                                                 {chatUser.full_name || chatUser.username}
                                             </p>
-                                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
+                                            <p className={`text-xs truncate ${activePartner?.id === chatUser.id ? 'text-[#001d36]/70 dark:text-[#ccebc4]/70' : 'text-[#43474e] dark:text-[#c4c7c5]'}`}>
                                                 {chatUser.role}
                                             </p>
                                         </div>
                                         {chatUser.unread_count > 0 && (
-                                            <span className="w-5 h-5 flex items-center justify-center text-xs font-bold text-white bg-red-500 rounded-full">
+                                            <span className="w-5 h-5 flex items-center justify-center text-xs font-bold text-white bg-[#b3261e] rounded-full">
                                                 {chatUser.unread_count}
                                             </span>
                                         )}
@@ -372,35 +376,35 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                         {activePartner ? (
                             <>
                                 {/* Chat Header */}
-                                <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center text-white font-bold">
+                                <div className="p-4 border-b border-[#e0e2ec] dark:border-[#43474e] flex items-center gap-3 bg-[#fdfcff] dark:bg-[#1a1c1e]">
+                                    <div className="w-10 h-10 rounded-full bg-[#e0e2ec] dark:bg-[#43474e] flex items-center justify-center text-[#1a1c1e] dark:text-[#e3e2e6] font-bold">
                                         {(activePartner.full_name || activePartner.username).charAt(0).toUpperCase()}
                                     </div>
                                     <div className="flex-1">
-                                        <h3 className="font-semibold text-slate-800 dark:text-white">
+                                        <h3 className="font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">
                                             {activePartner.full_name || activePartner.username}
                                         </h3>
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                        <p className="text-xs text-[#43474e] dark:text-[#c4c7c5] flex items-center gap-1">
                                             <Lock className="w-3 h-3" />
                                             End-to-end encrypted
                                         </p>
                                     </div>
                                     <button 
                                         onClick={() => fetchMessages(activePartner.id)}
-                                        className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"
+                                        className="p-2 rounded-full hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#43474e] dark:text-[#c4c7c5]"
                                     >
                                         <RefreshCw className={`w-4 h-4 ${isLoadingMessages ? 'animate-spin' : ''}`} />
                                     </button>
                                 </div>
 
                                 {/* Messages */}
-                                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-slate-50 dark:bg-slate-900">
+                                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#fdfcff] dark:bg-[#1a1c1e]">
                                     {isLoadingMessages ? (
                                         <div className="flex items-center justify-center h-full">
-                                            <Loader2 className="w-6 h-6 animate-spin text-teal-500" />
+                                            <Loader2 className="w-6 h-6 animate-spin text-[#006e1c]" />
                                         </div>
                                     ) : messages.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                                        <div className="flex flex-col items-center justify-center h-full text-[#43474e] dark:text-[#c4c7c5]">
                                             <MessageCircle className="w-12 h-12 mb-2 opacity-30" />
                                             <p className="text-sm">No messages yet</p>
                                             <p className="text-xs">Start the conversation!</p>
@@ -411,19 +415,19 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                                                 key={msg.message_id}
                                                 className={`flex ${msg.is_sender ? 'justify-end' : 'justify-start'}`}
                                             >
-                                                <div className={`max-w-[70%] px-4 py-2 rounded-2xl ${
+                                                <div className={`max-w-[70%] px-4 py-2 rounded-[20px] ${
                                                     msg.is_sender 
-                                                        ? 'bg-teal-600 text-white rounded-br-md' 
-                                                        : 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 rounded-bl-md shadow-sm'
+                                                        ? 'bg-[#006e1c] text-white rounded-br-none' 
+                                                        : 'bg-[#e0e2ec] dark:bg-[#30333b] text-[#1a1c1e] dark:text-[#e3e2e6] rounded-bl-none'
                                                 }`}>
                                                     {renderMessageContent(msg)}
                                                     <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${
-                                                        msg.is_sender ? 'text-teal-200' : 'text-slate-400'
+                                                        msg.is_sender ? 'text-[#ccebc4]' : 'text-[#43474e] dark:text-[#c4c7c5]'
                                                     }`}>
                                                         <Clock className="w-2.5 h-2.5" />
                                                         {formatTime(msg.created_at)}
                                                         {msg.is_sender && (
-                                                            <CheckCheck className={`w-3 h-3 ${msg.is_read ? 'text-blue-300' : ''}`} />
+                                                            <CheckCheck className={`w-3 h-3 ${msg.is_read ? 'text-[#ccebc4]' : ''}`} />
                                                         )}
                                                     </div>
                                                 </div>
@@ -434,16 +438,16 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                                 </div>
 
                                 {/* Input Area */}
-                                <div className="p-4 border-t border-slate-200 dark:border-slate-700">
+                                <div className="p-4 border-t border-[#e0e2ec] dark:border-[#43474e] bg-[#fdfcff] dark:bg-[#1a1c1e]">
                                     {selectedFile && (
-                                        <div className="mb-3 flex items-center gap-2 bg-teal-50 dark:bg-teal-900/20 p-2 rounded-lg border border-teal-100 dark:border-teal-800 animate-in slide-in-from-bottom-2">
-                                            <Paperclip className="w-4 h-4 text-teal-600 dark:text-teal-400" />
-                                            <span className="text-xs font-medium text-teal-700 dark:text-teal-300 truncate flex-1">
+                                        <div className="mb-3 flex items-center gap-2 bg-[#ccebc4]/30 p-2 rounded-xl border border-[#ccebc4] animate-in slide-in-from-bottom-2">
+                                            <Paperclip className="w-4 h-4 text-[#006e1c]" />
+                                            <span className="text-xs font-medium text-[#006e1c] truncate flex-1">
                                                 {selectedFile.name}
                                             </span>
                                             <button 
                                                 onClick={() => setSelectedFile(null)}
-                                                className="p-1 hover:bg-teal-100 dark:hover:bg-teal-800 rounded-full text-teal-600 dark:text-teal-400"
+                                                className="p-1 hover:bg-[#ccebc4] rounded-full text-[#006e1c]"
                                             >
                                                 <X className="w-4 h-4" />
                                             </button>
@@ -460,7 +464,7 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                                         <button
                                             onClick={() => fileInputRef.current?.click()}
                                             disabled={isSending}
-                                            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 disabled:opacity-50 transition-colors"
+                                            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#43474e] dark:text-[#c4c7c5] disabled:opacity-50 transition-colors"
                                             title="Attach File"
                                         >
                                             <Paperclip className="w-5 h-5" />
@@ -472,12 +476,12 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                                             onChange={(e) => setMessageText(e.target.value)}
                                             onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
                                             placeholder="Type your message..."
-                                            className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-700 border-0 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all font-medium"
+                                            className="flex-1 px-5 py-3 bg-[#e0e2ec] dark:bg-[#43474e]/30 border-0 rounded-full text-sm text-[#1a1c1e] dark:text-[#e3e2e6] focus:outline-none focus:ring-2 focus:ring-[#006e1c] dark:focus:ring-[#88d99d] transition-all font-medium placeholder:text-[#43474e]/50"
                                         />
                                         <motion.button
                                             onClick={sendMessage}
                                             disabled={isSending || (!messageText.trim() && !selectedFile)}
-                                            className="w-11 h-11 flex items-center justify-center rounded-full bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-teal-500/20 transition-all"
+                                            className="w-11 h-11 flex items-center justify-center rounded-full bg-[#006e1c] text-white hover:bg-[#005313] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-all"
                                             whileHover={{ scale: 1.05 }}
                                             whileTap={{ scale: 0.95 }}
                                             title="Send Message"
@@ -493,17 +497,17 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                             </>
                         ) : (
                             /* Welcome Screen */
-                            <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-8">
-                                <div className="w-20 h-20 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center mb-4">
-                                    <MessageCircle className="w-10 h-10 text-teal-500" />
+                            <div className="flex-1 flex flex-col items-center justify-center text-[#43474e] dark:text-[#c4c7c5] p-8 bg-[#fdfcff] dark:bg-[#1a1c1e]">
+                                <div className="w-20 h-20 rounded-full bg-[#e0e2ec] dark:bg-[#43474e] flex items-center justify-center mb-4">
+                                    <MessageCircle className="w-10 h-10 text-[#006e1c] dark:text-[#88d99d]" />
                                 </div>
-                                <h3 className="text-lg font-semibold text-slate-700 dark:text-slate-200 mb-2">
+                                <h3 className="text-lg font-semibold text-[#1a1c1e] dark:text-[#e3e2e6] mb-2">
                                     Select a chat
                                 </h3>
                                 <p className="text-sm text-center max-w-xs">
                                     Choose a user from the list to start messaging securely.
                                 </p>
-                                <div className="flex items-center gap-1 mt-4 text-xs text-slate-400">
+                                <div className="flex items-center gap-1 mt-4 text-xs opacity-70">
                                     <Lock className="w-3 h-3" />
                                     Messages are end-to-end encrypted
                                 </div>
@@ -541,7 +545,7 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                 <AnimatePresence>
                     {error && (
                         <motion.div
-                            className="fixed bottom-24 right-8 z-[10001] bg-red-600 text-white px-6 py-3 rounded-xl shadow-2xl flex items-center gap-3"
+                            className="fixed bottom-24 right-8 z-[10001] bg-[#b3261e] text-white px-6 py-3 rounded-[20px] shadow-2xl flex items-center gap-3"
                             initial={{ opacity: 0, y: 20, scale: 0.9 }}
                             animate={{ opacity: 1, y: 0, scale: 1 }}
                             exit={{ opacity: 0, y: 20, scale: 0.9 }}

@@ -1,12 +1,17 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuthStore } from '../store/useAuthStore';
+import { API_BASE_URL } from '../config';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
     format, startOfWeek, endOfWeek, eachDayOfInterval, 
-    parseISO, addWeeks, subWeeks, isToday, parse
+    addWeeks, subWeeks, isToday, parse
 } from 'date-fns';
 import { 
-    ChevronLeft, ChevronRight, Calendar as CalendarIcon, 
-    Clock, X, Loader2, GripVertical, Info, CheckCircle2, AlertCircle, RefreshCw
+    ChevronLeft, ChevronRight, Clock, X, Loader2, GripVertical, CheckCircle2, AlertCircle, RefreshCw, 
+    Search, Bell, Moon, Sun, User, LogOut
 } from 'lucide-react';
+import { InlineDatePicker } from '../components/SharedPickers';
 import { 
     DndContext, 
     useDraggable, 
@@ -17,10 +22,6 @@ import {
     PointerSensor
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
-import { motion, AnimatePresence } from 'framer-motion';
-import ReceptionLayout from '../components/Layout/ReceptionLayout';
-import { API_BASE_URL } from '../config';
-import { useAuthStore } from '../store/useAuthStore';
 
 // --- Types ---
 interface Appointment {
@@ -38,9 +39,27 @@ interface Slot {
     isBooked: boolean;
 }
 
-// --- Components ---
+interface Notification {
+    notification_id: number; message: string; link_url: string | null; is_read: number; created_at: string; time_ago: string;
+}
 
-// Draggable Appointment Card
+interface PatientSearch {
+    patient_id: number; patient_name: string; patient_uid: string | null; age: string; gender: string; phone_number: string; status: string;
+}
+
+// --- Animation ---
+const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { opacity: 1, transition: { staggerChildren: 0.05 } }
+};
+
+const itemVariants = {
+    hidden: { opacity: 0, y: 10 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.4 } }
+};
+
+// --- DND Components ---
+
 const DraggableAppointment = ({ appointment, onClick }: { appointment: Appointment; onClick: () => void }) => {
     const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
         id: `appointment-${appointment.registration_id}`,
@@ -49,21 +68,14 @@ const DraggableAppointment = ({ appointment, onClick }: { appointment: Appointme
 
     const style = {
         transform: CSS.Translate.toString(transform),
-        opacity: isDragging ? 0.3 : 1,
         zIndex: isDragging ? 1000 : 1
     };
 
-    const getStatusColors = (status: string, date: string) => {
+    const getStatusColors = (status: string) => {
         const s = status.toLowerCase();
-        if (s === 'consulted' || s === 'completed') return 'bg-emerald-500 shadow-emerald-500/20';
-        if (s === 'pending') {
-            const appDate = parseISO(date);
-            const today = new Date();
-            today.setHours(0,0,0,0);
-            if (appDate < today) return 'bg-rose-500 shadow-rose-500/20';
-            return 'bg-amber-500 shadow-amber-500/20';
-        }
-        return 'bg-blue-500 shadow-blue-500/20';
+        if (s === 'consulted' || s === 'completed') return 'bg-[#ccebc4] text-[#0c200e] border-[#ccebc4]';
+        if (s === 'pending') return 'bg-[#ffdad6] text-[#410002] border-[#ffdad6]';
+        return 'bg-[#d0e4ff] text-[#001d36] border-[#d0e4ff]';
     };
 
     return (
@@ -71,45 +83,40 @@ const DraggableAppointment = ({ appointment, onClick }: { appointment: Appointme
             ref={setNodeRef}
             style={style}
             {...attributes}
-            className={`group relative flex flex-col gap-1 p-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-xl hover:border-teal-500 dark:hover:border-teal-500 transition-all cursor-grab active:cursor-grabbing mb-1 overflow-hidden select-none`}
-            onClick={(e) => {
-                e.stopPropagation();
-                onClick();
-            }}
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            className={`group relative flex flex-col gap-1 p-3 rounded-[16px] shadow-sm hover:shadow-md transition-all cursor-grab active:cursor-grabbing mb-1 select-none border-l-4 ${getStatusColors(appointment.status)} ${isDragging ? 'opacity-50 scale-95' : 'bg-[#fdfcff] dark:bg-[#1a1c1e] border-[#e0e2ec] dark:border-[#43474e]'}`}
         >
-            <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${getStatusColors(appointment.status, appointment.appointment_date)}`} />
-            
             <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-black text-slate-800 dark:text-slate-100 truncate leading-tight tracking-tight">
+                    <p className="text-sm font-bold truncate leading-tight tracking-tight text-[#1a1c1e] dark:text-[#e3e2e6]">
                         {appointment.patient_name}
                     </p>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider mt-0.5">
-                        {appointment.patient_uid || 'ID: ' + appointment.registration_id}
+                    <p className="text-[10px] opacity-70 font-bold uppercase tracking-wider mt-1 text-[#1a1c1e] dark:text-[#e3e2e6]">
+                        {appointment.patient_uid || `#${appointment.registration_id}`}
                     </p>
                 </div>
-                <div {...listeners} className="p-1 text-slate-300 group-hover:text-slate-500 transition-colors shrink-0">
+                <div {...listeners} className="p-1 opacity-30 group-hover:opacity-100 transition-opacity shrink-0">
                     <GripVertical size={14} />
                 </div>
             </div>
+            {/* Status Pill */}
+             <div className="flex items-center gap-1 mt-1">
+                 <div className={`w-2 h-2 rounded-full ${appointment.status === 'completed' ? 'bg-green-500' : appointment.status === 'pending' ? 'bg-red-500' : 'bg-blue-500'}`}></div>
+                 <span className="text-[10px] font-medium opacity-60 uppercase text-[#1a1c1e] dark:text-[#e3e2e6]">{appointment.status}</span>
+             </div>
         </div>
     );
 };
 
-// Droppable Time Slot Cell
 const DroppableSlot = ({ id, day, time, children }: { id: string; day: Date; time: string; children: React.ReactNode }) => {
-    const { isOver, setNodeRef } = useDroppable({
-        id,
-        data: { day, time }
-    });
-
+    const { isOver, setNodeRef } = useDroppable({ id, data: { day, time } });
     const isTodaySlot = isToday(day);
 
     return (
         <div
             ref={setNodeRef}
-            className={`min-h-[80px] p-1.5 border-b border-r border-slate-100 dark:border-slate-800/50 transition-colors ${
-                isOver ? 'bg-teal-50 dark:bg-teal-900/20 ring-2 ring-inset ring-teal-500/50' : isTodaySlot ? 'bg-teal-50/10' : ''
+            className={`min-h-[100px] p-2 border-b border-r border-[#e0e2ec] dark:border-[#43474e] transition-colors ${
+                isOver ? 'bg-[#ccebc4]/30 dark:bg-[#0c3b10]/30' : isTodaySlot ? 'bg-[#f0f4f8] dark:bg-[#1e1e1e]' : 'bg-[#fdfcff] dark:bg-[#111315]'
             }`}
         >
             {children}
@@ -117,8 +124,10 @@ const DroppableSlot = ({ id, day, time, children }: { id: string; day: Date; tim
     );
 };
 
+// --- Main Component ---
 const Schedule = () => {
-    const { user } = useAuthStore();
+    const navigate = useNavigate();
+    const { user, logout } = useAuthStore();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [appointments, setAppointments] = useState<Appointment[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -127,18 +136,29 @@ const Schedule = () => {
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
     const [isUpdating, setIsUpdating] = useState(false);
 
-    // Sensors for DND
-    const sensors = useSensors(
-        useSensor(PointerSensor, {
-            activationConstraint: { distance: 5 },
-        })
-    );
+    // Header & Theme
+    const [isDark, setIsDark] = useState(false);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<PatientSearch[]>([]);
+    const [showSearchResults, setShowSearchResults] = useState(false);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [showNotifPopup, setShowNotifPopup] = useState(false);
+    const [showProfilePopup, setShowProfilePopup] = useState(false);
+    
+    const searchRef = useRef<HTMLDivElement>(null);
+    const notifRef = useRef<HTMLButtonElement>(null);
+    const profileRef = useRef<HTMLDivElement>(null);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // DND Sensors
+    const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+
+    // Date Logic
     const weekStartDate = startOfWeek(currentDate);
     const weekStartStr = format(weekStartDate, 'yyyy-MM-dd');
     const weekEnd = endOfWeek(currentDate);
     const days = eachDayOfInterval({ start: weekStartDate, end: weekEnd });
-
     const timeSlots = Array.from({ length: 20 }, (_, i) => {
         const hour = Math.floor(i / 2) + 9;
         const minute = (i % 2) * 30;
@@ -147,27 +167,67 @@ const Schedule = () => {
         return { time, label };
     });
 
+    // --- Effects ---
+    useEffect(() => {
+        const saved = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || (!saved && prefersDark)) { document.documentElement.classList.add('dark'); setIsDark(true); }
+        else { document.documentElement.classList.remove('dark'); setIsDark(false); }
+    }, []);
+
+    const toggleTheme = () => {
+        if (isDark) { document.documentElement.classList.remove('dark'); localStorage.setItem('theme', 'light'); setIsDark(false); }
+        else { document.documentElement.classList.add('dark'); localStorage.setItem('theme', 'dark'); setIsDark(true); }
+    };
+
+    const handleClickOutside = (e: MouseEvent) => {
+        if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearchResults(false);
+        if (notifRef.current && !notifRef.current.contains(e.target as Node) && !(e.target as Element).closest('#notif-popup')) setShowNotifPopup(false);
+        if (profileRef.current && !profileRef.current.contains(e.target as Node)) setShowProfilePopup(false);
+    };
+    useEffect(() => { document.addEventListener('mousedown', handleClickOutside); return () => document.removeEventListener('mousedown', handleClickOutside); }, []);
+
+    // Fetch Schedule
     const fetchSchedule = useCallback(async () => {
         if (!user?.branch_id) return;
         setIsLoading(true);
         try {
             const res = await fetch(`${API_BASE_URL}/reception/schedule.php?action=fetch&week_start=${weekStartStr}&branch_id=${user.branch_id}&employee_id=${user.employee_id}`);
             const data = await res.json();
-            if (data.success) {
-                setAppointments(data.appointments);
-            }
-        } catch (e) {
-            console.error(e);
-            showToast('Failed to load schedule', 'error');
-        } finally {
-            setIsLoading(false);
-        }
+            if (data.success) setAppointments(data.appointments);
+        } catch (e) { showToast('Failed to load schedule', 'error'); } 
+        finally { setIsLoading(false); }
     }, [user?.branch_id, user?.employee_id, weekStartStr]);
 
-    useEffect(() => {
-        fetchSchedule();
-    }, [fetchSchedule]);
+    useEffect(() => { fetchSchedule(); }, [fetchSchedule]);
 
+    // Fetch Notifications
+    useEffect(() => {
+        const fetchNotifs = async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
+                const data = await res.json();
+                if (data.success || data.status === 'success') { setNotifications(data.notifications || []); setUnreadCount(data.unread_count || 0); }
+            } catch (err) { console.error(err); }
+        };
+        if(user?.employee_id) { fetchNotifs(); const inv = setInterval(fetchNotifs, 30000); return () => clearInterval(inv); }
+    }, [user?.employee_id]);
+
+    // Search Logic
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        if (!user?.branch_id || searchQuery.length < 2) { setSearchResults([]); setShowSearchResults(false); return; }
+        debounceRef.current = setTimeout(async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`);
+                const data = await res.json();
+                if (data.success) { setSearchResults(data.patients || []); setShowSearchResults(true); }
+            } catch (err) { console.error(err); }
+        }, 300);
+        return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    }, [searchQuery, user?.branch_id]);
+
+    // --- Actions ---
     const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 3000);
@@ -176,260 +236,233 @@ const Schedule = () => {
     const handleDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event;
         if (!over) return;
-
         const appointment = active.data.current?.appointment as Appointment;
         const { day, time } = over.data.current as { day: Date; time: string };
-
         const newDate = format(day, 'yyyy-MM-dd');
         const newTime = time;
-
         if (appointment.appointment_date === newDate && appointment.appointment_time.startsWith(newTime)) return;
-
-        // Perform Update
+        
         setIsUpdating(true);
         try {
             const res = await fetch(`${API_BASE_URL}/reception/schedule.php?action=reschedule`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    registration_id: appointment.registration_id,
-                    new_date: newDate,
-                    new_time: newTime,
-                    branch_id: user?.branch_id,
-                    employee_id: user?.employee_id
-                })
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ registration_id: appointment.registration_id, new_date: newDate, new_time: newTime, branch_id: user?.branch_id, employee_id: user?.employee_id })
             });
             const data = await res.json();
             if (data.success) {
-                showToast(`Rescheduled ${appointment.patient_name} to ${format(day, 'MMM d')} at ${format(parse(time, 'HH:mm', new Date()), 'hh:mm a')}`, 'success');
+                showToast(`Rescheduled to ${format(day, 'MMM d')} at ${format(parse(time, 'HH:mm', new Date()), 'hh:mm a')}`, 'success');
                 fetchSchedule();
-            } else {
-                showToast(data.message || 'Rescheduling failed', 'error');
-            }
-        } catch (e) {
-            console.error(e);
-            showToast('Server error during reschedule', 'error');
-        } finally {
-            setIsUpdating(false);
-        }
+            } else { showToast(data.message || 'Rescheduling failed', 'error'); }
+        } catch (e) { showToast('Error during reschedule', 'error'); }
+        finally { setIsUpdating(false); }
     };
-
-    const navigateWeek = (direction: 'next' | 'prev' | 'today') => {
-        if (direction === 'next') setCurrentDate(addWeeks(currentDate, 1));
-        else if (direction === 'prev') setCurrentDate(subWeeks(currentDate, 1));
-        else setCurrentDate(new Date());
-    };
-
-    const handleAppointmentClick = (app: Appointment) => {
-        setActiveAppointment(app);
-        setShowRescheduleModal(true);
-    };
-
-    if (isLoading && !appointments.length) {
-        return (
-            <ReceptionLayout>
-                <div className="h-full flex items-center justify-center">
-                    <Loader2 className="w-10 h-10 animate-spin text-teal-600" />
-                </div>
-            </ReceptionLayout>
-        );
-    }
 
     return (
-        <ReceptionLayout>
-            <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 overflow-hidden">
-                {/* Header Section */}
-                <div className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 px-6 py-4">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div>
-                            <h1 className="text-xl font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                                <CalendarIcon className="w-5 h-5 text-teal-600" />
-                                Weekly Schedule
-                            </h1>
-                            <p className="text-xs text-slate-500 font-medium">Manage and reschedule appointments</p>
-                        </div>
-
-                        <div className="flex items-center gap-2">
-                            {/* Navigation */}
-                            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <button
-                                    onClick={() => navigateWeek('prev')}
-                                    className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-400 transition-all"
-                                >
-                                    <ChevronLeft size={18} />
-                                </button>
-                                <button
-                                    onClick={() => navigateWeek('today')}
-                                    className="px-4 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-700 rounded-lg transition-all"
-                                >
-                                    This Week
-                                </button>
-                                <button
-                                    onClick={() => navigateWeek('next')}
-                                    className="p-2 hover:bg-white dark:hover:bg-slate-700 rounded-lg text-slate-600 dark:text-slate-400 transition-all"
-                                >
-                                    <ChevronRight size={18} />
-                                </button>
-                            </div>
-
-                            <button
-                                onClick={() => fetchSchedule()}
-                                disabled={isLoading}
-                                className="p-3 bg-white dark:bg-slate-800 hover:bg-teal-50 dark:hover:bg-teal-900/20 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-400 hover:text-teal-600 transition-all shadow-sm active:scale-95 disabled:opacity-50"
-                                title="Reload Schedule"
-                            >
-                                <RefreshCw size={18} className={`${isLoading ? 'animate-spin' : ''}`} />
-                            </button>
-
-                            <div className="h-8 w-[1px] bg-slate-200 dark:bg-slate-700 mx-2 hidden md:block" />
-
-                            <div className="hidden lg:flex items-center gap-4 bg-white dark:bg-slate-800 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                                <div className="text-right">
-                                    <p className="text-[10px] text-slate-400 uppercase font-black leading-none">Viewing Range</p>
-                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
-                                        {format(weekStartDate, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        <div className="min-h-screen bg-[#fdfcff] dark:bg-[#111315] text-[#1a1c1e] dark:text-[#e3e2e6] font-sans transition-colors duration-300 pb-20">
+            {/* --- HEADER --- */}
+            <header className="sticky top-0 z-40 bg-[#fdfcff]/80 dark:bg-[#111315]/80 backdrop-blur-md px-4 md:px-8 py-4 flex items-center justify-between border-b border-[#e0e2ec] dark:border-[#43474e] transition-colors duration-300">
+                <div className="flex items-center gap-4">
+                     <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/reception/dashboard')}>
+                         <div className="w-10 h-10 rounded-xl bg-[#ccebc4] flex items-center justify-center text-[#0c200e] font-bold">PS</div>
+                         <h1 className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight hidden md:block" style={{ fontFamily: 'serif' }}>ProSpine</h1>
+                     </div>
                 </div>
-
-                {/* Calendar Body */}
-                <div className="flex-1 overflow-auto relative p-4">
-                    <div className="min-w-[900px] bg-white dark:bg-slate-800 rounded-2xl shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-200 dark:border-slate-700 overflow-hidden">
-                        <DndContext 
-                            sensors={sensors}
-                            onDragEnd={handleDragEnd}
-                        >
-                            <div className="grid grid-cols-[80px_repeat(7,1fr)]">
-                                {/* Header Row */}
-                                <div className="p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-r border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center sticky top-0 z-30">
-                                    <Clock size={16} className="text-slate-400 mb-1" />
-                                    <span className="text-[10px] font-black text-slate-400 uppercase">GMT+5:30</span>
-                                </div>
-                                {days.map((day) => (
-                                    <div 
-                                        key={day.toString()} 
-                                        className={`p-3 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-1 sticky top-0 z-30 ${
-                                            isToday(day) ? 'ring-2 ring-inset ring-teal-500/20' : ''
-                                        }`}
-                                    >
-                                        <span className={`text-[11px] font-black uppercase ${isToday(day) ? 'text-teal-600' : 'text-slate-400'}`}>
-                                            {format(day, 'EEE')}
-                                        </span>
-                                        <span className={`w-8 h-8 flex items-center justify-center rounded-xl text-lg font-black transition-all ${
-                                            isToday(day) 
-                                            ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/30 ring-4 ring-teal-500/10 scale-105' 
-                                            : 'text-slate-800 dark:text-slate-200'
-                                        }`}>
-                                            {format(day, 'd')}
-                                        </span>
-                                    </div>
-                                ))}
-
-                                {/* Grid Rows */}
-                                {timeSlots.map(({ time, label }) => (
-                                    <div key={time} className="contents group/row">
-                                        {/* Time Label */}
-                                        <div className="p-3 flex flex-col items-center justify-center border-b border-r border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-800 group-hover/row:bg-slate-50 dark:group-hover/row:bg-slate-700/30 transition-colors">
-                                            <span className="text-[11px] font-black text-slate-700 dark:text-slate-300">{label}</span>
+                <div className="flex items-center gap-2 lg:gap-4">
+                    {/* Search */}
+                    <div ref={searchRef} className="hidden md:flex items-center relative z-50">
+                        <div className="flex items-center bg-[#e0e2ec] dark:bg-[#43474e] rounded-full px-4 py-2 w-64 lg:w-96 transition-colors duration-300">
+                            <Search size={18} className="text-[#43474e] dark:text-[#c4c7c5] mr-2" />
+                            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search patients..." className="bg-transparent border-none outline-none text-sm w-full text-[#1a1c1e] dark:text-[#e3e2e6] placeholder:text-[#43474e] dark:placeholder:text-[#8e918f]" />
+                        </div>
+                        {/* Results */}
+                        <AnimatePresence>
+                            {showSearchResults && (
+                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-full left-0 right-0 mt-2 bg-[#fdfcff] rounded-[20px] shadow-xl border border-[#e0e2ec] overflow-hidden max-h-[400px] overflow-y-auto">
+                                    {searchResults.map((p) => (
+                                        <div key={p.patient_id} onClick={() => { setSearchQuery(''); setShowSearchResults(false); }} className="p-3 hover:bg-[#e0e2ec] cursor-pointer border-b border-[#e0e2ec] last:border-0">
+                                            <p className="font-bold text-[#1a1c1e]">{p.patient_name}</p>
+                                            <p className="text-xs text-[#43474e]">{p.phone_number}</p>
                                         </div>
+                                    ))}
+                                    {searchResults.length === 0 && <div className="p-4 text-center text-[#43474e]">No patients found</div>}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
 
-                                        {/* Day Cells */}
-                                        {days.map((day) => {
-                                            const dayStr = format(day, 'yyyy-MM-dd');
-                                            const slotApps = appointments.filter(a => 
-                                                a.appointment_date === dayStr && 
-                                                a.appointment_time.startsWith(time)
-                                            );
+                    <button onClick={toggleTheme} className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors">
+                        <Moon size={22} className="block dark:hidden" />
+                        <Sun size={22} className="hidden dark:block" />
+                    </button>
 
-                                            return (
-                                                <DroppableSlot 
-                                                    key={`${dayStr}-${time}`} 
-                                                    id={`${dayStr}-${time}`}
-                                                    day={day}
-                                                    time={time}
-                                                >
-                                                    {slotApps.map((app) => (
-                                                        <DraggableAppointment 
-                                                            key={app.registration_id} 
-                                                            appointment={app} 
-                                                            onClick={() => handleAppointmentClick(app)}
-                                                        />
-                                                    ))}
-                                                </DroppableSlot>
-                                            );
-                                        })}
+                    <div className="relative">
+                        <button ref={notifRef} onClick={() => { setShowNotifPopup(!showNotifPopup); setShowProfilePopup(false); }} className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors relative">
+                            <Bell size={22} />
+                            {unreadCount > 0 && <span className="absolute top-3 right-3 w-2 h-2 bg-[#b3261e] rounded-full"></span>}
+                        </button>
+                         <AnimatePresence>
+                            {showNotifPopup && (
+                                <motion.div id="notif-popup" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute top-full right-0 mt-2 w-80 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden transition-colors">
+                                    <div className="p-4 border-b border-[#e0e2ec] dark:border-[#43474e] font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">Notifications</div>
+                                    <div className="max-h-60 overflow-y-auto">
+                                        {notifications.map(n => (
+                                            <div key={n.notification_id} className={`p-3 border-b border-[#e0e2ec] dark:border-[#43474e] hover:bg-[#e0e2ec]/50 ${n.is_read === 0 ? 'bg-[#ccebc4]/20' : ''}`}>
+                                                <p className="text-sm text-[#1a1c1e] dark:text-[#e3e2e6]">{n.message}</p>
+                                                <p className="text-[10px] text-[#43474e] dark:text-[#c4c7c5] mt-1">{n.time_ago}</p>
+                                            </div>
+                                        ))}
                                     </div>
-                                ))}
-                            </div>
-                        </DndContext>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    <div className="relative" ref={profileRef}>
+                        <div onClick={() => { setShowProfilePopup(!showProfilePopup); setShowNotifPopup(false); }} className="w-10 h-10 bg-[#ccebc4] dark:bg-[#0c3b10] rounded-full flex items-center justify-center text-[#0c200e] dark:text-[#ccebc4] font-bold border border-[#74777f] dark:border-[#8e918f] ml-1 overflow-hidden cursor-pointer hover:ring-2 ring-[#ccebc4] transition-colors">
+                            {user?.name?.charAt(0).toUpperCase() || 'U'}
+                        </div>
+                        <AnimatePresence>
+                            {showProfilePopup && (
+                                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute top-full right-0 mt-2 w-56 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden p-2 transition-colors">
+                                     <button onClick={() => navigate('/reception/profile')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"><User size={18} /> Profile</button>
+                                     <button onClick={() => { logout(); navigate('/login'); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#ffdad6] dark:hover:bg-[#93000a] text-[#410002] dark:text-[#ffdad6] text-sm font-medium mt-1 transition-colors"><LogOut size={18} /> Logout</button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
                 </div>
+            </header>
 
-                {/* Updating Overlay */}
-                <AnimatePresence>
-                    {isUpdating && (
-                        <motion.div 
-                            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                            className="fixed inset-0 bg-white/20 dark:bg-black/20 backdrop-blur-[2px] z-50 flex items-center justify-center pointer-events-none"
-                        >
-                            <div className="bg-white dark:bg-slate-800 px-6 py-4 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 flex items-center gap-4 animate-bounce">
-                                <Loader2 className="w-5 h-5 text-teal-600 animate-spin" />
-                                <span className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-widest">Updating...</span>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-
-                {/* Toasts */}
-                <AnimatePresence>
-                    {toast && (
-                        <motion.div 
-                            initial={{ opacity: 0, y: 50, scale: 0.9 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, scale: 0.9 }}
-                            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[60]"
-                        >
-                            <div className={`px-6 py-4 rounded-2xl shadow-2xl border flex items-center gap-3 backdrop-blur-xl ${
-                                toast.type === 'success' ? 'bg-emerald-500/90 border-emerald-400 text-white' :
-                                toast.type === 'error' ? 'bg-rose-500/90 border-rose-400 text-white' :
-                                'bg-teal-600/90 border-teal-500 text-white'
-                            }`}>
-                                {toast.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
-                                <span className="text-sm font-bold tracking-tight">{toast.message}</span>
-                            </div>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+            {/* --- NAVIGATION CHIPS --- */}
+            <div className="flex gap-3 overflow-x-auto py-3 px-6 scrollbar-hide border-b border-[#e0e2ec] dark:border-[#43474e] bg-[#fdfcff] dark:bg-[#1a1c1e] transition-colors duration-300">
+                {[
+                    { label: 'Dashboard', path: '/reception/dashboard' },
+                    { label: 'Schedule', path: '/reception/schedule' },
+                    { label: 'Inquiry', path: '/reception/inquiry' },
+                    { label: 'Registration', path: '/reception/registration' },
+                    { label: 'Patients', path: '/reception/patients' },
+                    { label: 'Billing', path: '/reception/billing' },
+                    { label: 'Attendance', path: '/reception/attendance' },
+                    { label: 'Tests', path: '/reception/tests' },
+                    { label: 'Feedback', path: '/reception/feedback' },
+                    { label: 'Reports', path: '/reception/reports' },
+                    { label: 'Expenses', path: '/reception/expenses' },
+                    { label: 'Support', path: '/reception/support' }
+                ].map((nav) => (
+                    <button key={nav.label} onClick={() => { if (nav.label !== 'Schedule') navigate(nav.path); }} className={`px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${nav.label === 'Schedule' ? 'bg-[#1a1c1e] text-white dark:bg-[#e3e2e6] dark:text-[#1a1c1e] shadow-md' : 'bg-[#f2f6fa] dark:bg-[#1a1c1e] hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] border border-[#74777f] dark:border-[#8e918f] text-[#43474e] dark:text-[#c4c7c5]'}`}>{nav.label}</button>
+                ))}
             </div>
 
-            {/* Reschedule Modal */}
+            {/* --- MAIN CONTENT --- */}
+            <motion.main variants={containerVariants} initial="hidden" animate="visible" className="px-4 md:px-8 max-w-[1800px] mx-auto space-y-6 mt-6">
+                 {/* Title & Controls */}
+                 <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div>
+                        <h2 className="text-[40px] leading-[48px] text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight transition-colors" style={{ fontFamily: 'serif' }}>
+                            Schedule
+                        </h2>
+                        <p className="text-[#43474e] dark:text-[#c4c7c5] mt-1 text-lg transition-colors">Manage appointments & time slots</p>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-[#e0e2ec] dark:bg-[#43474e] p-1 rounded-full">
+                        <button onClick={() => setCurrentDate(subWeeks(currentDate, 1))} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#fdfcff] dark:hover:bg-[#1a1c1e] text-[#1a1c1e] dark:text-[#e3e2e6] transition-colors"><ChevronLeft size={20} /></button>
+                        <div className="px-4 text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6] min-w-[140px] text-center">
+                            {format(weekStartDate, 'MMM d')} - {format(weekEnd, 'MMM d')}
+                        </div>
+                        <button onClick={() => setCurrentDate(addWeeks(currentDate, 1))} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-[#fdfcff] dark:hover:bg-[#1a1c1e] text-[#1a1c1e] dark:text-[#e3e2e6] transition-colors"><ChevronRight size={20} /></button>
+                    </div>
+                    <button onClick={() => fetchSchedule()} className="w-12 h-12 flex items-center justify-center rounded-full bg-[#ccebc4] dark:bg-[#0c3b10] text-[#0c200e] dark:text-[#ccebc4] hover:scale-105 active:scale-95 transition-all shadow-sm">
+                        <RefreshCw size={20} className={isLoading ? "animate-spin" : ""} />
+                    </button>
+                 </div>
+
+
+
+                 {/* Calendar Grid */}
+                 <motion.div variants={itemVariants} className="bg-[#fdfcff] dark:bg-[#1a1c1e] border border-[#e0e2ec] dark:border-[#43474e] rounded-[28px] overflow-hidden shadow-sm relative min-h-[600px]">
+                    {isLoading ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-[#fdfcff]/50 dark:bg-[#1a1c1e]/50 z-50">
+                            <Loader2 size={40} className="animate-spin text-[#006e1c] dark:text-[#88d99d]" />
+                            <p className="mt-4 text-sm font-bold text-[#43474e] dark:text-[#c4c7c5]">Loading Schedule...</p>
+                        </div>
+                    ) : null}
+                    <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+                        <div className="grid grid-cols-[80px_repeat(7,1fr)] bg-[#e0e2ec] dark:bg-[#43474e] gap-[1px]">
+                            {/* Header Row */}
+                            <div className="bg-[#fdfcff] dark:bg-[#111315] p-4 flex flex-col items-center justify-center sticky top-0 z-30">
+                                <Clock size={18} className="text-[#006e1c] dark:text-[#88d99d]" />
+                            </div>
+                            {days.map((day) => (
+                                <div key={day.toString()} className={`bg-[#fdfcff] dark:bg-[#111315] p-3 flex flex-col items-center justify-center gap-1 sticky top-0 z-30 ${isToday(day) ? 'bg-[#ccebc4]/20' : ''}`}>
+                                    <span className={`text-[11px] font-bold uppercase tracking-widest ${isToday(day) ? 'text-[#006e1c] dark:text-[#88d99d]' : 'text-[#43474e] dark:text-[#c4c7c5]'}`}>{format(day, 'EEE')}</span>
+                                    <div className={`w-8 h-8 flex items-center justify-center rounded-full text-lg font-bold ${isToday(day) ? 'bg-[#006e1c] text-white' : 'text-[#1a1c1e] dark:text-[#e3e2e6]'}`}>
+                                        {format(day, 'd')}
+                                    </div>
+                                </div>
+                            ))}
+
+                            {/* Time Slots */}
+                            {timeSlots.map(({ time, label }) => (
+                                <div key={time} className="contents">
+                                    <div className="bg-[#fdfcff] dark:bg-[#111315] p-3 flex items-center justify-center border-r-[1px] border-[#e0e2ec] dark:border-[#43474e]">
+                                        <span className="text-xs font-medium text-[#43474e] dark:text-[#c4c7c5]">{label}</span>
+                                    </div>
+                                    {days.map((day) => {
+                                        const dayStr = format(day, 'yyyy-MM-dd');
+                                        const slotApps = appointments.filter(a => a.appointment_date === dayStr && a.appointment_time.startsWith(time));
+                                        return (
+                                            <DroppableSlot key={`${dayStr}-${time}`} id={`${dayStr}-${time}`} day={day} time={time}>
+                                                {slotApps.map((app) => (
+                                                    <DraggableAppointment key={app.registration_id} appointment={app} onClick={() => { setActiveAppointment(app); setShowRescheduleModal(true); }} />
+                                                ))}
+                                            </DroppableSlot>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+                        </div>
+                    </DndContext>
+                    
+                    {/* Updating Overlay */}
+                    <AnimatePresence>
+                        {isUpdating && (
+                            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white/50 dark:bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+                                <div className="bg-[#1a1c1e] text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-xl">
+                                    <Loader2 className="animate-spin" />
+                                    <span className="text-sm font-bold">Updating Schedule...</span>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                 </motion.div>
+            </motion.main>
+            
+            {/* Toast */}
             <AnimatePresence>
+                {toast && (
+                    <motion.div initial={{ opacity: 0, y: 50, scale: 0.9 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0 }} className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[60]">
+                        <div className={`px-6 py-3 rounded-xl shadow-xl flex items-center gap-3 ${toast.type === 'success' ? 'bg-[#ccebc4] text-[#0c200e]' : 'bg-[#ffdad6] text-[#410002]'}`}>
+                            {toast.type === 'success' ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />}
+                            <span className="font-bold text-sm">{toast.message}</span>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
                 {showRescheduleModal && activeAppointment && (
                     <RescheduleModal 
                         appointment={activeAppointment} 
-                        onClose={() => setShowRescheduleModal(false)}
-                        onSuccess={() => {
-                            setShowRescheduleModal(false);
-                            fetchSchedule();
-                        }}
-                        showToast={showToast}
+                        onClose={() => setShowRescheduleModal(false)} 
+                        onSuccess={() => { setShowRescheduleModal(false); fetchSchedule(); }} 
+                        showToast={showToast} 
                     />
                 )}
-            </AnimatePresence>
-        </ReceptionLayout>
+        </div>
     );
 };
 
 // --- Reschedule Modal Component ---
-const RescheduleModal = ({ appointment, onClose, onSuccess, showToast }: { 
-    appointment: Appointment; 
-    onClose: () => void; 
-    onSuccess: () => void;
-    showToast: (m: string, t: 'success' | 'error') => void;
-}) => {
+const RescheduleModal = ({ appointment, onClose, onSuccess, showToast }: any) => {
     const { user } = useAuthStore();
     const [selectedDate, setSelectedDate] = useState(appointment.appointment_date);
     const [selectedSlot, setSelectedSlot] = useState(appointment.appointment_time.slice(0, 5));
@@ -444,14 +477,9 @@ const RescheduleModal = ({ appointment, onClose, onSuccess, showToast }: {
             try {
                 const res = await fetch(`${API_BASE_URL}/reception/schedule.php?action=slots&date=${selectedDate}&branch_id=${user.branch_id}`);
                 const data = await res.json();
-                if (data.success) {
-                    setSlots(data.slots);
-                }
-            } catch (e) {
-                console.error(e);
-            } finally {
-                setIsLoadingSlots(false);
-            }
+                if (data.success) setSlots(data.slots);
+            } catch (e) { console.error(e); } 
+            finally { setIsLoadingSlots(false); }
         };
         fetchSlots();
     }, [selectedDate, user?.branch_id]);
@@ -460,162 +488,87 @@ const RescheduleModal = ({ appointment, onClose, onSuccess, showToast }: {
         setIsSaving(true);
         try {
             const res = await fetch(`${API_BASE_URL}/reception/schedule.php?action=reschedule`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    registration_id: appointment.registration_id,
-                    new_date: selectedDate,
-                    new_time: selectedSlot,
-                    branch_id: user?.branch_id,
-                    employee_id: user?.employee_id
-                })
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ registration_id: appointment.registration_id, new_date: selectedDate, new_time: selectedSlot, branch_id: user?.branch_id, employee_id: user?.employee_id })
             });
             const data = await res.json();
-            if (data.success) {
-                showToast(`Rescheduled successfully!`, 'success');
-                onSuccess();
-            } else {
-                showToast(data.message || 'Saving failed', 'error');
-            }
-        } catch (e) {
-            console.error(e);
-            showToast('Server error', 'error');
-        } finally {
-            setIsSaving(false);
-        }
+            if (data.success) { showToast('Rescheduled successfully', 'success'); onSuccess(); }
+            else { showToast(data.message || 'Failed', 'error'); }
+        } catch (e) { showToast('Error', 'error'); } 
+        finally { setIsSaving(false); }
     };
 
     return (
-        <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
-            onClick={onClose}
-        >
-            <motion.div 
-                initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-                className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh]"
-                onClick={e => e.stopPropagation()}
-            >
-                {/* Header */}
-                <div className="bg-teal-600 px-8 py-6 text-white relative flex items-center justify-between">
-                    <div>
-                        <h3 className="text-xl font-black uppercase tracking-widest">Reschedule</h3>
-                        <p className="text-xs text-teal-100 font-medium">Point-of-care scheduling</p>
-                    </div>
-                    <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
-                        <X size={20} />
-                    </button>
-                    <div className="absolute -bottom-6 left-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-xl shadow-lg flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-teal-100 dark:bg-teal-900/50 text-teal-600 flex items-center justify-center font-black">
-                            {appointment.patient_name.charAt(0)}
-                        </div>
-                        <div className="pr-4">
-                            <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate max-w-[150px]">{appointment.patient_name}</p>
-                            <p className="text-[10px] text-slate-400 font-bold">{appointment.patient_uid}</p>
-                        </div>
-                    </div>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }} className="bg-[#fdfcff] dark:bg-[#1a1c1e] rounded-[28px] overflow-hidden shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+                <div className="bg-[#ccebc4] dark:bg-[#0c3b10] px-6 py-4 flex items-center justify-between shrink-0">
+                     <div>
+                         <h3 className="text-lg font-bold text-[#0c200e] dark:text-[#ccebc4]">Reschedule Appointment</h3>
+                         <p className="text-xs text-[#0c200e]/70 dark:text-[#ccebc4]/70 font-medium">For {appointment.patient_name}</p>
+                     </div>
+                     <button onClick={onClose} className="w-8 h-8 rounded-full bg-[#0c200e]/10 hover:bg-[#0c200e]/20 flex items-center justify-center transition-colors text-[#0c200e] dark:text-[#ccebc4]"><X size={18} /></button>
                 </div>
+                
+                <div className="flex flex-col md:flex-row h-full overflow-hidden">
+                    {/* Left Panel: Date Picker */}
+                    <div className="md:w-auto border-r border-[#e0e2ec] dark:border-[#43474e] bg-[#ece6f0] dark:bg-[#1e1e1e]">
+                        <InlineDatePicker 
+                            value={selectedDate} 
+                            onChange={(d: string) => { setSelectedDate(d); setSelectedSlot(''); }} 
+                            showActions={false}
+                            className="h-full shadow-none rounded-none w-full md:w-[320px]"
+                        />
+                    </div>
 
-                {/* Content */}
-                <div className="p-8 pt-12 overflow-y-auto">
-                    <div className="flex flex-col gap-10">
-                        {/* Date Picker - Centered & Premium */}
-                        <div className="max-w-sm mx-auto w-full space-y-4 text-center">
-                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center justify-center gap-2">
-                                <CalendarIcon size={14} className="text-teal-600" />
-                                01. Select Date
-                            </label>
-                            <input 
-                                type="date" 
-                                value={selectedDate}
-                                onChange={(e) => {
-                                    setSelectedDate(e.target.value);
-                                    setSelectedSlot('');
-                                }}
-                                className="w-full px-6 py-4 bg-slate-50 dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-700 rounded-[2rem] text-slate-800 dark:text-slate-100 font-black text-lg text-center focus:outline-none focus:ring-4 focus:ring-teal-500/10 focus:border-teal-500 transition-all cursor-pointer"
-                            />
-                            {selectedDate && (
-                                <p className="text-[11px] text-teal-600 dark:text-teal-400 font-bold uppercase tracking-widest">
-                                    {format(parseISO(selectedDate), 'EEEE, MMMM do, yyyy')}
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Slot Picker - Full width horizontal flow */}
-                        <div className="space-y-6">
-                            <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                <Clock size={14} className="text-teal-600" />
-                                02. Choose Available Slot
-                            </label>
-                            
-                            <div className="bg-slate-50/50 dark:bg-slate-900/30 border-2 border-slate-100/50 dark:border-slate-700/50 rounded-[2.5rem] p-8">
+                    {/* Right Panel: Content */}
+                    <div className="flex-1 flex flex-col min-w-0">
+                        <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+                             <div>
+                                <div className="flex items-center justify-between mb-4">
+                                    <label className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5] uppercase tracking-wider">Available Slots</label>
+                                    <span className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">{format(new Date(selectedDate), 'EEEE, MMM do')}</span>
+                                </div>
+                                
                                 {isLoadingSlots ? (
-                                    <div className="h-48 flex flex-col items-center justify-center gap-4">
-                                        <div className="w-12 h-12 border-4 border-teal-500/20 border-t-teal-500 rounded-full animate-spin"></div>
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Feching slots...</span>
-                                    </div>
+                                    <div className="flex justify-center py-12"><Loader2 className="animate-spin text-[#006e1c]" size={32} /></div>
                                 ) : (
-                                    <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-4">
-                                        {slots.map((slot) => (
-                                            <button
-                                                key={slot.time}
-                                                disabled={slot.isBooked && slot.time !== appointment.appointment_time.slice(0, 5)}
+                                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                        {slots.map(slot => (
+                                            <button 
+                                                key={slot.time} 
+                                                disabled={slot.isBooked && (selectedDate !== appointment.appointment_date || slot.time !== appointment.appointment_time.slice(0,5))}
                                                 onClick={() => setSelectedSlot(slot.time)}
-                                                className={`relative p-5 rounded-[1.5rem] text-[15px] font-black transition-all flex flex-col items-center justify-center gap-1 group/slot ${
-                                                    selectedSlot === slot.time
-                                                    ? 'bg-teal-600 text-white shadow-2xl shadow-teal-500/40 scale-105 z-10'
-                                                    : slot.isBooked && slot.time !== appointment.appointment_time.slice(0, 5)
-                                                    ? 'bg-slate-100 dark:bg-slate-800/80 text-slate-300 dark:text-slate-600 cursor-not-allowed border-none'
-                                                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-2 border-slate-100 dark:border-slate-700 hover:border-teal-500 hover:bg-teal-50 dark:hover:bg-teal-900/10'
+                                                className={`py-3 px-2 rounded-xl text-xs font-bold border transition-all ${
+                                                    selectedSlot === slot.time 
+                                                        ? 'bg-[#006e1c] text-white border-[#006e1c] shadow-md transform scale-105' 
+                                                        : slot.isBooked && slot.time !== appointment.appointment_time.slice(0,5)
+                                                            ? 'bg-[#e0e2ec]/50 text-[#43474e]/50 border-transparent cursor-not-allowed line-through'
+                                                            : 'bg-[#fdfcff] dark:bg-[#111315] text-[#1a1c1e] dark:text-[#e3e2e6] border-[#74777f] dark:border-[#8e918f] hover:border-[#006e1c] hover:bg-[#ccebc4]/20'
                                                 }`}
                                             >
-                                                {selectedSlot === slot.time && (
-                                                    <motion.div 
-                                                        layoutId="activeSlot"
-                                                        className="absolute inset-0 bg-teal-600 rounded-[1.5rem] -z-10"
-                                                        transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                                                    />
-                                                )}
-                                                <span className="leading-none">{slot.label.split(' ')[0]}</span>
-                                                <span className={`text-[9px] font-bold uppercase tracking-wider ${selectedSlot === slot.time ? 'text-teal-100' : 'text-slate-400'}`}>
-                                                    {slot.label.split(' ')[1]}
-                                                </span>
-                                                
-                                                {slot.isBooked && slot.time !== appointment.appointment_time.slice(0, 5) && (
-                                                    <div className="mt-1 flex items-center gap-1 text-[8px] font-black text-rose-500 uppercase tracking-tighter">
-                                                        <span className="w-1 h-1 bg-rose-500 rounded-full animate-pulse" />
-                                                        Booked
-                                                    </div>
-                                                )}
+                                                {slot.label}
                                             </button>
                                         ))}
                                     </div>
                                 )}
-                            </div>
+                                {!isLoadingSlots && slots.length === 0 && (
+                                    <div className="flex flex-col items-center justify-center py-12 text-[#43474e]">
+                                        <Clock size={48} className="opacity-20 mb-2" />
+                                        <p className="text-sm font-medium">No slots available for this date</p>
+                                    </div>
+                                )}
+                             </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="p-4 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-end gap-2 bg-[#fdfcff] dark:bg-[#1a1c1e]">
+                            <button onClick={onClose} className="px-6 py-2.5 rounded-full text-sm font-bold text-[#006e1c] dark:text-[#88d99d] hover:bg-[#ccebc4]/20 transition-colors">Cancel</button>
+                            <button onClick={handleSave} disabled={isSaving || !selectedSlot} className="px-6 py-2.5 rounded-full text-sm font-bold bg-[#006e1c] text-white hover:bg-[#005313] shadow-md disabled:opacity-50 disabled:shadow-none transition-all flex items-center gap-2">
+                                {isSaving && <Loader2 size={14} className="animate-spin" />}
+                                Confirm Reschedule
+                            </button>
                         </div>
                     </div>
-                </div>
-
-                {/* Footer */}
-                <div className="p-8 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                    <button 
-                        onClick={onClose}
-                        className="px-8 py-4 text-xs font-black uppercase text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
-                    >
-                        Cancel Action
-                    </button>
-                    <button
-                        disabled={!selectedDate || !selectedSlot || isSaving}
-                        onClick={handleSave}
-                        className="bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white px-10 py-5 rounded-[1.5rem] shadow-2xl shadow-teal-500/30 flex items-center gap-4 transition-all active:scale-95 group/save"
-                    >
-                        {isSaving ? (
-                            <Loader2 size={20} className="animate-spin" />
-                        ) : (
-                            <CheckCircle2 size={20} className="group-hover/save:scale-110 transition-transform" />
-                        )}
-                        <span className="font-black text-[13px] uppercase tracking-[0.1em]">Confirm Reschedule</span>
-                    </button>
                 </div>
             </motion.div>
         </motion.div>

@@ -1,12 +1,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import ReceptionLayout from '../components/Layout/ReceptionLayout';
 import { useAuthStore } from '../store/useAuthStore';
 import { API_BASE_URL } from '../config';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import ChatModal from '../components/Chat/ChatModal'; // Integrated Chat
 import { 
-    Users, ClipboardList, TestTube2, Wallet, Calendar, Clock, ArrowUpRight, Phone, TrendingUp, AlertCircle, Camera, Loader2, X, RefreshCw, Check, UserPlus, FlaskConical, PhoneCall, Beaker
+    Users, ClipboardList, TestTube2, Wallet, Calendar, Clock, 
+    ArrowUpRight, AlertCircle, Camera, Loader2, 
+    X, RefreshCw, Check, UserPlus, FlaskConical, PhoneCall, Beaker,
+    Search, Bell, Plus, MessageCircle, LogOut, User,
+    Moon, Sun, ChevronLeft, ChevronRight, Edit2
 } from 'lucide-react';
+import CustomSelect from '../components/ui/CustomSelect';
 
 // Types
 interface DashboardData {
@@ -16,6 +21,14 @@ interface DashboardData {
     tests: { today_total: number; pending: number; completed: number; revenue_today: number; total_month: number; };
     collections: { reg_amount: number; treatment_amount: number; test_amount: number; today_total: number; today_dues: number; patient_dues: number; test_dues: number; month_total: number; };
     schedule: Array<{ id: number; patient_name: string; appointment_time: string; status: string; }>;
+}
+
+interface Notification {
+    notification_id: number; message: string; link_url: string | null; is_read: number; created_at: string; time_ago: string;
+}
+
+interface PatientSearch {
+    patient_id: number; patient_name: string; patient_uid: string | null; age: string; gender: string; phone_number: string; status: string;
 }
 
 interface FormOptions {
@@ -33,32 +46,170 @@ interface FormOptions {
 
 type ModalType = 'registration' | 'test' | 'inquiry' | 'test_inquiry' | null;
 
-// Animation variants
 const containerVariants = {
     hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { staggerChildren: 0.1 } }
+    visible: { 
+        opacity: 1, 
+        transition: { staggerChildren: 0.1, delayChildren: 0.1 }
+    }
 };
 
-const cardVariants = {
+const itemVariants = {
     hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.25, 0.1, 0.25, 1] as const } }
+    visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
 };
 
-const modalVariants = {
-    hidden: { opacity: 0, scale: 0.95 },
-    visible: { opacity: 1, scale: 1, transition: { duration: 0.2, ease: [0.25, 0.1, 0.25, 1] as const } },
-    exit: { opacity: 0, scale: 0.95, transition: { duration: 0.15 } }
+const DatePicker = ({ value, onChange, onClose }: any) => {
+    const [currDate, setCurrDate] = useState(value ? new Date(value) : new Date());
+    const [selected, setSelected] = useState(value ? new Date(value) : new Date());
+
+    const getDays = () => {
+        const y = currDate.getFullYear(), m = currDate.getMonth();
+        const daysInMonth = new Date(y, m + 1, 0).getDate();
+        const firstDay = new Date(y, m, 1).getDay();
+        const days = [];
+        for (let i = 0; i < firstDay; i++) days.push(null);
+        for (let i = 1; i <= daysInMonth; i++) days.push(new Date(y, m, i));
+        return days;
+    };
+
+    const handleDateClick = (date: Date) => {
+        const offsetDate = new Date(date.getTime() - (date.getTimezoneOffset() * 60000));
+        setSelected(offsetDate);
+    };
+
+    const confirm = () => {
+        onChange(selected.toISOString().split('T')[0]);
+        onClose();
+    };
+
+    const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10005] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#ece6f0] dark:bg-[#2b2930] w-[320px] rounded-[28px] overflow-hidden shadow-2xl flex flex-col">
+                {/* Header */}
+                <div className="bg-[#ece6f0] dark:bg-[#2b2930] px-6 pt-4 pb-3 border-b border-[#79747e]/10">
+                    <p className="text-[#49454f] dark:text-[#cac4d0] text-xs font-medium uppercase tracking-wide">Select date</p>
+                    <div className="flex justify-between items-center mt-1">
+                        <h2 className="text-3xl font-normal text-[#1d1b20] dark:text-[#e6e1e5]">
+                            {selected.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                        </h2>
+                        <button className="text-[#49454f] dark:text-[#cac4d0] p-1 hover:bg-[#1d1b20]/10 rounded-full transition-colors"><Edit2 size={18} /></button>
+                    </div>
+                </div>
+
+                {/* Body */}
+                <div className="p-3">
+                    {/* Controls */}
+                    <div className="flex items-center justify-between px-2 mb-2">
+                        <div className="flex items-center gap-1 text-[#49454f] dark:text-[#cac4d0] font-bold text-sm cursor-pointer hover:bg-[#1d1b20]/10 px-2 py-1 rounded-full transition-colors">
+                            {months[currDate.getMonth()]} {currDate.getFullYear()} <span className="text-[10px]">▼</span>
+                        </div>
+                        <div className="flex gap-1">
+                            <button onClick={() => setCurrDate(new Date(currDate.getFullYear(), currDate.getMonth() - 1, 1))} className="w-8 h-8 flex items-center justify-center hover:bg-[#1d1b20]/10 rounded-full text-[#49454f] dark:text-[#cac4d0]"><ChevronLeft size={20} /></button>
+                            <button onClick={() => setCurrDate(new Date(currDate.getFullYear(), currDate.getMonth() + 1, 1))} className="w-8 h-8 flex items-center justify-center hover:bg-[#1d1b20]/10 rounded-full text-[#49454f] dark:text-[#cac4d0]"><ChevronRight size={20} /></button>
+                        </div>
+                    </div>
+
+                    {/* Grid */}
+                    <div className="grid grid-cols-7 text-center mb-2">
+                        {weekDays.map(d => <span key={d} className="text-xs font-medium text-[#49454f] dark:text-[#cac4d0] w-8 h-8 flex items-center justify-center">{d}</span>)}
+                    </div>
+                    <div className="grid grid-cols-7 gap-y-1">
+                        {getDays().map((d, i) => (
+                            <div key={i} className="flex justify-center">
+                                {d ? (
+                                    <button 
+                                        onClick={() => handleDateClick(d)}
+                                        className={`w-9 h-9 text-sm rounded-full flex items-center justify-center transition-colors ${
+                                            selected.toDateString() === d.toDateString() 
+                                            ? 'bg-[#6750a4] dark:bg-[#d0bcff] text-white dark:text-[#381e72]' 
+                                            : d.toDateString() === new Date().toDateString() 
+                                                ? 'border border-[#6750a4] text-[#6750a4] dark:border-[#d0bcff] dark:text-[#d0bcff]' 
+                                                : 'text-[#1d1b20] dark:text-[#e6e1e5] hover:bg-[#1d1b20]/10 dark:hover:bg-[#e6e1e5]/10'
+                                        }`}
+                                    >
+                                        {d.getDate()}
+                                    </button>
+                                ) : <div className="w-9 h-9"></div>}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-end gap-2 p-3 pt-0">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-[#6750a4] dark:text-[#d0bcff] hover:bg-[#6750a4]/10 rounded-full transition-colors">Cancel</button>
+                    <button onClick={confirm} className="px-4 py-2 text-sm font-bold text-[#6750a4] dark:text-[#d0bcff] hover:bg-[#6750a4]/10 rounded-full transition-colors">OK</button>
+                </div>
+            </motion.div>
+        </motion.div>
+    );
 };
 
-const backdropVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1, transition: { duration: 0.2 } },
-    exit: { opacity: 0, transition: { duration: 0.15 } }
+const TimePicker = ({ value, onChange, onClose, slots }: any) => {
+    const [selected, setSelected] = useState(value || '');
+
+    const confirm = () => {
+        onChange(selected);
+        onClose();
+    };
+
+    const selectedLabel = slots?.find((s: any) => s.value === selected)?.label || '--:--';
+
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10005] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="bg-[#ece6f0] dark:bg-[#2b2930] w-[340px] rounded-[28px] overflow-hidden shadow-2xl flex flex-col max-h-[80vh]">
+                {/* Header */}
+                <div className="bg-[#ece6f0] dark:bg-[#2b2930] px-6 pt-6 pb-4 border-b border-[#79747e]/10 pt-8 shrink-0">
+                    <p className="text-[#49454f] dark:text-[#cac4d0] text-xs font-medium uppercase tracking-wide mb-1">Select time</p>
+                    <div className="flex justify-center items-center bg-[#eaddff] dark:bg-[#4f378b] rounded-xl py-4 px-8 w-fit mx-auto mb-2">
+                        <span className="text-5xl font-normal text-[#21005d] dark:text-[#eaddff] tracking-tight">{selectedLabel.replace(/ (AM|PM)/, '')}</span>
+                        <div className="flex flex-col ml-3 gap-1">
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${selectedLabel.includes('AM') ? 'bg-[#21005d] text-[#eaddff]' : 'text-[#21005d] border border-[#21005d]/20'}`}>AM</span>
+                            <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${selectedLabel.includes('PM') ? 'bg-[#21005d] text-[#eaddff]' : 'text-[#21005d] border border-[#21005d]/20'}`}>PM</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Body (Grid) */}
+                <div className="p-4 overflow-y-auto flex-1 custom-scrollbar">
+                    <div className="grid grid-cols-3 gap-2">
+                        {slots?.map((slot: any) => (
+                            <button 
+                                key={slot.value} 
+                                disabled={slot.booked}
+                                onClick={() => setSelected(slot.value)}
+                                className={`py-2 px-1 text-sm rounded-lg border transition-all ${
+                                    selected === slot.value
+                                        ? 'bg-[#6750a4] dark:bg-[#d0bcff] text-white dark:text-[#381e72] border-[#6750a4] dark:border-[#d0bcff]'
+                                        : slot.booked 
+                                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-transparent cursor-not-allowed decoration-slate-400 line-through decoration-1'
+                                            : 'bg-transparent border-[#79747e] text-[#49454f] dark:text-[#cac4d0] hover:bg-[#6750a4]/10'
+                                }`}
+                            >
+                                {slot.label.split(' ')[0]} <span className="text-[10px]">{slot.label.split(' ')[1]}</span>
+                            </button>
+                        ))}
+                    </div>
+                    {(!slots || slots.length === 0) && <p className="text-center text-slate-400 py-8">No slots available for this date.</p>}
+                </div>
+
+                {/* Actions */}
+                <div className="flex justify-end gap-2 p-4 pt-2 shrink-0 bg-[#ece6f0] dark:bg-[#2b2930]">
+                    <button onClick={onClose} className="px-4 py-2 text-sm font-bold text-[#6750a4] dark:text-[#d0bcff] hover:bg-[#6750a4]/10 rounded-full transition-colors">Cancel</button>
+                    <button onClick={confirm} className="px-4 py-2 text-sm font-bold text-[#6750a4] dark:text-[#d0bcff] hover:bg-[#6750a4]/10 rounded-full transition-colors">OK</button>
+                </div>
+            </motion.div>
+        </motion.div>
+    );
 };
 
 const ReceptionDashboard = () => {
     const navigate = useNavigate();
-    const { user } = useAuthStore();
+    const { user, logout } = useAuthStore();
     const [data, setData] = useState<DashboardData | null>(null);
     const [formOptions, setFormOptions] = useState<FormOptions | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -66,10 +217,22 @@ const ReceptionDashboard = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [submitMessage, setSubmitMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
     
-    // Form ref
+    // Header Logic (Search, Notifications, Profile)
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<PatientSearch[]>([]);
+    const [showSearchResults, setShowSearchResults] = useState(false);
+    const [notifications, setNotifications] = useState<Notification[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [showNotifPopup, setShowNotifPopup] = useState(false);
+    const [showProfilePopup, setShowProfilePopup] = useState(false);
+    const [showChatModal, setShowChatModal] = useState(false);
+    const searchRef = useRef<HTMLDivElement>(null);
+    const notifRef = useRef<HTMLButtonElement>(null);
+    const profileRef = useRef<HTMLDivElement>(null);
+    const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Form logic
     const formRef = useRef<HTMLFormElement>(null);
-    
-    // Photo
     const [showPhotoModal, setShowPhotoModal] = useState(false);
     const [photoData, setPhotoData] = useState<string | null>(null);
     const [photoCaptured, setPhotoCaptured] = useState(false);
@@ -77,17 +240,78 @@ const ReceptionDashboard = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
     
-    // Test form
+    // Test form Logic
     const [selectedTests, setSelectedTests] = useState<Record<string, { checked: boolean; amount: string }>>({});
     const [otherTestName, setOtherTestName] = useState('');
+
     const [totalAmount, setTotalAmount] = useState('');
     const [advanceAmount, setAdvanceAmount] = useState('');
     const [discountAmount, setDiscountAmount] = useState('');
     const [dueAmount, setDueAmount] = useState('');
     
-    // Registration form - appointment date for refreshing time slots
+    // Registration form
     const [appointmentDate, setAppointmentDate] = useState(new Date().toISOString().split('T')[0]);
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [activeDateField, setActiveDateField] = useState<'registration' | 'test_visit' | 'test_assigned' | 'inquiry' | 'test_inquiry' | null>(null);
+    const [testVisitDate, setTestVisitDate] = useState(new Date().toISOString().split('T')[0]);
+    const [testAssignedDate, setTestAssignedDate] = useState(new Date().toISOString().split('T')[0]);
+    const [appointmentTime, setAppointmentTime] = useState('');
+    const [showTimePicker, setShowTimePicker] = useState(false);
+    
+    // Inquiry Dates
+    const [inquiryDate, setInquiryDate] = useState(new Date().toISOString().split('T')[0]);
+    const [testInquiryDate, setTestInquiryDate] = useState(new Date().toISOString().split('T')[0]);
 
+    // Dropdown States (Controlled)
+    const [regGender, setRegGender] = useState('');
+    const [regComplaint, setRegComplaint] = useState('');
+    const [regPayment, setRegPayment] = useState('');
+    const [regSource, setRegSource] = useState('');
+    const [regConsultType, setRegConsultType] = useState('');
+    
+    const [testGender, setTestGender] = useState('');
+    const [testLimb, setTestLimb] = useState('');
+    const [testDoneBy, setTestDoneBy] = useState('');
+    const [testPayment, setTestPayment] = useState('');
+
+    const [inqGender, setInqGender] = useState('');
+    const [inqService, setInqService] = useState('');
+    const [inqSource, setInqSource] = useState('');
+    const [inqCommType, setInqCommType] = useState('');
+    const [inqComplaint, setInqComplaint] = useState('');
+
+    const [tiTestName, setTiTestName] = useState('');
+
+    // UI State
+
+
+    // Theme Logic
+    const [isDark, setIsDark] = useState(false);
+    useEffect(() => {
+        const saved = localStorage.getItem('theme');
+        const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || (!saved && prefersDark)) {
+            document.documentElement.classList.add('dark');
+            setIsDark(true);
+        } else {
+            document.documentElement.classList.remove('dark');
+            setIsDark(false);
+        }
+    }, []);
+
+    const toggleTheme = () => {
+        if (isDark) {
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', 'light');
+            setIsDark(false);
+        } else {
+            document.documentElement.classList.add('dark');
+            localStorage.setItem('theme', 'dark');
+            setIsDark(true);
+        }
+    };
+
+    // --- LOGIC: FETCHING ---
     const fetchAll = useCallback(async () => {
         if (!user?.branch_id) return;
         setIsLoading(true);
@@ -98,6 +322,7 @@ const ReceptionDashboard = () => {
             ]);
             const dashData = await dashRes.json();
             const optData = await optRes.json();
+            
             if (dashData.status === 'success') setData(dashData.data);
             if (optData.status === 'success') {
                 setFormOptions(optData.data);
@@ -108,56 +333,110 @@ const ReceptionDashboard = () => {
                 });
                 setSelectedTests(initialTests);
             }
-        } catch (e) { 
-            console.error(e); 
-        } finally { 
-            setIsLoading(false); 
-        }
+        } catch (e) { console.error(e); } finally { setIsLoading(false); }
     }, [user?.branch_id, appointmentDate]);
+
+    // Fetch Notifications
+    useEffect(() => {
+        const fetchNotifs = async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
+                const data = await res.json();
+                if (data.success || data.status === 'success') {
+                    setNotifications(data.notifications || []);
+                    setUnreadCount(data.unread_count || 0);
+                }
+            } catch (err) { console.error(err); }
+        };
+        if(user?.employee_id) { fetchNotifs(); const inv = setInterval(fetchNotifs, 30000); return () => clearInterval(inv); }
+    }, [user?.employee_id]);
+
+    // Search Logic
+    useEffect(() => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+        if (!user?.branch_id || searchQuery.length < 2) { setSearchResults([]); setShowSearchResults(false); return; }
+        
+        debounceRef.current = setTimeout(async () => {
+            try {
+                const res = await fetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`);
+                const data = await res.json();
+                if (data.success) { setSearchResults(data.patients || []); setShowSearchResults(true); }
+            } catch (err) { console.error(err); }
+        }, 300);
+        return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    }, [searchQuery, user?.branch_id]);
 
     useEffect(() => {
         fetchAll();
+        // Click outside handler for popups
+        const handleClickOutside = (e: MouseEvent) => {
+            if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearchResults(false);
+            if (notifRef.current && !notifRef.current.contains(e.target as Node) && !(e.target as Element).closest('#notif-popup')) setShowNotifPopup(false);
+            if (profileRef.current && !profileRef.current.contains(e.target as Node)) setShowProfilePopup(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [fetchAll]);
 
-    // Refresh time slots when appointment date changes (while modal is open)
     const handleAppointmentDateChange = async (newDate: string) => {
         setAppointmentDate(newDate);
         if (user?.branch_id) {
             try {
                 const optRes = await fetch(`${API_BASE_URL}/reception/form_options.php?branch_id=${user.branch_id}&appointment_date=${newDate}`);
                 const optData = await optRes.json();
-                if (optData.status === 'success' && formOptions) {
-                    setFormOptions({ ...formOptions, timeSlots: optData.data.timeSlots });
-                }
+                if (optData.status === 'success' && formOptions) setFormOptions({ ...formOptions, timeSlots: optData.data.timeSlots });
             } catch (e) { console.error(e); }
         }
     };
 
-    // Calculate totals
-    useEffect(() => {
-        let total = 0;
-        Object.entries(selectedTests).forEach(([, test]) => {
-            if (test.checked && test.amount) {
-                const amt = parseFloat(test.amount);
-                if (!isNaN(amt)) total += amt;
+    const handleTestCheckChange = (testCode: string, checked: boolean) => {
+        setSelectedTests(prev => {
+            const newState = { ...prev };
+            if (!newState[testCode]) newState[testCode] = { checked: false, amount: '' };
+            newState[testCode].checked = checked;
+            // Auto fill default amount if checking
+            if (checked && !newState[testCode].amount) {
+                const test = formOptions?.testTypes?.find((t: any) => t.test_code === testCode);
+                if (test && test.default_cost) newState[testCode].amount = String(test.default_cost);
             }
+            return newState;
         });
-        setTotalAmount(total > 0 ? total.toFixed(2) : '');
-    }, [selectedTests]);
+    };
 
-    // Auto-calculate Due
+    const handleTestAmountChange = (testCode: string, amount: string) => {
+        setSelectedTests(prev => {
+            const newState = { ...prev };
+            if (!newState[testCode]) newState[testCode] = { checked: false, amount: '' };
+            newState[testCode].amount = amount;
+            return newState;
+        });
+    };
+
     useEffect(() => {
-        const total = parseFloat(totalAmount) || 0;
-        const advance = parseFloat(advanceAmount) || 0;
-        const discount = parseFloat(discountAmount) || 0;
-        const due = total - advance - discount;
-        setDueAmount(due > 0 ? due.toFixed(2) : (total > 0 ? '0.00' : ''));
-    }, [totalAmount, advanceAmount, discountAmount]);
+        if (activeModal !== 'test') return;
+        let total = 0;
+        Object.values(selectedTests).forEach(t => { if (t.checked) total += parseFloat(t.amount) || 0; });
+        setTotalAmount(total > 0 ? total.toFixed(2) : '');
+        
+        const adv = parseFloat(advanceAmount) || 0;
+        const disc = parseFloat(discountAmount) || 0;
+        const due = total - adv - disc;
+        setDueAmount(due > 0 ? due.toFixed(2) : '0.00');
+    }, [selectedTests, advanceAmount, discountAmount, activeModal]);
 
-    const handleTestCheckChange = (testCode: string, checked: boolean) => setSelectedTests(prev => ({ ...prev, [testCode]: { ...prev[testCode], checked } }));
-    const handleTestAmountChange = (testCode: string, amount: string) => setSelectedTests(prev => ({ ...prev, [testCode]: { ...prev[testCode], amount } }));
 
-    // Photo handlers
+
+    // Scroll Lock for Modals
+    useEffect(() => {
+        if (activeModal || showChatModal || showPhotoModal || showDatePicker || showTimePicker) {
+            document.body.style.overflow = 'hidden';
+        } else {
+            document.body.style.overflow = '';
+        }
+        return () => { document.body.style.overflow = ''; };
+    }, [activeModal, showChatModal, showPhotoModal, showDatePicker, showTimePicker]);
+
+    // --- LOGIC: WEBCAM ---
     const startWebcam = async () => { try { const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } }); streamRef.current = s; if (videoRef.current) videoRef.current.srcObject = s; } catch (e) { console.error(e); } };
     const stopWebcam = () => { if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null; } };
     const openPhotoModal = () => { setShowPhotoModal(true); setPhotoCaptured(false); setTimeout(() => startWebcam(), 100); };
@@ -165,32 +444,16 @@ const ReceptionDashboard = () => {
     const capturePhoto = () => { if (videoRef.current && canvasRef.current) { const v = videoRef.current, c = canvasRef.current; c.width = v.videoWidth; c.height = v.videoHeight; c.getContext('2d')?.drawImage(v, 0, 0, c.width, c.height); setPhotoCaptured(true); } };
     const retakePhoto = () => setPhotoCaptured(false);
     const usePhoto = () => { if (canvasRef.current) { setPhotoData(canvasRef.current.toDataURL('image/jpeg', 0.8)); closePhotoModal(); } };
-    const removePhoto = () => setPhotoData(null);
-
-    // Get time range (30-min slots)
-    const getTimeRange = (timeStr: string) => {
-        if (!timeStr) return '';
-        const today = new Date().toISOString().split('T')[0];
-        const start = new Date(`${today}T${timeStr}`);
-        if (isNaN(start.getTime())) return timeStr;
-        const end = new Date(start.getTime() + 30 * 60 * 1000);
-        const startFmt = start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-        const endFmt = end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-        return `${startFmt} - ${endFmt}`;
-    };
-
-    const fmt = (n: number) => `₹${(n || 0).toLocaleString('en-IN')}`;
-    const inputClass = "w-full px-3 py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-500/50 focus:border-teal-500 transition-all placeholder:text-slate-400 dark:placeholder:text-slate-500";
-    const labelClass = "block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1";
-    const selectClass = inputClass;
+    
+    // --- LOGIC: SUBMIT ---
     const closeModal = () => { 
-        setActiveModal(null); 
-        setAdvanceAmount(''); 
-        setDiscountAmount(''); 
-        setDueAmount(''); 
-        setSubmitMessage(null);
-        setPhotoData(null);
-        // Reset test selections
+        setActiveModal(null); setAdvanceAmount(''); setDiscountAmount(''); setDueAmount(''); setSubmitMessage(null); setPhotoData(null);
+        // Reset Dropdowns
+        setRegGender(''); setRegComplaint(''); setRegPayment(''); setRegSource(''); setRegConsultType('');
+        setTestGender(''); setTestLimb(''); setTestDoneBy(''); setTestPayment('');
+        setInqGender(''); setInqService(''); setInqSource(''); setInqCommType(''); setInqComplaint('');
+        setTiTestName('');
+
         if (formOptions?.testTypes) {
             const initialTests: Record<string, { checked: boolean; amount: string }> = {};
             formOptions.testTypes.forEach((t) => {
@@ -203,617 +466,792 @@ const ReceptionDashboard = () => {
 
     const handleSubmit = async () => {
         if (!formRef.current || !user?.branch_id || !user?.employee_id) return;
-        
         const formData = new FormData(formRef.current);
         const formObject: Record<string, string> = {};
-        formData.forEach((value, key) => {
-            formObject[key] = value.toString();
-        });
-
-        setIsSubmitting(true);
-        setSubmitMessage(null);
-
+        formData.forEach((value, key) => { formObject[key] = value.toString(); });
+        setIsSubmitting(true); setSubmitMessage(null);
         try {
             let endpoint = '';
-            let payload: Record<string, unknown> = {
-                branch_id: user.branch_id,
-                employee_id: user.employee_id
-            };
+            let payload: Record<string, unknown> = { branch_id: user.branch_id, employee_id: user.employee_id };
 
             if (activeModal === 'registration') {
                 endpoint = `${API_BASE_URL}/reception/registration_submit.php`;
-                payload = {
-                    ...payload,
-                    patient_name: formObject.patient_name,
-                    phone: formObject.phone,
-                    email: formObject.email || '',
-                    gender: formObject.gender,
-                    age: formObject.age,
-                    conditionType: formObject.conditionType,
-                    conditionType_other: formObject.conditionType_other || '',
-                    referralSource: formObject.referralSource,
-                    referred_by: formObject.referred_by || '',
-                    occupation: formObject.occupation || '',
-                    address: formObject.address || '',
-                    inquiry_type: formObject.inquiry_type,
-                    appointment_date: formObject.appointment_date || null,
-                    appointment_time: formObject.appointment_time || null,
-                    amount: formObject.amount || '0',
-                    payment_method: formObject.payment_method,
-                    remarks: formObject.remarks || '',
-                    patient_photo_data: photoData || ''
-                };
+                payload = { ...payload, patient_name: formObject.patient_name, phone: formObject.phone, email: formObject.email || '', gender: formObject.gender, age: formObject.age, conditionType: formObject.conditionType, conditionType_other: formObject.conditionType_other || '', referralSource: formObject.referralSource, referred_by: formObject.referred_by || '', occupation: formObject.occupation || '', address: formObject.address || '', inquiry_type: formObject.inquiry_type, appointment_date: formObject.appointment_date || null, appointment_time: formObject.appointment_time || null, amount: formObject.amount || '0', payment_method: formObject.payment_method, remarks: formObject.remarks || '', patient_photo_data: photoData || '' };
             } else if (activeModal === 'test') {
                 endpoint = `${API_BASE_URL}/reception/test_submit.php`;
-                const testNames = Object.entries(selectedTests)
-                    .filter(([, val]) => val.checked)
-                    .map(([key]) => key);
+                const testNames = Object.entries(selectedTests).filter(([, val]) => val.checked).map(([key]) => key);
                 const testAmounts: Record<string, number> = {};
-                Object.entries(selectedTests).forEach(([key, val]) => {
-                    if (val.checked && val.amount) {
-                        testAmounts[key] = parseFloat(val.amount) || 0;
-                    }
-                });
-                payload = {
-                    ...payload,
-                    patient_name: formObject.patient_name,
-                    age: formObject.age,
-                    gender: formObject.gender,
-                    dob: formObject.dob || null,
-                    parents: formObject.parents || '',
-                    relation: formObject.relation || '',
-                    phone_number: formObject.phone_number || '',
-                    alternate_phone_no: formObject.alternate_phone_no || '',
-                    referred_by: formObject.referred_by || '',
-                    limb: formObject.limb || null,
-                    test_names: testNames,
-                    test_amounts: testAmounts,
-                    other_test_name: otherTestName,
-                    visit_date: formObject.visit_date,
-                    assigned_test_date: formObject.assigned_test_date,
-                    test_done_by: formObject.test_done_by,
-                    total_amount: parseFloat(totalAmount) || 0,
-                    advance_amount: parseFloat(advanceAmount) || 0,
-                    discount: parseFloat(discountAmount) || 0,
-                    payment_method: formObject.payment_method
-                };
+                Object.entries(selectedTests).forEach(([key, val]) => { if (val.checked && val.amount) testAmounts[key] = parseFloat(val.amount) || 0; });
+                payload = { ...payload, patient_name: formObject.patient_name, age: formObject.age, gender: formObject.gender, dob: formObject.dob || null, parents: formObject.parents || '', relation: formObject.relation || '', phone_number: formObject.phone_number || '', alternate_phone_no: formObject.alternate_phone_no || '', referred_by: formObject.referred_by || '', limb: formObject.limb || null, test_names: testNames, test_amounts: testAmounts, other_test_name: otherTestName, visit_date: formObject.visit_date, assigned_test_date: formObject.assigned_test_date, test_done_by: formObject.test_done_by, total_amount: parseFloat(totalAmount) || 0, advance_amount: parseFloat(advanceAmount) || 0, discount: parseFloat(discountAmount) || 0, payment_method: formObject.payment_method };
             } else if (activeModal === 'inquiry') {
                 endpoint = `${API_BASE_URL}/reception/inquiry_submit.php`;
-                payload = {
-                    ...payload,
-                    patient_name: formObject.patient_name,
-                    age: formObject.age,
-                    gender: formObject.gender,
-                    phone: formObject.phone,
-                    inquiry_type: formObject.inquiry_type || null,
-                    communication_type: formObject.communication_type || null,
-                    referralSource: formObject.referralSource || 'self',
-                    conditionType: formObject.conditionType || '',
-                    conditionType_other: formObject.conditionType_other || '',
-                    remarks: formObject.remarks || '',
-                    expected_date: formObject.expected_date || null
-                };
+                payload = { ...payload, patient_name: formObject.patient_name, age: formObject.age, gender: formObject.gender, phone: formObject.phone, inquiry_type: formObject.inquiry_type || null, communication_type: formObject.communication_type || null, referralSource: formObject.referralSource || 'self', conditionType: formObject.conditionType || '', conditionType_other: formObject.conditionType_other || '', remarks: formObject.remarks || '', expected_date: formObject.expected_date || null };
             } else if (activeModal === 'test_inquiry') {
                 endpoint = `${API_BASE_URL}/reception/test_inquiry_submit.php`;
-                payload = {
-                    ...payload,
-                    patient_name: formObject.patient_name,
-                    test_name: formObject.test_name,
-                    referred_by: formObject.referred_by || '',
-                    phone_number: formObject.phone_number,
-                    expected_visit_date: formObject.expected_visit_date || null
-                };
+                payload = { ...payload, patient_name: formObject.patient_name, test_name: formObject.test_name, referred_by: formObject.referred_by || '', phone_number: formObject.phone_number, expected_visit_date: formObject.expected_visit_date || null };
             }
 
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-
+            const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const result = await response.json();
-
             if (result.success) {
                 setSubmitMessage({ type: 'success', text: result.message || 'Submitted successfully!' });
-                // Refresh dashboard data
                 const dashRes = await fetch(`${API_BASE_URL}/reception/dashboard.php?branch_id=${user.branch_id}`);
                 const dashData = await dashRes.json();
                 if (dashData.status === 'success') setData(dashData.data);
-                // Close modal after brief delay
                 setTimeout(() => closeModal(), 1500);
-            } else {
-                setSubmitMessage({ type: 'error', text: result.message || 'Submission failed' });
-            }
-        } catch (error) {
-            console.error('Submit error:', error);
-            setSubmitMessage({ type: 'error', text: 'An error occurred. Please try again.' });
-        } finally {
-            setIsSubmitting(false);
-        }
+            } else { setSubmitMessage({ type: 'error', text: result.message || 'Submission failed' }); }
+        } catch (error) { console.error(error); setSubmitMessage({ type: 'error', text: 'An error occurred' }); } finally { setIsSubmitting(false); }
     };
 
-    if (isLoading) return <ReceptionLayout><div className="flex h-full items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-2 border-teal-600 border-t-transparent"></div></div></ReceptionLayout>;
+    // Helper
+    const fmt = (n: number) => `₹${(n || 0).toLocaleString('en-IN')}`;
+    const getTimeRange = (timeStr: string) => {
+        if (!timeStr) return '';
+        const today = new Date().toISOString().split('T')[0];
+        const start = new Date(`${today}T${timeStr}`);
+        if (isNaN(start.getTime())) return timeStr;
+        const end = new Date(start.getTime() + 30 * 60 * 1000); 
+        return `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })} - ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}`;
+    };
 
     const actionButtons = [
-        { id: 'registration' as ModalType, label: 'New Registration', icon: UserPlus, color: 'teal', desc: 'Register a new patient' },
-        { id: 'test' as ModalType, label: 'Book Test', icon: FlaskConical, color: 'blue', desc: 'Schedule a lab test' },
-        { id: 'inquiry' as ModalType, label: 'New Inquiry', icon: PhoneCall, color: 'violet', desc: 'Record patient inquiry' },
-        { id: 'test_inquiry' as ModalType, label: 'Test Inquiry', icon: Beaker, color: 'rose', desc: 'Record test inquiry' },
+        { id: 'registration' as ModalType, label: 'Registration', icon: UserPlus, color: 'bg-[#ccebc4] text-[#0c200e] hover:bg-[#b0d8a4]' },
+        { id: 'test' as ModalType, label: 'Book Test', icon: FlaskConical, color: 'bg-[#d0e4ff] text-[#001d36] hover:bg-[#b0d2ff]' },
+        { id: 'inquiry' as ModalType, label: 'Inquiry', icon: PhoneCall, color: 'bg-[#eaddff] text-[#21005d] hover:bg-[#d0bcff]' },
+        { id: 'test_inquiry' as ModalType, label: 'Test Inquiry', icon: Beaker, color: 'bg-[#ffdad6] text-[#410002] hover:bg-[#ffb4ab]' },
     ];
-
-    const getModalColor = () => {
-        switch(activeModal) {
-            case 'registration': return { bg: 'bg-teal-600', hover: 'hover:bg-teal-700', light: 'bg-teal-50 dark:bg-teal-900/30' };
-            case 'test': return { bg: 'bg-blue-600', hover: 'hover:bg-blue-700', light: 'bg-blue-50 dark:bg-blue-900/30' };
-            case 'inquiry': return { bg: 'bg-violet-600', hover: 'hover:bg-violet-700', light: 'bg-violet-50 dark:bg-violet-900/30' };
-            case 'test_inquiry': return { bg: 'bg-rose-600', hover: 'hover:bg-rose-700', light: 'bg-rose-50 dark:bg-rose-900/30' };
-            default: return { bg: 'bg-teal-600', hover: 'hover:bg-teal-700', light: 'bg-teal-50 dark:bg-teal-900/30' };
-        }
-    };
-
-    const getModalTitle = () => {
-        switch(activeModal) { case 'registration': return 'New Patient Registration'; case 'test': return 'Book Lab Test'; case 'inquiry': return 'New Patient Inquiry'; case 'test_inquiry': return 'Test Inquiry'; default: return ''; }
-    };
+    
+    // MD3 Styled Inputs
+    const inputClass = "w-full px-4 py-3 bg-[#e0e2ec] dark:bg-[#43474e] border-b-2 border-[#74777f] dark:border-[#8e918f] focus:border-[#006e1c] dark:focus:border-[#88d99d] rounded-t-lg text-[#1a1c1e] dark:text-[#e3e2e6] text-base focus:outline-none transition-colors placeholder:text-[#43474e] dark:placeholder:text-[#8e918f] focus:bg-[#dadae2] dark:focus:bg-[#50545c]";
+    const labelClass = "block text-xs font-medium text-[#43474e] dark:text-[#c4c7c5] mb-1 px-1";
+    const selectClass = "w-full px-4 py-3 bg-[#e0e2ec] dark:bg-[#43474e] border-b-2 border-[#74777f] dark:border-[#8e918f] focus:border-[#006e1c] dark:focus:border-[#88d99d] rounded-t-lg text-[#1a1c1e] dark:text-[#e3e2e6] text-base focus:outline-none";
 
     return (
-        <ReceptionLayout>
-            <motion.div 
-                className="p-5 space-y-5"
-                variants={containerVariants}
-                initial="hidden"
-                animate="visible"
-            >
-                {/* Dashboard Header */}
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h1 className="text-xl font-black text-slate-800 dark:text-slate-100">Reception Dashboard</h1>
-                        <p className="text-xs text-slate-500 font-medium">Real-time overview of your branch activity</p>
-                    </div>
-                    <motion.button
-                        onClick={fetchAll}
-                        disabled={isLoading}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-400 hover:text-teal-600 transition-all shadow-sm active:scale-95 disabled:opacity-50 font-bold text-xs"
-                    >
-                        <RefreshCw size={14} className={`${isLoading ? 'animate-spin' : ''}`} />
-                        <span>{isLoading ? 'Syncing...' : 'Sync Now'}</span>
-                    </motion.button>
+        <div className="min-h-screen bg-[#fdfcff] dark:bg-[#111315] text-[#1a1c1e] dark:text-[#e3e2e6] font-sans selection:bg-[#ccebc4] selection:text-[#0c200e] pb-24 transition-colors duration-300">
+            {/* --- HEADER --- */}
+            <header className="sticky top-0 z-40 bg-[#fdfcff]/80 dark:bg-[#111315]/80 backdrop-blur-md px-4 md:px-8 py-4 flex items-center justify-between border-b border-[#e0e2ec] dark:border-[#43474e] transition-colors duration-300">
+                <div className="flex items-center gap-4">
+                     <div className="flex items-center gap-2">
+                         <div className="w-10 h-10 rounded-xl bg-[#ccebc4] flex items-center justify-center text-[#0c200e] font-bold">PS</div>
+                         <h1 className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight hidden md:block" style={{ fontFamily: 'serif' }}>ProSpine</h1>
+                     </div>
                 </div>
-
-                {/* CARDS */}
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                    <motion.div variants={cardVariants} className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-2 mb-4"><ClipboardList className="w-4 h-4 text-indigo-600" /><span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">Registration & Inquiry</span></div>
-                        <div className="space-y-2 mb-4"><div className="flex justify-between items-center"><span className="text-sm text-slate-600 dark:text-slate-400">Today's Registrations</span><span className="text-lg font-bold text-slate-800 dark:text-slate-200">{data?.registration.today_total || 0}</span></div><div className="flex gap-4 pl-3 border-l-2 border-indigo-200"><div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-400"></span><span className="text-xs text-slate-500">Pending</span><span className="text-sm font-semibold text-amber-600">{data?.registration.pending || 0}</span></div><div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-400"></span><span className="text-xs text-slate-500">Done</span><span className="text-sm font-semibold text-emerald-600">{data?.registration.consulted || 0}</span></div></div><div className="flex justify-between items-center text-xs text-slate-400 pt-1"><span>This Month</span><span className="font-medium">{data?.registration.month_total || 0}</span></div></div>
-                        <div className="border-t border-dashed border-slate-200 pt-3"><div className="flex justify-between items-center"><div className="flex items-center gap-1.5"><Phone className="w-3 h-3 text-blue-500" /><span className="text-sm text-slate-600 dark:text-slate-400">Inquiries</span></div><span className="text-lg font-bold text-blue-600">{data?.inquiry.total_today || 0}</span></div><div className="flex gap-3 mt-1.5 text-xs"><span className="text-slate-500">Quick: <strong className="text-slate-700">{data?.inquiry.quick || 0}</strong></span><span className="text-slate-500">Test: <strong className="text-slate-700">{data?.inquiry.test || 0}</strong></span></div></div>
-                    </motion.div>
-                    
-                    <motion.div variants={cardVariants} className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow">
-                        <div className="flex items-center justify-between mb-2"><div className="flex items-center gap-2"><Users className="w-4 h-4 text-teal-200" /><span className="text-xs font-bold uppercase tracking-wide text-teal-100">Patients</span></div><span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">Today</span></div>
-                        <div className="text-center py-3"><motion.p initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.3, type: 'spring' }} className="text-5xl font-black">{data?.patients.today_attendance || 0}</motion.p><p className="text-xs text-teal-200 mt-1">attended today</p></div>
-                        <div className="grid grid-cols-2 gap-2 mt-2"><div className="bg-white/10 rounded-lg p-2 text-center hover:bg-white/20 transition-colors"><p className="text-lg font-bold">{data?.patients.active || 0}</p><p className="text-[10px] text-teal-200">Active</p></div><div className="bg-white/10 rounded-lg p-2 text-center hover:bg-white/20 transition-colors"><p className="text-lg font-bold">{data?.patients.inactive || 0}</p><p className="text-[10px] text-teal-200">Inactive</p></div></div>
-                        <div className="flex justify-between items-center mt-3 pt-2 border-t border-white/20 text-xs"><span className="text-teal-200">Total: <strong className="text-white">{data?.patients.total_ever || 0}</strong></span><span className="text-teal-200">Paid: <strong>{fmt(data?.patients.paid_today || 0)}</strong></span></div>
-                    </motion.div>
-                    
-                    <motion.div variants={cardVariants} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-                        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-100 dark:border-slate-700"><TestTube2 className="w-4 h-4 text-rose-600" /><span className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wide">Lab Tests</span><span className="ml-auto text-2xl font-black text-slate-800 dark:text-slate-200">{data?.tests.today_total || 0}</span></div>
-                        <div className="grid grid-cols-2 divide-x divide-slate-100 dark:divide-slate-700"><div className="p-4 text-center bg-amber-50/50 dark:bg-amber-900/20 hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-colors"><p className="text-3xl font-bold text-amber-500">{data?.tests.pending || 0}</p><p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">PENDING</p></div><div className="p-4 text-center bg-emerald-50/50 dark:bg-emerald-900/20 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-colors"><p className="text-3xl font-bold text-emerald-500">{data?.tests.completed || 0}</p><p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">DONE</p></div></div>
-                        <div className="px-4 py-3 bg-slate-50 dark:bg-slate-900 flex justify-between items-center text-xs"><span className="text-slate-500 dark:text-slate-400">Revenue: <strong className="text-slate-700 dark:text-slate-300">{fmt(data?.tests.revenue_today || 0)}</strong></span><span className="text-slate-400">Month: {data?.tests.total_month || 0}</span></div>
-                    </motion.div>
-                    
-                    <motion.div variants={cardVariants} className="bg-slate-900 rounded-xl p-4 text-white shadow-lg hover:shadow-xl transition-shadow">
-                        <div className="flex items-center gap-2 mb-3"><Wallet className="w-4 h-4 text-emerald-400" /><span className="text-xs font-bold uppercase tracking-wide text-slate-400">Collections</span></div>
-                        <div className="mb-3"><p className="text-xs text-slate-500 mb-1">Today's Total</p><motion.p initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }} className="text-3xl font-black text-emerald-400">{fmt(data?.collections.today_total || 0)}</motion.p></div>
-                        <div className="space-y-1.5 text-xs"><div className="flex justify-between"><span className="text-slate-500">Registration</span><span className="text-slate-300">{fmt(data?.collections.reg_amount || 0)}</span></div><div className="flex justify-between"><span className="text-slate-500">Treatment</span><span className="text-slate-300">{fmt(data?.collections.treatment_amount || 0)}</span></div><div className="flex justify-between"><span className="text-slate-500">Lab Tests</span><span className="text-slate-300">{fmt(data?.collections.test_amount || 0)}</span></div></div>
-                        <div className="mt-3 pt-2 border-t border-slate-700 flex justify-between items-center"><div className="flex items-center gap-1 text-red-400 text-xs"><AlertCircle className="w-3 h-3" /><span>Dues: {fmt(data?.collections.today_dues || 0)}</span></div><div className="flex items-center gap-1 text-slate-500 text-[10px]"><TrendingUp className="w-3 h-3" /><span>{fmt(data?.collections.month_total || 0)}</span></div></div>
-                    </motion.div>
-                </div>
-
-                {/* QUICK ACTIONS - Horizontal Strip */}
-                <motion.div variants={cardVariants} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
-                    <div className="flex items-center justify-between">
-                        <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Quick Actions</h3>
-                        <div className="flex gap-3">
-                            {actionButtons.map((btn, idx) => {
-                                const Icon = btn.icon;
-                                const bgColors: Record<string, string> = { teal: 'from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700', blue: 'from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700', violet: 'from-violet-500 to-violet-600 hover:from-violet-600 hover:to-violet-700', rose: 'from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700' };
-                                return (
-                                    <motion.button 
-                                        key={btn.id} 
-                                        onClick={() => setActiveModal(btn.id)} 
-                                        className={`flex items-center gap-3 px-5 py-2.5 rounded-xl bg-gradient-to-r ${bgColors[btn.color]} text-white shadow-sm hover:shadow-md transition-all`}
-                                        whileHover={{ scale: 1.03, y: -2 }}
-                                        whileTap={{ scale: 0.97 }}
-                                        initial={{ opacity: 0, y: 20 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: 0.2 + idx * 0.08 }}
-                                    >
-                                        <Icon size={18} />
-                                        <span className="font-semibold text-sm">{btn.label}</span>
-                                    </motion.button>
-                                );
-                            })}
+                <div className="flex items-center gap-2 lg:gap-4">
+                    {/* Search Bar */}
+                    <div ref={searchRef} className="hidden md:flex items-center relative z-50">
+                        <div className="flex items-center bg-[#e0e2ec] dark:bg-[#43474e] rounded-full px-4 py-2 w-64 lg:w-96 transition-colors duration-300">
+                            <Search size={18} className="text-[#43474e] dark:text-[#c4c7c5] mr-2" />
+                            <input 
+                                type="text" 
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                placeholder="Search patients..." 
+                                className="bg-transparent border-none outline-none text-sm w-full text-[#1a1c1e] dark:text-[#e3e2e6] placeholder:text-[#43474e] dark:placeholder:text-[#8e918f]" 
+                            />
                         </div>
+                        {/* Search Results */}
+                        <AnimatePresence>
+                            {showSearchResults && (
+                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-full left-0 right-0 mt-2 bg-[#fdfcff] rounded-[20px] shadow-xl border border-[#e0e2ec] overflow-hidden max-h-[400px] overflow-y-auto">
+                                    {searchResults.map((p) => (
+                                        <div key={p.patient_id} onClick={() => { setSearchQuery(''); setShowSearchResults(false); navigate(`/reception/patients`); /* Ideally navigate to specific patient */ }} className="p-3 hover:bg-[#e0e2ec] cursor-pointer border-b border-[#e0e2ec] last:border-0">
+                                            <p className="font-bold text-[#1a1c1e]">{p.patient_name}</p>
+                                            <p className="text-xs text-[#43474e]">{p.phone_number}</p>
+                                        </div>
+                                    ))}
+                                    {searchResults.length === 0 && <div className="p-4 text-center text-[#43474e]">No patients found</div>}
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    <button onClick={fetchAll} disabled={isLoading} className={`p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors ${isLoading ? 'animate-spin' : ''}`}><RefreshCw size={22} strokeWidth={1.5} /></button>
+                    
+                    {/* Dark Mode Toggle */}
+                    <button onClick={toggleTheme} className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors">
+                        <Moon size={22} strokeWidth={1.5} className="block dark:hidden" />
+                        <Sun size={22} strokeWidth={1.5} className="hidden dark:block" />
+                    </button>
+                    
+                    {/* Notifications */}
+                    <div className="relative">
+                        <button ref={notifRef} onClick={() => { setShowNotifPopup(!showNotifPopup); setShowProfilePopup(false); }} className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors relative">
+                            <Bell size={22} strokeWidth={1.5} />
+                            {unreadCount > 0 && <span className="absolute top-3 right-3 w-2 h-2 bg-[#b3261e] rounded-full"></span>}
+                        </button>
+                         <AnimatePresence>
+                            {showNotifPopup && (
+                                <motion.div id="notif-popup" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute top-full right-0 mt-2 w-80 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden transition-colors">
+                                    <div className="p-4 border-b border-[#e0e2ec] dark:border-[#43474e] font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">Notifications</div>
+                                    <div className="max-h-60 overflow-y-auto">
+                                        {notifications.map(n => (
+                                            <div key={n.notification_id} className={`p-3 border-b border-[#e0e2ec] dark:border-[#43474e] hover:bg-[#e0e2ec]/50 dark:hover:bg-[#43474e]/50 ${n.is_read === 0 ? 'bg-[#ccebc4]/20 dark:bg-[#ccebc4]/10' : ''}`}>
+                                                <p className="text-sm text-[#1a1c1e] dark:text-[#e3e2e6]">{n.message}</p>
+                                                <p className="text-[10px] text-[#43474e] dark:text-[#c4c7c5] mt-1">{n.time_ago}</p>
+                                            </div>
+                                        ))}
+                                        {notifications.length === 0 && <div className="p-4 text-center text-sm text-[#43474e] dark:text-[#c4c7c5]">No notifications</div>}
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+
+                    <div className="relative" ref={profileRef}>
+                        <div onClick={() => { setShowProfilePopup(!showProfilePopup); setShowNotifPopup(false); }} className="w-10 h-10 bg-[#ccebc4] dark:bg-[#0c3b10] rounded-full flex items-center justify-center text-[#0c200e] dark:text-[#ccebc4] font-bold border border-[#74777f] dark:border-[#8e918f] ml-1 overflow-hidden cursor-pointer hover:ring-2 ring-[#ccebc4] transition-colors">
+                            {user?.name?.charAt(0).toUpperCase() || 'U'}
+                        </div>
+                        <AnimatePresence>
+                            {showProfilePopup && (
+                                <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute top-full right-0 mt-2 w-56 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden p-2 transition-colors">
+                                     <button onClick={() => navigate('/reception/profile')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"><User size={18} /> Profile</button>
+                                     <button onClick={() => { logout(); navigate('/login'); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#ffdad6] dark:hover:bg-[#93000a] text-[#410002] dark:text-[#ffdad6] text-sm font-medium mt-1 transition-colors"><LogOut size={18} /> Logout</button>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
+                    </div>
+                </div>
+            </header>
+
+            {/* --- NAVIGATION CHIPS --- */}
+            <div className="flex gap-3 overflow-x-auto py-3 px-6 scrollbar-hide border-b border-[#e0e2ec] dark:border-[#43474e] bg-[#fdfcff] dark:bg-[#1a1c1e] transition-colors duration-300">
+                {[
+                    { label: 'Dashboard', path: '/reception/dashboard' },
+                    { label: 'Schedule', path: '/reception/schedule' },
+                    { label: 'Inquiry', path: '/reception/inquiry' },
+                    { label: 'Registration', path: '/reception/registration' },
+                    { label: 'Patients', path: '/reception/patients' },
+                    { label: 'Billing', path: '/reception/billing' },
+                    { label: 'Attendance', path: '/reception/attendance' },
+                    { label: 'Tests', path: '/reception/tests' },
+                    { label: 'Feedback', path: '/reception/feedback' },
+                    { label: 'Reports', path: '/reception/reports' },
+                    { label: 'Expenses', path: '/reception/expenses' },
+                    { label: 'Support', path: '/reception/support' }
+                ].map((nav) => (
+                    <button key={nav.label} onClick={() => { if (nav.label !== 'Dashboard') navigate(nav.path); }} className={`px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${nav.label === 'Dashboard' ? 'bg-[#1a1c1e] text-white dark:bg-[#e3e2e6] dark:text-[#1a1c1e] shadow-md' : 'bg-[#f2f6fa] dark:bg-[#1a1c1e] hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] border border-[#74777f] dark:border-[#8e918f] text-[#43474e] dark:text-[#c4c7c5]'}`}>{nav.label}</button>
+                ))}
+            </div>
+
+            {/* --- MAIN CONTENT --- */}
+            <motion.main variants={containerVariants} initial="hidden" animate="visible" className="px-4 md:px-8 max-w-[1600px] mx-auto space-y-8 mt-6">
+                {/* Greeting & Quick Actions */}
+                <motion.div variants={itemVariants} className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div>
+                        <h2 className="text-[40px] leading-[48px] text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight transition-colors" style={{ fontFamily: 'serif' }}>
+                            Hello, <span className="text-[#006e1c] dark:text-[#ccebc4] italic transition-colors">{user?.name || 'Receptionist'}</span>
+                        </h2>
+                        <p className="text-[#43474e] dark:text-[#c4c7c5] mt-1 text-lg transition-colors">Here's your daily branch overview</p>
+                    </div>
+                    
+                    <div className="flex gap-3 overflow-x-auto p-4 scrollbar-hide">
+                        {actionButtons.map(btn => (
+                            <button key={btn.id!} onClick={() => setActiveModal(btn.id)} className={`flex items-center gap-2 px-5 py-3 rounded-[16px] text-sm font-bold transition-transform hover:scale-105 active:scale-95 shadow-sm border border-transparent ${btn.color}`}>
+                                <btn.icon size={18} />
+                                {btn.label}
+                            </button>
+                        ))}
                     </div>
                 </motion.div>
 
-                {/* SCHEDULE + WIDGETS */}
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
-                    {/* Schedule - Left Column */}
-                    <motion.div variants={cardVariants} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-                        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                            <div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-slate-500" /><h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Today's Schedule</h3></div>
-                            <button onClick={() => navigate('/reception/schedule')} className="group/btn p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                                <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover/btn:text-teal-600 transition-colors" />
-                            </button>
-                        </div>
-                        <div className="p-3 max-h-[280px] overflow-y-auto space-y-2">
-                            {!data?.schedule?.length ? <div className="text-center py-8 text-slate-400"><Calendar className="w-10 h-10 mx-auto mb-2 opacity-30" /><p className="text-xs">No appointments today</p></div> : data.schedule.slice(0, 6).map((s, idx) => (
-                                <motion.div 
-                                    key={s.id} 
-                                    initial={{ opacity: 0, x: -20 }}
-                                    animate={{ opacity: 1, x: 0 }}
-                                    transition={{ delay: idx * 0.05 }}
-                                    className={`flex items-center gap-2.5 p-2.5 rounded-lg text-xs hover:scale-[1.02] transition-transform cursor-pointer ${s.status.toLowerCase() === 'pending' ? 'bg-amber-50 hover:bg-amber-100' : 'bg-emerald-50 hover:bg-emerald-100'}`}
-                                >
-                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-[11px] ${s.status.toLowerCase() === 'pending' ? 'bg-amber-200 text-amber-700' : 'bg-emerald-200 text-emerald-700'}`}>{s.patient_name.charAt(0)}</div>
-                                    <div className="flex-1 min-w-0"><p className="font-semibold text-slate-700 truncate">{s.patient_name}</p><p className="text-slate-400 flex items-center gap-1"><Clock className="w-2.5 h-2.5" />{getTimeRange(s.appointment_time)}</p></div>
-                                    <span className={`text-[9px] font-bold uppercase ${s.status.toLowerCase() === 'pending' ? 'text-amber-600' : 'text-emerald-600'}`}>{s.status}</span>
-                                </motion.div>
-                            ))}
-                        </div>
-                    </motion.div>
-                    
-                    {/* Recent Activity - Center */}
-                    <motion.div variants={cardVariants} className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-                        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                            <div className="flex items-center gap-2"><Users className="w-4 h-4 text-teal-600" /><h3 className="text-sm font-bold text-slate-800 dark:text-slate-100">Recent Activity</h3></div>
-                            <div className="flex gap-2">
-                                <span className="text-[10px] px-2 py-1 bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-400 rounded-full font-medium">Live</span>
-                            </div>
-                        </div>
-                        <div className="p-4">
-                            <div className="grid grid-cols-3 gap-4 mb-4">
-                                <motion.div 
-                                    className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-900/20 rounded-xl p-4 text-center border border-blue-200 dark:border-blue-800"
-                                    whileHover={{ scale: 1.03 }}
-                                >
-                                    <p className="text-3xl font-black text-blue-600 dark:text-blue-400">{data?.registration.today_total || 0}</p>
-                                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mt-1">Registrations</p>
-                                </motion.div>
-                                <motion.div 
-                                    className="bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-900/30 dark:to-violet-900/20 rounded-xl p-4 text-center border border-violet-200 dark:border-violet-800"
-                                    whileHover={{ scale: 1.03 }}
-                                >
-                                    <p className="text-3xl font-black text-violet-600 dark:text-violet-400">{data?.tests.today_total || 0}</p>
-                                    <p className="text-xs text-violet-600 dark:text-violet-400 font-medium mt-1">Tests Booked</p>
-                                </motion.div>
-                                <motion.div 
-                                    className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/30 dark:to-emerald-900/20 rounded-xl p-4 text-center border border-emerald-200 dark:border-emerald-800"
-                                    whileHover={{ scale: 1.03 }}
-                                >
-                                    <p className="text-3xl font-black text-emerald-600 dark:text-emerald-400">{data?.patients.today_attendance || 0}</p>
-                                    <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium mt-1">Attended</p>
-                                </motion.div>
-                            </div>
-                            
-                            {/* Mini progress bars */}
-                            <div className="space-y-3">
+                {/* --- MASONRY GRID --- */}
+                <motion.div variants={containerVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    {/* 1. REGISTRATION CARD */}
+                    <motion.div variants={itemVariants} className="bg-[#e0e2ec] dark:bg-[#43474e] dark:border dark:border-[#53565f] rounded-[28px] p-6 flex flex-col justify-between min-h-[220px] transition-colors duration-300">
+                         <div className="flex justify-between items-start">
+                             <div>
+                                 <p className="text-[#43474e] dark:text-[#c4c7c5] font-medium mb-1 text-sm tracking-wide">REGISTRATION & INQUIRY</p>
+                             </div>
+                             <div className="p-2 bg-white dark:bg-[#1a1c1e] rounded-xl"><ClipboardList size={20} className="text-[#001d36] dark:text-[#d0e4ff]" /></div>
+                         </div>
+                         
+                         <div>
+                            <div className="flex justify-between items-end mb-2">
                                 <div>
-                                    <div className="flex justify-between text-xs mb-1">
-                                        <span className="text-slate-600 dark:text-slate-400 font-medium">Daily Target Progress</span>
-                                        <span className="text-teal-600 dark:text-teal-400 font-bold">{Math.min(100, Math.round(((data?.collections.today_total || 0) / 50000) * 100))}%</span>
-                                    </div>
-                                    <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                        <motion.div 
-                                            className="h-full bg-gradient-to-r from-teal-500 to-teal-600 rounded-full"
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${Math.min(100, Math.round(((data?.collections.today_total || 0) / 50000) * 100))}%` }}
-                                            transition={{ delay: 0.5, duration: 0.8 }}
-                                        />
-                                    </div>
+                                    <p className="text-xs text-[#43474e] dark:text-[#c4c7c5] mb-1">Today's Registrations</p>
+                                    <h4 className="text-4xl text-[#1a1c1e] dark:text-[#e3e2e6] font-normal" style={{ fontFamily: 'serif' }}>{data?.registration.today_total || 0}</h4>
                                 </div>
-                                <div>
-                                    <div className="flex justify-between text-xs mb-1">
-                                        <span className="text-slate-600 dark:text-slate-400 font-medium">Appointments Completed</span>
-                                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">{data?.registration.consulted || 0}/{data?.registration.today_total || 0}</span>
-                                    </div>
-                                    <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                        <motion.div 
-                                            className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-full"
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${(data?.registration.today_total || 0) > 0 ? Math.round(((data?.registration.consulted || 0) / (data?.registration.today_total || 1)) * 100) : 0}%` }}
-                                            transition={{ delay: 0.6, duration: 0.8 }}
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between text-xs mb-1">
-                                        <span className="text-slate-600 dark:text-slate-400 font-medium">Tests Completed</span>
-                                        <span className="text-blue-600 dark:text-blue-400 font-bold">{data?.tests.completed || 0}/{data?.tests.today_total || 0}</span>
-                                    </div>
-                                    <div className="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                        <motion.div 
-                                            className="h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
-                                            initial={{ width: 0 }}
-                                            animate={{ width: `${(data?.tests.today_total || 0) > 0 ? Math.round(((data?.tests.completed || 0) / (data?.tests.today_total || 1)) * 100) : 0}%` }}
-                                            transition={{ delay: 0.7, duration: 0.8 }}
-                                        />
-                                    </div>
+                                <div className="text-right">
+                                     <p className="text-[10px] text-[#43474e] dark:text-[#c4c7c5] uppercase font-bold tracking-wider mb-1">This Month</p>
+                                     <p className="text-xl font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">{data?.registration.month_total || 0}</p>
                                 </div>
                             </div>
-                        </div>
-                    </motion.div>
-                    
-                    {/* Pending Dues - Right Column */}
-                    <motion.div variants={cardVariants} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-                        <div className="px-4 py-3 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                            <div className="flex items-center gap-2"><AlertCircle className="w-4 h-4 text-red-500" /><h3 className="text-sm font-bold text-slate-800 dark:text-slate-200">Dues Alert</h3></div>
-                        </div>
-                        <div className="p-4">
-                            <div className="text-center mb-4">
-                                <motion.p 
-                                    className="text-4xl font-black text-red-500"
-                                    initial={{ scale: 0 }}
-                                    animate={{ scale: 1 }}
-                                    transition={{ delay: 0.4, type: 'spring' }}
-                                >
-                                    {fmt(data?.collections.today_dues || 0)}
-                                </motion.p>
-                                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Today's Pending Dues</p>
-                            </div>
-                            
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between p-2 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                                    <span className="text-xs text-slate-600 dark:text-slate-400">Patient Dues</span>
-                                    <span className="text-xs font-bold text-red-600 dark:text-red-400">{fmt(data?.collections.patient_dues || 0)}</span>
-                                </div>
-                                <div className="flex items-center justify-between p-2 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-                                    <span className="text-xs text-slate-600 dark:text-slate-400">Test Dues</span>
-                                    <span className="text-xs font-bold text-amber-600 dark:text-amber-400">{fmt(data?.collections.test_dues || 0)}</span>
-                                </div>
-                            </div>
-                            
-                            <motion.button 
-                                className="w-full mt-4 py-2 text-xs font-semibold text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
-                            >
-                                View All Pending Dues →
-                            </motion.button>
-                        </div>
-                    </motion.div>
-                </div>
-            </motion.div>
 
-            {/* MODAL */}
-            {activeModal && (
-                <motion.div 
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4 overflow-y-auto"
-                    variants={backdropVariants}
-                    initial="hidden"
-                    animate="visible"
-                    exit="exit"
-                    onClick={(e) => e.target === e.currentTarget && closeModal()}
-                >
-                    <motion.div 
-                        className={`bg-white dark:bg-slate-800 rounded-2xl shadow-2xl my-auto ${activeModal === 'registration' || activeModal === 'test' ? 'w-[95vw] max-w-[1100px]' : activeModal === 'inquiry' ? 'w-[600px] max-w-[90vw]' : 'w-[500px] max-w-[90vw]'}`}
-                        variants={modalVariants}
-                        initial="hidden"
-                        animate="visible"
-                        exit="exit"
-                    >
-                        {/* Header */}
-                        <div className={`flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 ${getModalColor().light} rounded-t-2xl`}>
-                            <div className="flex items-center gap-3">
-                                <motion.div 
-                                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${getModalColor().bg} text-white`}
-                                    initial={{ rotate: -90, opacity: 0 }}
-                                    animate={{ rotate: 0, opacity: 1 }}
-                                    transition={{ delay: 0.1 }}
-                                >
-                                    {activeModal === 'registration' && <UserPlus size={20} />}{activeModal === 'test' && <FlaskConical size={20} />}{activeModal === 'inquiry' && <PhoneCall size={20} />}{activeModal === 'test_inquiry' && <Beaker size={20} />}
-                                </motion.div>
-                                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">{getModalTitle()}</h2>
-                            </div>
-                            <button onClick={closeModal} className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"><X size={24} /></button>
+                             <div className="flex gap-2 text-xs font-bold mb-4">
+                                <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ffdad6] dark:bg-[#93000a] text-[#410002] dark:text-[#ffdad6] rounded-full transition-colors">
+                                    <div className="w-2 h-2 rounded-full bg-[#410002] dark:bg-[#ffdad6]"></div>
+                                    Pending: {data?.registration.pending}
+                                </span>
+                                <span className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ccebc4] dark:bg-[#0c3b10] text-[#0c200e] dark:text-[#ccebc4] rounded-full transition-colors">
+                                    <div className="w-2 h-2 rounded-full bg-[#0c200e] dark:bg-[#ccebc4]"></div>
+                                    Done: {data?.registration.consulted}
+                                </span>
+                             </div>
+
+                             <div className="bg-white/60 dark:bg-black/20 rounded-xl p-3">
+                                <div className="flex justify-between items-center mb-1">
+                                    <div className="flex items-center gap-1.5 text-[#006e1c] dark:text-[#88d99d]">
+                                        <PhoneCall size={14} />
+                                        <span className="font-bold text-sm">Inquiries</span>
+                                    </div>
+                                    <span className="font-black text-lg text-[#006e1c] dark:text-[#88d99d]">{data?.inquiry.total_today || 0}</span>
+                                </div>
+                                <div className="flex gap-4 text-xs text-[#43474e] dark:text-[#c4c7c5]">
+                                    <span>Quick: <strong>{data?.inquiry.quick || 0}</strong></span>
+                                    <span>Test: <strong>{data?.inquiry.test || 0}</strong></span>
+                                </div>
+                             </div>
+                         </div>
+                    </motion.div>
+
+                    {/* 2. PATIENTS CARD */}
+                    <motion.div variants={itemVariants} className="bg-[#ccebc4] dark:bg-[#203825] rounded-[28px] p-6 text-[#0c200e] dark:text-[#ccebc4] relative overflow-hidden group min-h-[220px] flex flex-col justify-between transition-colors duration-300">
+                        <div className="relative z-10 flex justify-between items-start">
+                             <div className="flex items-center gap-2">
+                                <Users size={20} />
+                                <span className="text-xs font-bold uppercase tracking-wider">Patients</span>
+                             </div>
+                             <span className="bg-[#ffffff]/60 dark:bg-[#000000]/20 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold border border-[#ffffff]/20 uppercase">Today</span>
+                        </div>
+                        
+                        <div className="relative z-10 text-center my-2">
+                            <h3 className="text-6xl font-normal" style={{ fontFamily: 'serif' }}>{data?.patients.today_attendance || 0}</h3>
+                            <p className="opacity-80 text-sm font-medium">attended today</p>
                         </div>
 
-                        {/* Body */}
-                        <div className="p-6">
-                            {/* REGISTRATION */}
-                            {activeModal === 'registration' && (
-                                <form ref={formRef} className="flex gap-8">
-                                    <div className="flex-1 space-y-4">
-                                        <input type="hidden" name="patient_photo_data" value={photoData || ''} />
-                                        <div>
-                                            <label className={labelClass}>Patient Name *</label>
-                                            <div className="flex gap-2"><input type="text" name="patient_name" required className={inputClass} placeholder="Enter patient name" /><button type="button" onClick={openPhotoModal} className="shrink-0 w-10 h-10 flex items-center justify-center bg-teal-50 text-teal-600 rounded-lg border border-teal-200 hover:bg-teal-100 transition-colors"><Camera size={18} /></button></div>
-                                            {photoData && <div className="mt-2 relative inline-block"><img src={photoData} alt="" className="h-12 w-12 object-cover rounded-lg border" /><button type="button" onClick={removePhoto} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center"><X size={10} /></button></div>}
+                        <div className="relative z-10 grid grid-cols-2 gap-3">
+                            <div className="bg-[#ffffff]/40 dark:bg-[#000000]/20 backdrop-blur-sm rounded-xl px-3 py-2 text-center">
+                                <p className="text-xl font-bold">{data?.patients.active || 0}</p>
+                                <p className="text-[10px] font-bold uppercase opacity-60">Active</p>
+                            </div>
+                            <div className="bg-[#ffffff]/40 dark:bg-[#000000]/20 backdrop-blur-sm rounded-xl px-3 py-2 text-center">
+                                <p className="text-xl font-bold">{data?.patients.inactive || 0}</p>
+                                <p className="text-[10px] font-bold uppercase opacity-60">Inactive</p>
+                            </div>
+                        </div>
+                        
+                        <div className="relative z-10 flex justify-between items-center mt-3 pt-2 border-t border-[#0c200e]/10 dark:border-[#ccebc4]/10 text-xs font-bold">
+                            <span>Total: {data?.patients.total_ever || 0}</span>
+                            <span>Paid: {fmt(data?.patients.paid_today || 0)}</span>
+                        </div>
+
+                        <div className="absolute -right-8 -bottom-8 opacity-10 group-hover:opacity-20 transition-opacity duration-500 rotate-12"><Users size={200} /></div>
+                    </motion.div>
+
+                    {/* 3. LAB TESTS CARD */}
+                    <motion.div variants={itemVariants} className="bg-[#fef7ff] dark:bg-[#1a1c1e] border border-[#cac4d0] dark:border-[#43474e] rounded-[28px] p-6 text-[#1d1b20] dark:text-[#e3e2e6] flex flex-col justify-between min-h-[220px] transition-colors duration-300">
+                         <div className="flex justify-between items-center mb-2">
+                            <div className="flex items-center gap-2 text-[#b3261e] dark:text-[#f2b8b5]">
+                                <TestTube2 size={20} />
+                                <h4 className="font-bold uppercase tracking-wider text-xs">Lab Tests</h4>
+                            </div>
+                            <span className="text-3xl font-normal" style={{ fontFamily: 'serif' }}>{data?.tests.today_total || 0}</span>
+                         </div>
+                         
+                         <div className="flex gap-0 mb-4 bg-[#f5f5f5] dark:bg-[#30333b] rounded-xl overflow-hidden transition-colors">
+                            <div className="flex-1 py-4 text-center border-r border-[#e0e0e0] dark:border-[#43474e]">
+                                <div className="text-3xl font-bold text-[#e6a019] dark:text-[#ffb700]">{data?.tests.pending || 0}</div>
+                                <div className="text-[10px] font-bold text-[#e6a019] dark:text-[#ffb700] uppercase tracking-wider mt-1">Pending</div>
+                            </div>
+                            <div className="flex-1 py-4 text-center">
+                                <div className="text-3xl font-bold text-[#006e1c] dark:text-[#88d99d]">{data?.tests.completed || 0}</div>
+                                <div className="text-[10px] font-bold text-[#006e1c] dark:text-[#88d99d] uppercase tracking-wider mt-1">Done</div>
+                            </div>
+                         </div>
+
+                         <div className="grid grid-cols-2 gap-4 text-xs">
+                             <div>
+                                 <span className="block text-[#49454f] dark:text-[#c4c7c5]">Revenue</span>
+                                 <span className="block text-lg font-bold">{fmt(data?.tests.revenue_today || 0)}</span>
+                             </div>
+                             <div className="text-right">
+                                 <span className="block text-[#49454f] dark:text-[#c4c7c5]">Month Total</span>
+                                 <span className="block text-lg font-bold">{data?.tests.total_month || 0}</span>
+                             </div>
+                         </div>
+                    </motion.div>
+
+                    {/* 4. COLLECTIONS CARD */}
+                    <motion.div variants={itemVariants} className="bg-[#1a1c1e] dark:bg-black border border-transparent dark:border-[#43474e] rounded-[28px] p-6 text-white flex flex-col justify-between min-h-[220px] transition-colors duration-300">
+                        <div className="flex justify-between items-center mb-2">
+                            <div className="flex items-center gap-2">
+                                <div className="p-2 bg-white/10 rounded-xl"><Wallet size={18} className="text-[#d0e4ff]" /></div>
+                                <span className="text-[#c4c7c5] text-xs font-bold uppercase tracking-wider">Collections</span>
+                            </div>
+                        </div>
+
+                        <div className="mb-4">
+                            <p className="text-[#c4c7c5] text-xs mb-1">Today's Total</p>
+                            <div className="text-4xl font-normal text-[#ccebc4] font-mono">{fmt(data?.collections.today_total || 0)}</div>
+                        </div>
+
+                        <div className="space-y-1.5 text-xs border-t border-white/10 pt-3 mb-2">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[#c4c7c5]">Registration</span>
+                                <span className="font-mono">{fmt(data?.collections.reg_amount || 0)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[#c4c7c5]">Treatment</span>
+                                <span className="font-mono">{fmt(data?.collections.treatment_amount || 0)}</span>
+                            </div>
+                            <div className="flex justify-between items-center">
+                                <span className="text-[#c4c7c5]">Lab Tests</span>
+                                <span className="font-mono">{fmt(data?.collections.test_amount || 0)}</span>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-between items-center pt-2 border-t border-white/10 text-xs">
+                            <div className="flex items-center gap-1.5 text-[#ffb4ab]">
+                                <AlertCircle size={14} />
+                                <span>Dues: <strong>{fmt(data?.collections.today_dues || 0)}</strong></span>
+                            </div>
+                            <div className="text-[#c4c7c5] font-mono text-[10px] opacity-70">
+                                Total: {fmt(data?.collections.month_total || 0)}
+                            </div>
+                        </div>
+                    </motion.div>
+                </motion.div>
+
+                {/* --- SCHEDULE & ACTIVITY ROW --- */}
+                <motion.div variants={containerVariants} className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                    {/* SCHEDULE LIST */}
+                    <motion.div variants={itemVariants} className="bg-[#fdfcff] dark:bg-[#1a1c1e] border border-[#e0e2ec] dark:border-[#43474e] rounded-[28px] p-6 lg:col-span-1 shadow-sm flex flex-col max-h-[400px] transition-colors duration-300">
+                        <div className="flex justify-between items-center mb-4">
+                            <div>
+                                <h3 className="text-xl text-[#1a1c1e] dark:text-[#e3e2e6] font-bold">Schedule</h3>
+                                <p className="text-[#43474e] dark:text-[#c4c7c5] text-xs font-medium mt-1 flex items-center gap-1.5"><Calendar size={12} /> Today, {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                            </div>
+                            <button onClick={() => navigate('/reception/schedule')} className="w-8 h-8 flex items-center justify-center rounded-full bg-[#e0e2ec] dark:bg-[#30333b] hover:bg-[#dadae2] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] transition-colors"><ArrowUpRight size={16} /></button>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto pr-2 space-y-3 custom-scrollbar">
+                            {!data?.schedule?.length ? (
+                                <div className="text-center py-10 flex flex-col items-center justify-center h-full opacity-50">
+                                    <Clock size={48} className="text-[#e0e2ec] dark:text-[#43474e] mb-2" />
+                                    <p className="text-[#43474e] dark:text-[#c4c7c5] text-sm">No appointments scheduled</p>
+                                </div>
+                            ) : (
+                                data.schedule.map((user, i) => (
+                                    <motion.div 
+                                        key={user.id} 
+                                        initial={{ opacity: 0, x: -10 }} 
+                                        animate={{ opacity: 1, x: 0 }} 
+                                        transition={{ delay: i * 0.05 }} 
+                                        className="group flex items-center gap-3 p-3 rounded-2xl border border-transparent hover:border-[#e0e2ec] dark:hover:border-[#43474e] hover:bg-[#f2f6fa] dark:hover:bg-[#30333b] transition-all"
+                                    >
+                                        <div className={`w-10 h-10 min-w-[40px] rounded-full flex items-center justify-center text-sm font-bold ${user.status.toLowerCase() === 'pending' ? 'bg-[#ffdad6] dark:bg-[#93000a] text-[#410002] dark:text-[#ffdad6]' : 'bg-[#ccebc4] dark:bg-[#0c3b10] text-[#0c200e] dark:text-[#ccebc4]'}`}>
+                                            {user.patient_name.charAt(0).toUpperCase()}
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div><label className={labelClass}>Age *</label><input type="text" name="age" required className={inputClass} placeholder="e.g., 25 years" /></div>
-                                            <div><label className={labelClass}>Gender *</label><select name="gender" required className={selectClass}><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select></div>
+                                        <div className="flex-1 min-w-0">
+                                            <h4 className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6] truncate">{user.patient_name}</h4>
+                                            <div className="flex items-center gap-2 mt-0.5">
+                                                <span className="text-[10px] bg-white dark:bg-[#1e1e1e] border border-[#e0e2ec] dark:border-[#43474e] px-1.5 py-0.5 rounded text-[#43474e] dark:text-[#c4c7c5]">{getTimeRange(user.appointment_time).split('-')[0]}</span>
+                                                <span className={`text-[10px] font-bold uppercase tracking-wide ${user.status.toLowerCase() === 'pending' ? 'text-[#b3261e] dark:text-[#ffb4ab]' : 'text-[#006e1c] dark:text-[#88d99d]'}`}>{user.status}</span>
+                                            </div>
                                         </div>
-                                        <div><label className={labelClass}>Referred By *</label><input list="referrers" name="referred_by" required className={inputClass} placeholder="Type or select" /><datalist id="referrers">{formOptions?.referrers.map(r => <option key={r} value={r} />)}</datalist></div>
-                                        <div><label className={labelClass}>Chief Complaint *</label><select name="conditionType" required className={selectClass}><option value="">Select</option>{formOptions?.chiefComplaints.map(c => <option key={c.complaint_code} value={c.complaint_code}>{c.complaint_name}</option>)}</select></div>
-                                        <div><label className={labelClass}>Occupation</label><input type="text" name="occupation" className={inputClass} /></div>
-                                        <div><label className={labelClass}>Phone *</label><input type="tel" name="phone" required maxLength={10} className={inputClass} placeholder="10 digits" /></div>
-                                        <div><label className={labelClass}>Email</label><input type="email" name="email" className={inputClass} /></div>
-                                    </div>
-                                    <div className="flex-1 space-y-4">
-                                        <div><label className={labelClass}>Address</label><input type="text" name="address" className={inputClass} /></div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div><label className={labelClass}>Amount *</label><input type="number" name="amount" step="0.01" required className={inputClass} placeholder="₹" /></div>
-                                            <div><label className={labelClass}>Payment Method *</label><select name="payment_method" required className={selectClass}><option value="">Select</option>{formOptions?.paymentMethods.map(m => <option key={m.method_code} value={m.method_code}>{m.method_name}</option>)}</select></div>
-                                        </div>
-                                        <div><label className={labelClass}>How did you hear?</label><select name="referralSource" className={selectClass}><option value="">Select</option>{formOptions?.referralSources.map(s => <option key={s.source_code} value={s.source_code}>{s.source_name}</option>)}</select></div>
-                                        <div><label className={labelClass}>Consultation Type *</label><select name="inquiry_type" required className={selectClass}><option value="">Select</option>{formOptions?.consultationTypes.map(t => <option key={t.consultation_code} value={t.consultation_code}>{t.consultation_name}</option>)}</select></div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div><label className={labelClass}>Appointment Date</label><input type="date" name="appointment_date" className={inputClass} value={appointmentDate} onChange={(e) => handleAppointmentDateChange(e.target.value)} /></div>
-                                            <div><label className={labelClass}>Time Slot *</label><select name="appointment_time" required className={selectClass}><option value="">Select</option>{formOptions?.timeSlots.map(t => <option key={t.value} value={t.value} disabled={t.booked} className={t.booked ? 'text-slate-400' : ''}>{t.label}{t.booked ? ' (Booked)' : ''}</option>)}</select></div>
-                                        </div>
-                                        <div><label className={labelClass}>Remarks</label><textarea name="remarks" className={`${inputClass} min-h-[60px]`} placeholder="Notes"></textarea></div>
-                                    </div>
-                                </form>
+                                    </motion.div>
+                                ))
                             )}
+                        </div>
+                    </motion.div>
 
-                            {/* TEST FORM */}
-                            {activeModal === 'test' && (
-                                <form ref={formRef} className="space-y-5">
-                                    <div className="grid grid-cols-4 gap-4">
-                                        <div><label className={labelClass}>Patient Name *</label><input type="text" name="patient_name" required className={inputClass} /></div>
-                                        <div><label className={labelClass}>Age *</label><input type="text" name="age" required className={inputClass} placeholder="e.g., 25 years" /></div>
-                                        <div><label className={labelClass}>Gender *</label><select name="gender" required className={selectClass}><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select></div>
-                                        <div><label className={labelClass}>DOB</label><input type="date" name="dob" className={inputClass} /></div>
-                                    </div>
-                                    <div className="grid grid-cols-4 gap-4">
-                                        <div><label className={labelClass}>Parents/Guardian</label><input type="text" name="parents" className={inputClass} /></div>
-                                        <div><label className={labelClass}>Relation</label><input type="text" name="relation" className={inputClass} /></div>
-                                        <div><label className={labelClass}>Phone</label><input type="tel" name="phone_number" maxLength={10} className={inputClass} /></div>
-                                        <div><label className={labelClass}>Alt. Phone</label><input type="tel" name="alternate_phone_no" maxLength={10} className={inputClass} /></div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div><label className={labelClass}>Referred By *</label><input list="test_referrers" name="referred_by" required className={inputClass} placeholder="Type or select" /><datalist id="test_referrers">{formOptions?.referrers.map(r => <option key={r} value={r} />)}</datalist></div>
-                                        <div><label className={labelClass}>Limb</label><select name="limb" className={selectClass}><option value="">Select Limb</option>{formOptions?.limbTypes.map(l => <option key={l.limb_code} value={l.limb_code}>{l.limb_name}</option>)}</select></div>
-                                    </div>
+                    {/* ACTIVITY WIDGETS */}
+                    <motion.div variants={containerVariants} className="xl:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* RECENT ACTIVITY (Black Card) */}
+                        <motion.div variants={itemVariants} className="bg-[#1a1c1e] dark:bg-black rounded-[28px] p-6 text-white overflow-hidden relative group transition-colors duration-300">
+                            <div className="flex items-center justify-between mb-6">
+                                <div className="flex items-center gap-2">
+                                    <span className="p-2 bg-white/10 rounded-xl"><Users size={16} className="text-[#ccebc4]" /></span>
+                                    <h3 className="text-lg font-bold">Recent Activity</h3>
+                                </div>
+                                <span className="px-2 py-1 bg-[#ccebc4]/20 text-[#ccebc4] text-[10px] font-bold rounded-full border border-[#ccebc4]/20">Live</span>
+                            </div>
 
-                                    {/* TEST SELECTION */}
-                                    <div>
-                                        <label className={labelClass}>Select Tests & Enter Amount *</label>
-                                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-                                            {formOptions?.testTypes.filter(t => t.test_code !== 'other').map((test, idx) => {
-                                                const testState = selectedTests[test.test_code];
-                                                return (
-                                                    <motion.div 
-                                                        key={test.test_code} 
-                                                        initial={{ opacity: 0, scale: 0.9 }}
-                                                        animate={{ opacity: 1, scale: 1 }}
-                                                        transition={{ delay: idx * 0.03 }}
-                                                        className={`p-3 border-2 rounded-xl cursor-pointer transition-all ${testState?.checked ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 hover:border-slate-300 dark:hover:border-slate-500'}`} 
-                                                        onClick={() => handleTestCheckChange(test.test_code, !testState?.checked)}
-                                                    >
-                                                        <label className="flex items-center gap-2 cursor-pointer mb-2">
-                                                            <input type="checkbox" name="test_name[]" value={test.test_code} checked={testState?.checked || false} onChange={(e) => { e.stopPropagation(); handleTestCheckChange(test.test_code, e.target.checked); }} className="w-4 h-4 text-blue-600 rounded" />
-                                                            <span className="font-medium text-sm text-slate-800 dark:text-slate-200">{test.test_name}</span>
-                                                        </label>
-                                                        <input type="number" name={`test_amounts[${test.test_code}]`} min={0} step={0.01} value={testState?.amount || ''} disabled={!testState?.checked} onChange={(e) => { e.stopPropagation(); handleTestAmountChange(test.test_code, e.target.value); }} onClick={(e) => e.stopPropagation()} className="w-full px-2 py-1.5 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 disabled:bg-slate-100 dark:disabled:bg-slate-700 disabled:text-slate-400 transition-colors" placeholder="₹ Amount" />
-                                                    </motion.div>
-                                                );
-                                            })}
+                            {/* 3 Stats Grid */}
+                            <div className="grid grid-cols-3 gap-3 mb-6">
+                                <div className="text-center p-2 bg-white/5 rounded-2xl border border-white/5">
+                                    <p className="text-2xl font-bold text-[#a8c7fa]">{data?.registration.today_total || 0}</p>
+                                    <p className="text-[10px] text-[#c4c7c5] uppercase tracking-wide mt-1">Registrations</p>
+                                </div>
+                                <div className="text-center p-2 bg-white/5 rounded-2xl border border-white/5">
+                                    <p className="text-2xl font-bold text-[#d7cff9]">{data?.tests.today_total || 0}</p>
+                                    <p className="text-[10px] text-[#c4c7c5] uppercase tracking-wide mt-1">Tests</p>
+                                </div>
+                                <div className="text-center p-2 bg-white/5 rounded-2xl border border-white/5">
+                                    <p className="text-2xl font-bold text-[#ccebc4]">{data?.patients.today_attendance || 0}</p>
+                                    <p className="text-[10px] text-[#c4c7c5] uppercase tracking-wide mt-1">Attended</p>
+                                </div>
+                            </div>
+
+                            {/* Progress Bars */}
+                            <div className="space-y-4">
+                                <div>
+                                    <div className="flex justify-between text-xs mb-1.5">
+                                        <span className="text-[#c4c7c5]">Dues Recovered</span>
+                                        <span className="font-bold text-[#ccebc4]">{fmt(data?.collections.treatment_amount || 0)}</span>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-[#ccebc4] rounded-full transition-all duration-1000" 
+                                            style={{ 
+                                                width: `${(data?.collections.today_total || 0) > 0 
+                                                    ? Math.min(100, ((data?.collections.treatment_amount || 0) / (data?.collections.today_total || 1)) * 100) 
+                                                    : 0}%` 
+                                            }}
+                                        ></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex justify-between text-xs mb-1.5">
+                                        <span className="text-[#c4c7c5]">Appointments</span>
+                                        <span className="font-bold text-[#a8c7fa]">
+                                            {data?.registration.consulted || 0}/{(data?.registration.pending || 0) + (data?.registration.consulted || 0)}
+                                        </span>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                                        <div 
+                                            className="h-full bg-[#a8c7fa] rounded-full transition-all duration-1000" 
+                                            style={{ 
+                                                width: `${((data?.registration.pending || 0) + (data?.registration.consulted || 0)) > 0 
+                                                    ? Math.round(((data?.registration.consulted || 0) / ((data?.registration.pending || 0) + (data?.registration.consulted || 0))) * 100) 
+                                                    : 0}%` 
+                                            }}
+                                        ></div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div className="flex justify-between text-xs mb-1.5">
+                                        <span className="text-[#c4c7c5]">Tests Completed</span>
+                                        <span className="font-bold text-[#d7cff9]">{data?.tests.completed || 0}/{data?.tests.today_total || 0}</span>
+                                    </div>
+                                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                                        <div className="h-full bg-[#d7cff9] rounded-full transition-all duration-1000" style={{ width: `${(data?.tests.today_total || 0) > 0 ? Math.round(((data?.tests.completed || 0) / (data?.tests.today_total || 1)) * 100) : 0}%` }}></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </motion.div>
+
+                        {/* DUES ALERT (Replaces Quick Stats) */}
+                        <motion.div variants={itemVariants} className="bg-[#fdfcff] dark:bg-[#1a1c1e] border border-[#ffdad6] dark:border-[#93000a] rounded-[28px] p-6 text-[#410002] dark:text-[#ffdad6] flex flex-col justify-between relative overflow-hidden transition-colors duration-300">
+                            <div className="relative z-10">
+                                <div className="flex justify-between items-start mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <AlertCircle size={20} className="text-[#b3261e] dark:text-[#ffb4ab]" />
+                                        <h3 className="text-lg font-bold">Dues Alert</h3>
+                                    </div>
+                                </div>
+                                
+                                <div className="text-center py-4">
+                                    <h3 className="text-4xl font-black text-[#b3261e] dark:text-[#ffb4ab]">{fmt(data?.collections.today_dues || 0)}</h3>
+                                    <p className="text-xs text-[#43474e] dark:text-[#c4c7c5] font-medium mt-1">Today's Pending Dues</p>
+                                </div>
+
+                                <div className="space-y-2 mt-2">
+                                    <div className="flex justify-between items-center bg-[#ffdad6]/30 dark:bg-[#93000a]/30 p-2 rounded-lg transition-colors">
+                                        <span className="text-xs font-medium text-[#43474e] dark:text-[#c4c7c5]">Patient Dues</span>
+                                        <span className="text-sm font-bold text-[#b3261e] dark:text-[#ffb4ab]">{fmt(data?.collections.patient_dues || 0)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center bg-[#ffdad6]/30 dark:bg-[#93000a]/30 p-2 rounded-lg transition-colors">
+                                        <span className="text-xs font-medium text-[#43474e] dark:text-[#c4c7c5]">Test Dues</span>
+                                        <span className="text-sm font-bold text-[#b3261e] dark:text-[#ffb4ab]">{fmt(data?.collections.test_dues || 0)}</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button className="w-full py-3 mt-4 bg-[#ffdad6] dark:bg-[#93000a] hover:bg-[#ffb4ab] dark:hover:bg-[#ffb4ab]/80 text-[#410002] dark:text-[#ffdad6] rounded-xl text-sm font-bold transition-colors relative z-10 flex items-center justify-center gap-1 group">
+                                View All Pending Dues <ArrowUpRight size={14} className="group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                            </button>
+                            
+                            {/* Decorative muted background circle */}
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-[#ffdad6]/20 dark:bg-[#93000a]/20 rounded-bl-[100%] pointer-events-none transition-colors"></div>
+                        </motion.div>
+                    </motion.div>
+                </motion.div>
+            </motion.main>
+
+            {/* --- FAB --- */}
+            <div className="fixed bottom-8 right-8 z-40 flex flex-col gap-4 items-end">
+                <motion.button whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }} onClick={() => setShowChatModal(true)} className="w-12 h-12 bg-[#e0e2ec] dark:bg-[#30333b] text-[#43474e] dark:text-[#c4c7c5] rounded-2xl shadow-lg flex items-center justify-center border border-[#74777f] dark:border-[#8e918f]"><MessageCircle size={24} /></motion.button>
+                <motion.button whileHover={{ scale: 1.05, rotate: 90 }} whileTap={{ scale: 0.95 }} onClick={() => setActiveModal('registration')} className="w-16 h-16 bg-[#ccebc4] hover:bg-[#b0d8a4] text-[#0c200e] rounded-[20px] shadow-xl flex items-center justify-center border border-[#b0d8a4]"><Plus size={32} /></motion.button>
+            </div>
+
+            {/* --- MODALS --- */}
+            <AnimatePresence>
+                {activeModal && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && closeModal()}>
+                        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-[#fdfcff] dark:bg-[#111315] w-full max-w-[1000px] max-h-[90vh] overflow-y-auto rounded-[32px] shadow-2xl overflow-hidden transition-colors duration-300">
+                            <div className="px-8 py-6 border-b border-[#e0e2ec] dark:border-[#43474e] flex items-center justify-between bg-[#fdfcff] dark:bg-[#111315] sticky top-0 z-10 transition-colors"><div><h2 className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6]" style={{ fontFamily: 'serif' }}>{activeModal === 'registration' && 'New Patient Registration'}{activeModal === 'test' && 'Book Lab Test'}{activeModal === 'inquiry' && 'New Inquiry'}{activeModal === 'test_inquiry' && 'Test Inquiry'}</h2><p className="text-sm text-[#43474e] dark:text-[#c4c7c5]">Enter details below</p></div><button onClick={closeModal} className="w-10 h-10 rounded-full hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] flex items-center justify-center transition-colors"><X size={24} className="text-[#43474e] dark:text-[#c4c7c5]" /></button></div>
+                            <div className="p-8">
+                                {activeModal === 'registration' && (
+                                    <form ref={formRef} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                        <input type="hidden" name="patient_photo_data" value={photoData || ''} />
+                                        <div className="space-y-6">
+                                            <div><label className={labelClass}>Patient Name *</label><div className="flex items-center gap-2"><input type="text" name="patient_name" required className={inputClass} placeholder="Full Name" /><button type="button" onClick={openPhotoModal} className="w-12 h-12 flex items-center justify-center bg-[#ccebc4] rounded-xl text-[#0c200e] hover:bg-[#b0d8a4] transition-colors"><Camera size={20} /></button></div>{photoData && <div className="mt-2 text-xs text-green-600 flex items-center gap-1"><Check size={12} /> Photo captured</div>}</div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div><label className={labelClass}>Age *</label><input type="text" name="age" required className={inputClass} placeholder="25" /></div>
+                                                <div>
+                                                    <CustomSelect label="Gender *" value={regGender} onChange={setRegGender} options={[{label:'Male',value:'Male'},{label:'Female',value:'Female'},{label:'Other',value:'Other'}]} placeholder="Select" />
+                                                    <input type="hidden" name="gender" value={regGender} />
+                                                </div>
+                                            </div>
+                                            <div><label className={labelClass}>Referred By *</label><input list="referrers" name="referred_by" className={inputClass} /><datalist id="referrers">{formOptions?.referrers.map((r: string) => <option key={r} value={r} />)}</datalist></div>
+                                            <div>
+                                                <CustomSelect label="Chief Complaint *" value={regComplaint} onChange={setRegComplaint} options={formOptions?.chiefComplaints.map(c => ({ label: c.complaint_name, value: c.complaint_code })) || []} placeholder="Select" />
+                                                <input type="hidden" name="conditionType" value={regComplaint} />
+                                            </div>
+                                            <div><label className={labelClass}>Occupation</label><input type="text" name="occupation" className={inputClass} /></div>
+                                            <div><label className={labelClass}>Phone No *</label><input type="tel" name="phone" required maxLength={10} className={inputClass} placeholder="1234567890" /></div>
+                                            <div><label className={labelClass}>Email</label><input type="email" name="email" className={inputClass} placeholder="patient@example.com" /></div>
                                         </div>
-                                        {formOptions?.testTypes.filter(t => t.test_code === 'other').map(test => {
-                                            const testState = selectedTests[test.test_code];
-                                            return (
-                                                <div key={test.test_code} className={`mt-3 p-3 border-2 rounded-xl transition-all ${testState?.checked ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700'}`}>
+                                        <div className="space-y-6">
+                                            <div><label className={labelClass}>Address</label><input type="text" name="address" className={inputClass} placeholder="Full Address" /></div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div><label className={labelClass}>Amount (₹) *</label><input type="number" name="amount" required className={inputClass} placeholder="0.00" /></div>
+                                                <div>
+                                                    <CustomSelect label="Payment *" value={regPayment} onChange={setRegPayment} options={formOptions?.paymentMethods.map(m => ({ label: m.method_name, value: m.method_code })) || []} placeholder="Select" />
+                                                    <input type="hidden" name="payment_method" value={regPayment} />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <CustomSelect label="How did you hear?" value={regSource} onChange={setRegSource} options={formOptions?.referralSources.map(s => ({ label: s.source_name, value: s.source_code })) || []} placeholder="Select" />
+                                                <input type="hidden" name="referralSource" value={regSource} />
+                                            </div>
+                                            <div>
+                                                <CustomSelect label="Consultation Type *" value={regConsultType} onChange={setRegConsultType} options={formOptions?.consultationTypes.map(t => ({ label: t.consultation_name, value: t.consultation_code })) || []} placeholder="Select" />
+                                                <input type="hidden" name="inquiry_type" value={regConsultType} />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className={labelClass}>Appointment Date</label>
+                                                    <div onClick={() => { setActiveDateField('registration'); setShowDatePicker(true); }} className={`${inputClass} cursor-pointer flex items-center justify-between`}>
+                                                        <span>{new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                                                        <Calendar size={18} className="text-[#43474e] dark:text-[#c4c7c5]" />
+                                                    </div>
+                                                    <input type="hidden" name="appointment_date" value={appointmentDate} />
+                                                </div>
+                                                <div>
+                                                    <label className={labelClass}>Time Slot *</label>
+                                                    <div onClick={() => setShowTimePicker(true)} className={`${selectClass} cursor-pointer flex items-center justify-between`}>
+                                                        <span>{formOptions?.timeSlots?.find((t: any) => t.value === appointmentTime)?.label || 'Select Time'}</span>
+                                                        <Clock size={18} className="text-[#43474e] dark:text-[#c4c7c5]" />
+                                                    </div>
+                                                    <input type="hidden" name="appointment_time" value={appointmentTime} />
+                                                </div>
+                                            </div>
+                                            <div><label className={labelClass}>Remarks</label><textarea name="remarks" className={`${inputClass} min-h-[80px] rounded-b-lg border-x-0`} placeholder="Additional remarks..."></textarea></div>
+                                        </div>
+                                    </form>
+                                )}
+                                {activeModal === 'test' && (
+                                    <form ref={formRef} className="space-y-6">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div><label className={labelClass}>Patient Name *</label><input type="text" name="patient_name" required className={inputClass} placeholder="Full Name" /></div>
+                                            <div><label className={labelClass}>Age *</label><input type="text" name="age" required className={inputClass} placeholder="25" /></div>
+                                            <div>
+                                                <CustomSelect label="Gender *" value={testGender} onChange={setTestGender} options={[{label:'Male',value:'Male'},{label:'Female',value:'Female'},{label:'Other',value:'Other'}]} placeholder="Select" />
+                                                <input type="hidden" name="gender" value={testGender} />
+                                            </div>
+                                            <div><label className={labelClass}>Date of Birth</label><input type="date" name="dob" className={inputClass} /></div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div><label className={labelClass}>Parents/Guardian</label><input type="text" name="parents" className={inputClass} placeholder="Name" /></div>
+                                            <div><label className={labelClass}>Relation</label><input type="text" name="relation" className={inputClass} placeholder="e.g. Father" /></div>
+                                            <div><label className={labelClass}>Phone</label><input type="tel" name="phone_number" maxLength={10} className={inputClass} placeholder="1234567890" /></div>
+                                            <div><label className={labelClass}>Alt. Phone</label><input type="tel" name="alternate_phone_no" maxLength={10} className={inputClass} placeholder="Optional" /></div>
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div><label className={labelClass}>Referred By *</label><input list="test_referrers" name="referred_by" required className={inputClass} placeholder="Type or select" /><datalist id="test_referrers">{formOptions?.referrers.map((r: string) => <option key={r} value={r} />)}</datalist></div>
+                                            <div>
+                                                <CustomSelect label="Limb" value={testLimb} onChange={setTestLimb} options={formOptions?.limbTypes.map((l: any) => ({ label: l.limb_name, value: l.limb_code })) || []} placeholder="Select Limb" />
+                                                <input type="hidden" name="limb" value={testLimb} />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className={labelClass}>Select Tests *</label>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+                                                {formOptions?.testTypes?.filter((t: any) => t.test_code !== 'other').map((test: any) => (
+                                                    <div key={test.test_code} onClick={() => handleTestCheckChange(test.test_code, !selectedTests[test.test_code]?.checked)} className={`p-3 border rounded-xl cursor-pointer transition-all flex flex-col gap-2 ${selectedTests[test.test_code]?.checked ? 'border-[#006e1c] bg-[#ccebc4]/30 dark:bg-[#0c3b10]/30' : 'border-transparent bg-[#e0e2ec]/50 dark:bg-[#1a1c1e] hover:bg-[#e0e2ec] dark:hover:bg-[#30333b]'}`}>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedTests[test.test_code]?.checked ? 'bg-[#006e1c] border-[#006e1c]' : 'border-[#43474e]'}`}>{selectedTests[test.test_code]?.checked && <Check size={10} className="text-white" />}</div>
+                                                            <span className="text-sm font-medium text-[#1a1c1e] dark:text-[#e3e2e6]">{test.test_name}</span>
+                                                        </div>
+                                                        {selectedTests[test.test_code]?.checked && (
+                                                            <input type="number" step="0.01" value={selectedTests[test.test_code]?.amount || ''} onClick={(e) => e.stopPropagation()} onChange={(e) => handleTestAmountChange(test.test_code, e.target.value)} className="w-full bg-white dark:bg-[#111315] border border-[#e0e2ec] dark:border-[#43474e] rounded-lg px-2 py-1 text-sm outline-none" placeholder="Amount" />
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {/* Other Test */}
+                                            {formOptions?.testTypes?.filter((t: any) => t.test_code === 'other').map((test: any) => (
+                                                <div key={test.test_code} className={`mt-3 p-3 border rounded-xl transition-all ${selectedTests[test.test_code]?.checked ? 'border-[#006e1c] bg-[#ccebc4]/30' : 'border-transparent bg-[#e0e2ec]/50 dark:bg-[#1a1c1e]'}`}>
                                                     <div className="flex items-center gap-4">
-                                                        <label className="flex items-center gap-2 cursor-pointer">
-                                                            <input type="checkbox" name="test_name[]" value={test.test_code} checked={testState?.checked || false} onChange={(e) => handleTestCheckChange(test.test_code, e.target.checked)} className="w-4 h-4 text-blue-600 rounded" />
-                                                            <span className="font-medium text-sm text-slate-800 dark:text-slate-200">{test.test_name}</span>
-                                                        </label>
-                                                        {testState?.checked && <input type="text" name="other_test_name" value={otherTestName} onChange={(e) => setOtherTestName(e.target.value)} placeholder="Enter Test Name" className="flex-1 px-2 py-1.5 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100" />}
-                                                        <input type="number" name={`test_amounts[${test.test_code}]`} min={0} step={0.01} value={testState?.amount || ''} disabled={!testState?.checked} onChange={(e) => handleTestAmountChange(test.test_code, e.target.value)} className="w-32 px-2 py-1.5 text-sm border border-slate-200 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 disabled:bg-slate-100 dark:disabled:bg-slate-700 disabled:text-slate-400" placeholder="₹ Amount" />
+                                                        <div onClick={() => handleTestCheckChange(test.test_code, !selectedTests[test.test_code]?.checked)} className="flex items-center gap-2 cursor-pointer">
+                                                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${selectedTests[test.test_code]?.checked ? 'bg-[#006e1c] border-[#006e1c]' : 'border-[#43474e]'}`}>{selectedTests[test.test_code]?.checked && <Check size={10} className="text-white" />}</div>
+                                                            <span className="text-sm font-medium text-[#1a1c1e] dark:text-[#e3e2e6]">{test.test_name}</span>
+                                                        </div>
+                                                        {selectedTests[test.test_code]?.checked && (
+                                                            <>
+                                                                <input type="text" value={otherTestName} onChange={(e) => setOtherTestName(e.target.value)} placeholder="Test Name" className="flex-1 bg-white dark:bg-[#111315] border border-[#e0e2ec] dark:border-[#43474e] rounded-lg px-3 py-1.5 text-sm outline-none" />
+                                                                <input type="number" step="0.01" value={selectedTests[test.test_code]?.amount || ''} onChange={(e) => handleTestAmountChange(test.test_code, e.target.value)} className="w-32 bg-white dark:bg-[#111315] border border-[#e0e2ec] dark:border-[#43474e] rounded-lg px-3 py-1.5 text-sm outline-none" placeholder="Amount" />
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">Check a test to enable its amount field. Total updates automatically.</p>
-                                    </div>
+                                            ))}
+                                        </div>
 
-                                    <div className="grid grid-cols-4 gap-4">
-                                        <div><label className={labelClass}>Date of Visit *</label><input type="date" name="visit_date" required className={inputClass} defaultValue={new Date().toISOString().split('T')[0]} /></div>
-                                        <div><label className={labelClass}>Assigned Test Date *</label><input type="date" name="assigned_test_date" required className={inputClass} defaultValue={new Date().toISOString().split('T')[0]} /></div>
-                                        <div><label className={labelClass}>Test Done By *</label><select name="test_done_by" required className={selectClass}><option value="">Select</option>{formOptions?.staffMembers.map(s => <option key={s.staff_id} value={s.staff_name}>{s.staff_name}</option>)}</select></div>
-                                        <div><label className={labelClass}>Payment Method *</label><select name="payment_method" required className={selectClass}><option value="">Select</option>{formOptions?.paymentMethods.map(m => <option key={m.method_code} value={m.method_code}>{m.method_name}</option>)}</select></div>
-                                    </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                            <div>
+                                                <label className={labelClass}>Date of Visit *</label>
+                                                <div onClick={() => { setActiveDateField('test_visit'); setShowDatePicker(true); }} className={`${inputClass} cursor-pointer flex items-center justify-between`}>
+                                                    <span>{new Date(testVisitDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                                                    <Calendar size={18} className="text-[#43474e] dark:text-[#c4c7c5]" />
+                                                </div>
+                                                <input type="hidden" name="visit_date" value={testVisitDate} />
+                                            </div>
+                                            <div>
+                                                <label className={labelClass}>Assigned Date *</label>
+                                                <div onClick={() => { setActiveDateField('test_assigned'); setShowDatePicker(true); }} className={`${inputClass} cursor-pointer flex items-center justify-between`}>
+                                                    <span>{new Date(testAssignedDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                                                    <Calendar size={18} className="text-[#43474e] dark:text-[#c4c7c5]" />
+                                                </div>
+                                                <input type="hidden" name="assigned_test_date" value={testAssignedDate} />
+                                            </div>
+                                            <div>
+                                                <CustomSelect label="Test Done By *" value={testDoneBy} onChange={setTestDoneBy} options={formOptions?.staffMembers?.map((s: any) => ({ label: s.staff_name, value: s.staff_name })) || []} placeholder="Select" />
+                                                <input type="hidden" name="test_done_by" value={testDoneBy} />
+                                            </div>
+                                            <div>
+                                                <CustomSelect label="Payment *" value={testPayment} onChange={setTestPayment} options={formOptions?.paymentMethods?.map((m: any) => ({ label: m.method_name, value: m.method_code })) || []} placeholder="Select" />
+                                                <input type="hidden" name="payment_method" value={testPayment} />
+                                            </div>
+                                        </div>
 
-                                    <div className="grid grid-cols-4 gap-4">
-                                        <div><label className={labelClass}>Total Amount *</label><input type="number" name="total_amount" step="0.01" required className={inputClass} value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} /></div>
-                                        <div><label className={labelClass}>Advance Amount</label><input type="number" name="advance_amount" step="0.01" className={inputClass} value={advanceAmount} onChange={(e) => setAdvanceAmount(e.target.value)} placeholder="Enter Advance" /></div>
-                                        <div><label className={labelClass}>Discount</label><input type="number" name="discount" step="0.01" className={inputClass} value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0" /></div>
-                                        <div><label className={labelClass}>Due Amount</label><input type="number" name="due_amount" step="0.01" className={`${inputClass} bg-slate-100 font-semibold`} value={dueAmount} readOnly /></div>
-                                    </div>
-                                </form>
-                            )}
-
-                            {/* INQUIRY */}
-                            {activeModal === 'inquiry' && (
-                                <form ref={formRef} className="grid grid-cols-2 gap-4">
-                                    <div><label className={labelClass}>Patient Name *</label><input type="text" name="patient_name" required className={inputClass} /></div>
-                                    <div><label className={labelClass}>Age *</label><input type="text" name="age" required className={inputClass} placeholder="e.g., 25 years" /></div>
-                                    <div><label className={labelClass}>Gender *</label><select name="gender" required className={selectClass}><option value="">Select</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option></select></div>
-                                    <div><label className={labelClass}>Inquiry Service *</label><select name="inquiry_type" required className={selectClass}><option value="">Select</option>{formOptions?.inquiryServiceTypes.map(s => <option key={s.service_code} value={s.service_code}>{s.service_name}</option>)}</select></div>
-                                    <div><label className={labelClass}>How did you hear? *</label><select name="referralSource" required className={selectClass}><option value="">Select</option>{formOptions?.referralSources.map(s => <option key={s.source_code} value={s.source_code}>{s.source_name}</option>)}</select></div>
-                                    <div><label className={labelClass}>Communication Type *</label><select name="communication_type" required className={selectClass}><option value="">Select</option><option value="by_visit">By Visit</option><option value="phone">Phone</option><option value="web">Web</option><option value="email">Email</option></select></div>
-                                    <div><label className={labelClass}>Chief Complaint *</label><select name="conditionType" required className={selectClass}><option value="">Select</option>{formOptions?.chiefComplaints.map(c => <option key={c.complaint_code} value={c.complaint_code}>{c.complaint_name}</option>)}</select></div>
-                                    <div><label className={labelClass}>Mobile No. *</label><input type="tel" name="phone" required maxLength={10} className={inputClass} /></div>
-                                    <div><label className={labelClass}>Plan to Visit Date *</label><input type="date" name="expected_date" required className={inputClass} /></div>
-                                    <div><label className={labelClass}>Remarks</label><textarea name="remarks" className={`${inputClass} min-h-[60px]`}></textarea></div>
-                                </form>
-                            )}
-
-                            {/* TEST INQUIRY */}
-                            {activeModal === 'test_inquiry' && (
-                                <form ref={formRef} className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div><label className={labelClass}>Patient Name *</label><input type="text" name="patient_name" required className={inputClass} /></div>
-                                        <div><label className={labelClass}>Test Name *</label><select name="test_name" required className={selectClass}><option value="">Select</option>{formOptions?.testTypes.map(t => <option key={t.test_code} value={t.test_code}>{t.test_name}</option>)}</select></div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div><label className={labelClass}>Referred By *</label><input list="referrers" name="referred_by" required className={inputClass} /></div>
-                                        <div><label className={labelClass}>Mobile No. *</label><input type="tel" name="phone_number" required maxLength={10} className={inputClass} /></div>
-                                    </div>
-                                    <div><label className={labelClass}>Expected Visit Date *</label><input type="date" name="expected_visit_date" required className={inputClass} /></div>
-                                </form>
-                            )}
-                        </div>
-
-                        {/* Footer */}
-                        <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 rounded-b-2xl">
-                            {submitMessage ? (
-                                <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium ${submitMessage.type === 'success' ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'}`}>
-                                    {submitMessage.type === 'success' ? <Check size={16} /> : <AlertCircle size={16} />}
-                                    {submitMessage.text}
-                                </div>
-                            ) : <div />}
-                            <div className="flex items-center gap-3">
-                                <button type="button" onClick={closeModal} className="px-5 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">Cancel</button>
-                                <motion.button 
-                                    type="button"
-                                    onClick={handleSubmit}
-                                    disabled={isSubmitting} 
-                                    className={`px-6 py-2.5 text-sm font-semibold text-white rounded-lg shadow-sm ${getModalColor().bg} ${getModalColor().hover} flex items-center gap-2 transition-colors disabled:opacity-50`}
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                >
-                                    {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Processing...</> : 'Submit'}
-                                </motion.button>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-[#f2f6fa] dark:bg-[#1a1c1e] p-4 rounded-xl">
+                                            <div><label className={labelClass}>Total Amount</label><input type="number" name="total_amount" required className={`${inputClass} font-bold`} value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} /></div>
+                                            <div><label className={labelClass}>Advance</label><input type="number" name="advance_amount" className={inputClass} value={advanceAmount} onChange={(e) => setAdvanceAmount(e.target.value)} placeholder="0.00" /></div>
+                                            <div><label className={labelClass}>Discount</label><input type="number" name="discount" className={inputClass} value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0.00" /></div>
+                                            <div><label className={labelClass}>Due Amount</label><input type="text" name="due_amount" readOnly className={`${inputClass} bg-transparent border border-[#ffdad6] text-[#b3261e] dark:text-[#ffb4ab] font-bold`} value={dueAmount} /></div>
+                                        </div>
+                                    </form>
+                                )}
+                                {(activeModal === 'inquiry' || activeModal === 'test_inquiry') && (
+                                    <form ref={formRef} className="space-y-6">
+                                        {activeModal === 'inquiry' && (
+                                            <>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div><label className={labelClass}>Patient Name *</label><input type="text" name="patient_name" required className={inputClass} placeholder="Full Name" /></div>
+                                                    <div><label className={labelClass}>Age *</label><input type="text" name="age" required className={inputClass} placeholder="e.g. 25 years" /></div>
+                                                    
+                                                    <div>
+                                                        <CustomSelect label="Gender *" value={inqGender} onChange={setInqGender} options={[{label:'Male',value:'Male'},{label:'Female',value:'Female'},{label:'Other',value:'Other'}]} placeholder="Select" />
+                                                        <input type="hidden" name="gender" value={inqGender} />
+                                                    </div>
+                                                    <div>
+                                                        <CustomSelect label="Inquiry Service *" value={inqService} onChange={setInqService} options={formOptions?.inquiryServiceTypes.map(s => ({ label: s.service_name, value: s.service_code })) || []} placeholder="Select" />
+                                                        <input type="hidden" name="inquiry_type" value={inqService} />
+                                                    </div>
+                                                    
+                                                    <div>
+                                                        <CustomSelect label="How did you hear? *" value={inqSource} onChange={setInqSource} options={formOptions?.referralSources.map(s => ({ label: s.source_name, value: s.source_code })) || []} placeholder="Select" />
+                                                        <input type="hidden" name="referralSource" value={inqSource} />
+                                                    </div>
+                                                    <div>
+                                                        <CustomSelect label="Communication Type *" value={inqCommType} onChange={setInqCommType} options={['Call', 'Walk-in', 'Email', 'Chat', 'Whatsapp'].map(v => ({ label: v, value: v }))} placeholder="Select" />
+                                                        <input type="hidden" name="communication_type" value={inqCommType} />
+                                                    </div>
+                                                    
+                                                    <div>
+                                                        <CustomSelect label="Chief Complaint *" value={inqComplaint} onChange={setInqComplaint} options={formOptions?.chiefComplaints.map(c => ({ label: c.complaint_name, value: c.complaint_code })) || []} placeholder="Select" />
+                                                        <input type="hidden" name="conditionType" value={inqComplaint} />
+                                                    </div>
+                                                    <div><label className={labelClass}>Mobile No. *</label><input type="tel" name="phone" required maxLength={10} className={inputClass} placeholder="1234567890" /></div>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div>
+                                                        <label className={labelClass}>Plan to Visit Date *</label>
+                                                        <div onClick={() => { setActiveDateField('inquiry'); setShowDatePicker(true); }} className={`${inputClass} cursor-pointer flex items-center justify-between`}>
+                                                            <span>{new Date(inquiryDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                                                            <Calendar size={18} className="text-[#43474e] dark:text-[#c4c7c5]" />
+                                                        </div>
+                                                        <input type="hidden" name="expected_date" value={inquiryDate} />
+                                                    </div>
+                                                    <div><label className={labelClass}>Remarks</label><textarea name="remarks" className={`${inputClass} min-h-[50px] resize-none pt-3`} placeholder="Notes..."></textarea></div>
+                                                </div>
+                                            </>
+                                        )}
+                                        
+                                        {activeModal === 'test_inquiry' && (
+                                            <>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    <div><label className={labelClass}>Patient Name *</label><input type="text" name="patient_name" required className={inputClass} placeholder="Full Name" /></div>
+                                                    <div>
+                                                        <CustomSelect label="Test Name *" value={tiTestName} onChange={setTiTestName} options={formOptions?.testTypes.map(t => ({ label: t.test_name, value: t.test_code })) || []} placeholder="Select" />
+                                                        <input type="hidden" name="test_name" value={tiTestName} />
+                                                    </div>
+                                                    
+                                                    <div><label className={labelClass}>Referred By *</label><input list="ti_referrers" name="referred_by" required className={inputClass} placeholder="Type" /><datalist id="ti_referrers">{formOptions?.referrers.map(r => <option key={r} value={r} />)}</datalist></div>
+                                                    <div><label className={labelClass}>Mobile No. *</label><input type="tel" name="phone_number" required maxLength={10} className={inputClass} /></div>
+                                                </div>
+                                                <div>
+                                                    <label className={labelClass}>Expected Visit Date *</label>
+                                                    <div onClick={() => { setActiveDateField('test_inquiry'); setShowDatePicker(true); }} className={`${inputClass} cursor-pointer flex items-center justify-between`}>
+                                                        <span>{new Date(testInquiryDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                                                        <Calendar size={18} className="text-[#43474e] dark:text-[#c4c7c5]" />
+                                                    </div>
+                                                    <input type="hidden" name="expected_visit_date" value={testInquiryDate} />
+                                                </div>
+                                            </>
+                                        )}
+                                    </form>
+                                )}
                             </div>
-                        </div>
+                            <div className="p-6 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center bg-[#fdfcff] dark:bg-[#111315] sticky bottom-0 z-10 transition-colors">{submitMessage ? <span className={`text-sm font-bold px-4 py-2 rounded-lg ${submitMessage.type === 'success' ? 'bg-[#ccebc4] text-[#0c200e]' : 'bg-[#ffdad6] text-[#410002]'}`}>{submitMessage.text}</span> : <span></span>}<div className="flex gap-4"><button onClick={closeModal} className="px-6 py-3 text-[#006e1c] dark:text-[#88d99d] font-bold hover:bg-[#ccebc4]/30 rounded-full transition-colors">Cancel</button><button onClick={handleSubmit} disabled={isSubmitting} className="px-8 py-3 bg-[#006e1c] text-white font-bold rounded-full shadow-lg hover:shadow-xl hover:bg-[#005313] transition-all disabled:opacity-50 flex items-center gap-2">{isSubmitting && <Loader2 size={18} className="animate-spin" />}Submit</button></div></div>
+                        </motion.div>
                     </motion.div>
-                </motion.div>
-            )}
+                )}
+            </AnimatePresence>
 
-            {/* Photo Modal */}
-            {showPhotoModal && (
-                <motion.div 
-                    className="fixed inset-0 bg-black/80 z-[10001] flex items-center justify-center p-4"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                >
-                    <motion.div 
-                        className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl p-6 w-full max-w-lg"
-                        initial={{ scale: 0.9, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                    >
-                        <h3 className="text-lg font-semibold mb-4 text-slate-900 dark:text-slate-100">Capture Photo</h3>
-                        <div className="mb-4 bg-black rounded-lg overflow-hidden aspect-video"><video ref={videoRef} autoPlay playsInline className={`w-full h-full object-cover ${photoCaptured ? 'hidden' : ''}`}></video><canvas ref={canvasRef} className={`w-full h-full object-cover ${photoCaptured ? '' : 'hidden'}`}></canvas></div>
-                        {!photoCaptured ? <div className="flex justify-end gap-3"><button type="button" onClick={closePhotoModal} className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 border dark:border-slate-600 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Cancel</button><button type="button" onClick={capturePhoto} className="px-4 py-2 text-sm text-white bg-teal-600 rounded-lg flex items-center gap-2 hover:bg-teal-700 transition-colors"><Camera size={16} /> Capture</button></div> : <div className="flex justify-end gap-3"><button type="button" onClick={closePhotoModal} className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 border dark:border-slate-600 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors">Cancel</button><button type="button" onClick={retakePhoto} className="px-4 py-2 text-sm text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-700 border dark:border-slate-600 rounded-lg flex items-center gap-2 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"><RefreshCw size={16} /> Retake</button><button type="button" onClick={usePhoto} className="px-4 py-2 text-sm text-white bg-green-600 rounded-lg flex items-center gap-2 hover:bg-green-700 transition-colors"><Check size={16} /> Use</button></div>}
-                    </motion.div>
-                </motion.div>
-            )}
-        </ReceptionLayout>
+            {/* --- PHOTO MODAL --- */}
+            <AnimatePresence>{showPhotoModal && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/80 z-[10001] flex items-center justify-center p-4"><div className="bg-[#1a1c1e] p-4 rounded-[28px] w-full max-w-lg shadow-2xl"><h3 className="text-white text-lg font-bold mb-4 ml-2">Capture Photo</h3><div className="bg-black rounded-xl overflow-hidden aspect-video border border-[#43474e] relative"><video ref={videoRef} autoPlay playsInline className={`w-full h-full object-cover ${photoCaptured ? 'hidden' : ''}`}></video><canvas ref={canvasRef} className={`w-full h-full object-cover ${photoCaptured ? '' : 'hidden'}`}></canvas></div><div className="flex justify-end gap-3 mt-4"><button onClick={closePhotoModal} className="px-6 py-2 text-[#c4c7c5] font-bold hover:text-white transition-colors">Close</button>{!photoCaptured ? (<button onClick={capturePhoto} className="px-6 py-2 bg-[#d0e4ff] text-[#001d36] rounded-full font-bold hover:bg-[#b0d2ff]">Snap</button>) : (<><button onClick={retakePhoto} className="px-6 py-2 bg-[#43474e] text-white rounded-full font-bold hover:bg-[#5f6368]">Retake</button><button onClick={usePhoto} className="px-6 py-2 bg-[#ccebc4] text-[#0c200e] rounded-full font-bold hover:bg-[#b0d8a4]">Use Photo</button></>)}</div></div></motion.div>)}</AnimatePresence>
+            
+            {/* --- CHAT MODAL --- */}
+            <ChatModal isOpen={showChatModal} onClose={() => setShowChatModal(false)} />
+            {/* --- DATE PICKER --- */}
+            <AnimatePresence>
+                {showDatePicker && (
+                    <DatePicker 
+                        value={
+                            activeDateField === 'registration' ? appointmentDate :
+                            activeDateField === 'test_visit' ? testVisitDate :
+                            activeDateField === 'test_assigned' ? testAssignedDate :
+                            activeDateField === 'inquiry' ? inquiryDate :
+                            activeDateField === 'test_inquiry' ? testInquiryDate : ''
+                        } 
+                        onChange={(d: string) => {
+                            if (activeDateField === 'registration') handleAppointmentDateChange(d);
+                            else if (activeDateField === 'test_visit') setTestVisitDate(d);
+                            else if (activeDateField === 'test_assigned') setTestAssignedDate(d);
+                            else if (activeDateField === 'inquiry') setInquiryDate(d);
+                            else if (activeDateField === 'test_inquiry') setTestInquiryDate(d);
+                        }} 
+                        onClose={() => setShowDatePicker(false)} 
+                    />
+                )}
+            </AnimatePresence>
+            {/* --- TIME PICKER --- */}
+            <AnimatePresence>
+                {showTimePicker && (
+                    <TimePicker
+                        value={appointmentTime}
+                        onChange={(t: string) => setAppointmentTime(t)}
+                        onClose={() => setShowTimePicker(false)}
+                        slots={formOptions?.timeSlots || []}
+                    />
+                )}
+            </AnimatePresence>
+        </div>
     );
 };
 
