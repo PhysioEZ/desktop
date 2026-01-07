@@ -48,7 +48,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
         {/* Typography - Modern Dark on Light */}
         <div className="text-center space-y-2">
           <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-slate-800 drop-shadow-sm">
-            CareSync<span className="font-light text-teal-600">OS</span>
+            Physio<span className="font-light text-teal-600">EZ</span>
           </h1>
           
           <div className="h-px w-20 bg-gradient-to-r from-transparent via-slate-300 to-transparent mx-auto my-6"></div>

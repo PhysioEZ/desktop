@@ -1,11 +1,18 @@
 <?php
-// desktop/server/api/reception/dashboard.php
+/**
+ * Dashboard API - Desktop Application
+ * Requires authentication. Standard rate limiting.
+ */
+declare(strict_types=1);
 
-header("Access-Control-Allow-Origin: *");
-header("Content-Type: application/json; charset=UTF-8");
 require_once '../../common/db.php';
+require_once '../../common/security.php';
 
-$branchId = $_GET['branch_id'] ?? null;
+// Apply security - requires authentication
+$authData = applySecurity(['requireAuth' => true]);
+
+// Use branch_id from auth if available, otherwise from query param
+$branchId = $authData['branch_id'] ?? $_GET['branch_id'] ?? null;
 if (!$branchId) {
     http_response_code(400);
     echo json_encode(["status" => "error", "message" => "Branch ID required"]);

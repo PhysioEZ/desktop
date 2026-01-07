@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, authFetch } from '../config';
 import { motion, AnimatePresence } from 'framer-motion';
 import ChatModal from '../components/Chat/ChatModal'; // Integrated Chat
 import { 
@@ -9,9 +9,12 @@ import {
     ArrowUpRight, AlertCircle, Camera, Loader2, 
     X, RefreshCw, Check, UserPlus, FlaskConical, PhoneCall, Beaker,
     Search, Bell, Plus, MessageCircle, LogOut, User,
-    Moon, Sun, ChevronLeft, ChevronRight, Edit2
+    Moon, Sun, ChevronLeft, ChevronRight, Edit2, ChevronDown, ChevronUp
 } from 'lucide-react';
 import CustomSelect from '../components/ui/CustomSelect';
+import KeyboardShortcuts, { type ShortcutItem } from '../components/KeyboardShortcuts';
+import LogoutConfirmation from '../components/LogoutConfirmation';
+import GlobalSearch from '../components/GlobalSearch';
 
 // Types
 interface DashboardData {
@@ -157,7 +160,7 @@ const TimePicker = ({ value, onChange, onClose, slots }: any) => {
         onClose();
     };
 
-    const selectedLabel = slots?.find((s: any) => s.value === selected)?.label || '--:--';
+    const selectedLabel = slots?.find((s: any) => s.time === selected)?.label || '--:--';
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[10005] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -179,18 +182,20 @@ const TimePicker = ({ value, onChange, onClose, slots }: any) => {
                     <div className="grid grid-cols-3 gap-2">
                         {slots?.map((slot: any) => (
                             <button 
-                                key={slot.value} 
-                                disabled={slot.booked}
-                                onClick={() => setSelected(slot.value)}
+                                key={slot.time} 
+                                disabled={slot.disabled}
+                                onClick={() => setSelected(slot.time)}
                                 className={`py-2 px-1 text-sm rounded-lg border transition-all ${
-                                    selected === slot.value
+                                    selected === slot.time
                                         ? 'bg-[#6750a4] dark:bg-[#d0bcff] text-white dark:text-[#381e72] border-[#6750a4] dark:border-[#d0bcff]'
-                                        : slot.booked 
-                                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-transparent cursor-not-allowed decoration-slate-400 line-through decoration-1'
+                                        : slot.disabled 
+                                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed'
                                             : 'bg-transparent border-[#79747e] text-[#49454f] dark:text-[#cac4d0] hover:bg-[#6750a4]/10'
                                 }`}
                             >
-                                {slot.label.split(' ')[0]} <span className="text-[10px]">{slot.label.split(' ')[1]}</span>
+                                <span className={slot.disabled ? 'line-through decoration-2' : ''}>
+                                    {slot.label.split(' ')[0]} <span className="text-[10px]">{slot.label.split(' ')[1]}</span>
+                                </span>
                             </button>
                         ))}
                     </div>
@@ -226,6 +231,9 @@ const ReceptionDashboard = () => {
     const [showNotifPopup, setShowNotifPopup] = useState(false);
     const [showProfilePopup, setShowProfilePopup] = useState(false);
     const [showChatModal, setShowChatModal] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+    const [showShortcuts, setShowShortcuts] = useState(false);
     const searchRef = useRef<HTMLDivElement>(null);
     const notifRef = useRef<HTMLButtonElement>(null);
     const profileRef = useRef<HTMLDivElement>(null);
@@ -239,6 +247,8 @@ const ReceptionDashboard = () => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const [showRegPayment, setShowRegPayment] = useState(false);
+    const [showTestPayment, setShowTestPayment] = useState(false);
     
     // Test form Logic
     const [selectedTests, setSelectedTests] = useState<Record<string, { checked: boolean; amount: string }>>({});
@@ -249,6 +259,10 @@ const ReceptionDashboard = () => {
     const [discountAmount, setDiscountAmount] = useState('');
     const [dueAmount, setDueAmount] = useState('');
     
+    // Split Payment States
+    const [regPaymentSplits, setRegPaymentSplits] = useState<{[key: string]: number}>({});
+    const [testPaymentSplits, setTestPaymentSplits] = useState<{[key: string]: number}>({});
+    
     // Registration form
     const [appointmentDate, setAppointmentDate] = useState(new Date().toISOString().split('T')[0]);
     const [showDatePicker, setShowDatePicker] = useState(false);
@@ -257,6 +271,7 @@ const ReceptionDashboard = () => {
     const [testAssignedDate, setTestAssignedDate] = useState(new Date().toISOString().split('T')[0]);
     const [appointmentTime, setAppointmentTime] = useState('');
     const [showTimePicker, setShowTimePicker] = useState(false);
+    const [timeSlots, setTimeSlots] = useState<any[]>([]);
     
     // Inquiry Dates
     const [inquiryDate, setInquiryDate] = useState(new Date().toISOString().split('T')[0]);
@@ -264,15 +279,12 @@ const ReceptionDashboard = () => {
 
     // Dropdown States (Controlled)
     const [regGender, setRegGender] = useState('');
-    const [regComplaint, setRegComplaint] = useState('');
-    const [regPayment, setRegPayment] = useState('');
     const [regSource, setRegSource] = useState('');
     const [regConsultType, setRegConsultType] = useState('');
     
     const [testGender, setTestGender] = useState('');
     const [testLimb, setTestLimb] = useState('');
     const [testDoneBy, setTestDoneBy] = useState('');
-    const [testPayment, setTestPayment] = useState('');
 
     const [inqGender, setInqGender] = useState('');
     const [inqService, setInqService] = useState('');
@@ -281,6 +293,7 @@ const ReceptionDashboard = () => {
     const [inqComplaint, setInqComplaint] = useState('');
 
     const [tiTestName, setTiTestName] = useState('');
+    const [regComplaint, setRegComplaint] = useState('');
 
     // UI State
 
@@ -317,8 +330,8 @@ const ReceptionDashboard = () => {
         setIsLoading(true);
         try {
             const [dashRes, optRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/reception/dashboard.php?branch_id=${user?.branch_id}`),
-                fetch(`${API_BASE_URL}/reception/form_options.php?branch_id=${user?.branch_id}&appointment_date=${appointmentDate}`)
+                authFetch(`${API_BASE_URL}/reception/dashboard.php?branch_id=${user?.branch_id}`),
+                authFetch(`${API_BASE_URL}/reception/form_options.php?branch_id=${user?.branch_id}&appointment_date=${appointmentDate}&service_type=physio`)
             ]);
             const dashData = await dashRes.json();
             const optData = await optRes.json();
@@ -332,15 +345,38 @@ const ReceptionDashboard = () => {
                     initialTests[t.test_code] = { checked: false, amount: cost > 0 ? cost.toFixed(2) : '' };
                 });
                 setSelectedTests(initialTests);
+            } else {
+                console.error('Failed to load form options:', optData);
             }
-        } catch (e) { console.error(e); } finally { setIsLoading(false); }
+        } catch (e) { console.error('Error fetching data:', e); } finally { setIsLoading(false); }
     }, [user?.branch_id, appointmentDate]);
+
+    // Fetch Time Slots
+    const fetchTimeSlots = useCallback(async (date: string) => {
+        if (!user?.branch_id) return;
+        try {
+            const res = await authFetch(`${API_BASE_URL}/reception/get_slots.php?date=${date}`);
+            const data = await res.json();
+            if (data.success) {
+                setTimeSlots(data.slots);
+            }
+        } catch (e) {
+            console.error('Error fetching time slots:', e);
+        }
+    }, [user?.branch_id]);
+
+    // Fetch time slots when appointment date changes
+    useEffect(() => {
+        if (appointmentDate) {
+            fetchTimeSlots(appointmentDate);
+        }
+    }, [appointmentDate, fetchTimeSlots]);
 
     // Fetch Notifications
     useEffect(() => {
         const fetchNotifs = async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
                 const data = await res.json();
                 if (data.success || data.status === 'success') {
                     setNotifications(data.notifications || []);
@@ -358,7 +394,7 @@ const ReceptionDashboard = () => {
         
         debounceRef.current = setTimeout(async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`);
                 const data = await res.json();
                 if (data.success) { setSearchResults(data.patients || []); setShowSearchResults(true); }
             } catch (err) { console.error(err); }
@@ -378,11 +414,45 @@ const ReceptionDashboard = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [fetchAll]);
 
+    // Auto-focus first input when modal opens
+    useEffect(() => {
+        if (activeModal && formRef.current) {
+            // Find first visible input, select, or textarea
+            const inputs = formRef.current.querySelectorAll('input, select, textarea');
+            for (let i = 0; i < inputs.length; i++) {
+                const el = inputs[i] as HTMLElement;
+                if (el.offsetParent !== null && !el.hasAttribute('disabled') && !el.hasAttribute('readonly')) {
+                    setTimeout(() => el.focus(), 100);
+                    break;
+                }
+            }
+        }
+    }, [activeModal]);
+
+    // Global ESC Key Handler
+    useEffect(() => {
+        const handleEsc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                // Priority Order (LIFOish)
+                if (showGlobalSearch) setShowGlobalSearch(false);
+                else if (showShortcuts) setShowShortcuts(false);
+                else if (showLogoutConfirm) setShowLogoutConfirm(false);
+                else if (showPhotoModal) closePhotoModal();
+                else if (showChatModal) setShowChatModal(false);
+                else if (showNotifPopup) setShowNotifPopup(false);
+                else if (showProfilePopup) setShowProfilePopup(false);
+                else if (activeModal) closeModal();
+            }
+        };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, [showGlobalSearch, showShortcuts, showLogoutConfirm, showPhotoModal, showChatModal, showNotifPopup, showProfilePopup, activeModal]);
+
     const handleAppointmentDateChange = async (newDate: string) => {
         setAppointmentDate(newDate);
         if (user?.branch_id) {
             try {
-                const optRes = await fetch(`${API_BASE_URL}/reception/form_options.php?branch_id=${user.branch_id}&appointment_date=${newDate}`);
+                const optRes = await authFetch(`${API_BASE_URL}/reception/form_options.php?branch_id=${user.branch_id}&appointment_date=${newDate}`);
                 const optData = await optRes.json();
                 if (optData.status === 'success' && formOptions) setFormOptions({ ...formOptions, timeSlots: optData.data.timeSlots });
             } catch (e) { console.error(e); }
@@ -449,10 +519,12 @@ const ReceptionDashboard = () => {
     const closeModal = () => { 
         setActiveModal(null); setAdvanceAmount(''); setDiscountAmount(''); setDueAmount(''); setSubmitMessage(null); setPhotoData(null);
         // Reset Dropdowns
-        setRegGender(''); setRegComplaint(''); setRegPayment(''); setRegSource(''); setRegConsultType('');
-        setTestGender(''); setTestLimb(''); setTestDoneBy(''); setTestPayment('');
+        setRegGender(''); setRegSource(''); setRegConsultType('');
+        setTestGender(''); setTestLimb(''); setTestDoneBy('');
         setInqGender(''); setInqService(''); setInqSource(''); setInqCommType(''); setInqComplaint('');
         setTiTestName('');
+        setRegComplaint('');
+        setRegPaymentSplits({}); setTestPaymentSplits({});
 
         if (formOptions?.testTypes) {
             const initialTests: Record<string, { checked: boolean; amount: string }> = {};
@@ -476,13 +548,27 @@ const ReceptionDashboard = () => {
 
             if (activeModal === 'registration') {
                 endpoint = `${API_BASE_URL}/reception/registration_submit.php`;
-                payload = { ...payload, patient_name: formObject.patient_name, phone: formObject.phone, email: formObject.email || '', gender: formObject.gender, age: formObject.age, conditionType: formObject.conditionType, conditionType_other: formObject.conditionType_other || '', referralSource: formObject.referralSource, referred_by: formObject.referred_by || '', occupation: formObject.occupation || '', address: formObject.address || '', inquiry_type: formObject.inquiry_type, appointment_date: formObject.appointment_date || null, appointment_time: formObject.appointment_time || null, amount: formObject.amount || '0', payment_method: formObject.payment_method, remarks: formObject.remarks || '', patient_photo_data: photoData || '' };
+                const currentSum = Object.values(regPaymentSplits).reduce((a, b) => a + b, 0);
+                const totalReq = parseFloat(formObject.amount) || 0;
+                if (currentSum !== totalReq) {
+                    setSubmitMessage({ type: 'error', text: `Payment split total (₹${currentSum}) does not match Consultation Amount (₹${totalReq})` });
+                    setIsSubmitting(false); return;
+                }
+                payload = { ...payload, patient_name: formObject.patient_name, phone: formObject.phone, email: formObject.email || '', gender: formObject.gender, age: formObject.age, conditionType: formObject.conditionType, conditionType_other: formObject.conditionType_other || '', referralSource: formObject.referralSource, referred_by: formObject.referred_by || '', occupation: formObject.occupation || '', address: formObject.address || '', inquiry_type: formObject.inquiry_type, appointment_date: formObject.appointment_date || null, appointment_time: formObject.appointment_time || null, amount: formObject.amount || '0', payment_method: Object.keys(regPaymentSplits).join(','), payment_amounts: regPaymentSplits, remarks: formObject.remarks || '', patient_photo_data: photoData || '' };
             } else if (activeModal === 'test') {
                 endpoint = `${API_BASE_URL}/reception/test_submit.php`;
                 const testNames = Object.entries(selectedTests).filter(([, val]) => val.checked).map(([key]) => key);
                 const testAmounts: Record<string, number> = {};
                 Object.entries(selectedTests).forEach(([key, val]) => { if (val.checked && val.amount) testAmounts[key] = parseFloat(val.amount) || 0; });
-                payload = { ...payload, patient_name: formObject.patient_name, age: formObject.age, gender: formObject.gender, dob: formObject.dob || null, parents: formObject.parents || '', relation: formObject.relation || '', phone_number: formObject.phone_number || '', alternate_phone_no: formObject.alternate_phone_no || '', referred_by: formObject.referred_by || '', limb: formObject.limb || null, test_names: testNames, test_amounts: testAmounts, other_test_name: otherTestName, visit_date: formObject.visit_date, assigned_test_date: formObject.assigned_test_date, test_done_by: formObject.test_done_by, total_amount: parseFloat(totalAmount) || 0, advance_amount: parseFloat(advanceAmount) || 0, discount: parseFloat(discountAmount) || 0, payment_method: formObject.payment_method };
+                
+                const currentSum = Object.values(testPaymentSplits).reduce((a, b) => a + b, 0);
+                const totalReq = parseFloat(advanceAmount) || 0;
+                if (currentSum !== totalReq) {
+                    setSubmitMessage({ type: 'error', text: `Payment split total (₹${currentSum}) does not match Advance Amount (₹${totalReq})` });
+                    setIsSubmitting(false); return;
+                }
+                
+                payload = { ...payload, patient_name: formObject.patient_name, age: formObject.age, gender: formObject.gender, dob: formObject.dob || null, parents: formObject.parents || '', relation: formObject.relation || '', phone_number: formObject.phone_number || '', alternate_phone_no: formObject.alternate_phone_no || '', referred_by: formObject.referred_by || '', limb: formObject.limb || null, test_names: testNames, test_amounts: testAmounts, other_test_name: otherTestName, visit_date: formObject.visit_date, assigned_test_date: formObject.assigned_test_date, test_done_by: formObject.test_done_by, total_amount: parseFloat(totalAmount) || 0, advance_amount: parseFloat(advanceAmount) || 0, discount: parseFloat(discountAmount) || 0, payment_method: Object.keys(testPaymentSplits).join(','), payment_amounts: testPaymentSplits };
             } else if (activeModal === 'inquiry') {
                 endpoint = `${API_BASE_URL}/reception/inquiry_submit.php`;
                 payload = { ...payload, patient_name: formObject.patient_name, age: formObject.age, gender: formObject.gender, phone: formObject.phone, inquiry_type: formObject.inquiry_type || null, communication_type: formObject.communication_type || null, referralSource: formObject.referralSource || 'self', conditionType: formObject.conditionType || '', conditionType_other: formObject.conditionType_other || '', remarks: formObject.remarks || '', expected_date: formObject.expected_date || null };
@@ -491,11 +577,11 @@ const ReceptionDashboard = () => {
                 payload = { ...payload, patient_name: formObject.patient_name, test_name: formObject.test_name, referred_by: formObject.referred_by || '', phone_number: formObject.phone_number, expected_visit_date: formObject.expected_visit_date || null };
             }
 
-            const response = await fetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const response = await authFetch(endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             const result = await response.json();
             if (result.success) {
                 setSubmitMessage({ type: 'success', text: result.message || 'Submitted successfully!' });
-                const dashRes = await fetch(`${API_BASE_URL}/reception/dashboard.php?branch_id=${user.branch_id}`);
+                const dashRes = await authFetch(`${API_BASE_URL}/reception/dashboard.php?branch_id=${user.branch_id}`);
                 const dashData = await dashRes.json();
                 if (dashData.status === 'success') setData(dashData.data);
                 setTimeout(() => closeModal(), 1500);
@@ -524,7 +610,36 @@ const ReceptionDashboard = () => {
     // MD3 Styled Inputs
     const inputClass = "w-full px-4 py-3 bg-[#e0e2ec] dark:bg-[#43474e] border-b-2 border-[#74777f] dark:border-[#8e918f] focus:border-[#006e1c] dark:focus:border-[#88d99d] rounded-t-lg text-[#1a1c1e] dark:text-[#e3e2e6] text-base focus:outline-none transition-colors placeholder:text-[#43474e] dark:placeholder:text-[#8e918f] focus:bg-[#dadae2] dark:focus:bg-[#50545c]";
     const labelClass = "block text-xs font-medium text-[#43474e] dark:text-[#c4c7c5] mb-1 px-1";
-    const selectClass = "w-full px-4 py-3 bg-[#e0e2ec] dark:bg-[#43474e] border-b-2 border-[#74777f] dark:border-[#8e918f] focus:border-[#006e1c] dark:focus:border-[#88d99d] rounded-t-lg text-[#1a1c1e] dark:text-[#e3e2e6] text-base focus:outline-none";
+
+    // Keyboard Shortcuts with Grouping
+    const shortcuts: ShortcutItem[] = [
+        // General
+        { keys: ['Alt', '/'], description: 'Keyboard Shortcuts', group: 'General', action: () => setShowShortcuts(prev => !prev) },
+
+        // Modals
+        { keys: ['Alt', 'R'], description: 'New Registration', group: 'Modals', action: () => setActiveModal('registration'), pageSpecific: true },
+        { keys: ['Alt', 'T'], description: 'Book Test', group: 'Modals', action: () => setActiveModal('test'), pageSpecific: true },
+        { keys: ['Alt', 'I'], description: 'New Inquiry', group: 'Modals', action: () => setActiveModal('inquiry'), pageSpecific: true },
+        { keys: ['Alt', 'Shift', 'I'], description: 'Test Inquiry', group: 'Modals', action: () => setActiveModal('test_inquiry'), pageSpecific: true },
+        { keys: ['Alt', 'C'], description: 'Toggle Chat', group: 'Modals', action: () => setShowChatModal(prev => !prev), pageSpecific: true },
+        { keys: ['Alt', 'N'], description: 'Notifications', group: 'Modals', action: () => setShowNotifPopup(prev => !prev), pageSpecific: true },
+        { keys: ['Alt', 'P'], description: 'Profile', group: 'Modals', action: () => setShowProfilePopup(prev => !prev), pageSpecific: true },
+        { keys: ['Alt', 'S'], description: 'Global Search', group: 'Modals', action: () => setShowGlobalSearch(true) },
+        { keys: ['Alt', 'L'], description: 'Logout', group: 'Actions', action: () => setShowLogoutConfirm(true) },
+        
+        // Actions
+        { keys: ['Alt', 'W'], description: 'Toggle Theme', group: 'Actions', action: toggleTheme },
+        { keys: ['Ctrl', 'R'], description: 'Reload Page', group: 'Actions', action: () => window.location.reload() },
+        
+        // Navigation
+        { keys: ['Alt', '1'], description: 'Dashboard', group: 'Navigation', action: () => navigate('/reception/dashboard') },
+        { keys: ['Alt', '2'], description: 'Schedule', group: 'Navigation', action: () => navigate('/reception/schedule') },
+        { keys: ['Alt', '3'], description: 'Inquiry List', group: 'Navigation', action: () => navigate('/reception/inquiry') },
+        { keys: ['Alt', '4'], description: 'Registration List', group: 'Navigation', action: () => navigate('/reception/registration') },
+        { keys: ['Alt', '5'], description: 'Cancelled List', group: 'Navigation', action: () => navigate('/reception/registration/cancelled') },
+        { keys: ['Alt', '6'], description: 'Patients List', group: 'Navigation', action: () => navigate('/reception/patients') },
+    ];
+
 
     return (
         <div className="min-h-screen bg-[#fdfcff] dark:bg-[#111315] text-[#1a1c1e] dark:text-[#e3e2e6] font-sans selection:bg-[#ccebc4] selection:text-[#0c200e] pb-24 transition-colors duration-300">
@@ -532,22 +647,21 @@ const ReceptionDashboard = () => {
             <header className="sticky top-0 z-40 bg-[#fdfcff]/80 dark:bg-[#111315]/80 backdrop-blur-md px-4 md:px-8 py-4 flex items-center justify-between border-b border-[#e0e2ec] dark:border-[#43474e] transition-colors duration-300">
                 <div className="flex items-center gap-4">
                      <div className="flex items-center gap-2">
-                         <div className="w-10 h-10 rounded-xl bg-[#ccebc4] flex items-center justify-center text-[#0c200e] font-bold">PS</div>
-                         <h1 className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight hidden md:block" style={{ fontFamily: 'serif' }}>ProSpine</h1>
+                            <div className="w-10 h-10 rounded-xl bg-[#ccebc4] flex items-center justify-center text-[#0c200e] font-bold">PE</div>
+                            <h1 className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight hidden md:block" style={{ fontFamily: 'serif' }}>PhysioEZ</h1>
                      </div>
                 </div>
                 <div className="flex items-center gap-2 lg:gap-4">
                     {/* Search Bar */}
                     <div ref={searchRef} className="hidden md:flex items-center relative z-50">
-                        <div className="flex items-center bg-[#e0e2ec] dark:bg-[#43474e] rounded-full px-4 py-2 w-64 lg:w-96 transition-colors duration-300">
+                        <div 
+                            className="flex items-center bg-[#e0e2ec] dark:bg-[#43474e] rounded-full px-4 py-2 w-64 lg:w-96 transition-colors duration-300 cursor-pointer hover:bg-[#dadae2] dark:hover:bg-[#50545c]"
+                            onClick={() => setShowGlobalSearch(true)}
+                        >
                             <Search size={18} className="text-[#43474e] dark:text-[#c4c7c5] mr-2" />
-                            <input 
-                                type="text" 
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                placeholder="Search patients..." 
-                                className="bg-transparent border-none outline-none text-sm w-full text-[#1a1c1e] dark:text-[#e3e2e6] placeholder:text-[#43474e] dark:placeholder:text-[#8e918f]" 
-                            />
+                            <span className="text-sm text-[#43474e] dark:text-[#8e918f]">
+                                {searchQuery || 'Search patients... (Alt + S)'}
+                            </span>
                         </div>
                         {/* Search Results */}
                         <AnimatePresence>
@@ -979,7 +1093,7 @@ const ReceptionDashboard = () => {
             <AnimatePresence>
                 {activeModal && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && closeModal()}>
-                        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-[#fdfcff] dark:bg-[#111315] w-full max-w-[1000px] max-h-[90vh] overflow-y-auto rounded-[32px] shadow-2xl overflow-hidden transition-colors duration-300">
+                        <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-[#fdfcff] dark:bg-[#111315] w-full max-w-[1400px] max-h-[90vh] overflow-y-auto rounded-[32px] shadow-2xl overflow-hidden transition-colors duration-300">
                             <div className="px-8 py-6 border-b border-[#e0e2ec] dark:border-[#43474e] flex items-center justify-between bg-[#fdfcff] dark:bg-[#111315] sticky top-0 z-10 transition-colors"><div><h2 className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6]" style={{ fontFamily: 'serif' }}>{activeModal === 'registration' && 'New Patient Registration'}{activeModal === 'test' && 'Book Lab Test'}{activeModal === 'inquiry' && 'New Inquiry'}{activeModal === 'test_inquiry' && 'Test Inquiry'}</h2><p className="text-sm text-[#43474e] dark:text-[#c4c7c5]">Enter details below</p></div><button onClick={closeModal} className="w-10 h-10 rounded-full hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] flex items-center justify-center transition-colors"><X size={24} className="text-[#43474e] dark:text-[#c4c7c5]" /></button></div>
                             <div className="p-8">
                                 {activeModal === 'registration' && (
@@ -994,10 +1108,24 @@ const ReceptionDashboard = () => {
                                                     <input type="hidden" name="gender" value={regGender} />
                                                 </div>
                                             </div>
-                                            <div><label className={labelClass}>Referred By *</label><input list="referrers" name="referred_by" className={inputClass} /><datalist id="referrers">{formOptions?.referrers.map((r: string) => <option key={r} value={r} />)}</datalist></div>
+                                            <div><label className={labelClass}>Referred By *</label><input list="referrers" name="referred_by" required className={inputClass} placeholder="Type or select" /><datalist id="referrers">{formOptions?.referrers.map((r: string) => <option key={r} value={r} />)}</datalist></div>
                                             <div>
-                                                <CustomSelect label="Chief Complaint *" value={regComplaint} onChange={setRegComplaint} options={formOptions?.chiefComplaints.map(c => ({ label: c.complaint_name, value: c.complaint_code })) || []} placeholder="Select" />
+                                                <CustomSelect 
+                                                    label="Chief Complaint *" 
+                                                    value={regComplaint} 
+                                                    onChange={setRegComplaint} 
+                                                    options={[
+                                                        ...(formOptions?.chiefComplaints.map(c => ({ label: c.complaint_name, value: c.complaint_code })) || []),
+                                                        { label: 'Other', value: 'other' }
+                                                    ]} 
+                                                    placeholder="Select Complaint" 
+                                                />
                                                 <input type="hidden" name="conditionType" value={regComplaint} />
+                                                {regComplaint === 'other' && (
+                                                    <div className="mt-2">
+                                                        <input type="text" name="conditionType_other" className={inputClass} placeholder="Specify other complaint" />
+                                                    </div>
+                                                )}
                                             </div>
                                             <div><label className={labelClass}>Occupation</label><input type="text" name="occupation" className={inputClass} /></div>
                                             <div><label className={labelClass}>Phone No *</label><input type="tel" name="phone" required maxLength={10} className={inputClass} placeholder="1234567890" /></div>
@@ -1005,22 +1133,97 @@ const ReceptionDashboard = () => {
                                         </div>
                                         <div className="space-y-6">
                                             <div><label className={labelClass}>Address</label><input type="text" name="address" className={inputClass} placeholder="Full Address" /></div>
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div><label className={labelClass}>Amount (₹) *</label><input type="number" name="amount" required className={inputClass} placeholder="0.00" /></div>
-                                                <div>
-                                                    <CustomSelect label="Payment *" value={regPayment} onChange={setRegPayment} options={formOptions?.paymentMethods.map(m => ({ label: m.method_name, value: m.method_code })) || []} placeholder="Select" />
-                                                    <input type="hidden" name="payment_method" value={regPayment} />
+                                            <div><label className={labelClass}>Amount (₹) *</label><input type="number" name="amount" required className={inputClass} placeholder="0.00" /></div>
+                                            <div>
+                                                <div 
+                                                    onClick={() => setShowRegPayment(!showRegPayment)}
+                                                    className="flex items-center justify-between cursor-pointer p-3 bg-[#e8eaed] dark:bg-[#28282a] rounded-xl hover:bg-[#dadae2] dark:hover:bg-[#30333b] transition-colors mb-3"
+                                                >
+                                                    <label className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6] cursor-pointer">Payment Method *</label>
+                                                    <div className="flex items-center gap-2">
+                                                        {Object.keys(regPaymentSplits).length > 0 && (
+                                                            <span className="text-xs font-bold text-[#006e1c] dark:text-[#88d99d] bg-[#ccebc4] dark:bg-[#0c3b10] px-2 py-1 rounded-full">
+                                                                {Object.keys(regPaymentSplits).length} selected
+                                                            </span>
+                                                        )}
+                                                        {showRegPayment ? <ChevronUp size={20} className="text-[#43474e] dark:text-[#c4c7c5]" /> : <ChevronDown size={20} className="text-[#43474e] dark:text-[#c4c7c5]" />}
+                                                    </div>
                                                 </div>
+                                                <AnimatePresence>
+                                                {showRegPayment && (
+                                                    <motion.div
+                                                        initial={{ height: 0, opacity: 0 }}
+                                                        animate={{ height: 'auto', opacity: 1 }}
+                                                        exit={{ height: 0, opacity: 0 }}
+                                                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                                        className="overflow-hidden"
+                                                    >
+                                                    <div className="bg-[#f8f9fa] dark:bg-[#1e1e20] rounded-xl p-3 border border-[#e0e2ec] dark:border-[#43474e]">
+                                                        <div className="space-y-2">
+                                                            {formOptions?.paymentMethods.map(m => (
+                                                                <div key={m.method_code} className={`flex items-center gap-2 p-2 rounded-lg transition-all ${regPaymentSplits[m.method_code] !== undefined ? 'bg-white dark:bg-[#2c2c2e] shadow-sm border border-[#006e1c]' : 'bg-[#e8eaed] dark:bg-[#28282a] border border-transparent hover:border-[#006e1c]/30'}`}>
+                                                                    <div 
+                                                                        onClick={() => {
+                                                                            const newSplits = { ...regPaymentSplits };
+                                                                            if (newSplits[m.method_code] !== undefined) delete newSplits[m.method_code];
+                                                                            else newSplits[m.method_code] = 0;
+                                                                            setRegPaymentSplits(newSplits);
+                                                                        }}
+                                                                        className="flex items-center gap-2 cursor-pointer flex-1"
+                                                                    >
+                                                                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${regPaymentSplits[m.method_code] !== undefined ? 'bg-[#006e1c] border-[#006e1c]' : 'border-[#74777f]'}`}>
+                                                                            {regPaymentSplits[m.method_code] !== undefined && <Check size={14} className="text-white" strokeWidth={3} />}
+                                                                        </div>
+                                                                        <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">{m.method_name}</span>
+                                                                    </div>
+                                                                    {/* Only show input if multiple payment methods are selected */}
+                                                                    {regPaymentSplits[m.method_code] !== undefined && Object.keys(regPaymentSplits).length > 1 && (
+                                                                        <div className="flex items-center gap-1.5 bg-[#f0f0f0] dark:bg-[#3a3a3c] px-3 py-1.5 rounded-lg min-w-[120px]">
+                                                                            <span className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5]">₹</span>
+                                                                            <input 
+                                                                                type="number" 
+                                                                                value={regPaymentSplits[m.method_code] || ''} 
+                                                                                onChange={(e) => setRegPaymentSplits({ ...regPaymentSplits, [m.method_code]: parseFloat(e.target.value) || 0 })}
+                                                                                className="flex-1 bg-transparent border-none text-sm font-semibold text-right outline-none appearance-none text-[#1a1c1e] dark:text-[#e3e2e6]"
+                                                                                placeholder="0.00"
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                            />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                        <div className="mt-3 pt-2 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center">
+                                                            <span className="text-[10px] font-black uppercase tracking-wide text-[#43474e] dark:text-[#c4c7c5]">
+                                                                {Object.keys(regPaymentSplits).length === 1 ? 'Payment Method Selected' : 'Total Split'}
+                                                            </span>
+                                                            <span className="text-sm font-black text-[#006e1c] dark:text-[#88d99d]">
+                                                                {Object.keys(regPaymentSplits).length === 1 
+                                                                    ? `Will use Amount field` 
+                                                                    : `₹${Object.values(regPaymentSplits).reduce((a, b) => a + b, 0).toLocaleString()}`
+                                                                }
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    </motion.div>
+                                                )}
+                                                </AnimatePresence>
                                             </div>
-                                            <div>
-                                                <CustomSelect label="How did you hear?" value={regSource} onChange={setRegSource} options={formOptions?.referralSources.map(s => ({ label: s.source_name, value: s.source_code })) || []} placeholder="Select" />
-                                                <input type="hidden" name="referralSource" value={regSource} />
-                                            </div>
-                                            <div>
-                                                <CustomSelect label="Consultation Type *" value={regConsultType} onChange={setRegConsultType} options={formOptions?.consultationTypes.map(t => ({ label: t.consultation_name, value: t.consultation_code })) || []} placeholder="Select" />
-                                                <input type="hidden" name="inquiry_type" value={regConsultType} />
-                                            </div>
+
+                                            {/* Additional Fields Section */}
                                             <div className="grid grid-cols-2 gap-4">
+                                                <div className="col-span-2">
+                                                    <label className={labelClass}>Remarks</label>
+                                                    <input type="text" name="remarks" className={inputClass} placeholder="Additional remarks..." />
+                                                </div>
+                                                <div>
+                                                    <CustomSelect label="How did you hear?" value={regSource} onChange={setRegSource} options={formOptions?.referralSources.map(s => ({ label: s.source_name, value: s.source_code })) || []} placeholder="Select" />
+                                                    <input type="hidden" name="referralSource" value={regSource} />
+                                                </div>
+                                                <div>
+                                                    <CustomSelect label="Consultation Type *" value={regConsultType} onChange={setRegConsultType} options={formOptions?.consultationTypes.map(t => ({ label: t.consultation_name, value: t.consultation_code })) || []} placeholder="Select" />
+                                                    <input type="hidden" name="inquiry_type" value={regConsultType} />
+                                                </div>
                                                 <div>
                                                     <label className={labelClass}>Appointment Date</label>
                                                     <div onClick={() => { setActiveDateField('registration'); setShowDatePicker(true); }} className={`${inputClass} cursor-pointer flex items-center justify-between`}>
@@ -1031,14 +1234,13 @@ const ReceptionDashboard = () => {
                                                 </div>
                                                 <div>
                                                     <label className={labelClass}>Time Slot *</label>
-                                                    <div onClick={() => setShowTimePicker(true)} className={`${selectClass} cursor-pointer flex items-center justify-between`}>
-                                                        <span>{formOptions?.timeSlots?.find((t: any) => t.value === appointmentTime)?.label || 'Select Time'}</span>
+                                                    <div onClick={() => setShowTimePicker(true)} className={`${inputClass} cursor-pointer flex items-center justify-between`}>
+                                                        <span>{timeSlots?.find((t: any) => t.time === appointmentTime)?.label || 'Select Time'}</span>
                                                         <Clock size={18} className="text-[#43474e] dark:text-[#c4c7c5]" />
                                                     </div>
                                                     <input type="hidden" name="appointment_time" value={appointmentTime} />
                                                 </div>
                                             </div>
-                                            <div><label className={labelClass}>Remarks</label><textarea name="remarks" className={`${inputClass} min-h-[80px] rounded-b-lg border-x-0`} placeholder="Additional remarks..."></textarea></div>
                                         </div>
                                     </form>
                                 )}
@@ -1122,18 +1324,92 @@ const ReceptionDashboard = () => {
                                                 <CustomSelect label="Test Done By *" value={testDoneBy} onChange={setTestDoneBy} options={formOptions?.staffMembers?.map((s: any) => ({ label: s.staff_name, value: s.staff_name })) || []} placeholder="Select" />
                                                 <input type="hidden" name="test_done_by" value={testDoneBy} />
                                             </div>
-                                            <div>
-                                                <CustomSelect label="Payment *" value={testPayment} onChange={setTestPayment} options={formOptions?.paymentMethods?.map((m: any) => ({ label: m.method_name, value: m.method_code })) || []} placeholder="Select" />
-                                                <input type="hidden" name="payment_method" value={testPayment} />
-                                            </div>
+                                            <div><label className={labelClass}>Receipt No</label><input type="text" name="receipt_no" className={inputClass} placeholder="Optional" /></div>
                                         </div>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-[#f2f6fa] dark:bg-[#1a1c1e] p-4 rounded-xl">
-                                            <div><label className={labelClass}>Total Amount</label><input type="number" name="total_amount" required className={`${inputClass} font-bold`} value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} /></div>
+                                            <div><label className={labelClass}>Total Amount *</label><input type="number" name="total_amount" required className={`${inputClass} font-bold`} value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} /></div>
                                             <div><label className={labelClass}>Advance</label><input type="number" name="advance_amount" className={inputClass} value={advanceAmount} onChange={(e) => setAdvanceAmount(e.target.value)} placeholder="0.00" /></div>
                                             <div><label className={labelClass}>Discount</label><input type="number" name="discount" className={inputClass} value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0.00" /></div>
                                             <div><label className={labelClass}>Due Amount</label><input type="text" name="due_amount" readOnly className={`${inputClass} bg-transparent border border-[#ffdad6] text-[#b3261e] dark:text-[#ffb4ab] font-bold`} value={dueAmount} /></div>
                                         </div>
+
+                                        {/* Payment Method Section - Moved to end */}
+                                        <div>
+                                            <div 
+                                                onClick={() => setShowTestPayment(!showTestPayment)}
+                                                className="flex items-center justify-between cursor-pointer p-3 bg-[#e8eaed] dark:bg-[#28282a] rounded-xl hover:bg-[#dadae2] dark:hover:bg-[#30333b] transition-colors mb-3"
+                                            >
+                                                <label className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6] cursor-pointer">Payment Method *</label>
+                                                <div className="flex items-center gap-2">
+                                                    {Object.keys(testPaymentSplits).length > 0 && (
+                                                        <span className="text-xs font-bold text-[#006e1c] dark:text-[#88d99d] bg-[#ccebc4] dark:bg-[#0c3b10] px-2 py-1 rounded-full">
+                                                            {Object.keys(testPaymentSplits).length} selected
+                                                        </span>
+                                                    )}
+                                                    {showTestPayment ? <ChevronUp size={20} className="text-[#43474e] dark:text-[#c4c7c5]" /> : <ChevronDown size={20} className="text-[#43474e] dark:text-[#c4c7c5]" />}
+                                                </div>
+                                            </div>
+                                            <AnimatePresence>
+                                            {showTestPayment && (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: 'auto', opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                                    className="overflow-hidden"
+                                                >
+                                                <div className="bg-[#f8f9fa] dark:bg-[#1e1e20] rounded-xl p-3 border border-[#e0e2ec] dark:border-[#43474e]">
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        {formOptions?.paymentMethods.map(m => (
+                                                            <div key={m.method_code} className={`flex items-center gap-2 p-2 rounded-lg transition-all ${testPaymentSplits[m.method_code] !== undefined ? 'bg-white dark:bg-[#2c2c2e] shadow-sm border border-[#006e1c]' : 'bg-[#e8eaed] dark:bg-[#28282a] border border-transparent hover:border-[#006e1c]/30'}`}>
+                                                                <div 
+                                                                    onClick={() => {
+                                                                        const newSplits = { ...testPaymentSplits };
+                                                                        if (newSplits[m.method_code] !== undefined) delete newSplits[m.method_code];
+                                                                        else newSplits[m.method_code] = 0;
+                                                                        setTestPaymentSplits(newSplits);
+                                                                    }}
+                                                                    className="flex items-center gap-2 cursor-pointer flex-1"
+                                                                >
+                                                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${testPaymentSplits[m.method_code] !== undefined ? 'bg-[#006e1c] border-[#006e1c]' : 'border-[#74777f]'}`}>
+                                                                        {testPaymentSplits[m.method_code] !== undefined && <Check size={14} className="text-white" strokeWidth={3} />}
+                                                                    </div>
+                                                                    <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">{m.method_name}</span>
+                                                                </div>
+                                                                {testPaymentSplits[m.method_code] !== undefined && Object.keys(testPaymentSplits).length > 1 && (
+                                                                    <div className="flex items-center gap-1.5 bg-[#f0f0f0] dark:bg-[#3a3a3c] px-3 py-1.5 rounded-lg min-w-[120px]">
+                                                                        <span className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5]">₹</span>
+                                                                        <input 
+                                                                            type="number" 
+                                                                            value={testPaymentSplits[m.method_code] || ''} 
+                                                                            onChange={(e) => setTestPaymentSplits({ ...testPaymentSplits, [m.method_code]: parseFloat(e.target.value) || 0 })}
+                                                                            className="flex-1 bg-transparent border-none text-sm font-semibold text-right outline-none appearance-none text-[#1a1c1e] dark:text-[#e3e2e6]"
+                                                                            placeholder="0.00"
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                    <div className="mt-3 pt-2 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center">
+                                                        <span className="text-[10px] font-black uppercase tracking-wide text-[#43474e] dark:text-[#c4c7c5]">
+                                                            {Object.keys(testPaymentSplits).length === 1 ? 'Payment Method Selected' : 'Advance Split'}
+                                                        </span>
+                                                        <span className="text-sm font-black text-[#006e1c] dark:text-[#88d99d]">
+                                                            {Object.keys(testPaymentSplits).length === 1 
+                                                                ? `Will use Advance field` 
+                                                                : `₹${Object.values(testPaymentSplits).reduce((a, b) => a + b, 0).toLocaleString()}`
+                                                            }
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                </motion.div>
+                                            )}
+                                            </AnimatePresence>
+                                        </div>
+
                                     </form>
                                 )}
                                 {(activeModal === 'inquiry' || activeModal === 'test_inquiry') && (
@@ -1165,6 +1441,11 @@ const ReceptionDashboard = () => {
                                                     <div>
                                                         <CustomSelect label="Chief Complaint *" value={inqComplaint} onChange={setInqComplaint} options={formOptions?.chiefComplaints.map(c => ({ label: c.complaint_name, value: c.complaint_code })) || []} placeholder="Select" />
                                                         <input type="hidden" name="conditionType" value={inqComplaint} />
+                                                        {inqComplaint === 'other' && (
+                                                            <div className="mt-2">
+                                                                <input type="text" name="conditionType_other" className={inputClass} placeholder="Specify other complaint" />
+                                                            </div>
+                                                        )}
                                                     </div>
                                                     <div><label className={labelClass}>Mobile No. *</label><input type="tel" name="phone" required maxLength={10} className={inputClass} placeholder="1234567890" /></div>
                                                 </div>
@@ -1247,10 +1528,32 @@ const ReceptionDashboard = () => {
                         value={appointmentTime}
                         onChange={(t: string) => setAppointmentTime(t)}
                         onClose={() => setShowTimePicker(false)}
-                        slots={formOptions?.timeSlots || []}
+                        slots={timeSlots}
                     />
                 )}
             </AnimatePresence>
+            {/* --- GLOBAL COMPONENTS --- */}
+            <KeyboardShortcuts 
+                shortcuts={shortcuts} 
+                isOpen={showShortcuts}
+                onClose={() => setShowShortcuts(false)}
+                onToggle={() => setShowShortcuts(prev => !prev)}
+            />
+            <LogoutConfirmation 
+                isOpen={showLogoutConfirm} 
+                onClose={() => setShowLogoutConfirm(false)} 
+                onConfirm={() => {
+                    logout();
+                    navigate('/login');
+                }} 
+            />
+            <GlobalSearch 
+                isOpen={showGlobalSearch} 
+                onClose={() => setShowGlobalSearch(false)}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                searchResults={searchResults}
+            />
         </div>
     );
 };

@@ -1,23 +1,19 @@
 <?php
 /**
- * Form Options API
+ * Form Options API - Desktop Application
  * Returns all dynamic dropdown options for dashboard forms
+ * Requires authentication. Standard rate limiting.
  */
-
 declare(strict_types=1);
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
 
 require_once '../../common/db.php';
+require_once '../../common/security.php';
 
-$branchId = isset($_GET['branch_id']) ? (int)$_GET['branch_id'] : 0;
+// Apply security - requires authentication
+$authData = applySecurity(['requireAuth' => true]);
+
+// Use branch_id from auth if available, otherwise from query param
+$branchId = $authData['branch_id'] ?? (isset($_GET['branch_id']) ? (int)$_GET['branch_id'] : 0);
 
 if ($branchId <= 0) {
     echo json_encode(['status' => 'error', 'message' => 'Invalid branch_id']);
@@ -80,35 +76,65 @@ try {
 
     // 10. Time Slots (generated) with booked status
     $appointmentDate = $_GET['appointment_date'] ?? date('Y-m-d');
+    $serviceType = $_GET['service_type'] ?? 'physio';
     
-    // Get booked slots for the given date
+    // Get booked slots for the given date and service type from patient_appointments
     $stmtBooked = $pdo->prepare("
-        SELECT appointment_time 
-        FROM registration 
-        WHERE branch_id = ? AND DATE(appointment_date) = ? AND status NOT IN ('cancelled', 'closed')
+        SELECT time_slot 
+        FROM patient_appointments 
+        WHERE branch_id = ? AND appointment_date = ? AND service_type = ? AND status != 'cancelled'
     ");
-    $stmtBooked->execute([$branchId, $appointmentDate]);
+    $stmtBooked->execute([$branchId, $appointmentDate, $serviceType]);
     $bookedSlots = $stmtBooked->fetchAll(PDO::FETCH_COLUMN);
     
-    // Normalize booked slots to H:i:s format
-    $bookedNormalized = array_map(function($slot) {
+    // Normalize booked slots to H:i format
+    $bookedNormalized = [];
+    foreach ($bookedSlots as $slot) {
         $time = strtotime($slot);
-        return $time ? date('H:i:s', $time) : $slot;
-    }, $bookedSlots);
-    
-    $timeSlots = [];
-    for ($h = 9; $h <= 20; $h++) {
-        foreach (['00', '30'] as $m) {
-            $time24 = sprintf('%02d:%s:00', $h, $m);
-            $time12 = date('h:i A', strtotime($time24));
-            $isBooked = in_array($time24, $bookedNormalized);
-            $timeSlots[] = [
-                'value' => $time24, 
-                'label' => $time12,
-                'booked' => $isBooked
-            ];
+        if ($time) {
+            $bookedNormalized[] = date('H:i', $time);
         }
     }
+    
+    $timeSlots = [];
+    $capacity = ($serviceType === 'physio') ? 10 : 1;
+    
+    if ($serviceType === 'physio') {
+        $current = strtotime('09:00');
+        $end = strtotime('19:00');
+        $interval = 90 * 60; // 1.5 hours
+    } else {
+        $current = strtotime('15:00');
+        $end = strtotime('19:00');
+        $interval = 60 * 60; // 1 hour
+    }
+    
+    while ($current < $end) {
+        $time24 = date('H:i', $current);
+        $time12 = date('h:i A', $current);
+        
+        $bookedCount = 0;
+        foreach ($bookedNormalized as $b) {
+            if ($b === $time24) $bookedCount++;
+        }
+        
+        $isFull = $bookedCount >= $capacity;
+        
+        $timeSlots[] = [
+            'value' => $time24, 
+            'label' => $time12,
+            'booked' => $isFull,
+            'booked_count' => $bookedCount,
+            'capacity' => $capacity
+        ];
+        
+        $current += $interval;
+    }
+
+    // 11. Employees (for approvals)
+    $stmt = $pdo->prepare("SELECT employee_id, first_name, last_name, job_title FROM employees WHERE branch_id = ? AND is_active = 1 ORDER BY first_name ASC");
+    $stmt->execute([$branchId]);
+    $employees = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
     echo json_encode([
         'status' => 'success',
@@ -122,7 +148,8 @@ try {
             'referralSources' => $referralSources,
             'consultationTypes' => $consultationTypes,
             'inquiryServiceTypes' => $inquiryServiceTypes,
-            'timeSlots' => $timeSlots
+            'timeSlots' => $timeSlots,
+            'employees' => $employees
         ]
     ]);
 

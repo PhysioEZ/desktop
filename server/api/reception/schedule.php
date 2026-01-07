@@ -1,22 +1,22 @@
 <?php
+/**
+ * Schedule API - Desktop Application
+ * Requires authentication. Standard rate limiting.
+ */
 declare(strict_types=1);
+
 require_once '../../common/db.php';
+require_once '../../common/security.php';
 
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
-header('Content-Type: application/json');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
-}
+// Apply security - requires authentication
+$authData = applySecurity(['requireAuth' => true]);
 
 // Get input
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 
-// Get IDs from parameters as per desktop app standard
-$branchId = (int)($_REQUEST['branch_id'] ?? $input['branch_id'] ?? 0);
-$employeeId = (int)($_REQUEST['employee_id'] ?? $input['employee_id'] ?? 0);
+// Get IDs from auth data or parameters
+$branchId = $authData['branch_id'] ?? (int)($_REQUEST['branch_id'] ?? $input['branch_id'] ?? 0);
+$employeeId = $authData['employee_id'] ?? (int)($_REQUEST['employee_id'] ?? $input['employee_id'] ?? 0);
 $action = $_GET['action'] ?? '';
 
 if (!$branchId) {

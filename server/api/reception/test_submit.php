@@ -165,6 +165,18 @@ try {
     ]);
 
     $parent_test_id = $pdo->lastInsertId();
+    
+    // Handle Payment Breakdown
+    $payment_amounts_split = $data['payment_amounts'] ?? [];
+    if (!empty($payment_amounts_split) && is_array($payment_amounts_split)) {
+        $stmtPaySplit = $pdo->prepare("INSERT INTO test_payments (test_id, payment_method, amount, branch_id) VALUES (?, ?, ?, ?)");
+        foreach ($payment_amounts_split as $method => $amt) {
+            $amt = (float)$amt;
+            if ($amt > 0) {
+                $stmtPaySplit->execute([$parent_test_id, $method, $amt, $branch_id]);
+            }
+        }
+    }
 
     // Insert Child Records into `test_items`
     $remaining_advance = $advance_amount;

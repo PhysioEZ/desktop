@@ -1,26 +1,27 @@
 <?php
+/**
+ * Inquiry Submit API - Desktop Application
+ * Requires authentication. Standard rate limiting.
+ */
 declare(strict_types=1);
 
 require_once '../../common/db.php';
+require_once '../../common/security.php';
 
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
-}
+// Apply security - requires authentication
+$authData = applySecurity(['requireAuth' => true]);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
     echo json_encode(['success' => false, 'message' => 'Method not allowed']);
     exit;
 }
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-$branch_id = $data['branch_id'] ?? null;
-$employee_id = $data['employee_id'] ?? null;
+// Use branch_id and employee_id from auth data
+$branch_id = $authData['branch_id'] ?? $data['branch_id'] ?? null;
+$employee_id = $authData['employee_id'] ?? $data['employee_id'] ?? null;
 
 if (!$branch_id || !$employee_id) {
     echo json_encode(['success' => false, 'message' => 'Branch ID and Employee ID required']);

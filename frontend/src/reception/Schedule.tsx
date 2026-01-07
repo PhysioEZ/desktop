@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, authFetch } from '../config';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
     format, startOfWeek, endOfWeek, eachDayOfInterval, 
@@ -12,6 +12,9 @@ import {
     Search, Bell, Moon, Sun, User, LogOut
 } from 'lucide-react';
 import { InlineDatePicker } from '../components/SharedPickers';
+import KeyboardShortcuts, { type ShortcutItem } from '../components/KeyboardShortcuts';
+import LogoutConfirmation from '../components/LogoutConfirmation';
+import GlobalSearch from '../components/GlobalSearch';
 import { 
     DndContext, 
     useDraggable, 
@@ -140,13 +143,15 @@ const Schedule = () => {
     const [isDark, setIsDark] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<PatientSearch[]>([]);
-    const [showSearchResults, setShowSearchResults] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [showNotifPopup, setShowNotifPopup] = useState(false);
     const [showProfilePopup, setShowProfilePopup] = useState(false);
-    
-    const searchRef = useRef<HTMLDivElement>(null);
+    // Global Components State
+    const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+    const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+    const [showShortcuts, setShowShortcuts] = useState(false);
+
     const notifRef = useRef<HTMLButtonElement>(null);
     const profileRef = useRef<HTMLDivElement>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -181,7 +186,6 @@ const Schedule = () => {
     };
 
     const handleClickOutside = (e: MouseEvent) => {
-        if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSearchResults(false);
         if (notifRef.current && !notifRef.current.contains(e.target as Node) && !(e.target as Element).closest('#notif-popup')) setShowNotifPopup(false);
         if (profileRef.current && !profileRef.current.contains(e.target as Node)) setShowProfilePopup(false);
     };
@@ -192,7 +196,7 @@ const Schedule = () => {
         if (!user?.branch_id) return;
         setIsLoading(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/reception/schedule.php?action=fetch&week_start=${weekStartStr}&branch_id=${user.branch_id}&employee_id=${user.employee_id}`);
+            const res = await authFetch(`${API_BASE_URL}/reception/schedule.php?action=fetch&week_start=${weekStartStr}&branch_id=${user.branch_id}&employee_id=${user.employee_id}`);
             const data = await res.json();
             if (data.success) setAppointments(data.appointments);
         } catch (e) { showToast('Failed to load schedule', 'error'); } 
@@ -205,7 +209,7 @@ const Schedule = () => {
     useEffect(() => {
         const fetchNotifs = async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
                 const data = await res.json();
                 if (data.success || data.status === 'success') { setNotifications(data.notifications || []); setUnreadCount(data.unread_count || 0); }
             } catch (err) { console.error(err); }
@@ -216,16 +220,58 @@ const Schedule = () => {
     // Search Logic
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
-        if (!user?.branch_id || searchQuery.length < 2) { setSearchResults([]); setShowSearchResults(false); return; }
+        if (!user?.branch_id || searchQuery.length < 2) { setSearchResults([]); return; }
         debounceRef.current = setTimeout(async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`);
                 const data = await res.json();
-                if (data.success) { setSearchResults(data.patients || []); setShowSearchResults(true); }
+                if (data.success) { setSearchResults(data.patients || []); }
             } catch (err) { console.error(err); }
         }, 300);
         return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
     }, [searchQuery, user?.branch_id]);
+    
+    // --- Shortcuts ---
+    const shortcuts: ShortcutItem[] = [
+        // General
+        { keys: ['Alt', '/'], description: 'Keyboard Shortcuts', group: 'General', action: () => setShowShortcuts(prev => !prev) },
+        { keys: ['Alt', 'S'], description: 'Global Search', group: 'General', action: () => setShowGlobalSearch(true) },
+        { keys: ['Alt', 'W'], description: 'Toggle Theme', group: 'General', action: toggleTheme },
+        { keys: ['Alt', 'N'], description: 'Notifications', group: 'General', action: () => { setShowNotifPopup(p => !p); setShowProfilePopup(false); } },
+        { keys: ['Alt', 'P'], description: 'Profile', group: 'General', action: () => { setShowProfilePopup(p => !p); setShowNotifPopup(false); } },
+        { keys: ['Alt', 'L'], description: 'Logout', group: 'Actions', action: () => setShowLogoutConfirm(true) },
+
+        // Navigation
+        { keys: ['Alt', '1'], description: 'Dashboard', group: 'Navigation', action: () => navigate('/reception/dashboard') },
+        { keys: ['Alt', '2'], description: 'Schedule', group: 'Navigation', action: () => navigate('/reception/schedule') },
+        { keys: ['Alt', '3'], description: 'Inquiry', group: 'Navigation', action: () => navigate('/reception/inquiry') },
+        { keys: ['Alt', '4'], description: 'Registration', group: 'Navigation', action: () => navigate('/reception/registration') },
+        { keys: ['Alt', '5'], description: 'Book Test', group: 'Navigation', action: () => navigate('/reception/tests') }, // Mapped to Tests page
+        { keys: ['Alt', '6'], description: 'Patients', group: 'Navigation', action: () => navigate('/reception/patients') },
+
+        // Schedule Controls
+
+        { keys: ['Alt', 'ArrowLeft'], description: 'Previous Week', group: 'Schedule', action: () => setCurrentDate(d => subWeeks(d, 1)), pageSpecific: true },
+        { keys: ['Alt', 'ArrowRight'], description: 'Next Week', group: 'Schedule', action: () => setCurrentDate(d => addWeeks(d, 1)), pageSpecific: true },
+        { keys: ['Alt', 'T'], description: 'Go to Today', group: 'Schedule', action: () => setCurrentDate(new Date()), pageSpecific: true },
+        { keys: ['Ctrl', 'R'], description: 'Refresh', group: 'Schedule', action: () => fetchSchedule(), pageSpecific: true },
+    ];
+    
+    // Global Key Listener for Shortcuts
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            // Check for Escape to close modals
+           if (e.key === 'Escape') {
+               if (showGlobalSearch) setShowGlobalSearch(false);
+               else if (showShortcuts) setShowShortcuts(false);
+               else if (showLogoutConfirm) setShowLogoutConfirm(false);
+               else if (showRescheduleModal) setShowRescheduleModal(false);
+           }
+        };
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [showGlobalSearch, showShortcuts, showLogoutConfirm, showRescheduleModal]);
 
     // --- Actions ---
     const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -244,7 +290,7 @@ const Schedule = () => {
         
         setIsUpdating(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/reception/schedule.php?action=reschedule`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/schedule.php?action=reschedule`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ registration_id: appointment.registration_id, new_date: newDate, new_time: newTime, branch_id: user?.branch_id, employee_id: user?.employee_id })
             });
@@ -264,30 +310,20 @@ const Schedule = () => {
                 <div className="flex items-center gap-4">
                      <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/reception/dashboard')}>
                          <div className="w-10 h-10 rounded-xl bg-[#ccebc4] flex items-center justify-center text-[#0c200e] font-bold">PS</div>
-                         <h1 className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight hidden md:block" style={{ fontFamily: 'serif' }}>ProSpine</h1>
+                         <h1 className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight hidden md:block" style={{ fontFamily: 'serif' }}>PysioEZ</h1>
                      </div>
                 </div>
                 <div className="flex items-center gap-2 lg:gap-4">
                     {/* Search */}
-                    <div ref={searchRef} className="hidden md:flex items-center relative z-50">
-                        <div className="flex items-center bg-[#e0e2ec] dark:bg-[#43474e] rounded-full px-4 py-2 w-64 lg:w-96 transition-colors duration-300">
+                    {/* Search */}
+                    <div className="hidden md:flex items-center relative z-50">
+                        <div 
+                            onClick={() => setShowGlobalSearch(true)}
+                            className="flex items-center bg-[#e0e2ec] dark:bg-[#43474e] rounded-full px-4 py-2 w-64 lg:w-96 transition-colors duration-300 cursor-pointer hover:bg-[#d0d3dc] dark:hover:bg-[#50545c]"
+                        >
                             <Search size={18} className="text-[#43474e] dark:text-[#c4c7c5] mr-2" />
-                            <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="Search patients..." className="bg-transparent border-none outline-none text-sm w-full text-[#1a1c1e] dark:text-[#e3e2e6] placeholder:text-[#43474e] dark:placeholder:text-[#8e918f]" />
+                            <span className="text-sm text-[#43474e] dark:text-[#8e918f] pointer-events-none">Search patients... (Alt + S)</span>
                         </div>
-                        {/* Results */}
-                        <AnimatePresence>
-                            {showSearchResults && (
-                                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-full left-0 right-0 mt-2 bg-[#fdfcff] rounded-[20px] shadow-xl border border-[#e0e2ec] overflow-hidden max-h-[400px] overflow-y-auto">
-                                    {searchResults.map((p) => (
-                                        <div key={p.patient_id} onClick={() => { setSearchQuery(''); setShowSearchResults(false); }} className="p-3 hover:bg-[#e0e2ec] cursor-pointer border-b border-[#e0e2ec] last:border-0">
-                                            <p className="font-bold text-[#1a1c1e]">{p.patient_name}</p>
-                                            <p className="text-xs text-[#43474e]">{p.phone_number}</p>
-                                        </div>
-                                    ))}
-                                    {searchResults.length === 0 && <div className="p-4 text-center text-[#43474e]">No patients found</div>}
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
                     </div>
 
                     <button onClick={toggleTheme} className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors">
@@ -437,6 +473,26 @@ const Schedule = () => {
                  </motion.div>
             </motion.main>
             
+             {/* --- GLOBAL COMPONENTS --- */}
+            <KeyboardShortcuts 
+                shortcuts={shortcuts} 
+                isOpen={showShortcuts}
+                onClose={() => setShowShortcuts(false)}
+                onToggle={() => setShowShortcuts(prev => !prev)}
+            />
+            <LogoutConfirmation 
+                isOpen={showLogoutConfirm} 
+                onClose={() => setShowLogoutConfirm(false)} 
+                onConfirm={logout} 
+            />
+            <GlobalSearch 
+                isOpen={showGlobalSearch} 
+                onClose={() => setShowGlobalSearch(false)}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                searchResults={searchResults}
+            />
+            
             {/* Toast */}
             <AnimatePresence>
                 {toast && (
@@ -475,7 +531,7 @@ const RescheduleModal = ({ appointment, onClose, onSuccess, showToast }: any) =>
             if (!user?.branch_id) return;
             setIsLoadingSlots(true);
             try {
-                const res = await fetch(`${API_BASE_URL}/reception/schedule.php?action=slots&date=${selectedDate}&branch_id=${user.branch_id}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/schedule.php?action=slots&date=${selectedDate}&branch_id=${user.branch_id}`);
                 const data = await res.json();
                 if (data.success) setSlots(data.slots);
             } catch (e) { console.error(e); } 
@@ -487,7 +543,7 @@ const RescheduleModal = ({ appointment, onClose, onSuccess, showToast }: any) =>
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/reception/schedule.php?action=reschedule`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/schedule.php?action=reschedule`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ registration_id: appointment.registration_id, new_date: selectedDate, new_time: selectedSlot, branch_id: user?.branch_id, employee_id: user?.employee_id })
             });

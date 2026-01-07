@@ -1,13 +1,18 @@
 <?php
+/**
+ * Notifications API - Desktop Application
+ * Requires authentication. Standard rate limiting.
+ */
 declare(strict_types=1);
 
 require_once '../../common/db.php';
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET');
-header('Access-Control-Allow-Headers: Content-Type');
+require_once '../../common/security.php';
 
-$employeeId = $_GET['employee_id'] ?? null;
+// Apply security - requires authentication
+$authData = applySecurity(['requireAuth' => true]);
+
+// Use employee_id from auth data
+$employeeId = $authData['employee_id'] ?? $_GET['employee_id'] ?? null;
 
 if (!$employeeId) {
     echo json_encode(['success' => true, 'status' => 'success', 'unread_count' => 0, 'notifications' => []]);
@@ -18,7 +23,7 @@ $currentEmployeeId = (int)$employeeId;
 
 try {
     // 1. Get the count of unread notifications
-    $stmtUnread = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE employee_id = ? AND is_read = 0");
+    $stmtUnread = $pdo->prepare("SELECT COUNT(*) FROM notifications WHERE employee_id = ? AND is_read = 0 AND created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)");
     $stmtUnread->execute([$currentEmployeeId]);
     $unreadCount = (int)$stmtUnread->fetchColumn();
 
@@ -26,7 +31,7 @@ try {
     $stmtNotifications = $pdo->prepare(
         "SELECT notification_id, message, link_url, is_read, created_at 
          FROM notifications 
-         WHERE employee_id = ? 
+         WHERE employee_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)
          ORDER BY created_at DESC 
          LIMIT 15"
     );

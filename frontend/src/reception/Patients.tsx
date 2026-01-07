@@ -1,39 +1,33 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
     Search, ChevronLeft, ChevronRight, 
-    User, Phone, Stethoscope, 
-    CheckCircle2, Printer, Eye,
-    Bell, Moon, Sun, LogOut, RefreshCw
+    Phone, Stethoscope, 
+    CheckCircle2, Eye, Printer,
+    Bell, Moon, Sun, LogOut, Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/useAuthStore';
-import { API_BASE_URL } from '../config';
+import { usePatientStore } from '../store/usePatientStore';
+import { API_BASE_URL, authFetch } from '../config';
 import { useNavigate } from 'react-router-dom';
 import CustomSelect from '../components/ui/CustomSelect';
-
-interface Patient {
-    patient_id: number;
-    patient_uid: string;
-    patient_name: string;
-    patient_phone: string;
-    patient_photo_path: string;
-    assigned_doctor: string;
-    service_type: string;
-    treatment_type: string;
-    due_amount: string;
-    effective_balance: number;
-    treatment_days: number;
-    attendance_count: number;
-    patient_status: string;
-    today_attendance: string | null;
-    has_token_today: boolean;
-}
+import PatientDetailsModal from '../components/patients/PatientDetailsModal';
+import AttendanceModal from '../components/patients/modals/AttendanceModal';
+import TokenPreviewModal from '../components/patients/modals/TokenPreviewModal';
+import { toast } from 'sonner';
 
 const Patients = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuthStore();
     
-    // Header & UI State
+    // Store State
+    const { 
+        patients, isLoading, pagination, filters, metaData,
+        setFilters, setPage, fetchPatients, fetchMetaData,
+        openPatientDetails
+    } = usePatientStore();
+
+    // Local UI State
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const [showSearchResults, setShowSearchResults] = useState(false);
     const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -43,25 +37,27 @@ const Patients = () => {
     const [showProfilePopup, setShowProfilePopup] = useState(false);
     const [isDark, setIsDark] = useState(false);
 
-    // Page State
-    const [patients, setPatients] = useState<Patient[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [search, setSearch] = useState('');
-    const [page, setPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(1);
-    
-    // Filters
-    const [statusFilter, setStatusFilter] = useState('');
-    const [doctorFilter, setDoctorFilter] = useState('');
-    
-    // Dropdown Options
-    const [doctors, setDoctors] = useState<string[]>([]);
-    const [statuses, setStatuses] = useState<string[]>([]);
+    // Modals State
+    const [attendanceModal, setAttendanceModal] = useState<{ open: boolean, patient: any | null }>({ open: false, patient: null });
+    const [tokenModal, setTokenModal] = useState<{ open: boolean, patientId: number | null }>({ open: false, patientId: null });
 
     const searchRef = useRef<HTMLDivElement>(null);
     const notifRef = useRef<HTMLButtonElement>(null);
     const profileRef = useRef<HTMLDivElement>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Initial Data Fetch
+    useEffect(() => {
+        if (user?.branch_id) fetchMetaData(user.branch_id);
+    }, [user?.branch_id]);
+
+    // Fetch Patients on Filter/Page Change
+    useEffect(() => {
+        if (user?.branch_id) {
+            const timer = setTimeout(() => fetchPatients(user.branch_id), 300);
+            return () => clearTimeout(timer);
+        }
+    }, [pagination.page, filters, user?.branch_id]);
 
     // Theme & Click Outside Effects
     useEffect(() => {
@@ -87,7 +83,7 @@ const Patients = () => {
     useEffect(() => {
         const fetchNotifs = async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
                 const data = await res.json();
                 if (data.success || data.status === 'success') { setNotifications(data.notifications || []); setUnreadCount(data.unread_count || 0); }
             } catch (err) { console.error(err); }
@@ -95,13 +91,13 @@ const Patients = () => {
         if(user?.employee_id) { fetchNotifs(); const inv = setInterval(fetchNotifs, 30000); return () => clearInterval(inv); }
     }, [user?.employee_id]);
 
-    // Global Search
+    // Global Search Debounce
     useEffect(() => {
         if (debounceRef.current) clearTimeout(debounceRef.current);
         if (!user?.branch_id || globalSearchQuery.length < 2) { setSearchResults([]); setShowSearchResults(false); return; }
         debounceRef.current = setTimeout(async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(globalSearchQuery)}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(globalSearchQuery)}`);
                 const data = await res.json();
                 if (data.success) { setSearchResults(data.patients || []); setShowSearchResults(true); }
             } catch (err) { console.error(err); }
@@ -109,68 +105,6 @@ const Patients = () => {
         return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
     }, [globalSearchQuery, user?.branch_id]);
 
-    const fetchPatients = async () => {
-        if (!user?.branch_id) return;
-        setIsLoading(true);
-        try {
-            const response = await fetch(`${API_BASE_URL}/reception/patients.php`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'fetch',
-                    branch_id: user.branch_id,
-                    page,
-                    search,
-                    status: statusFilter,
-                    doctor: doctorFilter,
-                    limit: 12 // Consistent limit
-                })
-            });
-            const result = await response.json();
-            if (result.status === 'success') {
-                setPatients(result.data);
-                setTotalPages(result.pagination.total_pages);
-            }
-        } catch (error) {
-            console.error('Error fetching patients:', error);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const fetchFilters = async () => {
-        if (!user?.branch_id) return;
-        try {
-            const response = await fetch(`${API_BASE_URL}/reception/patients.php`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    action: 'fetch_filters',
-                    branch_id: user.branch_id
-                })
-            });
-            const result = await response.json();
-            if (result.status === 'success') {
-                setDoctors(result.data.doctors || []);
-                setStatuses(result.data.statuses || []);
-            }
-        } catch (error) {
-            console.error('Error fetching filters:', error);
-        }
-    };
-
-    useEffect(() => {
-        if (user?.branch_id) {
-            fetchFilters();
-        }
-    }, [user?.branch_id]);
-
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            fetchPatients();
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [page, search, statusFilter, doctorFilter, user?.branch_id]);
 
     const getStatusColor = (status: string) => {
         switch (status?.toLowerCase()) {
@@ -179,6 +113,49 @@ const Patients = () => {
             case 'inactive': return 'bg-[#e0e2ec]/30 text-[#43474e] dark:text-[#c4c7c5] border-[#e0e2ec] dark:border-[#43474e]';
             default: return 'bg-[#e0e2ec]/30 text-[#43474e] dark:text-[#c4c7c5] border-[#e0e2ec] dark:border-[#43474e]';
         }
+    };
+
+    const handleMarkAttendance = async (e: React.MouseEvent, patient: any) => {
+        e.stopPropagation();
+        
+        const cost = parseFloat(patient.cost_per_day || '0');
+        const balance = parseFloat(patient.effective_balance || '0');
+
+        // Logic: If Balance is sufficient OR cost is 0, Auto Mark.
+        if (balance >= cost || cost === 0) {
+             const loadingToast = toast.loading('Marking attendance...');
+             try {
+                const res = await authFetch(`${API_BASE_URL}/reception/add_attendance.php`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        patient_id: patient.patient_id,
+                        payment_amount: '0',
+                        mode: '',
+                        remarks: 'Auto: Debited from Balance',
+                        status: 'present'
+                    })
+                });
+                const data = await res.json();
+                if(data.success || data.status === 'success') {
+                    toast.success('Attendance marked successfully');
+                    fetchPatients(user!.branch_id);
+                } else {
+                    toast.error(data.message || 'Failed to mark attendance');
+                }
+             } catch (err) {
+                 toast.error('Error marking attendance');
+             } finally {
+                 toast.dismiss(loadingToast);
+             }
+        } else {
+            // Insufficient Balance -> Open Modal
+            setAttendanceModal({ open: true, patient });
+        }
+    };
+
+    const handlePrintToken = (e: React.MouseEvent, patientId: number) => {
+        e.stopPropagation();
+        setTokenModal({ open: true, patientId });
     };
 
     // Shared Header
@@ -200,7 +177,7 @@ const Patients = () => {
                         {showSearchResults && (
                             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="absolute top-full left-0 right-0 mt-2 bg-[#fdfcff] rounded-[20px] shadow-xl border border-[#e0e2ec] overflow-hidden max-h-[400px] overflow-y-auto">
                                 {searchResults.map((p) => (
-                                    <div key={p.patient_id} onClick={() => { setGlobalSearchQuery(''); setShowSearchResults(false); }} className="p-3 hover:bg-[#e0e2ec] cursor-pointer border-b border-[#e0e2ec] last:border-0">
+                                    <div key={p.patient_id} onClick={() => { setGlobalSearchQuery(''); setShowSearchResults(false); openPatientDetails(p); }} className="p-3 hover:bg-[#e0e2ec] cursor-pointer border-b border-[#e0e2ec] last:border-0">
                                         <p className="font-bold text-[#1a1c1e]">{p.patient_name}</p>
                                         <p className="text-xs text-[#43474e]">{p.phone_number}</p>
                                     </div>
@@ -245,7 +222,7 @@ const Patients = () => {
                     <AnimatePresence>
                         {showProfilePopup && (
                             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute top-full right-0 mt-2 w-56 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden p-2 transition-colors">
-                                 <button onClick={() => navigate('/reception/profile')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"><User size={18} /> Profile</button>
+                                 <button onClick={() => navigate('/reception/profile')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"><Search size={18} /> Profile</button>
                                  <button onClick={() => { logout(); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#ffdad6] dark:hover:bg-[#93000a] text-[#410002] dark:text-[#ffdad6] text-sm font-medium mt-1 transition-colors"><LogOut size={18} /> Logout</button>
                             </motion.div>
                         )}
@@ -296,18 +273,30 @@ const Patients = () => {
                 <div className="bg-[#f0f4f9] dark:bg-[#1e2022] rounded-[24px] p-2 mb-8 flex flex-col md:flex-row gap-3 items-center">
                     <div className="relative flex-1 w-full bg-[#fdfcff] dark:bg-[#1a1c1e] rounded-[20px] shadow-sm px-4 py-3 flex items-center gap-3 border border-transparent focus-within:border-[#006e1c] dark:focus-within:border-[#88d99d] transition-all">
                         <Search className="text-[#43474e] dark:text-[#c4c7c5]" size={20} />
-                        <input type="text" placeholder="Search by name, phone or ID..." value={search} onChange={(e) => setSearch(e.target.value)} className="bg-transparent border-none outline-none text-base w-full text-[#1a1c1e] dark:text-[#e3e2e6] placeholder:text-[#43474e] dark:placeholder:text-[#8e918f] font-medium" />
+                        <input type="text" placeholder="Search by name, phone or ID..." value={filters.search} onChange={(e) => setFilters({ search: e.target.value })} className="bg-transparent border-none outline-none text-base w-full text-[#1a1c1e] dark:text-[#e3e2e6] placeholder:text-[#43474e] dark:placeholder:text-[#8e918f] font-medium" />
                     </div>
                     <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-                         <CustomSelect value={statusFilter} onChange={(v) => { setStatusFilter(v); setPage(1); }} options={[{label:'All Status', value:''}, ...statuses.map(s => ({label:s, value:s}))]} placeholder="Status" className="min-w-[150px] !rounded-[20px] !py-4 !border-none !bg-[#fdfcff] dark:!bg-[#1a1c1e] !shadow-sm !font-bold" />
-                         <CustomSelect value={doctorFilter} onChange={(v) => { setDoctorFilter(v); setPage(1); }} options={[{label:'All Doctors', value:''}, ...doctors.map(d => ({label:d, value:d}))]} placeholder="Doctor" className="min-w-[160px] !rounded-[20px] !py-4 !border-none !bg-[#fdfcff] dark:!bg-[#1a1c1e] !shadow-sm !font-bold" />
+                         <CustomSelect 
+                            value={filters.status} 
+                            onChange={(v) => setFilters({ status: v })} 
+                            options={[{label:'All Status', value:''}, ...metaData.statuses.map(s => ({label:s, value:s}))]} 
+                            placeholder="Status" 
+                            className="min-w-[150px] !rounded-[20px] !py-4 !border-none !bg-[#fdfcff] dark:!bg-[#1a1c1e] !shadow-sm !font-bold" 
+                         />
+                         <CustomSelect 
+                            value={filters.doctor} 
+                            onChange={(v) => setFilters({ doctor: v })} 
+                            options={[{label:'All Doctors', value:''}, ...metaData.doctors.map(d => ({label:d, value:d}))]} 
+                            placeholder="Doctor" 
+                            className="min-w-[160px] !rounded-[20px] !py-4 !border-none !bg-[#fdfcff] dark:!bg-[#1a1c1e] !shadow-sm !font-bold" 
+                         />
                     </div>
                 </div>
 
                 {/* Patient Grid */}
                 {isLoading ? (
                      <div className="flex flex-col items-center justify-center py-20">
-                         <div className="w-12 h-12 border-4 border-[#006e1c] border-t-transparent rounded-full animate-spin mb-4" />
+                         <Loader2 className="animate-spin text-[#006e1c] mb-4" size={48} />
                          <p className="text-base font-bold text-[#43474e] dark:text-[#c4c7c5]">Loading patients...</p>
                      </div>
                 ) : patients.length === 0 ? (
@@ -322,6 +311,7 @@ const Patients = () => {
                             const totalDays = patient.treatment_days || 1;
                             const progress = Math.min(100, (patient.attendance_count / totalDays) * 100);
                             const dueAmount = parseFloat(patient.due_amount || '0');
+                            const isPresent = patient.today_attendance === 'present';
 
                             return (
                                 <motion.div 
@@ -329,7 +319,8 @@ const Patients = () => {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: idx * 0.05, duration: 0.4 }}
-                                    className="group bg-[#fdfcff] dark:bg-[#1a1c1e] rounded-[24px] border border-[#e0e2ec] dark:border-[#43474e] p-5 hover:shadow-xl hover:border-[#ccebc4] dark:hover:border-[#005313] transition-all relative overflow-hidden"
+                                    onClick={() => openPatientDetails(patient)}
+                                    className="group bg-[#fdfcff] dark:bg-[#1a1c1e] rounded-[24px] border border-[#e0e2ec] dark:border-[#43474e] p-5 hover:shadow-xl hover:border-[#ccebc4] dark:hover:border-[#005313] transition-all relative overflow-hidden cursor-pointer"
                                 >
                                     <div className="absolute top-0 right-0 p-4">
                                          <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${getStatusColor(patient.patient_status)}`}>
@@ -378,16 +369,29 @@ const Patients = () => {
                                              </p>
                                         </div>
                                         <div className="flex gap-2">
-                                            <button className="p-1.5 text-[#43474e] dark:text-[#c4c7c5] hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full transition-colors" title="View Details">
+                                            <button 
+                                                onClick={(e) => handlePrintToken(e, patient.patient_id)}
+                                                className="p-1.5 text-[#43474e] dark:text-[#c4c7c5] hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full transition-colors" 
+                                                title="Print Token"
+                                            >
+                                                <Printer size={18} />
+                                            </button>
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); openPatientDetails(patient); }}
+                                                className="p-1.5 text-[#43474e] dark:text-[#c4c7c5] hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full transition-colors" 
+                                                title="View Details"
+                                            >
                                                 <Eye size={18} />
                                             </button>
                                             <button 
+                                                onClick={(e) => handleMarkAttendance(e, patient)}
                                                 className={`p-1.5 rounded-full transition-colors ${
-                                                    patient.today_attendance === 'present' 
+                                                    isPresent 
                                                         ? 'text-[#006e1c] bg-[#ccebc4] dark:bg-[#0c3b10] cursor-default'
                                                         : 'text-[#43474e] hover:text-[#00639b] hover:bg-[#cce5ff] dark:hover:bg-[#0842a0]'
                                                 }`}
-                                                disabled={patient.today_attendance === 'present'}
+                                                disabled={isPresent}
+                                                title={isPresent ? "Already Present" : "Mark Attendance"}
                                             >
                                                 <CheckCircle2 size={18} />
                                             </button>
@@ -403,16 +407,16 @@ const Patients = () => {
                 {!isLoading && patients.length > 0 && (
                     <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#1a1c1e] dark:bg-[#e3e2e6] text-white dark:text-[#1a1c1e] px-4 py-2 rounded-full shadow-2xl z-30 flex items-center gap-4">
                         <button 
-                            onClick={() => setPage(p => Math.max(1, p - 1))}
-                            disabled={page === 1}
+                            onClick={() => setPage(Math.max(1, pagination.page - 1))}
+                            disabled={pagination.page === 1}
                             className="p-1 hover:bg-white/20 rounded-full disabled:opacity-30 transition-colors"
                         >
                             <ChevronLeft size={20} />
                         </button>
-                        <span className="text-xs font-bold tracking-widest">{page} / {totalPages}</span>
+                        <span className="text-xs font-bold tracking-widest">{pagination.page} / {pagination.total_pages}</span>
                         <button 
-                            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                            disabled={page === totalPages}
+                            onClick={() => setPage(Math.min(pagination.total_pages, pagination.page + 1))}
+                            disabled={pagination.page === pagination.total_pages}
                             className="p-1 hover:bg-white/20 rounded-full disabled:opacity-30 transition-colors"
                         >
                             <ChevronRight size={20} />
@@ -420,6 +424,21 @@ const Patients = () => {
                     </div>
                 )}
             </div>
+
+            {/* Modals */}
+            <PatientDetailsModal />
+             <AttendanceModal 
+                isOpen={attendanceModal.open} 
+                onClose={() => setAttendanceModal({ open: false, patient: null })}
+                patient={attendanceModal.patient} 
+                onSuccess={() => fetchPatients(user!.branch_id)} 
+            />
+            <TokenPreviewModal
+                isOpen={tokenModal.open}
+                onClose={() => setTokenModal({ open: false, patientId: null })}
+                patientId={tokenModal.patientId}
+            />
+
         </div>
     );
 };

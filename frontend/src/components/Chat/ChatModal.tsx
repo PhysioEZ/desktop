@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../../store/useAuthStore';
-import { API_BASE_URL } from '../../config';
+import { API_BASE_URL, authFetch } from '../../config';
 import { 
     X, Send, RefreshCw, Search, Lock, MessageCircle, 
     Loader2, CheckCheck, Clock, Paperclip, FileText, Download
@@ -84,7 +84,7 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
         if (!user?.branch_id || !user?.employee_id) return;
         setIsLoadingUsers(true);
         try {
-            const res = await fetch(
+            const res = await authFetch(
                 `${API_BASE_URL}/reception/chat.php?action=users&branch_id=${user.branch_id}&employee_id=${user.employee_id}`
             );
             const data = await res.json();
@@ -104,7 +104,7 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
         if (!user?.employee_id) return;
         if (!silent) setIsLoadingMessages(true);
         try {
-            const res = await fetch(
+            const res = await authFetch(
                 `${API_BASE_URL}/reception/chat.php?action=fetch&employee_id=${user.employee_id}&partner_id=${partnerId}`
             );
             const data = await res.json();
@@ -142,15 +142,14 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                     formData.append('sender_name', user.name);
                     formData.append('chat_file', selectedFile);
 
-                    res = await fetch(`${API_BASE_URL}/reception/chat.php?action=send`, {
+                    res = await authFetch(`${API_BASE_URL}/reception/chat.php?action=send`, {
                         method: 'POST',
                         body: formData
                     });
                 } else {
                     // Use JSON for text only
-                    res = await fetch(`${API_BASE_URL}/reception/chat.php?action=send`, {
+                    res = await authFetch(`${API_BASE_URL}/reception/chat.php?action=send`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             sender_id: user.employee_id,
                             receiver_id: activePartner.id,

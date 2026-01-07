@@ -1,28 +1,27 @@
 <?php
+/**
+ * Registration Submit API - Desktop Application
+ * Requires authentication. Standard rate limiting.
+ */
 declare(strict_types=1);
 
 require_once '../../common/db.php';
+require_once '../../common/security.php';
 
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
-// Handle preflight
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
-}
+// Apply security - requires authentication
+$authData = applySecurity(['requireAuth' => true]);
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
     echo json_encode(['success' => false, 'message' => 'Method not allowed']);
     exit;
 }
 
 $data = json_decode(file_get_contents("php://input"), true);
 
-// Required parameters from frontend
-$branch_id = $data['branch_id'] ?? null;
-$employee_id = $data['employee_id'] ?? null;
+// Use branch_id and employee_id from auth data
+$branch_id = $authData['branch_id'] ?? $data['branch_id'] ?? null;
+$employee_id = $authData['employee_id'] ?? $data['employee_id'] ?? null;
 
 if (!$branch_id || !$employee_id) {
     echo json_encode(['success' => false, 'message' => 'Branch ID and Employee ID required']);
@@ -38,9 +37,24 @@ try {
     $email             = trim($data['email'] ?? '');
     $gender            = $data['gender'] ?? '';
     $age               = trim($data['age'] ?? '');
-    $chief_complain    = ($data['conditionType'] === 'other' && !empty($data['conditionType_other'])) 
-                         ? $data['conditionType_other'] 
-                         : ($data['conditionType'] ?? 'other');
+    // Handle Chief Complaint (can be array from modern frontend or string from legacy)
+    $chief_complain = '';
+    $conditionType = $data['conditionType'] ?? '';
+    
+    if (is_array($conditionType)) {
+        // Remove 'other' from the array if we have a specific other value
+        $hasOther = in_array('other', $conditionType);
+        $complaints = array_filter($conditionType, function($c) { return $c !== 'other'; });
+        
+        if ($hasOther && !empty($data['conditionType_other'])) {
+            $complaints[] = trim($data['conditionType_other']);
+        }
+        $chief_complain = implode(', ', $complaints);
+    } else {
+        $chief_complain = ($conditionType === 'other' && !empty($data['conditionType_other'])) 
+                             ? $data['conditionType_other'] 
+                             : ($conditionType ?: 'other');
+    }
     $referralSource    = $data['referralSource'] ?? 'self';
     $referred_by       = trim($data['referred_by'] ?? '');
     $occupation        = trim($data['occupation'] ?? '');
@@ -111,6 +125,18 @@ try {
         ':remarks'             => $remarks
     ]);
     $newRegistrationId = $pdo->lastInsertId();
+
+    // Handle Payment Breakdown
+    $paymentAmounts = $data['payment_amounts'] ?? [];
+    if (!empty($paymentAmounts) && is_array($paymentAmounts)) {
+        $stmtPaySplit = $pdo->prepare("INSERT INTO registration_payments (registration_id, payment_method, amount, branch_id) VALUES (?, ?, ?, ?)");
+        foreach ($paymentAmounts as $method => $amt) {
+            $amt = (float)$amt;
+            if ($amt > 0) {
+                $stmtPaySplit->execute([$newRegistrationId, $method, $amt, $branch_id]);
+            }
+        }
+    }
 
     // Referral Partner Linking & Commission (Auto)
     if (!empty($referred_by)) {

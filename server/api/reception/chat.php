@@ -2,20 +2,16 @@
 /**
  * Chat API for Desktop App
  * Handles sending/receiving encrypted messages between employees
+ * Requires authentication. Standard rate limiting.
  */
-
 declare(strict_types=1);
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type');
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
-}
 
 require_once '../../common/db.php';
 require_once '../../common/config.php';
+require_once '../../common/security.php';
+
+// Apply security - requires authentication
+$authData = applySecurity(['requireAuth' => true]);
 
 $action = $_GET['action'] ?? '';
 

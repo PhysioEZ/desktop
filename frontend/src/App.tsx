@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from 'sonner';
 import SplashScreen from './components/SplashScreen';
 import LoginScreen from './screens/LoginScreen';
 import WelcomeScreen from './screens/WelcomeScreen';
@@ -34,13 +35,14 @@ function App() {
       }
   }, [showSplash]);
 
-
+ 
   if (showSplash) {
     return <SplashScreen onComplete={handleSplashComplete} />;
   }
 
   return (
-    <Router>
+    <Router basename={import.meta.env.BASE_URL}>
+      <Toaster richColors position="top-right" closeButton />
       <Routes>
         <Route path="/login" element={<LoginScreen />} />
         <Route path="/welcome" element={<WelcomeScreen />} />

@@ -1,21 +1,27 @@
 <?php
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json; charset=UTF-8");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
+/**
+ * Registration API - Desktop Application
+ * Requires authentication. Standard rate limiting.
+ */
+declare(strict_types=1);
 
 require_once '../../common/db.php';
+require_once '../../common/security.php';
+
+// Apply security - requires authentication
+$authData = applySecurity(['requireAuth' => true]);
 
 $action = $_GET['action'] ?? null;
 $input = json_decode(file_get_contents("php://input"), true);
 
 if (!$action && isset($input['action'])) {
     $action = $input['action'];
+}
+
+// Override branch_id from auth if available
+if ($authData && isset($authData['branch_id'])) {
+    $input['branch_id'] = $authData['branch_id'];
+    $_GET['branch_id'] = $authData['branch_id'];
 }
 
 try {
@@ -213,9 +219,11 @@ function fetchRegistrationDetails($pdo, $id) {
 
     if ($data) {
         // Also check if they are already added as patient in physio/speech
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM patients WHERE registration_id = ?");
+        $stmt = $pdo->prepare("SELECT service_type, patient_id FROM patients WHERE registration_id = ?");
         $stmt->execute([$id]);
-        $data['patient_exists_count'] = $stmt->fetchColumn();
+        $existing = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $data['existing_services'] = $existing;
+        $data['patient_exists_count'] = count($existing);
     }
 
     echo json_encode(["status" => "success", "data" => $data]);

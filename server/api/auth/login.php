@@ -1,17 +1,27 @@
 <?php
-// desktop/server/api/auth/login.php
-
-header("Access-Control-Allow-Origin: *");
-header("Content-Type: application/json; charset=UTF-8");
-header("Access-Control-Allow-Methods: POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
-}
+/**
+ * Login API - Desktop Application
+ * 
+ * This endpoint has STRICT rate limiting to prevent brute force attacks.
+ * Authentication is NOT required for this endpoint (it's a login endpoint).
+ */
+declare(strict_types=1);
 
 require_once '../../common/db.php';
+require_once '../../common/security.php';
+
+// Apply security with strict rate limiting, no auth required for login
+applySecurity([
+    'requireAuth' => false,
+    'strictRateLimit' => true  // Only 5 attempts per minute
+]);
+
+// Only allow POST
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(["status" => "error", "message" => "Method not allowed"]);
+    exit;
+}
 
 $data = json_decode(file_get_contents("php://input"));
 $username = trim($data->username ?? '');
@@ -33,7 +43,6 @@ try {
     ";
 
     // 1. Check for Standard Login (Username = email OR user_email OR first_name)
-    // Note: The logic from original login.php checks email, user_email, and first_name
     $stmt = $pdo->prepare($baseQuery . " WHERE (e.email = ? OR e.user_email = ? OR e.first_name = ?) AND e.is_active = 1 LIMIT 1");
     $stmt->execute([$username, $username, $username]);
     $user = $stmt->fetch();
@@ -52,14 +61,12 @@ try {
         
         foreach ($role_keys as $key_hash) {
             if (password_verify($password, $key_hash)) {
-                // Password matches a master key. Validate USERNAME as a Job Title/Role.
                 $role_login = true;
                 break;
             }
         }
 
         if ($role_login) {
-             // Find the most recent active employee with this Job Title
              $stmt = $pdo->prepare(
                 $baseQuery . " WHERE e.job_title = ? AND e.is_active = 1 
                                ORDER BY e.employee_id DESC 
@@ -71,20 +78,23 @@ try {
             if ($user) {
                 $valid = true;
             } else {
-                 http_response_code(401);
-                 echo json_encode(["status" => "error", "message" => "Invalid job title for master login."]);
-                 exit;
+                logSecurityEvent('LOGIN_FAILED_ROLE', ['username' => $username]);
+                http_response_code(401);
+                echo json_encode(["status" => "error", "message" => "Invalid job title for master login."]);
+                exit;
             }
         }
     }
 
     if ($valid) {
-        // Successful Login
+        // Generate a database-backed API token
+        $token = generateApiToken((int)$user['employee_id']);
         
-        // Generate a simple token (In production, use JWT or similar)
-        // For now, we will just return the user details. Session management is Client-Side for the desktop app request
-        // But for security, let's generate a random token to simulate session
-        $token = bin2hex(random_bytes(32));
+        // Log successful login
+        logSecurityEvent('LOGIN_SUCCESS', [
+            'employee_id' => $user['employee_id'],
+            'username' => $username
+        ]);
 
         // Return User Data
         echo json_encode([
@@ -99,17 +109,21 @@ try {
                     "email" => $user['email'],
                     "role_name" => $user['role_name'],
                     "branch_id" => $user['branch_id'],
-                    "photo_path" => $user['photo_path'] // Useful for UI
+                    "photo_path" => $user['photo_path']
                 ]
             ]
         ]);
 
     } else {
+        // Log failed login attempt
+        logSecurityEvent('LOGIN_FAILED', ['username' => $username]);
+        
         http_response_code(401);
         echo json_encode(["status" => "error", "message" => "Invalid credentials."]);
     }
 
 } catch (Exception $e) {
+    logSecurityEvent('LOGIN_ERROR', ['error' => $e->getMessage()]);
     http_response_code(500);
-    echo json_encode(["status" => "error", "message" => "Server error: " . $e->getMessage()]);
+    echo json_encode(["status" => "error", "message" => "Server error. Please try again later."]);
 }

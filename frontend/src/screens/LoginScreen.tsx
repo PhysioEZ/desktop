@@ -82,7 +82,7 @@ const LoginScreen = () => {
           </div>
 
           <h1 className="text-4xl font-bold tracking-tight text-slate-800 drop-shadow-sm">
-            CareSync<span className="font-light text-teal-600">OS</span>
+            Physio<span className="font-light text-teal-600">EZ</span>
           </h1>
           <p className="text-sm text-slate-500 mt-3 font-medium tracking-wide uppercase">
             Next Gen Medical System
@@ -209,7 +209,7 @@ const LoginScreen = () => {
           </div>
 
           <p className="text-xs text-slate-300">
-             &copy; 2025 CareSyncOS. All rights reserved.
+             &copy; 2026 PhysioEZ. All rights reserved.
           </p>
         </div>
 

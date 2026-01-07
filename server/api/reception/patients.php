@@ -1,19 +1,75 @@
 <?php
-
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, GET, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
-header("Content-Type: application/json; charset=UTF-8");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit();
-}
+/**
+ * Patients API - Desktop Application
+ * Requires authentication. Standard rate limiting.
+ */
+declare(strict_types=1);
 
 require_once '../../common/db.php';
+require_once '../../common/security.php';
+
+// Apply security - requires authentication
+$authData = applySecurity(['requireAuth' => true]);
 
 $input = json_decode(file_get_contents("php://input"), true);
 $action = $input['action'] ?? $_GET['action'] ?? 'fetch';
+
+// Override branch_id from auth data if available
+if ($authData && isset($authData['branch_id'])) {
+    $input['branch_id'] = $authData['branch_id'];
+}
+
+// -------------------------
+// AUTO-DEACTIVATION LOGIC
+// -------------------------
+if (isset($input['branch_id'])) {
+    runDailyCleanup($pdo, (int)$input['branch_id']);
+}
+
+function runDailyCleanup($pdo, $branchId) {
+    // Check if the daily cleanup has run for this branch today
+    $lockDir = __DIR__ . '/../../tmp/cleanup';
+    if (!is_dir($lockDir)) {
+        @mkdir($lockDir, 0755, true);
+    }
+    
+    $cleanupFile = $lockDir . '/last_cleanup_' . $branchId . '.txt';
+    $todayDate = date('Y-m-d');
+    $lastRunDate = file_exists($cleanupFile) ? file_get_contents($cleanupFile) : '';
+
+    if (trim($lastRunDate) !== $todayDate) {
+        try {
+            // Deactivate patients who are currently 'active' AND
+            // (have NO attendance record at all AND were created > 3 days ago) OR
+            // (have an attendance record, but the last one was > 3 days ago)
+            
+            $sql = "UPDATE patients p
+                    LEFT JOIN (
+                        SELECT patient_id, MAX(attendance_date) as last_visit 
+                        FROM attendance 
+                        GROUP BY patient_id
+                    ) a ON p.patient_id = a.patient_id
+                    SET p.status = 'inactive'
+                    WHERE p.branch_id = :branch_id 
+                      AND p.status = 'active'
+                      AND (
+                          (a.last_visit IS NOT NULL AND a.last_visit < DATE_SUB(CURDATE(), INTERVAL 3 DAY))
+                          OR 
+                          (a.last_visit IS NULL AND p.created_at < DATE_SUB(NOW(), INTERVAL 3 DAY))
+                      )";
+                      
+            $stmtCleanup = $pdo->prepare($sql);
+            $stmtCleanup->execute([':branch_id' => $branchId]);
+            
+            // Update the lock file
+            @file_put_contents($cleanupFile, $todayDate);
+            
+        } catch (PDOException $e) {
+            // Log silently
+            error_log("Auto-deactivation failed: " . $e->getMessage());
+        }
+    }
+}
 
 try {
     switch ($action) {
@@ -22,6 +78,9 @@ try {
             break;
         case 'fetch_filters':
             fetchFilters($pdo, $input);
+            break;
+        case 'fetch_details':
+            fetchDetails($pdo, $input);
             break;
         default:
             echo json_encode(['status' => 'error', 'message' => 'Invalid action']);
@@ -52,6 +111,27 @@ function fetchFilters($pdo, $input) {
         $stmt->execute([':branch_id' => $branchId]);
         $filterOptions[$key] = $stmt->fetchAll(PDO::FETCH_COLUMN);
     }
+
+    // --- Fetch Payment Methods ---
+    try {
+        $stmtPM = $pdo->prepare("SELECT method_id, method_name FROM payment_methods WHERE branch_id = ? AND is_active = 1 ORDER BY display_order");
+        $stmtPM->execute([$branchId]);
+        $filterOptions['payment_methods'] = $stmtPM->fetchAll(PDO::FETCH_ASSOC);
+    } catch (Exception $e) { $filterOptions['payment_methods'] = []; }
+
+    // --- Fetch Referrers ---
+    try {
+        $stmtRef = $pdo->prepare("
+            (SELECT DISTINCT reffered_by FROM registration WHERE branch_id = :branch_id AND reffered_by IS NOT NULL AND reffered_by != '')
+            UNION
+            (SELECT DISTINCT reffered_by FROM test_inquiry WHERE branch_id = :branch_id AND reffered_by IS NOT NULL AND reffered_by != '')
+            UNION
+            (SELECT DISTINCT referred_by AS reffered_by FROM tests WHERE branch_id = :branch_id AND referred_by IS NOT NULL AND referred_by != '')
+            ORDER BY reffered_by ASC
+        ");
+        $stmtRef->execute([':branch_id' => $branchId]);
+        $filterOptions['referrers'] = $stmtRef->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Exception $e) { $filterOptions['referrers'] = []; }
 
     echo json_encode(['status' => 'success', 'data' => $filterOptions]);
 }
@@ -224,4 +304,98 @@ function fetchPatients($pdo, $input) {
             'total_pages' => $total_pages
         ]
     ]);
+}
+
+function fetchDetails($pdo, $input) {
+    $patientId = $input['patient_id'] ?? null;
+    if (!$patientId) {
+        echo json_encode(['status' => 'error', 'message' => 'Patient ID required']);
+        return;
+    }
+
+    $data = [];
+
+    // 1. Fetch Fresh Patient Info & Calculate Balance
+    $stmtP = $pdo->prepare("SELECT * FROM patients WHERE patient_id = ?");
+    $stmtP->execute([$patientId]);
+    $p = $stmtP->fetch(PDO::FETCH_ASSOC);
+
+    if ($p) {
+        // Calculate Totals (Mirroring fetchPatients logic)
+        // Total Paid
+        $stmtPayment = $pdo->prepare("SELECT COALESCE(SUM(amount), 0) FROM payments WHERE patient_id = ?");
+        $stmtPayment->execute([$patientId]);
+        $totalPaid = (float)$stmtPayment->fetchColumn();
+
+        $totalConsumed = 0;
+
+        // A. Historical Consumption (from patients_treatment)
+        $stmtHistory = $pdo->prepare("
+            SELECT treatment_type, treatment_days, package_cost, treatment_cost_per_day, start_date, end_date 
+            FROM patients_treatment 
+            WHERE patient_id = ?
+        ");
+        $stmtHistory->execute([$patientId]);
+        while ($h = $stmtHistory->fetch(PDO::FETCH_ASSOC)) {
+            $stmtHAtt = $pdo->prepare("SELECT COUNT(*) FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < ? AND status = 'present'");
+            $stmtHAtt->execute([$patientId, $h['start_date'], $h['end_date']]);
+            $hCount = (int)$stmtHAtt->fetchColumn();
+            
+            $hRate = ($h['treatment_type'] === 'package' && (int)$h['treatment_days'] > 0) 
+                     ? (float)$h['package_cost'] / (int)$h['treatment_days'] 
+                     : (float)$h['treatment_cost_per_day'];
+            $totalConsumed += ($hCount * $hRate);
+        }
+
+        // B. Current Plan Consumption
+        $curRate = ($p['treatment_type'] === 'package' && (int)$p['treatment_days'] > 0) 
+                   ? (float)$p['package_cost'] / (int)$p['treatment_days'] 
+                   : (float)$p['cost_per_day']; // Using cost_per_day column from patients table
+        
+        $stmtCAtt = $pdo->prepare("SELECT COUNT(*) FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'");
+        $stmtCAtt->execute([$patientId, $p['start_date'] ?? '2000-01-01']);
+        $cCount = (int)$stmtCAtt->fetchColumn();
+        
+        $totalConsumed += ($cCount * $curRate);
+
+        $p['effective_balance'] = $totalPaid - $totalConsumed;
+        $p['attendance_count'] = $cCount;
+        $p['cost_per_day'] = $curRate;
+        $p['due_amount'] = ($p['effective_balance'] < 0) ? abs($p['effective_balance']) : 0;
+        
+        $data = array_merge($data, $p);
+    }
+
+    // 2. Payment History
+    $stmtPay = $pdo->prepare("
+        SELECT payment_id, amount, payment_date, payment_method, remarks, created_at 
+        FROM payments 
+        WHERE patient_id = ? 
+        ORDER BY payment_date DESC, created_at DESC
+    ");
+    $stmtPay->execute([$patientId]);
+    $data['payments'] = $stmtPay->fetchAll(PDO::FETCH_ASSOC);
+
+    // 3. Treatment History
+    $stmtTreat = $pdo->prepare("
+        SELECT id, treatment_type, treatment_days, package_cost, treatment_cost_per_day, start_date, end_date, created_at
+        FROM patients_treatment 
+        WHERE patient_id = ? 
+        ORDER BY start_date DESC
+    ");
+    $stmtTreat->execute([$patientId]);
+    $data['history'] = $stmtTreat->fetchAll(PDO::FETCH_ASSOC);
+
+    // 4. Attendance History (Last 50)
+    $stmtAtt = $pdo->prepare("
+        SELECT attendance_id, attendance_date, status, created_at 
+        FROM attendance 
+        WHERE patient_id = ? 
+        ORDER BY attendance_date DESC 
+        LIMIT 50
+    ");
+    $stmtAtt->execute([$patientId]);
+    $data['attendance'] = $stmtAtt->fetchAll(PDO::FETCH_ASSOC);
+
+    echo json_encode(['status' => 'success', 'data' => $data]);
 }

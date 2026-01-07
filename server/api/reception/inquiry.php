@@ -1,19 +1,21 @@
 <?php
+/**
+ * Inquiry API - Desktop Application
+ * Requires authentication. Standard rate limiting.
+ */
 declare(strict_types=1);
 
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
-
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    exit(0);
-}
-
 require_once '../../common/db.php';
+require_once '../../common/security.php';
+
+// Apply security - requires authentication
+$authData = applySecurity(['requireAuth' => true]);
 
 $input = json_decode(file_get_contents("php://input"), true) ?? $_REQUEST;
 $action = $input['action'] ?? 'fetch';
-$branch_id = $input['branch_id'] ?? null;
+
+// Use branch_id from auth data
+$branch_id = $authData['branch_id'] ?? $input['branch_id'] ?? null;
 
 if (!$branch_id) {
     echo json_encode(['status' => 'error', 'message' => 'Branch ID required']);

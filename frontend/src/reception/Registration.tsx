@@ -8,8 +8,9 @@ import CustomSelect from '../components/ui/CustomSelect';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/useAuthStore';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, authFetch } from '../config';
 import { format, parseISO, isValid } from 'date-fns';
+import QuickAddModal from '../components/reception/QuickAddModal';
 
 const Registration = () => {
     const navigate = useNavigate();
@@ -23,6 +24,10 @@ const Registration = () => {
         message: '',
         onConfirm: () => {}
     });
+
+    // Quick Add Modal State
+    const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
+    const [quickAddType, setQuickAddType] = useState<'physio' | 'speech'>('physio');
 
     // Header State
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
@@ -63,7 +68,7 @@ const Registration = () => {
     useEffect(() => {
         const fetchNotifs = async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
                 const data = await res.json();
                 if (data.success || data.status === 'success') { setNotifications(data.notifications || []); setUnreadCount(data.unread_count || 0); }
             } catch (err) { console.error(err); }
@@ -77,7 +82,7 @@ const Registration = () => {
         if (!user?.branch_id || globalSearchQuery.length < 2) { setSearchResults([]); setShowSearchResults(false); return; }
         debounceRef.current = setTimeout(async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(globalSearchQuery)}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(globalSearchQuery)}`);
                 const data = await res.json();
                 if (data.success) { setSearchResults(data.patients || []); setShowSearchResults(true); }
             } catch (err) { console.error(err); }
@@ -153,7 +158,7 @@ const Registration = () => {
         setIsSearching(true);
 
         try {
-            const res = await fetch(`${API_BASE_URL}/reception/registration.php`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/registration.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -188,7 +193,7 @@ const Registration = () => {
     const fetchOptions = useCallback(async () => {
         if (!user?.branch_id) return;
         try {
-            const res = await fetch(`${API_BASE_URL}/reception/registration.php?action=options&branch_id=${user.branch_id}`);
+            const res = await authFetch(`${API_BASE_URL}/reception/registration.php?action=options&branch_id=${user.branch_id}`);
             const data = await res.json();
             if (data.status === 'success') {
                 setOptions(data.data);
@@ -209,7 +214,7 @@ const Registration = () => {
         ));
 
         try {
-            const res = await fetch(`${API_BASE_URL}/reception/registration.php`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/registration.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -235,7 +240,7 @@ const Registration = () => {
 
     const fetchDetails = async (id: number) => {
         try {
-            const res = await fetch(`${API_BASE_URL}/reception/registration.php?action=details&id=${id}`);
+            const res = await authFetch(`${API_BASE_URL}/reception/registration.php?action=details&id=${id}`);
             const data = await res.json();
             if (data.status === 'success') {
                 setSelectedRegistration(data.data);
@@ -251,7 +256,7 @@ const Registration = () => {
         if (!selectedRegistration) return;
         setIsSaving(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/reception/registration.php`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/registration.php`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -278,7 +283,7 @@ const Registration = () => {
         setIsEditing(true);
     };
 
-    const navigateToBill = (id: number) => {
+    const navigateToBill = (_id: number) => {
         setIsBillModalOpen(true);
     };
 
@@ -652,15 +657,41 @@ const Registration = () => {
                                             <div><h4 className="text-sm font-black text-[#041e49] dark:text-[#d3e3fd] uppercase tracking-widest flex items-center gap-2">Quick Actions</h4><p className="text-xs text-[#041e49]/70 dark:text-[#d3e3fd]/70 font-medium mt-1">Convert to department patient</p></div>
                                         </div>
                                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                                            <button className="flex items-center gap-4 p-4 bg-[#fdfcff] dark:bg-[#1a1c1e] border border-[#e0e2ec] dark:border-[#43474e] rounded-2xl hover:shadow-md transition-all group">
+                                            <button 
+                                                onClick={() => { setQuickAddType('physio'); setIsQuickAddModalOpen(true); }}
+                                                className="flex items-center gap-4 p-4 bg-[#fdfcff] dark:bg-[#1a1c1e] border border-[#e0e2ec] dark:border-[#43474e] rounded-2xl hover:shadow-md transition-all group"
+                                            >
                                                 <div className="w-10 h-10 rounded-xl bg-[#d3e3fd] dark:bg-[#0842a0] flex items-center justify-center text-[#041e49] dark:text-[#d3e3fd] group-hover:scale-110 transition-transform"><UserPlus size={20} /></div>
-                                                <div className="text-left"><span className="block text-xs font-black text-[#1a1c1e] dark:text-[#e3e2e6]">Add to Physio</span><span className="block text-[9px] font-bold text-[#43474e] dark:text-[#c4c7c5] mt-0.5 uppercase">Physiotherapy</span></div>
+                                                <div className="text-left"><span className="block text-sm font-black text-[#1a1c1e] dark:text-[#e3e2e6]">Add to Physio</span><span className="block text-[9px] font-bold text-[#43474e] dark:text-[#c4c7c5] mt-0.5 uppercase">Physiotherapy</span></div>
                                             </button>
-                                            <button className="flex items-center gap-4 p-4 bg-[#fdfcff] dark:bg-[#1a1c1e] border border-[#e0e2ec] dark:border-[#43474e] rounded-2xl hover:shadow-md transition-all group">
+                                            <button 
+                                                onClick={() => { setQuickAddType('speech'); setIsQuickAddModalOpen(true); }}
+                                                className="flex items-center gap-4 p-4 bg-[#fdfcff] dark:bg-[#1a1c1e] border border-[#e0e2ec] dark:border-[#43474e] rounded-2xl hover:shadow-md transition-all group"
+                                            >
                                                 <div className="w-10 h-10 rounded-xl bg-[#ffd8e4] dark:bg-[#631a36] flex items-center justify-center text-[#31111d] dark:text-[#ffd8e4] group-hover:scale-110 transition-transform"><Mic size={20} /></div>
                                                 <div className="text-left"><span className="block text-xs font-black text-[#1a1c1e] dark:text-[#e3e2e6]">Add to Speech</span><span className="block text-[9px] font-bold text-[#43474e] dark:text-[#c4c7c5] mt-0.5 uppercase">Speech Therapy</span></div>
                                             </button>
                                         </div>
+
+                                        {selectedRegistration.patient_exists_count > 0 ? (
+                                            <motion.div 
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="mt-6 p-4 bg-[#ccebc4]/20 border border-[#ccebc4] rounded-2xl flex items-center gap-3 text-[#006e1c] font-bold text-sm shadow-sm"
+                                            >
+                                                <CheckCircle2 size={18} />
+                                                <span>✅ ✅ Patient already exists with Registration ID {selectedRegistration.registration_id}.</span>
+                                            </motion.div>
+                                        ) : (
+                                            <motion.div 
+                                                initial={{ opacity: 0, y: 10 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                className="mt-6 p-4 bg-[#ffefc2]/30 border border-[#dec650] rounded-2xl flex items-center gap-3 text-[#675402] font-bold text-sm shadow-sm"
+                                            >
+                                                <AlertCircle size={18} />
+                                                <span>⚠️ No patient found for this Registration ID. You can add them.</span>
+                                            </motion.div>
+                                        )}
                                     </div>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -797,6 +828,23 @@ const Registration = () => {
                 )}
             </AnimatePresence>
 
+            {/* --- QUICK ADD MODAL --- */}
+            {selectedRegistration && (
+                <QuickAddModal 
+                    key={selectedRegistration.registration_id}
+                    isOpen={isQuickAddModalOpen}
+                    onClose={() => setIsQuickAddModalOpen(false)}
+                    registration={selectedRegistration}
+                    type={quickAddType}
+                    onSuccess={() => {
+                        showToast(`Successfully converted to ${quickAddType === 'physio' ? 'Physiotherapy' : 'Speech Therapy'} patient`, 'success');
+                        if (selectedRegistration?.registration_id) {
+                            fetchDetails(selectedRegistration.registration_id);
+                        }
+                        fetchRegistrations();
+                    }}
+                />
+            )}
         </div>
     );
 };

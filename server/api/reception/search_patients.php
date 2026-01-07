@@ -1,14 +1,18 @@
 <?php
+/**
+ * Search Patients API - Desktop Application
+ * Requires authentication. Standard rate limiting.
+ */
 declare(strict_types=1);
 
 require_once '../../common/db.php';
+require_once '../../common/security.php';
 
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET');
-header('Access-Control-Allow-Headers: Content-Type');
+// Apply security - requires authentication
+$authData = applySecurity(['requireAuth' => true]);
 
-$branchId = $_GET['branch_id'] ?? null;
+// Use branch_id from auth data
+$branchId = $authData['branch_id'] ?? $_GET['branch_id'] ?? null;
 $searchTerm = $_GET['q'] ?? '';
 
 if (!$branchId) {
