@@ -28,10 +28,12 @@ interface ChatMessage {
 interface ChatModalProps {
     isOpen: boolean;
     onClose: () => void;
+    user?: any; // Add user to interface to accept the prop passed from Dashboard
 }
 
-const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
-    const { user } = useAuthStore();
+const ChatModal = ({ isOpen, onClose, user: propUser }: ChatModalProps) => {
+    const { user: storeUser } = useAuthStore();
+    const user = propUser || storeUser; // Use prop if available, else store
     const [users, setUsers] = useState<ChatUser[]>([]);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [activePartner, setActivePartner] = useState<ChatUser | null>(null);
@@ -85,7 +87,7 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
         setIsLoadingUsers(true);
         try {
             const res = await authFetch(
-                `${API_BASE_URL}/reception/chat.php?action=users&branch_id=${user.branch_id}&employee_id=${user.employee_id}`
+                `${API_BASE_URL}/reception/chat/users?branch_id=${user.branch_id}&employee_id=${user.employee_id}`
             );
             const data = await res.json();
             if (data.success) {
@@ -105,7 +107,7 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
         if (!silent) setIsLoadingMessages(true);
         try {
             const res = await authFetch(
-                `${API_BASE_URL}/reception/chat.php?action=fetch&employee_id=${user.employee_id}&partner_id=${partnerId}`
+                `${API_BASE_URL}/reception/chat/fetch?employee_id=${user.employee_id}&partner_id=${partnerId}`
             );
             const data = await res.json();
             if (data.success) {
@@ -142,20 +144,26 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                     formData.append('sender_name', user.name);
                     formData.append('chat_file', selectedFile);
 
-                    res = await authFetch(`${API_BASE_URL}/reception/chat.php?action=send`, {
+                    res = await authFetch(`${API_BASE_URL}/reception/chat/send`, {
                         method: 'POST',
                         body: formData
                     });
                 } else {
-                    // Use JSON for text only
-                    res = await authFetch(`${API_BASE_URL}/reception/chat.php?action=send`, {
+                    // Use JSON for text only - Actually my Node API handles everything via body parser but let's stick to JSON or FormData.
+                    // The previous Node implementation assumed body fields.
+                    // Let's safe bet to use JSON for text, but wait, the Node backend was using `req.body`.
+                    // The Node backend I wrote expects: sender_id, receiver_id, etc. in `req.body`.
+                    // It does NOT handle `action=send` query param anymore.
+                    
+                    res = await authFetch(`${API_BASE_URL}/reception/chat/send`, {
                         method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
                             sender_id: user.employee_id,
                             receiver_id: activePartner.id,
                             message_text: messageText,
                             branch_id: user.branch_id,
-                            sender_name: user.name
+                            sender_name: user.name || user.username // Fallback for name
                         })
                     });
                 }
@@ -213,7 +221,13 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
             case 'image':
                 return (
                     <img 
-                        src={`${serverOrigin}/${msg.message_text}`}
+                        // Fix for image path: Node usually serves uploads/ directly if static or we need full URL
+                        // PHP saved to admin/desktop/server/uploads...
+                        // Node saves to ../uploads
+                        // We need a reliable way to serve these.
+                        // Assuming the API returns the path stored in DB.
+                        // If it's a relative path starting with admin/..., we might need to prepend base URL.
+                        src={`${API_BASE_URL.replace('/api', '')}/${msg.message_text.replace('admin/desktop/server/', '')}`}
                         alt="Shared image"
                         className="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
                         onClick={() => setImagePreview(`${serverOrigin}/${msg.message_text}`)}

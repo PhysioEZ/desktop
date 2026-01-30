@@ -5,12 +5,17 @@ import SplashScreen from './components/SplashScreen';
 import LoginScreen from './screens/LoginScreen';
 import WelcomeScreen from './screens/WelcomeScreen';
 import ReceptionDashboard from './reception/Dashboard';
+import DashboardNew from './reception/DashboardNew';
 import Schedule from './reception/Schedule';
 
 import Inquiry from './reception/Inquiry';
 import Registration from './reception/Registration';
 import CancelledRegistrations from './reception/CancelledRegistrations';
 import Patients from './reception/Patients';
+
+import ServiceManager from './admin/ServiceManager';
+import RegistrationSimulator from './admin/RegistrationSimulator';
+import AdminDashboard from './admin/Dashboard';
 
 function App() {
   // Check session storage to see if splash has already been shown this session
@@ -47,11 +52,17 @@ function App() {
         <Route path="/login" element={<LoginScreen />} />
         <Route path="/welcome" element={<WelcomeScreen />} />
         <Route path="/reception/dashboard" element={<ReceptionDashboard />} />
+        <Route path="/reception/dashboard-new" element={<DashboardNew />} />
         <Route path="/reception/schedule" element={<Schedule />} />
         <Route path="/reception/inquiry" element={<Inquiry />} />
         <Route path="/reception/registration" element={<Registration />} />
         <Route path="/reception/registration/cancelled" element={<CancelledRegistrations />} />
         <Route path="/reception/patients" element={<Patients />} />
+        
+        {/* Admin Routes */}
+        <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        <Route path="/admin/services" element={<ServiceManager />} />
+        <Route path="/admin/simulator" element={<RegistrationSimulator />} />
         
         {/* Default Redirect */}
         <Route path="*" element={<Navigate to="/login" replace />} />

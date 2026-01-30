@@ -34,6 +34,17 @@ export interface Patient {
     referral_source?: string;
     remarks?: string;
     last_visit?: string;
+    discount_amount?: string;
+    referralSource?: string;
+    reffered_by?: string;
+    email?: string;
+    occupation?: string;
+    address?: string;
+    phone_number?: string;
+    age?: number;
+    gender?: string;
+    chief_complain?: string;
+    total_consumed?: number;
 }
 
 export interface MetaData {
@@ -43,6 +54,13 @@ export interface MetaData {
     treatments: string[];
     referrers: string[];
     payment_methods: { method_id: number; method_name: string }[];
+    counts?: {
+        new_today: number;
+        active_count: number;
+        inactive_count: number;
+        terminated_count: number;
+        total_count: number;
+    };
 }
 
 export interface FilterState {
@@ -66,11 +84,11 @@ interface PatientState {
     metaData: MetaData;
     selectedPatient: Patient | null;
     isDetailsModalOpen: boolean;
-    patientDetails: {
+    patientDetails: (Patient & {
         payments: any[];
         history: any[];
         attendance: any[];
-    } | null;
+    }) | null;
     isLoadingDetails: boolean;
 
     // Actions
@@ -90,7 +108,7 @@ export const usePatientStore = create<PatientState>((set, get) => ({
     isLoading: false,
     pagination: {
         page: 1,
-        limit: 15,
+        limit: 16,
         total_records: 0,
         total_pages: 1,
     },
@@ -108,6 +126,13 @@ export const usePatientStore = create<PatientState>((set, get) => ({
         treatments: [],
         referrers: [],
         payment_methods: [],
+        counts: {
+            new_today: 0,
+            active_count: 0,
+            inactive_count: 0,
+            terminated_count: 0,
+            total_count: 0
+        }
     },
     selectedPatient: null,
     isDetailsModalOpen: false,
@@ -130,7 +155,7 @@ export const usePatientStore = create<PatientState>((set, get) => ({
         set({ isLoading: true });
         
         try {
-            const response = await authFetch(`${API_BASE_URL}/reception/patients.php`, {
+            const response = await authFetch(`${API_BASE_URL}/reception/patients`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -165,7 +190,7 @@ export const usePatientStore = create<PatientState>((set, get) => ({
 
     fetchMetaData: async (branchId: number) => {
         try {
-            const response = await authFetch(`${API_BASE_URL}/reception/patients.php`, {
+            const response = await authFetch(`${API_BASE_URL}/reception/patients`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -185,7 +210,7 @@ export const usePatientStore = create<PatientState>((set, get) => ({
     fetchPatientDetails: async (patientId: number) => {
         set({ isLoadingDetails: true });
         try {
-            const response = await authFetch(`${API_BASE_URL}/reception/patients.php`, {
+            const response = await authFetch(`${API_BASE_URL}/reception/patients`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -220,7 +245,7 @@ export const usePatientStore = create<PatientState>((set, get) => ({
 
     markAttendance: async (patientId: number, branchId: number, status = 'present') => {
         try {
-            const response = await authFetch(`${API_BASE_URL}/reception/attendance.php`, {
+            const response = await authFetch(`${API_BASE_URL}/reception/attendance`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

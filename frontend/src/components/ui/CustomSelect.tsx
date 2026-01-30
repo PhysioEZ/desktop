@@ -64,15 +64,19 @@ const CustomSelect = ({
 
         if (isOpen) {
             document.addEventListener('mousedown', handleClickOutside);
-            window.addEventListener('scroll', () => setIsOpen(false), true);
+            const handleScroll = (e: Event) => {
+                if (menuRef.current && menuRef.current.contains(e.target as Node)) return;
+                setIsOpen(false);
+            };
+            window.addEventListener('scroll', handleScroll, true);
             window.addEventListener('resize', () => setIsOpen(false));
+            
+            return () => {
+                document.removeEventListener('mousedown', handleClickOutside);
+                window.removeEventListener('scroll', handleScroll, true);
+                window.removeEventListener('resize', () => setIsOpen(false));
+            };
         }
-        
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-            window.removeEventListener('scroll', () => setIsOpen(false), true);
-            window.removeEventListener('resize', () => setIsOpen(false));
-        };
     }, [isOpen]);
 
     const selectedLabel = options.find(o => o.value === value)?.label || '';

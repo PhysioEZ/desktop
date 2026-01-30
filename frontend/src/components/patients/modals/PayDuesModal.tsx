@@ -43,15 +43,16 @@ const PayDuesModal = ({ isOpen, onClose, patientId, currentDue, onSuccess }: Pay
         setError('');
 
         try {
-            const formData = new FormData();
-            formData.append('patient_id', patientId.toString());
-            formData.append('dues_amount', amount);
-            formData.append('payment_mode', paymentMethod);
-            formData.append('remarks', remarks || 'Dues Payment');
+            const payload = {
+                patient_id: patientId,
+                amount: amount,
+                method: paymentMethod,
+                remarks: remarks || 'Dues Payment'
+            };
 
-            const res = await authFetch(`${API_BASE_URL}/reception/add_payment.php`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/add_payment`, {
                 method: 'POST',
-                body: JSON.stringify(Object.fromEntries(formData)), // Legacy API might expect JSON or FormData. 
+                body: JSON.stringify(payload),
             });
             // Note: The legacy JS used JSON.stringify(payload)
             

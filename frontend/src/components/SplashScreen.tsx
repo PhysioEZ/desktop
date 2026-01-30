@@ -1,106 +1,128 @@
 import * as React from 'react';
+import { motion } from 'framer-motion';
+import { ShieldCheck, Info } from 'lucide-react';
 
 interface SplashScreenProps {
   onComplete: () => void;
 }
 
 const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
+  const [progress, setProgress] = React.useState(0);
+
   React.useEffect(() => {
-    // Wait for 2.5 seconds then call onComplete
+    // Simulate loading progress
+    const interval = setInterval(() => {
+      setProgress((prev) => {
+        if (prev >= 100) {
+          clearInterval(interval);
+          return 100;
+        }
+        return prev + 2;
+      });
+    }, 40);
+
     const timer = setTimeout(() => {
       onComplete();
-    }, 2500);
-    return () => clearTimeout(timer);
+    }, 3000);
+
+    return () => {
+      clearInterval(interval);
+      clearTimeout(timer);
+    };
   }, [onComplete]);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-white overflow-hidden font-sans">
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#fef7ff] dark:bg-[#141218] overflow-hidden font-sans">
       
-      {/* Background Ambience - Light Aurora Effect */}
-      <div className="absolute inset-0 z-0">
-        <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-teal-200/30 rounded-full blur-[100px] animate-pulse-slow" />
-        <div className="absolute bottom-[-20%] right-[-10%] w-[700px] h-[700px] bg-indigo-200/30 rounded-full blur-[120px] animate-pulse-slow delay-1000" />
+      {/* MD3 Ambient Background */}
+      <div className="absolute inset-0 pointer-events-none z-0">
+          <div className="absolute top-[-20%] left-[-10%] w-[800px] h-[800px] bg-[#006a6a]/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-20%] right-[-10%] w-[800px] h-[800px] bg-[#6750a4]/10 rounded-full blur-[120px]" />
       </div>
 
-      {/* Main Content Container */}
       <div className="relative z-10 flex flex-col items-center">
         
         {/* Animated Brand Symbol */}
-        <div className="mb-12 relative group">
-          <div className="relative w-24 h-24 flex items-center justify-center">
-             {/* Center Glow */}
-             <div className="absolute inset-0 bg-teal-400/20 rounded-full blur-2xl animate-pulse" />
+        <motion.div 
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ 
+            duration: 0.8, 
+            ease: [0.34, 1.56, 0.64, 1] // MD3 Spring-like ease
+          }}
+          className="mb-12"
+        >
+          <div className="relative w-32 h-32 flex items-center justify-center">
+             {/* Dynamic Glow Rings */}
+             <motion.div 
+               animate={{ scale: [1, 1.2, 1], opacity: [0.2, 0.4, 0.2] }}
+               transition={{ duration: 4, repeat: Infinity }}
+               className="absolute inset-0 bg-[#006a6a] rounded-[32px] blur-3xl"
+             />
              
-             {/* The Icon: Rotating Dots Container */}
-             <div className="relative grid grid-cols-2 gap-2 animate-spin-slow">
-                {/* Dot 1 - Top Left */}
-                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-400 shadow-lg shadow-teal-500/30"></div>
-                {/* Dot 2 - Top Right */}
-                <div className="w-5 h-5 rounded-full bg-slate-300"></div>
-                {/* Dot 3 - Bottom Left */}
-                <div className="w-5 h-5 rounded-full bg-slate-300"></div>
-                {/* Dot 4 - Bottom Right */}
-                <div className="w-5 h-5 rounded-full bg-gradient-to-bl from-teal-600 to-cyan-500 shadow-lg shadow-teal-500/30"></div>
+             {/* Icon Container */}
+             <div className="relative w-24 h-24 rounded-[32px] bg-[#006a6a] text-white flex items-center justify-center shadow-2xl shadow-[#006a6a]/30">
+                <ShieldCheck size={56} strokeWidth={1.5} />
              </div>
           </div>
+        </motion.div>
+
+        {/* Typography */}
+        <div className="text-center">
+          <motion.h1 
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.3, duration: 0.6 }}
+            className="text-5xl font-bold tracking-tight text-[#1c1b1f] dark:text-[#e6e1e5]"
+          >
+            Physio<span className="text-[#006a6a]">EZ</span>
+          </motion.h1>
+          
+          <motion.div 
+            initial={{ scaleX: 0 }}
+            animate={{ scaleX: 1 }}
+            transition={{ delay: 0.5, duration: 0.8 }}
+            className="h-[1px] w-12 bg-[#006a6a]/30 mx-auto my-6"
+          />
+
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.7, duration: 0.6 }}
+            className="text-xs font-bold text-[#49454f] dark:text-[#cac4d0] tracking-[0.4em] uppercase"
+          >
+            Intelligence in Motion
+          </motion.p>
         </div>
 
-        {/* Typography - Modern Dark on Light */}
-        <div className="text-center space-y-2">
-          <h1 className="text-5xl md:text-6xl font-bold tracking-tight text-slate-800 drop-shadow-sm">
-            Physio<span className="font-light text-teal-600">EZ</span>
-          </h1>
-          
-          <div className="h-px w-20 bg-gradient-to-r from-transparent via-slate-300 to-transparent mx-auto my-6"></div>
+        {/* MD3 Linear Progress Indicator */}
+        <div className="mt-16 w-64 h-1 bg-[#006a6a]/10 rounded-full overflow-hidden relative">
+          <motion.div 
+            initial={{ width: 0 }}
+            animate={{ width: `${progress}%` }}
+            className="h-full bg-[#006a6a] rounded-full"
+          />
+        </div>
+      </div>
 
-          <p className="text-sm md:text-base font-semibold text-slate-500 tracking-[0.3em] uppercase">
-            Next Gen Medical System
+      {/* Footer / Meta */}
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.2, duration: 0.8 }}
+        className="absolute bottom-12 flex flex-col items-center space-y-4"
+      >
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#eaddff]/20 border border-[#eaddff]/30 text-[10px] font-bold text-[#49454f] dark:text-[#cac4d0] uppercase tracking-widest">
+          <Info size={12} /> System Initializing
+        </div>
+        
+        <div className="text-center">
+          <p className="text-[11px] font-bold text-[#49454f] dark:text-[#cac4d0] opacity-50 uppercase tracking-tighter">
+            Architected by Sumit Srivastava
           </p>
         </div>
-
-        {/* Loading Indicator - Teal Gradient Line */}
-        <div className="mt-14 w-32 h-1.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-          <div className="h-full bg-gradient-to-r from-teal-500 via-emerald-400 to-cyan-500 animate-loading-bar rounded-full"></div>
-        </div>
-
-      </div>
-
-      {/* Footer Section */}
-      <div className="absolute bottom-10 left-0 right-0 flex flex-col items-center space-y-3">
-         {/* Version Pill */}
-         <span className="px-3 py-1 rounded-full border border-slate-200 bg-white/50 text-[11px] font-mono text-slate-400 tracking-wider backdrop-blur-sm shadow-sm">
-           v0.1.0
-         </span>
-
-         {/* Author Credit - Stylized Gradient */}
-         <p className="text-sm font-medium tracking-wide">
-           <span className="text-slate-400">Created by </span>
-           <span className="bg-gradient-to-r from-teal-600 via-emerald-600 to-indigo-600 bg-clip-text text-transparent font-bold">
-             Sumit Srivastava
-           </span>
-         </p>
-      </div>
+      </motion.div>
       
-      <style>{`
-        @keyframes loading-bar {
-          0% { width: 0%; transform: translateX(-100%); opacity: 0; }
-          40% { width: 60%; transform: translateX(0); opacity: 1; }
-          100% { width: 100%; transform: translateX(100%); opacity: 0; }
-        }
-        @keyframes spin-slow {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        .animate-loading-bar {
-          animation: loading-bar 2s infinite ease-in-out;
-        }
-        .animate-spin-slow {
-          animation: spin-slow 3s linear infinite;
-        }
-        .animate-pulse-slow {
-          animation: pulse 6s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-      `}</style>
     </div>
   );
 };

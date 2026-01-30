@@ -3,27 +3,30 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/useAuthStore';
 import { API_BASE_URL, authFetch } from '../config';
 import { motion, AnimatePresence } from 'framer-motion';
-import ChatModal from '../components/Chat/ChatModal'; // Integrated Chat
+
 import { 
     Users, ClipboardList, TestTube2, Wallet, Calendar, Clock, 
     ArrowUpRight, AlertCircle, Camera, Loader2, 
-    X, RefreshCw, Check, UserPlus, FlaskConical, PhoneCall, Beaker,
+    X, RefreshCw, Check, UserPlus, FlaskConical, PhoneCall, Beaker, 
     Search, Bell, Plus, MessageCircle, LogOut, User,
-    Moon, Sun, ChevronLeft, ChevronRight, Edit2, ChevronDown, ChevronUp
+    Moon, Sun, ChevronLeft, ChevronRight, Edit2, ChevronDown, ChevronUp,
+    CheckCircle, Hourglass
 } from 'lucide-react';
 import CustomSelect from '../components/ui/CustomSelect';
+import ChatModal from '../components/Chat/ChatModal';
 import KeyboardShortcuts, { type ShortcutItem } from '../components/KeyboardShortcuts';
 import LogoutConfirmation from '../components/LogoutConfirmation';
 import GlobalSearch from '../components/GlobalSearch';
 
 // Types
 interface DashboardData {
-    registration: { today_total: number; pending: number; consulted: number; month_total: number; };
+    registration: { today_total: number; pending: number; consulted: number; month_total: number; approval_pending: number; };
     inquiry: { total_today: number; quick: number; test: number; };
     patients: { today_attendance: number; total_ever: number; active: number; inactive: number; paid_today: number; new_month: number; };
-    tests: { today_total: number; pending: number; completed: number; revenue_today: number; total_month: number; };
+    tests: { today_total: number; pending: number; completed: number; revenue_today: number; total_month: number; approval_pending: number; };
     collections: { reg_amount: number; treatment_amount: number; test_amount: number; today_total: number; today_dues: number; patient_dues: number; test_dues: number; month_total: number; };
-    schedule: Array<{ id: number; patient_name: string; appointment_time: string; status: string; }>;
+    schedule: Array<{ id: number; patient_name: string; appointment_time: string; status: string; approval_status: string; }>;
+    weekly: Array<{ date: string; day: string; total: number; }>;
 }
 
 interface Notification {
@@ -47,7 +50,7 @@ interface FormOptions {
     timeSlots: Array<{ value: string; label: string; booked: boolean }>;
 }
 
-type ModalType = 'registration' | 'test' | 'inquiry' | 'test_inquiry' | null;
+type ModalType = 'registration' | 'test' | 'inquiry' | 'test_inquiry' | 'approvals' | null;
 
 const containerVariants = {
     hidden: { opacity: 0 },
@@ -297,6 +300,21 @@ const ReceptionDashboard = () => {
 
     // UI State
 
+    // Approval Logic
+    const [showApprovals, setShowApprovals] = useState(false);
+    const [pendingList, setPendingList] = useState<any[]>([]);
+
+    const fetchApprovals = useCallback(async () => {
+        if (!user?.branch_id) return;
+        try {
+            const res = await authFetch(`${API_BASE_URL}/reception/get_pending_approvals?branch_id=${user.branch_id}`);
+            const data = await res.json();
+            if (data.success) {
+                setPendingList(data.data || []);
+            }
+        } catch (e) { console.error('Error fetching approvals', e); }
+    }, [user?.branch_id]);
+
 
     // Theme Logic
     const [isDark, setIsDark] = useState(false);
@@ -325,37 +343,63 @@ const ReceptionDashboard = () => {
     };
 
     // --- LOGIC: FETCHING ---
+    const fetchNotifs = useCallback(async () => {
+        try {
+            const res = await authFetch(`${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ''}`);
+            const data = await res.json();
+            if (data.success || data.status === 'success') {
+                setNotifications(data.notifications || []);
+                setUnreadCount(data.unread_count || 0);
+            }
+        } catch (err) { console.error(err); }
+    }, [user?.employee_id]);
+
     const fetchAll = useCallback(async () => {
         if (!user?.branch_id) return;
         setIsLoading(true);
         try {
-            const [dashRes, optRes] = await Promise.all([
-                authFetch(`${API_BASE_URL}/reception/dashboard.php?branch_id=${user?.branch_id}`),
-                authFetch(`${API_BASE_URL}/reception/form_options.php?branch_id=${user?.branch_id}&appointment_date=${appointmentDate}&service_type=physio`)
+            // Trigger all fetches in parallel
+            await Promise.all([
+                (async () => {
+                    const res = await authFetch(`${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`);
+                    const data = await res.json();
+                    if (data.status === 'success') setData(data.data);
+                })(),
+                (async () => {
+                    const res = await authFetch(`${API_BASE_URL}/reception/form_options?branch_id=${user.branch_id}&appointment_date=${appointmentDate}&service_type=physio`);
+                    const data = await res.json();
+                    if (data.status === 'success') {
+                        setFormOptions(data.data);
+                        // Only reset test costs if they empty/not set (optional, maybe keep it simple)
+                        if (Object.keys(selectedTests).length === 0) {
+                             const initialTests: Record<string, { checked: boolean; amount: string }> = {};
+                             data.data.testTypes?.forEach((t: { test_code: string; default_cost: string | number }) => {
+                                 const cost = parseFloat(String(t.default_cost)) || 0;
+                                 initialTests[t.test_code] = { checked: false, amount: cost > 0 ? cost.toFixed(2) : '' };
+                             });
+                             setSelectedTests(initialTests);
+                        }
+                    }
+                })(),
+                fetchApprovals(),
+                fetchNotifs(),
+                // Refresh slots if date is selected
+                (async () => {
+                     if (appointmentDate) {
+                         const res = await authFetch(`${API_BASE_URL}/reception/get_slots?date=${appointmentDate}`);
+                         const data = await res.json();
+                         if (data.success) setTimeSlots(data.slots);
+                     }
+                })()
             ]);
-            const dashData = await dashRes.json();
-            const optData = await optRes.json();
-            
-            if (dashData.status === 'success') setData(dashData.data);
-            if (optData.status === 'success') {
-                setFormOptions(optData.data);
-                const initialTests: Record<string, { checked: boolean; amount: string }> = {};
-                optData.data.testTypes?.forEach((t: { test_code: string; default_cost: string | number }) => {
-                    const cost = parseFloat(String(t.default_cost)) || 0;
-                    initialTests[t.test_code] = { checked: false, amount: cost > 0 ? cost.toFixed(2) : '' };
-                });
-                setSelectedTests(initialTests);
-            } else {
-                console.error('Failed to load form options:', optData);
-            }
         } catch (e) { console.error('Error fetching data:', e); } finally { setIsLoading(false); }
-    }, [user?.branch_id, appointmentDate]);
+    }, [user?.branch_id, appointmentDate, fetchApprovals, fetchNotifs]);
 
     // Fetch Time Slots
     const fetchTimeSlots = useCallback(async (date: string) => {
         if (!user?.branch_id) return;
         try {
-            const res = await authFetch(`${API_BASE_URL}/reception/get_slots.php?date=${date}`);
+            const res = await authFetch(`${API_BASE_URL}/reception/get_slots?date=${date}`);
             const data = await res.json();
             if (data.success) {
                 setTimeSlots(data.slots);
@@ -374,18 +418,8 @@ const ReceptionDashboard = () => {
 
     // Fetch Notifications
     useEffect(() => {
-        const fetchNotifs = async () => {
-            try {
-                const res = await authFetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
-                const data = await res.json();
-                if (data.success || data.status === 'success') {
-                    setNotifications(data.notifications || []);
-                    setUnreadCount(data.unread_count || 0);
-                }
-            } catch (err) { console.error(err); }
-        };
         if(user?.employee_id) { fetchNotifs(); const inv = setInterval(fetchNotifs, 30000); return () => clearInterval(inv); }
-    }, [user?.employee_id]);
+    }, [fetchNotifs, user?.employee_id]);
 
     // Search Logic
     useEffect(() => {
@@ -394,7 +428,7 @@ const ReceptionDashboard = () => {
         
         debounceRef.current = setTimeout(async () => {
             try {
-                const res = await authFetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/search_patients?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`);
                 const data = await res.json();
                 if (data.success) { setSearchResults(data.patients || []); setShowSearchResults(true); }
             } catch (err) { console.error(err); }
@@ -413,6 +447,11 @@ const ReceptionDashboard = () => {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [fetchAll]);
+
+    // Fetch Approvals on Mount
+    useEffect(() => {
+        fetchApprovals();
+    }, [fetchApprovals]);
 
     // Auto-focus first input when modal opens
     useEffect(() => {
@@ -438,6 +477,7 @@ const ReceptionDashboard = () => {
                 else if (showShortcuts) setShowShortcuts(false);
                 else if (showLogoutConfirm) setShowLogoutConfirm(false);
                 else if (showPhotoModal) closePhotoModal();
+                else if (showApprovals) setShowApprovals(false);
                 else if (showChatModal) setShowChatModal(false);
                 else if (showNotifPopup) setShowNotifPopup(false);
                 else if (showProfilePopup) setShowProfilePopup(false);
@@ -452,7 +492,7 @@ const ReceptionDashboard = () => {
         setAppointmentDate(newDate);
         if (user?.branch_id) {
             try {
-                const optRes = await authFetch(`${API_BASE_URL}/reception/form_options.php?branch_id=${user.branch_id}&appointment_date=${newDate}`);
+                const optRes = await authFetch(`${API_BASE_URL}/reception/form_options?branch_id=${user.branch_id}&appointment_date=${newDate}`);
                 const optData = await optRes.json();
                 if (optData.status === 'success' && formOptions) setFormOptions({ ...formOptions, timeSlots: optData.data.timeSlots });
             } catch (e) { console.error(e); }
@@ -547,33 +587,48 @@ const ReceptionDashboard = () => {
             let payload: Record<string, unknown> = { branch_id: user.branch_id, employee_id: user.employee_id };
 
             if (activeModal === 'registration') {
-                endpoint = `${API_BASE_URL}/reception/registration_submit.php`;
-                const currentSum = Object.values(regPaymentSplits).reduce((a, b) => a + b, 0);
+                endpoint = `${API_BASE_URL}/reception/registration_submit`;
+                
+                // Auto-fill split if only 1 method
                 const totalReq = parseFloat(formObject.amount) || 0;
+                let finalSplits = { ...regPaymentSplits };
+                if (Object.keys(finalSplits).length === 1) {
+                     const m = Object.keys(finalSplits)[0];
+                     finalSplits[m] = totalReq;
+                }
+
+                const currentSum = Object.values(finalSplits).reduce((a, b) => a + b, 0);
                 if (currentSum !== totalReq) {
                     setSubmitMessage({ type: 'error', text: `Payment split total (₹${currentSum}) does not match Consultation Amount (₹${totalReq})` });
                     setIsSubmitting(false); return;
                 }
-                payload = { ...payload, patient_name: formObject.patient_name, phone: formObject.phone, email: formObject.email || '', gender: formObject.gender, age: formObject.age, conditionType: formObject.conditionType, conditionType_other: formObject.conditionType_other || '', referralSource: formObject.referralSource, referred_by: formObject.referred_by || '', occupation: formObject.occupation || '', address: formObject.address || '', inquiry_type: formObject.inquiry_type, appointment_date: formObject.appointment_date || null, appointment_time: formObject.appointment_time || null, amount: formObject.amount || '0', payment_method: Object.keys(regPaymentSplits).join(','), payment_amounts: regPaymentSplits, remarks: formObject.remarks || '', patient_photo_data: photoData || '' };
+                payload = { ...payload, patient_name: formObject.patient_name, phone: formObject.phone, email: formObject.email || '', gender: formObject.gender, age: formObject.age, conditionType: formObject.conditionType, conditionType_other: formObject.conditionType_other || '', referralSource: formObject.referralSource, referred_by: formObject.referred_by || '', occupation: formObject.occupation || '', address: formObject.address || '', inquiry_type: formObject.inquiry_type, appointment_date: formObject.appointment_date || null, appointment_time: formObject.appointment_time || null, amount: formObject.amount || '0', payment_method: Object.keys(finalSplits).join(','), payment_amounts: finalSplits, remarks: formObject.remarks || '', patient_photo_data: photoData || '' };
             } else if (activeModal === 'test') {
-                endpoint = `${API_BASE_URL}/reception/test_submit.php`;
+                endpoint = `${API_BASE_URL}/reception/test_submit`;
                 const testNames = Object.entries(selectedTests).filter(([, val]) => val.checked).map(([key]) => key);
                 const testAmounts: Record<string, number> = {};
                 Object.entries(selectedTests).forEach(([key, val]) => { if (val.checked && val.amount) testAmounts[key] = parseFloat(val.amount) || 0; });
                 
-                const currentSum = Object.values(testPaymentSplits).reduce((a, b) => a + b, 0);
+                // Auto-fill split if only 1 method
                 const totalReq = parseFloat(advanceAmount) || 0;
+                let finalSplits = { ...testPaymentSplits };
+                if (Object.keys(finalSplits).length === 1) {
+                     const m = Object.keys(finalSplits)[0];
+                     finalSplits[m] = totalReq;
+                }
+                
+                const currentSum = Object.values(finalSplits).reduce((a, b) => a + b, 0);
                 if (currentSum !== totalReq) {
                     setSubmitMessage({ type: 'error', text: `Payment split total (₹${currentSum}) does not match Advance Amount (₹${totalReq})` });
                     setIsSubmitting(false); return;
                 }
                 
-                payload = { ...payload, patient_name: formObject.patient_name, age: formObject.age, gender: formObject.gender, dob: formObject.dob || null, parents: formObject.parents || '', relation: formObject.relation || '', phone_number: formObject.phone_number || '', alternate_phone_no: formObject.alternate_phone_no || '', referred_by: formObject.referred_by || '', limb: formObject.limb || null, test_names: testNames, test_amounts: testAmounts, other_test_name: otherTestName, visit_date: formObject.visit_date, assigned_test_date: formObject.assigned_test_date, test_done_by: formObject.test_done_by, total_amount: parseFloat(totalAmount) || 0, advance_amount: parseFloat(advanceAmount) || 0, discount: parseFloat(discountAmount) || 0, payment_method: Object.keys(testPaymentSplits).join(','), payment_amounts: testPaymentSplits };
+                payload = { ...payload, patient_name: formObject.patient_name, age: formObject.age, gender: formObject.gender, dob: formObject.dob || null, parents: formObject.parents || '', relation: formObject.relation || '', phone_number: formObject.phone_number || '', alternate_phone_no: formObject.alternate_phone_no || '', address: formObject.address || '', referred_by: formObject.referred_by || '', limb: formObject.limb || null, test_names: testNames, test_amounts: testAmounts, other_test_name: otherTestName, visit_date: formObject.visit_date, assigned_test_date: formObject.assigned_test_date, test_done_by: formObject.test_done_by, total_amount: parseFloat(totalAmount) || 0, advance_amount: parseFloat(advanceAmount) || 0, discount: parseFloat(discountAmount) || 0, payment_method: Object.keys(finalSplits).join(','), payment_amounts: finalSplits };
             } else if (activeModal === 'inquiry') {
-                endpoint = `${API_BASE_URL}/reception/inquiry_submit.php`;
+                endpoint = `${API_BASE_URL}/reception/inquiry_submit`;
                 payload = { ...payload, patient_name: formObject.patient_name, age: formObject.age, gender: formObject.gender, phone: formObject.phone, inquiry_type: formObject.inquiry_type || null, communication_type: formObject.communication_type || null, referralSource: formObject.referralSource || 'self', conditionType: formObject.conditionType || '', conditionType_other: formObject.conditionType_other || '', remarks: formObject.remarks || '', expected_date: formObject.expected_date || null };
             } else if (activeModal === 'test_inquiry') {
-                endpoint = `${API_BASE_URL}/reception/test_inquiry_submit.php`;
+                endpoint = `${API_BASE_URL}/reception/test_inquiry_submit`;
                 payload = { ...payload, patient_name: formObject.patient_name, test_name: formObject.test_name, referred_by: formObject.referred_by || '', phone_number: formObject.phone_number, expected_visit_date: formObject.expected_visit_date || null };
             }
 
@@ -581,7 +636,7 @@ const ReceptionDashboard = () => {
             const result = await response.json();
             if (result.success) {
                 setSubmitMessage({ type: 'success', text: result.message || 'Submitted successfully!' });
-                const dashRes = await authFetch(`${API_BASE_URL}/reception/dashboard.php?branch_id=${user.branch_id}`);
+                const dashRes = await authFetch(`${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`);
                 const dashData = await dashRes.json();
                 if (dashData.status === 'success') setData(dashData.data);
                 setTimeout(() => closeModal(), 1500);
@@ -623,6 +678,7 @@ const ReceptionDashboard = () => {
         { keys: ['Alt', 'Shift', 'I'], description: 'Test Inquiry', group: 'Modals', action: () => setActiveModal('test_inquiry'), pageSpecific: true },
         { keys: ['Alt', 'C'], description: 'Toggle Chat', group: 'Modals', action: () => setShowChatModal(prev => !prev), pageSpecific: true },
         { keys: ['Alt', 'N'], description: 'Notifications', group: 'Modals', action: () => setShowNotifPopup(prev => !prev), pageSpecific: true },
+        { keys: ['Alt', 'A'], description: 'Approvals', group: 'Modals', action: () => setShowApprovals(prev => !prev), pageSpecific: true },
         { keys: ['Alt', 'P'], description: 'Profile', group: 'Modals', action: () => setShowProfilePopup(prev => !prev), pageSpecific: true },
         { keys: ['Alt', 'S'], description: 'Global Search', group: 'Modals', action: () => setShowGlobalSearch(true) },
         { keys: ['Alt', 'L'], description: 'Logout', group: 'Actions', action: () => setShowLogoutConfirm(true) },
@@ -636,8 +692,7 @@ const ReceptionDashboard = () => {
         { keys: ['Alt', '2'], description: 'Schedule', group: 'Navigation', action: () => navigate('/reception/schedule') },
         { keys: ['Alt', '3'], description: 'Inquiry List', group: 'Navigation', action: () => navigate('/reception/inquiry') },
         { keys: ['Alt', '4'], description: 'Registration List', group: 'Navigation', action: () => navigate('/reception/registration') },
-        { keys: ['Alt', '5'], description: 'Cancelled List', group: 'Navigation', action: () => navigate('/reception/registration/cancelled') },
-        { keys: ['Alt', '6'], description: 'Patients List', group: 'Navigation', action: () => navigate('/reception/patients') },
+        { keys: ['Alt', '5'], description: 'Patients List', group: 'Navigation', action: () => navigate('/reception/patients') },
     ];
 
 
@@ -724,6 +779,16 @@ const ReceptionDashboard = () => {
                             )}
                         </AnimatePresence>
                     </div>
+
+                     {/* Approvals Button - Only if there are pending items */}
+                     {pendingList.length > 0 && (
+                        <button onClick={() => setShowApprovals(true)} className="p-3 bg-[#ffdad6] dark:bg-[#93000a] hover:bg-[#ffb4ab] border border-[#ffb4ab] rounded-full text-[#410002] dark:text-[#ffdad6] transition-colors relative animate-pulse">
+                            <Hourglass size={22} strokeWidth={2} />
+                            <span className="absolute -top-1 -right-1 w-5 h-5 bg-[#b3261e] text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-[#fff] dark:border-[#111315]">
+                                {pendingList.length}
+                            </span>
+                        </button>
+                     )}
                 </div>
             </header>
 
@@ -760,9 +825,21 @@ const ReceptionDashboard = () => {
                     
                     <div className="flex gap-3 overflow-x-auto p-4 scrollbar-hide">
                         {actionButtons.map(btn => (
-                            <button key={btn.id!} onClick={() => setActiveModal(btn.id)} className={`flex items-center gap-2 px-5 py-3 rounded-[16px] text-sm font-bold transition-transform hover:scale-105 active:scale-95 shadow-sm border border-transparent ${btn.color}`}>
+                            <button 
+                                key={btn.id!} 
+                                onClick={() => {
+                                    if (btn.id === 'approvals') setShowApprovals(true);
+                                    else setActiveModal(btn.id);
+                                }} 
+                                className={`flex items-center gap-2 px-5 py-3 rounded-[16px] text-sm font-bold transition-transform hover:scale-105 active:scale-95 shadow-sm border border-transparent ${btn.color}`}
+                            >
                                 <btn.icon size={18} />
                                 {btn.label}
+                                {btn.id === 'approvals' && pendingList.length > 0 && (
+                                    <span className="flex items-center justify-center bg-red-500 text-white text-[10px] w-4 h-4 rounded-full ml-1">
+                                        {pendingList.length}
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>
@@ -800,6 +877,17 @@ const ReceptionDashboard = () => {
                                     <div className="w-2 h-2 rounded-full bg-[#0c200e] dark:bg-[#ccebc4]"></div>
                                     Done: {data?.registration.consulted}
                                 </span>
+                                {/* Pending Approvals Count Badge */}
+                                {/* Pending Approvals Count Badge */}
+                                {(data?.registration.approval_pending || 0) > 0 && (
+                                    <span 
+                                        onClick={() => setShowApprovals(true)}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-100 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 text-yellow-800 dark:text-yellow-100 rounded-full transition-colors animate-pulse cursor-pointer hover:bg-yellow-200 dark:hover:bg-yellow-800"
+                                    >
+                                         <Hourglass size={12} />
+                                         Approval: {data?.registration.approval_pending}
+                                    </span>
+                                )}
                              </div>
 
                              <div className="bg-white/60 dark:bg-black/20 rounded-xl p-3">
@@ -863,13 +951,23 @@ const ReceptionDashboard = () => {
                          </div>
                          
                          <div className="flex gap-0 mb-4 bg-[#f5f5f5] dark:bg-[#30333b] rounded-xl overflow-hidden transition-colors">
-                            <div className="flex-1 py-4 text-center border-r border-[#e0e0e0] dark:border-[#43474e]">
-                                <div className="text-3xl font-bold text-[#e6a019] dark:text-[#ffb700]">{data?.tests.pending || 0}</div>
-                                <div className="text-[10px] font-bold text-[#e6a019] dark:text-[#ffb700] uppercase tracking-wider mt-1">Pending</div>
+                            <div 
+                                onClick={() => setShowApprovals(true)}
+                                className="flex-1 py-4 text-center border-r border-[#e0e0e0] dark:border-[#43474e] flex flex-col items-center justify-center cursor-pointer hover:bg-yellow-50 dark:hover:bg-yellow-900/10 transition-colors"
+                            >
+                                <div className="text-xl font-bold text-[#e6a019] dark:text-[#ffb700] mb-1"><Hourglass size={20} /></div>
+                                <div className="text-lg font-bold text-[#e6a019] dark:text-[#ffb700]">{(data?.tests.approval_pending || 0)}</div>
+                                <div className="text-[9px] font-bold text-[#e6a019] dark:text-[#ffb700] uppercase tracking-wider mt-0.5 whitespace-nowrap px-1">Approval</div>
                             </div>
-                            <div className="flex-1 py-4 text-center">
-                                <div className="text-3xl font-bold text-[#006e1c] dark:text-[#88d99d]">{data?.tests.completed || 0}</div>
-                                <div className="text-[10px] font-bold text-[#006e1c] dark:text-[#88d99d] uppercase tracking-wider mt-1">Done</div>
+                            <div className="flex-1 py-4 text-center border-r border-[#e0e0e0] dark:border-[#43474e] flex flex-col items-center justify-center">
+                                <div className="text-xl font-bold text-[#b45d13] dark:text-[#eebb88] mb-1"><Clock size={20} /></div>
+                                <div className="text-lg font-bold text-[#b45d13] dark:text-[#eebb88]">{data?.tests.pending || 0}</div>
+                                <div className="text-[9px] font-bold text-[#b45d13] dark:text-[#eebb88] uppercase tracking-wider mt-0.5">Pending</div>
+                            </div>
+                            <div className="flex-1 py-4 text-center flex flex-col items-center justify-center">
+                                <div className="text-xl font-bold text-[#006e1c] dark:text-[#88d99d] mb-1"><CheckCircle size={20} /></div>
+                                <div className="text-lg font-bold text-[#006e1c] dark:text-[#88d99d]">{data?.tests.completed || 0}</div>
+                                <div className="text-[9px] font-bold text-[#006e1c] dark:text-[#88d99d] uppercase tracking-wider mt-0.5">Done</div>
                             </div>
                          </div>
 
@@ -919,9 +1017,6 @@ const ReceptionDashboard = () => {
                                 <AlertCircle size={14} />
                                 <span>Dues: <strong>{fmt(data?.collections.today_dues || 0)}</strong></span>
                             </div>
-                            <div className="text-[#c4c7c5] font-mono text-[10px] opacity-70">
-                                Total: {fmt(data?.collections.month_total || 0)}
-                            </div>
                         </div>
                     </motion.div>
                 </motion.div>
@@ -953,14 +1048,38 @@ const ReceptionDashboard = () => {
                                         transition={{ delay: i * 0.05 }} 
                                         className="group flex items-center gap-3 p-3 rounded-2xl border border-transparent hover:border-[#e0e2ec] dark:hover:border-[#43474e] hover:bg-[#f2f6fa] dark:hover:bg-[#30333b] transition-all"
                                     >
-                                        <div className={`w-10 h-10 min-w-[40px] rounded-full flex items-center justify-center text-sm font-bold ${user.status.toLowerCase() === 'pending' ? 'bg-[#ffdad6] dark:bg-[#93000a] text-[#410002] dark:text-[#ffdad6]' : 'bg-[#ccebc4] dark:bg-[#0c3b10] text-[#0c200e] dark:text-[#ccebc4]'}`}>
+                                        <div className={`w-10 h-10 min-w-[40px] rounded-full flex items-center justify-center text-sm font-bold ${
+                                            // Avatar color based on Consultation Status primarily
+                                            user.status.toLowerCase() === 'pending' 
+                                                ? 'bg-[#ffdad6] dark:bg-[#93000a] text-[#410002] dark:text-[#ffdad6]' 
+                                                : 'bg-[#ccebc4] dark:bg-[#0c3b10] text-[#0c200e] dark:text-[#ccebc4]'
+                                        } ${user.approval_status === 'pending' ? 'border-2 border-yellow-500' : ''}`}>
                                             {user.patient_name.charAt(0).toUpperCase()}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <h4 className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6] truncate">{user.patient_name}</h4>
-                                            <div className="flex items-center gap-2 mt-0.5">
+                                            <div className="flex flex-wrap items-center gap-2 mt-0.5">
                                                 <span className="text-[10px] bg-white dark:bg-[#1e1e1e] border border-[#e0e2ec] dark:border-[#43474e] px-1.5 py-0.5 rounded text-[#43474e] dark:text-[#c4c7c5]">{getTimeRange(user.appointment_time).split('-')[0]}</span>
-                                                <span className={`text-[10px] font-bold uppercase tracking-wide ${user.status.toLowerCase() === 'pending' ? 'text-[#b3261e] dark:text-[#ffb4ab]' : 'text-[#006e1c] dark:text-[#88d99d]'}`}>{user.status}</span>
+                                                
+                                                {/* 1. Consultation Status */}
+                                                <span className={`text-[10px] font-bold uppercase tracking-wide ${user.status.toLowerCase() === 'pending' ? 'text-[#b3261e] dark:text-[#ffb4ab]' : 'text-[#006e1c] dark:text-[#88d99d]'}`}>
+                                                    {user.status}
+                                                </span>
+
+                                                {/* 2. Approval Status */}
+                                                {user.approval_status === 'pending' && (
+                                                    <span 
+                                                        onClick={(e) => { e.stopPropagation(); setShowApprovals(true); }}
+                                                        className="text-[10px] font-bold uppercase tracking-wide text-yellow-600 dark:text-yellow-400 flex items-center gap-1 bg-yellow-100 dark:bg-yellow-900/30 px-1 py-0.5 rounded cursor-pointer hover:bg-yellow-200 dark:hover:bg-yellow-900"
+                                                    >
+                                                        <Hourglass size={8} /> Waiting Approval
+                                                    </span>
+                                                )}
+                                                {user.approval_status === 'approved' && (
+                                                    <span className="text-[10px] font-bold uppercase tracking-wide text-[#006e1c] dark:text-[#88d99d] flex items-center gap-1 bg-[#ccebc4]/30 px-1 py-0.5 rounded">
+                                                        <CheckCircle size={10} /> Approved
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </motion.div>
@@ -981,66 +1100,38 @@ const ReceptionDashboard = () => {
                                 <span className="px-2 py-1 bg-[#ccebc4]/20 text-[#ccebc4] text-[10px] font-bold rounded-full border border-[#ccebc4]/20">Live</span>
                             </div>
 
-                            {/* 3 Stats Grid */}
-                            <div className="grid grid-cols-3 gap-3 mb-6">
-                                <div className="text-center p-2 bg-white/5 rounded-2xl border border-white/5">
-                                    <p className="text-2xl font-bold text-[#a8c7fa]">{data?.registration.today_total || 0}</p>
-                                    <p className="text-[10px] text-[#c4c7c5] uppercase tracking-wide mt-1">Registrations</p>
+                            {/* Weekly Chart */}
+                            <div className="flex flex-col h-[300px] justify-end">
+                                <div className="flex h-full items-end justify-between gap-2 px-2 pb-2">
+                                    {(data?.weekly || []).map((day, i) => {
+                                        const max = Math.max(...(data?.weekly || []).map(d => d.total), 1);
+                                        const height = (day.total / max) * 100;
+                                        
+                                        return (
+                                            <div key={i} className="flex-1 flex flex-col items-center gap-2 group cursor-pointer">
+                                                <div className="w-full relative flex items-end justify-center h-[200px]">
+                                                    <div className="absolute -top-8 opacity-0 group-hover:opacity-100 transition-opacity bg-white text-black text-[10px] font-bold px-2 py-1 rounded mb-1 whitespace-nowrap z-10">
+                                                        {fmt(day.total)}
+                                                    </div>
+                                                    <motion.div 
+                                                        initial={{ height: 0 }}
+                                                        animate={{ height: `${height}%` }}
+                                                        className="w-full bg-[#ccebc4]/20 hover:bg-[#ccebc4] rounded-t-lg transition-all duration-300 relative group-hover:shadow-[0_0_15px_rgba(204,235,196,0.3)]"
+                                                    >
+                                                    </motion.div>
+                                                </div>
+                                                <span className={`text-[10px] font-bold uppercase tracking-wider ${day.date === new Date().toISOString().split('T')[0] ? 'text-[#ccebc4]' : 'text-[#43474e] dark:text-[#c4c7c5]'}`}>
+                                                    {day.day}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
-                                <div className="text-center p-2 bg-white/5 rounded-2xl border border-white/5">
-                                    <p className="text-2xl font-bold text-[#d7cff9]">{data?.tests.today_total || 0}</p>
-                                    <p className="text-[10px] text-[#c4c7c5] uppercase tracking-wide mt-1">Tests</p>
-                                </div>
-                                <div className="text-center p-2 bg-white/5 rounded-2xl border border-white/5">
-                                    <p className="text-2xl font-bold text-[#ccebc4]">{data?.patients.today_attendance || 0}</p>
-                                    <p className="text-[10px] text-[#c4c7c5] uppercase tracking-wide mt-1">Attended</p>
-                                </div>
-                            </div>
-
-                            {/* Progress Bars */}
-                            <div className="space-y-4">
-                                <div>
-                                    <div className="flex justify-between text-xs mb-1.5">
-                                        <span className="text-[#c4c7c5]">Dues Recovered</span>
-                                        <span className="font-bold text-[#ccebc4]">{fmt(data?.collections.treatment_amount || 0)}</span>
-                                    </div>
-                                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                                        <div 
-                                            className="h-full bg-[#ccebc4] rounded-full transition-all duration-1000" 
-                                            style={{ 
-                                                width: `${(data?.collections.today_total || 0) > 0 
-                                                    ? Math.min(100, ((data?.collections.treatment_amount || 0) / (data?.collections.today_total || 1)) * 100) 
-                                                    : 0}%` 
-                                            }}
-                                        ></div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between text-xs mb-1.5">
-                                        <span className="text-[#c4c7c5]">Appointments</span>
-                                        <span className="font-bold text-[#a8c7fa]">
-                                            {data?.registration.consulted || 0}/{(data?.registration.pending || 0) + (data?.registration.consulted || 0)}
-                                        </span>
-                                    </div>
-                                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                                        <div 
-                                            className="h-full bg-[#a8c7fa] rounded-full transition-all duration-1000" 
-                                            style={{ 
-                                                width: `${((data?.registration.pending || 0) + (data?.registration.consulted || 0)) > 0 
-                                                    ? Math.round(((data?.registration.consulted || 0) / ((data?.registration.pending || 0) + (data?.registration.consulted || 0))) * 100) 
-                                                    : 0}%` 
-                                            }}
-                                        ></div>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div className="flex justify-between text-xs mb-1.5">
-                                        <span className="text-[#c4c7c5]">Tests Completed</span>
-                                        <span className="font-bold text-[#d7cff9]">{data?.tests.completed || 0}/{data?.tests.today_total || 0}</span>
-                                    </div>
-                                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                                        <div className="h-full bg-[#d7cff9] rounded-full transition-all duration-1000" style={{ width: `${(data?.tests.today_total || 0) > 0 ? Math.round(((data?.tests.completed || 0) / (data?.tests.today_total || 1)) * 100) : 0}%` }}></div>
-                                    </div>
+                                <div className="border-t border-white/10 pt-4 px-2">
+                                   <div className="flex justify-between items-center">
+                                       <span className="text-[#c4c7c5] text-xs">Total this week</span>
+                                       <span className="text-xl font-bold text-[#e3e2e6]">{fmt((data?.weekly || []).reduce((a, b) => a + b.total, 0))}</span>
+                                   </div>
                                 </div>
                             </div>
                         </motion.div>
@@ -1097,10 +1188,22 @@ const ReceptionDashboard = () => {
                             <div className="px-8 py-6 border-b border-[#e0e2ec] dark:border-[#43474e] flex items-center justify-between bg-[#fdfcff] dark:bg-[#111315] sticky top-0 z-10 transition-colors"><div><h2 className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6]" style={{ fontFamily: 'serif' }}>{activeModal === 'registration' && 'New Patient Registration'}{activeModal === 'test' && 'Book Lab Test'}{activeModal === 'inquiry' && 'New Inquiry'}{activeModal === 'test_inquiry' && 'Test Inquiry'}</h2><p className="text-sm text-[#43474e] dark:text-[#c4c7c5]">Enter details below</p></div><button onClick={closeModal} className="w-10 h-10 rounded-full hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] flex items-center justify-center transition-colors"><X size={24} className="text-[#43474e] dark:text-[#c4c7c5]" /></button></div>
                             <div className="p-8">
                                 {activeModal === 'registration' && (
-                                    <form ref={formRef} className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                    <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-6">
                                         <input type="hidden" name="patient_photo_data" value={photoData || ''} />
+                                        
+                                        {/* Column 1: Patient Details */}
                                         <div className="space-y-6">
-                                            <div><label className={labelClass}>Patient Name *</label><div className="flex items-center gap-2"><input type="text" name="patient_name" required className={inputClass} placeholder="Full Name" /><button type="button" onClick={openPhotoModal} className="w-12 h-12 flex items-center justify-center bg-[#ccebc4] rounded-xl text-[#0c200e] hover:bg-[#b0d8a4] transition-colors"><Camera size={20} /></button></div>{photoData && <div className="mt-2 text-xs text-green-600 flex items-center gap-1"><Check size={12} /> Photo captured</div>}</div>
+                                            <div className="pb-2 border-b border-[#74777f]/10 mb-4">
+                                                <h3 className="text-sm font-bold text-[#006e1c] uppercase tracking-wider">Patient Information</h3>
+                                            </div>
+                                            <div>
+                                                <label className={labelClass}>Patient Name *</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input type="text" name="patient_name" required className={inputClass} placeholder="Full Name" />
+                                                    <button type="button" onClick={openPhotoModal} className="w-12 h-12 flex items-center justify-center bg-[#ccebc4] rounded-xl text-[#0c200e] hover:bg-[#b0d8a4] transition-colors shadow-sm"><Camera size={20} /></button>
+                                                </div>
+                                                {photoData && <div className="mt-2 text-xs text-green-600 flex items-center gap-1 font-bold"><Check size={12} /> Photo captured</div>}
+                                            </div>
                                             <div className="grid grid-cols-2 gap-4">
                                                 <div><label className={labelClass}>Age *</label><input type="text" name="age" required className={inputClass} placeholder="25" /></div>
                                                 <div>
@@ -1131,99 +1234,15 @@ const ReceptionDashboard = () => {
                                             <div><label className={labelClass}>Phone No *</label><input type="tel" name="phone" required maxLength={10} className={inputClass} placeholder="1234567890" /></div>
                                             <div><label className={labelClass}>Email</label><input type="email" name="email" className={inputClass} placeholder="patient@example.com" /></div>
                                         </div>
-                                        <div className="space-y-6">
-                                            <div><label className={labelClass}>Address</label><input type="text" name="address" className={inputClass} placeholder="Full Address" /></div>
-                                            <div><label className={labelClass}>Amount (₹) *</label><input type="number" name="amount" required className={inputClass} placeholder="0.00" /></div>
-                                            <div>
-                                                <div 
-                                                    onClick={() => setShowRegPayment(!showRegPayment)}
-                                                    className="flex items-center justify-between cursor-pointer p-3 bg-[#e8eaed] dark:bg-[#28282a] rounded-xl hover:bg-[#dadae2] dark:hover:bg-[#30333b] transition-colors mb-3"
-                                                >
-                                                    <label className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6] cursor-pointer">Payment Method *</label>
-                                                    <div className="flex items-center gap-2">
-                                                        {Object.keys(regPaymentSplits).length > 0 && (
-                                                            <span className="text-xs font-bold text-[#006e1c] dark:text-[#88d99d] bg-[#ccebc4] dark:bg-[#0c3b10] px-2 py-1 rounded-full">
-                                                                {Object.keys(regPaymentSplits).length} selected
-                                                            </span>
-                                                        )}
-                                                        {showRegPayment ? <ChevronUp size={20} className="text-[#43474e] dark:text-[#c4c7c5]" /> : <ChevronDown size={20} className="text-[#43474e] dark:text-[#c4c7c5]" />}
-                                                    </div>
-                                                </div>
-                                                <AnimatePresence>
-                                                {showRegPayment && (
-                                                    <motion.div
-                                                        initial={{ height: 0, opacity: 0 }}
-                                                        animate={{ height: 'auto', opacity: 1 }}
-                                                        exit={{ height: 0, opacity: 0 }}
-                                                        transition={{ duration: 0.3, ease: 'easeInOut' }}
-                                                        className="overflow-hidden"
-                                                    >
-                                                    <div className="bg-[#f8f9fa] dark:bg-[#1e1e20] rounded-xl p-3 border border-[#e0e2ec] dark:border-[#43474e]">
-                                                        <div className="space-y-2">
-                                                            {formOptions?.paymentMethods.map(m => (
-                                                                <div key={m.method_code} className={`flex items-center gap-2 p-2 rounded-lg transition-all ${regPaymentSplits[m.method_code] !== undefined ? 'bg-white dark:bg-[#2c2c2e] shadow-sm border border-[#006e1c]' : 'bg-[#e8eaed] dark:bg-[#28282a] border border-transparent hover:border-[#006e1c]/30'}`}>
-                                                                    <div 
-                                                                        onClick={() => {
-                                                                            const newSplits = { ...regPaymentSplits };
-                                                                            if (newSplits[m.method_code] !== undefined) delete newSplits[m.method_code];
-                                                                            else newSplits[m.method_code] = 0;
-                                                                            setRegPaymentSplits(newSplits);
-                                                                        }}
-                                                                        className="flex items-center gap-2 cursor-pointer flex-1"
-                                                                    >
-                                                                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${regPaymentSplits[m.method_code] !== undefined ? 'bg-[#006e1c] border-[#006e1c]' : 'border-[#74777f]'}`}>
-                                                                            {regPaymentSplits[m.method_code] !== undefined && <Check size={14} className="text-white" strokeWidth={3} />}
-                                                                        </div>
-                                                                        <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">{m.method_name}</span>
-                                                                    </div>
-                                                                    {/* Only show input if multiple payment methods are selected */}
-                                                                    {regPaymentSplits[m.method_code] !== undefined && Object.keys(regPaymentSplits).length > 1 && (
-                                                                        <div className="flex items-center gap-1.5 bg-[#f0f0f0] dark:bg-[#3a3a3c] px-3 py-1.5 rounded-lg min-w-[120px]">
-                                                                            <span className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5]">₹</span>
-                                                                            <input 
-                                                                                type="number" 
-                                                                                value={regPaymentSplits[m.method_code] || ''} 
-                                                                                onChange={(e) => setRegPaymentSplits({ ...regPaymentSplits, [m.method_code]: parseFloat(e.target.value) || 0 })}
-                                                                                className="flex-1 bg-transparent border-none text-sm font-semibold text-right outline-none appearance-none text-[#1a1c1e] dark:text-[#e3e2e6]"
-                                                                                placeholder="0.00"
-                                                                                onClick={(e) => e.stopPropagation()}
-                                                                            />
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                        <div className="mt-3 pt-2 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center">
-                                                            <span className="text-[10px] font-black uppercase tracking-wide text-[#43474e] dark:text-[#c4c7c5]">
-                                                                {Object.keys(regPaymentSplits).length === 1 ? 'Payment Method Selected' : 'Total Split'}
-                                                            </span>
-                                                            <span className="text-sm font-black text-[#006e1c] dark:text-[#88d99d]">
-                                                                {Object.keys(regPaymentSplits).length === 1 
-                                                                    ? `Will use Amount field` 
-                                                                    : `₹${Object.values(regPaymentSplits).reduce((a, b) => a + b, 0).toLocaleString()}`
-                                                                }
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    </motion.div>
-                                                )}
-                                                </AnimatePresence>
-                                            </div>
 
-                                            {/* Additional Fields Section */}
+                                        {/* Column 2: Administrative & Payment */}
+                                        <div className="space-y-6">
+                                            <div className="pb-2 border-b border-[#74777f]/10 mb-4">
+                                                <h3 className="text-sm font-bold text-[#006e1c] uppercase tracking-wider">Administrative Details</h3>
+                                            </div>
+                                            <div><label className={labelClass}>Address</label><input type="text" name="address" className={inputClass} placeholder="Full Address" /></div>
+                                            
                                             <div className="grid grid-cols-2 gap-4">
-                                                <div className="col-span-2">
-                                                    <label className={labelClass}>Remarks</label>
-                                                    <input type="text" name="remarks" className={inputClass} placeholder="Additional remarks..." />
-                                                </div>
-                                                <div>
-                                                    <CustomSelect label="How did you hear?" value={regSource} onChange={setRegSource} options={formOptions?.referralSources.map(s => ({ label: s.source_name, value: s.source_code })) || []} placeholder="Select" />
-                                                    <input type="hidden" name="referralSource" value={regSource} />
-                                                </div>
-                                                <div>
-                                                    <CustomSelect label="Consultation Type *" value={regConsultType} onChange={setRegConsultType} options={formOptions?.consultationTypes.map(t => ({ label: t.consultation_name, value: t.consultation_code })) || []} placeholder="Select" />
-                                                    <input type="hidden" name="inquiry_type" value={regConsultType} />
-                                                </div>
                                                 <div>
                                                     <label className={labelClass}>Appointment Date</label>
                                                     <div onClick={() => { setActiveDateField('registration'); setShowDatePicker(true); }} className={`${inputClass} cursor-pointer flex items-center justify-between`}>
@@ -1241,11 +1260,113 @@ const ReceptionDashboard = () => {
                                                     <input type="hidden" name="appointment_time" value={appointmentTime} />
                                                 </div>
                                             </div>
+
+                                            <div>
+                                                <CustomSelect label="Consultation Type *" value={regConsultType} onChange={setRegConsultType} options={formOptions?.consultationTypes.map(t => ({ label: t.consultation_name, value: t.consultation_code })) || []} placeholder="Select" />
+                                                <input type="hidden" name="inquiry_type" value={regConsultType} />
+                                            </div>
+
+                                            <div>
+                                                <CustomSelect 
+                                                    label="How did you hear?" 
+                                                    value={regSource} 
+                                                    onChange={setRegSource} 
+                                                    options={formOptions?.referralSources.map(s => ({ label: s.source_name, value: s.source_code })) || []} 
+                                                    placeholder="Select source" 
+                                                />
+                                                <input type="hidden" name="referralSource" value={regSource} />
+                                            </div>
+
+                                            <div>
+                                                <label className={labelClass}>Amount (₹) *</label>
+                                                <input type="number" name="amount" required className={`${inputClass} font-bold text-lg`} placeholder="0.00" />
+                                            </div>
+
+                                            <div>
+                                                <div 
+                                                    onClick={() => setShowRegPayment(!showRegPayment)}
+                                                    className="flex items-center justify-between cursor-pointer p-3 bg-[#f2f6fa] dark:bg-[#1a1c1e] rounded-2xl hover:bg-[#e0e4e9] dark:hover:bg-[#25282c] transition-all border border-transparent hover:border-[#006e1c]/20"
+                                                >
+                                                    <div>
+                                                        <label className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6] cursor-pointer">Payment Method *</label>
+                                                        <p className="text-[10px] text-[#43474e] dark:text-[#c4c7c5] font-medium uppercase tracking-wider mt-0.5">Select one or more methods</p>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        {Object.keys(regPaymentSplits).length > 0 && (
+                                                            <span className="text-xs font-bold text-white bg-[#006e1c] px-3 py-1 rounded-full shadow-lg">
+                                                                {Object.keys(regPaymentSplits).length} selected
+                                                            </span>
+                                                        )}
+                                                        {showRegPayment ? <ChevronUp size={20} className="text-[#006e1c]" /> : <ChevronDown size={20} className="text-[#43474e] dark:text-[#c4c7c5]" />}
+                                                    </div>
+                                                </div>
+                                                <AnimatePresence>
+                                                {showRegPayment && (
+                                                    <motion.div
+                                                        initial={{ height: 0, opacity: 0 }}
+                                                        animate={{ height: 'auto', opacity: 1 }}
+                                                        exit={{ height: 0, opacity: 0 }}
+                                                        transition={{ duration: 0.3, ease: 'easeInOut' }}
+                                                        className="overflow-hidden"
+                                                    >
+                                                    <div className="bg-white dark:bg-[#111315] rounded-2xl p-2 border border-[#e0e2ec] dark:border-[#43474e] shadow-inner mt-2 space-y-1">
+                                                        {formOptions?.paymentMethods.map((m: any) => (
+                                                            <div key={m.method_code} className={`flex items-center gap-2 p-1.5 rounded-xl transition-all ${regPaymentSplits[m.method_code] !== undefined ? 'bg-[#ccebc4]/20 border border-[#006e1c]' : 'bg-[#e0e2ec]/30 border border-transparent hover:bg-[#e0e2ec]/50'}`}>
+                                                                <div 
+                                                                    onClick={() => {
+                                                                        const newSplits = { ...regPaymentSplits };
+                                                                        if (newSplits[m.method_code] !== undefined) delete newSplits[m.method_code];
+                                                                        else newSplits[m.method_code] = 0;
+                                                                        setRegPaymentSplits(newSplits);
+                                                                    }}
+                                                                    className="flex items-center gap-3 cursor-pointer flex-1"
+                                                                >
+                                                                    <div className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${regPaymentSplits[m.method_code] !== undefined ? 'bg-[#006e1c] border-[#006e1c] shadow-md shadow-green-500/20' : 'border-[#74777f]'}`}>
+                                                                        {regPaymentSplits[m.method_code] !== undefined && <Check size={14} className="text-white" strokeWidth={4} />}
+                                                                    </div>
+                                                                    <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">{m.method_name}</span>
+                                                                </div>
+                                                                {regPaymentSplits[m.method_code] !== undefined && Object.keys(regPaymentSplits).length > 1 && (
+                                                                    <div className="flex items-center gap-2 bg-white dark:bg-black/40 px-3 py-2 rounded-xl border border-[#006e1c]/30 min-w-[140px]">
+                                                                        <span className="text-xs font-black text-[#006e1c]">₹</span>
+                                                                        <input 
+                                                                            type="number" 
+                                                                            value={regPaymentSplits[m.method_code] || ''} 
+                                                                            onChange={(e) => setRegPaymentSplits({ ...regPaymentSplits, [m.method_code]: parseFloat(e.target.value) || 0 })}
+                                                                            className="flex-1 bg-transparent border-none text-sm font-black text-right outline-none appearance-none text-[#1a1c1e] dark:text-[#e3e2e6]"
+                                                                            placeholder="0.00"
+                                                                            onClick={(e) => e.stopPropagation()}
+                                                                        />
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        ))}
+                                                        <div className="mt-2 pt-2 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center px-1">
+                                                            <span className="text-[10px] font-black uppercase tracking-widest text-[#43474e] dark:text-[#c4c7c5]">
+                                                                {Object.keys(regPaymentSplits).length === 1 ? 'Selected' : 'Total Allocation'}
+                                                            </span>
+                                                            <span className="text-base font-black text-[#006e1c] dark:text-[#88d99d]">
+                                                                {Object.keys(regPaymentSplits).length === 1 
+                                                                    ? `Single Method` 
+                                                                    : `₹${Object.values(regPaymentSplits).reduce((a, b) => a + b, 0).toLocaleString()}`
+                                                                }
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    </motion.div>
+                                                )}
+                                                </AnimatePresence>
+                                            </div>
+
+                                            <div>
+                                                <label className={labelClass}>Remarks</label>
+                                                <textarea name="remarks" className={`${inputClass} min-h-[100px] resize-none pt-3`} placeholder="Additional clinical or administrative remarks..."></textarea>
+                                            </div>
                                         </div>
                                     </form>
                                 )}
                                 {activeModal === 'test' && (
-                                    <form ref={formRef} className="space-y-6">
+                                    <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="space-y-6">
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                             <div><label className={labelClass}>Patient Name *</label><input type="text" name="patient_name" required className={inputClass} placeholder="Full Name" /></div>
                                             <div><label className={labelClass}>Age *</label><input type="text" name="age" required className={inputClass} placeholder="25" /></div>
@@ -1261,6 +1382,7 @@ const ReceptionDashboard = () => {
                                             <div><label className={labelClass}>Phone</label><input type="tel" name="phone_number" maxLength={10} className={inputClass} placeholder="1234567890" /></div>
                                             <div><label className={labelClass}>Alt. Phone</label><input type="tel" name="alternate_phone_no" maxLength={10} className={inputClass} placeholder="Optional" /></div>
                                         </div>
+                                        <div><label className={labelClass}>Address</label><input type="text" name="address" className={inputClass} placeholder="Full Address" /></div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div><label className={labelClass}>Referred By *</label><input list="test_referrers" name="referred_by" required className={inputClass} placeholder="Type or select" /><datalist id="test_referrers">{formOptions?.referrers.map((r: string) => <option key={r} value={r} />)}</datalist></div>
                                             <div>
@@ -1331,11 +1453,20 @@ const ReceptionDashboard = () => {
                                             <div><label className={labelClass}>Total Amount *</label><input type="number" name="total_amount" required className={`${inputClass} font-bold`} value={totalAmount} onChange={(e) => setTotalAmount(e.target.value)} /></div>
                                             <div><label className={labelClass}>Advance</label><input type="number" name="advance_amount" className={inputClass} value={advanceAmount} onChange={(e) => setAdvanceAmount(e.target.value)} placeholder="0.00" /></div>
                                             <div><label className={labelClass}>Discount</label><input type="number" name="discount" className={inputClass} value={discountAmount} onChange={(e) => setDiscountAmount(e.target.value)} placeholder="0.00" /></div>
-                                            <div><label className={labelClass}>Due Amount</label><input type="text" name="due_amount" readOnly className={`${inputClass} bg-transparent border border-[#ffdad6] text-[#b3261e] dark:text-[#ffb4ab] font-bold`} value={dueAmount} /></div>
+                                            <div>
+                                                <label className={labelClass}>Due Amount</label>
+                                                {parseFloat(advanceAmount) <= 0 || parseFloat(discountAmount) > 200 ? (
+                                                    <div className={`${inputClass} flex items-center gap-1 text-yellow-600 bg-yellow-50 dark:bg-yellow-900/10`}>
+                                                        <Hourglass size={14} /> <span className="text-xs font-bold uppercase">Pending Approval</span>
+                                                    </div>
+                                                ) : (
+                                                    <input type="text" name="due_amount" readOnly className={`${inputClass} bg-transparent border border-[#ffdad6] text-[#b3261e] dark:text-[#ffb4ab] font-bold`} value={dueAmount} />
+                                                )}
+                                            </div>
                                         </div>
 
                                         {/* Payment Method Section - Moved to end */}
-                                        <div>
+                                        <div className={parseFloat(advanceAmount || '0') > 0 ? '' : 'hidden'}>
                                             <div 
                                                 onClick={() => setShowTestPayment(!showTestPayment)}
                                                 className="flex items-center justify-between cursor-pointer p-3 bg-[#e8eaed] dark:bg-[#28282a] rounded-xl hover:bg-[#dadae2] dark:hover:bg-[#30333b] transition-colors mb-3"
@@ -1399,7 +1530,7 @@ const ReceptionDashboard = () => {
                                                         </span>
                                                         <span className="text-sm font-black text-[#006e1c] dark:text-[#88d99d]">
                                                             {Object.keys(testPaymentSplits).length === 1 
-                                                                ? `Will use Advance field` 
+                                                                ? `.` 
                                                                 : `₹${Object.values(testPaymentSplits).reduce((a, b) => a + b, 0).toLocaleString()}`
                                                             }
                                                         </span>
@@ -1408,12 +1539,13 @@ const ReceptionDashboard = () => {
                                                 </motion.div>
                                             )}
                                             </AnimatePresence>
+                                            <input type="hidden" name="payment_method" value={parseFloat(advanceAmount || '0') > 0 ? "cash" : "none"} />
                                         </div>
 
                                     </form>
                                 )}
                                 {(activeModal === 'inquiry' || activeModal === 'test_inquiry') && (
-                                    <form ref={formRef} className="space-y-6">
+                                    <form ref={formRef} onSubmit={(e) => e.preventDefault()} className="space-y-6">
                                         {activeModal === 'inquiry' && (
                                             <>
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1498,7 +1630,7 @@ const ReceptionDashboard = () => {
             <AnimatePresence>{showPhotoModal && (<motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/80 z-[10001] flex items-center justify-center p-4"><div className="bg-[#1a1c1e] p-4 rounded-[28px] w-full max-w-lg shadow-2xl"><h3 className="text-white text-lg font-bold mb-4 ml-2">Capture Photo</h3><div className="bg-black rounded-xl overflow-hidden aspect-video border border-[#43474e] relative"><video ref={videoRef} autoPlay playsInline className={`w-full h-full object-cover ${photoCaptured ? 'hidden' : ''}`}></video><canvas ref={canvasRef} className={`w-full h-full object-cover ${photoCaptured ? '' : 'hidden'}`}></canvas></div><div className="flex justify-end gap-3 mt-4"><button onClick={closePhotoModal} className="px-6 py-2 text-[#c4c7c5] font-bold hover:text-white transition-colors">Close</button>{!photoCaptured ? (<button onClick={capturePhoto} className="px-6 py-2 bg-[#d0e4ff] text-[#001d36] rounded-full font-bold hover:bg-[#b0d2ff]">Snap</button>) : (<><button onClick={retakePhoto} className="px-6 py-2 bg-[#43474e] text-white rounded-full font-bold hover:bg-[#5f6368]">Retake</button><button onClick={usePhoto} className="px-6 py-2 bg-[#ccebc4] text-[#0c200e] rounded-full font-bold hover:bg-[#b0d8a4]">Use Photo</button></>)}</div></div></motion.div>)}</AnimatePresence>
             
             {/* --- CHAT MODAL --- */}
-            <ChatModal isOpen={showChatModal} onClose={() => setShowChatModal(false)} />
+            {showChatModal && <ChatModal isOpen={showChatModal} user={user} onClose={() => setShowChatModal(false)} />}
             {/* --- DATE PICKER --- */}
             <AnimatePresence>
                 {showDatePicker && (
@@ -1554,8 +1686,90 @@ const ReceptionDashboard = () => {
                 setSearchQuery={setSearchQuery}
                 searchResults={searchResults}
             />
+            {/* --- APPROVALS MODAL --- */}
+            <AnimatePresence>
+                {showApprovals && (
+                    <div className="fixed inset-0 z-[10020] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => e.target === e.currentTarget && setShowApprovals(false)}>
+                        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-[#fdfcff] dark:bg-[#1a1c1e] w-full max-w-3xl rounded-[28px] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+                            <div className="px-8 py-6 border-b border-[#e0e2ec] dark:border-[#43474e] flex items-center justify-between bg-[#fdfcff] dark:bg-[#1a1c1e] sticky top-0 z-10">
+                                <div><h2 className="text-2xl font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">Pending Approvals</h2><p className="text-sm text-[#43474e] dark:text-[#c4c7c5]">Review zero-cost requests</p></div>
+                                <button onClick={() => setShowApprovals(false)} className="w-10 h-10 rounded-full hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] flex items-center justify-center transition-colors"><X size={24} className="text-[#43474e] dark:text-[#c4c7c5]" /></button>
+                            </div>
+                            <div className="p-6 overflow-y-auto bg-[#f2f6fa] dark:bg-[#111315]">
+                                {pendingList.length === 0 ? (
+                                    <div className="flex flex-col items-center justify-center py-12 opacity-50"><CheckCircle size={48} className="mb-4 text-green-500" /><p>All caught up! No pending approvals.</p></div>
+                                ) : (
+                                    <div className="space-y-4">
+                                        {pendingList.map((item) => (
+                                            <div key={`${item.type}-${item.id}`} className="bg-white dark:bg-[#1e1e1e] p-5 rounded-2xl border border-[#e0e2ec] dark:border-[#43474e] shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${item.type === 'registration' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'}`}>{item.type}</span>
+                                                        <span className="text-xs text-[#74777f]">{new Date(item.created_at).toLocaleString()}</span>
+                                                    </div>
+                                                    <h3 className="font-bold text-lg text-[#1a1c1e] dark:text-[#e3e2e6]">{item.patient_name}</h3>
+                                                    <p className="text-sm text-[#43474e] dark:text-[#c4c7c5]">{item.type === 'test' ? `Test: ${item.test_name}` : `Consultation`}</p>
+                                                    {item.type === 'test' ? (
+                                                        <div className="flex flex-wrap gap-2 mt-3">
+                                                            {/* Total */}
+                                                            <div className="px-3 py-2 rounded-xl bg-[#f0f2f5] dark:bg-[#2a2c2e] border border-[#e0e2ec] dark:border-[#43474e] flex-1 min-w-[80px]">
+                                                                <p className="text-[10px] uppercase font-bold tracking-wider text-[#74777f] dark:text-[#939094] mb-0.5">Total</p>
+                                                                <p className="text-sm font-black text-[#1a1c1e] dark:text-[#e3e2e6]">₹{item.amount}</p>
+                                                            </div>
+
+                                                            {/* Paid (Flagged if <= 0) */}
+                                                            {(() => {
+                                                                const paid = parseFloat(item.advance_amount || '0');
+                                                                const isFlagged = paid <= 0;
+                                                                return (
+                                                                    <div className={`px-3 py-2 rounded-xl border flex-1 min-w-[80px] ${isFlagged ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-700' : 'bg-[#f0f2f5] dark:bg-[#2a2c2e] border-[#e0e2ec] dark:border-[#43474e]'}`}>
+                                                                        <p className={`text-[10px] uppercase font-bold tracking-wider mb-0.5 ${isFlagged ? 'text-yellow-700 dark:text-yellow-400' : 'text-[#74777f] dark:text-[#939094]'}`}>Paid</p>
+                                                                        <p className={`text-sm font-black ${isFlagged ? 'text-yellow-900 dark:text-yellow-100' : 'text-[#1a1c1e] dark:text-[#e3e2e6]'}`}>₹{paid}</p>
+                                                                    </div>
+                                                                );
+                                                            })()}
+
+                                                            {/* Discount (Flagged if > 200) */}
+                                                            {(() => {
+                                                                const disc = parseFloat(item.discount || '0');
+                                                                const isFlagged = disc > 200;
+                                                                return (
+                                                                    <div className={`px-3 py-2 rounded-xl border flex-1 min-w-[80px] ${isFlagged ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700' : 'bg-[#f0f2f5] dark:bg-[#2a2c2e] border-[#e0e2ec] dark:border-[#43474e]'}`}>
+                                                                        <p className={`text-[10px] uppercase font-bold tracking-wider mb-0.5 ${isFlagged ? 'text-red-700 dark:text-red-400' : 'text-[#74777f] dark:text-[#939094]'}`}>Discount</p>
+                                                                        <p className={`text-sm font-black ${isFlagged ? 'text-red-900 dark:text-red-100' : 'text-[#1a1c1e] dark:text-[#e3e2e6]'}`}>₹{disc}</p>
+                                                                    </div>
+                                                                );
+                                                            })()}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-sm font-medium mt-1">Amount: ₹{item.amount}</p>
+                                                    )}
+                                                </div>
+                                                <div className="flex gap-3">
+                                                    {item.approval_status === 'approved' ? (
+                                                        <span className="px-4 py-2 rounded-full border border-green-500 text-green-700 bg-green-50 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700 text-sm font-bold flex items-center gap-2">
+                                                            <CheckCircle size={16} /> Approved
+                                                        </span>
+                                                    ) : (
+                                                        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700">
+                                                            <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse"></div>
+                                                            <span className="text-xs font-bold uppercase tracking-wider">Awaiting Admin Approval</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
         </div>
     );
 };
 
 export default ReceptionDashboard;
+
+

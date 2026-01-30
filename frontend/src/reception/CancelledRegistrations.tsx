@@ -1,14 +1,104 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
-    Search, RefreshCw, ChevronLeft, ChevronRight,
+    Search, RefreshCw, ChevronLeft, ChevronRight, ChevronDown,
     User, Phone, Trash2, 
     DollarSign, CheckCircle2, History, X,
     Bell, Moon, Sun, LogOut
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, authFetch } from '../config';
 import { useAuthStore } from '../store/useAuthStore';
+
+// Internal Status Dropdown Component to match the screenshot perfectly
+const StatusDropdown = ({ currentStatus, onUpdate }: { currentStatus: string, onUpdate: (val: string) => void }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const [coords, setCoords] = useState({ top: 0, left: 0 });
+    const triggerRef = useRef<HTMLDivElement>(null);
+
+    const toggleOpen = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (isOpen) {
+            setIsOpen(false);
+            return;
+        }
+
+        if (triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
+            setCoords({
+                top: rect.bottom + 4,
+                left: rect.left
+            });
+            setIsOpen(true);
+        }
+    };
+
+    useEffect(() => {
+        const close = () => setIsOpen(false);
+        if (isOpen) {
+            window.addEventListener('click', close);
+            window.addEventListener('scroll', close, true);
+        }
+        return () => {
+            window.removeEventListener('click', close);
+            window.removeEventListener('scroll', close, true);
+        };
+    }, [isOpen]);
+
+    const options = [
+        { value: 'closed', label: 'Keep Closed' },
+        { value: 'pending', label: 'Re-open' }
+    ];
+
+    return (
+        <>
+            <div 
+                ref={triggerRef}
+                onClick={toggleOpen}
+                className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border bg-[#ffdad6]/30 text-[#93000a] border-[#ffdad6] hover:opacity-80 transition-opacity cursor-pointer"
+            >
+                <span className="truncate">Closed</span>
+                <ChevronDown size={12} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </div>
+
+            {isOpen && createPortal(
+                <AnimatePresence>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.9, y: 5 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.9, y: 5 }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="fixed z-[99999] bg-[#f3edf7] dark:bg-[#2b2930] rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col p-2 min-w-[140px] border border-[#eaddff] dark:border-[#49454f]"
+                        style={{ top: coords.top, left: coords.left }}
+                    >
+                        {options.map((opt) => (
+                            <button
+                                key={opt.value}
+                                onClick={() => {
+                                    onUpdate(opt.value);
+                                    setIsOpen(false);
+                                }}
+                                className={`
+                                    w-full text-left px-3 py-2 text-xs font-semibold rounded-lg transition-all mb-1 last:mb-0
+                                    ${currentStatus === opt.value 
+                                        ? 'bg-[#3b82f6] text-white shadow-sm' 
+                                        : 'text-[#1d1b20] dark:text-[#e6e1e5] hover:bg-[#e8def8] dark:hover:bg-[#4a4458]'
+                                    }
+                                `}
+                            >
+                                {opt.label}
+                            </button>
+                        ))}
+                    </motion.div>
+                </AnimatePresence>,
+                document.body
+            )}
+        </>
+    );
+};
+
+
 
 interface RegistrationRecord {
     registration_id: number;
@@ -77,7 +167,7 @@ const CancelledRegistrations: React.FC = () => {
     useEffect(() => {
         const fetchNotifs = async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ''}`);
                 const data = await res.json();
                 if (data.success || data.status === 'success') { setNotifications(data.notifications || []); setUnreadCount(data.unread_count || 0); }
             } catch (err) { console.error(err); }
@@ -91,7 +181,7 @@ const CancelledRegistrations: React.FC = () => {
         if (!user?.branch_id || globalSearchQuery.length < 2) { setSearchResults([]); setShowSearchResults(false); return; }
         debounceRef.current = setTimeout(async () => {
             try {
-                const res = await fetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(globalSearchQuery)}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/search_patients?branch_id=${user.branch_id}&q=${encodeURIComponent(globalSearchQuery)}`);
                 const data = await res.json();
                 if (data.success) { setSearchResults(data.patients || []); setShowSearchResults(true); }
             } catch (err) { console.error(err); }
@@ -103,7 +193,7 @@ const CancelledRegistrations: React.FC = () => {
         if (!user?.branch_id) return;
         setIsLoading(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/reception/registration.php`, {
+            const response = await authFetch(`${API_BASE_URL}/reception/registration`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -135,7 +225,7 @@ const CancelledRegistrations: React.FC = () => {
 
     const handleUpdateStatus = async (id: number, newStatus: string) => {
         try {
-            const response = await fetch(`${API_BASE_URL}/reception/registration.php?action=update_status`, {
+            const response = await authFetch(`${API_BASE_URL}/reception/registration?action=update_status`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id, status: newStatus })
@@ -155,7 +245,7 @@ const CancelledRegistrations: React.FC = () => {
 
         setIsProcessingRefund(true);
         try {
-            const response = await fetch(`${API_BASE_URL}/reception/registration.php?action=refund`, {
+            const response = await authFetch(`${API_BASE_URL}/reception/registration?action=refund`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -323,7 +413,7 @@ const CancelledRegistrations: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Grid */}
+                {/* List View */}
                 {isLoading ? (
                      <div className="flex flex-col items-center justify-center py-20">
                          <div className="w-12 h-12 border-4 border-[#ffb4ab] border-t-transparent rounded-full animate-spin mb-4" />
@@ -336,67 +426,73 @@ const CancelledRegistrations: React.FC = () => {
                          <p className="text-[#43474e] dark:text-[#c4c7c5] mt-2">Found for this branch</p>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    <div className="flex flex-col gap-3">
+                        {/* Header Row for Desktop */}
+                        <div className="hidden lg:grid grid-cols-12 gap-4 px-6 py-2 text-[10px] font-black uppercase tracking-widest text-[#43474e] dark:text-[#c4c7c5] opacity-70">
+                            <div className="col-span-4">Patient</div>
+                            <div className="col-span-3">Fee & Date</div>
+                            <div className="col-span-2 text-center">Refund Status</div>
+                            <div className="col-span-3 text-right">Actions</div>
+                        </div>
+
                         {registrations.map((reg, idx) => (
                             <motion.div 
                                 key={reg.registration_id}
-                                initial={{ opacity: 0, y: 20 }}
+                                initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: idx * 0.05, duration: 0.4 }}
-                                className="group bg-[#fdfcff] dark:bg-[#1a1c1e] rounded-[24px] border border-[#ffdad6] dark:border-[#93000a] p-5 hover:shadow-xl hover:border-[#ffb4ab] dark:hover:border-[#ffb4ab] transition-all relative overflow-hidden"
+                                transition={{ delay: idx * 0.03, duration: 0.3 }}
+                                className="group bg-[#fdfcff] dark:bg-[#1a1c1e] rounded-[20px] border border-[#ffdad6] dark:border-[#93000a] p-4 lg:px-6 lg:py-4 hover:shadow-lg hover:border-[#ffb4ab] transition-all relative overflow-hidden flex flex-col lg:grid lg:grid-cols-12 gap-4 items-start lg:items-center"
                             >
-                                <div className="flex items-start justify-between mb-4">
-                                     <div className="flex items-center gap-3">
-                                         <div className="w-12 h-12 rounded-[16px] bg-[#ffdad6] dark:bg-[#93000a] flex items-center justify-center text-[#410002] dark:text-[#ffdad6]">
-                                             <User size={24} />
-                                         </div>
-                                         <div>
-                                              <h3 className="font-bold text-[#1a1c1e] dark:text-[#e3e2e6] text-lg leading-tight line-clamp-1">{reg.patient_name}</h3>
-                                              <p className="text-xs text-[#43474e] dark:text-[#c4c7c5] font-medium flex items-center gap-1 mt-0.5"><Phone size={10} /> {reg.phone_number}</p>
-                                         </div>
-                                     </div>
-                                </div>
-
-                                <div className="space-y-3 mb-4">
-                                    <div className="p-3 bg-[#fff8f7] dark:bg-[#201a1a] rounded-[16px] flex justify-between items-center border border-[#ffdad6] dark:border-[#524343]">
-                                        <div className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5] uppercase tracking-wide">Consultation Fee</div>
-                                        <div className="text-lg font-black text-[#1a1c1e] dark:text-[#e3e2e6]">₹{parseFloat(reg.consultation_amount).toLocaleString('en-IN')}</div>
+                                {/* 1. Identity Section */}
+                                <div className="col-span-4 flex items-center gap-4 w-full">
+                                    <div className="w-12 h-12 rounded-[14px] bg-[#ffdad6] dark:bg-[#93000a] flex items-center justify-center text-[#410002] dark:text-[#ffdad6] font-black text-lg shadow-sm">
+                                        <User size={20} />
                                     </div>
-                                    
-                                    <div className="flex gap-2">
-                                        <div className={`flex-1 text-center py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border ${reg.refund_status === 'initiated' ? 'bg-[#ccebc4]/30 text-[#006e1c] border-[#ccebc4]' : 'bg-[#e0e2ec]/30 text-[#43474e] border-[#e0e2ec]'}`}>
-                                            {reg.refund_status === 'initiated' ? 'Refunded' : 'Not Refunded'}
-                                        </div>
-                                        <div className="flex-1 text-center py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border bg-[#ffdad6]/30 text-[#93000a] border-[#ffdad6]">
-                                            Cancelled
-                                        </div>
+                                    <div className="min-w-0">
+                                        <h3 className="font-bold text-base text-[#1a1c1e] dark:text-[#e3e2e6] leading-tight truncate">{reg.patient_name}</h3>
+                                        <p className="text-xs text-[#43474e] dark:text-[#c4c7c5] font-medium mt-0.5 flex items-center gap-1.5">
+                                            <Phone size={10} /> {reg.phone_number}
+                                        </p>
                                     </div>
                                 </div>
 
-                                <div className="pt-3 border-t border-[#ffdad6] dark:border-[#93000a] flex justify-between items-center">
-                                    {/* Action Buttons */}
+                                {/* 2. Financial Context */}
+                                <div className="col-span-3 w-full">
+                                    <p className="text-base font-black text-[#1a1c1e] dark:text-[#e3e2e6]">₹{parseFloat(reg.consultation_amount).toLocaleString('en-IN')}</p>
+                                    <p className="text-[10px] text-[#43474e] dark:text-[#c4c7c5] font-medium flex items-center gap-1">
+                                         Cancelled on {new Date(reg.created_at).toLocaleDateString()}
+                                    </p>
+                                </div>
+
+                                {/* 3. Refund Status */}
+                                <div className="col-span-2 w-full flex justify-start lg:justify-center">
+                                    <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${reg.refund_status === 'initiated' ? 'bg-[#ccebc4]/30 text-[#006e1c] border-[#ccebc4]' : 'bg-[#e0e2ec]/30 text-[#43474e] border-[#e0e2ec]'}`}>
+                                        {reg.refund_status === 'initiated' ? 'Refunded' : 'Not Refunded'}
+                                    </div>
+                                </div>
+
+                                {/* 4. Actions */}
+                                <div className="col-span-3 w-full flex items-center justify-start lg:justify-end gap-3">
                                     {reg.refund_status === 'initiated' ? (
-                                        <div className="text-[10px] font-bold text-[#ba1a1a] dark:text-[#ffb4ab] border border-[#ffdad6] dark:border-[#93000a] px-3 py-1.5 rounded-full bg-[#ffdad6]/10">
-                                            Closed (Refunded)
-                                        </div>
+                                        <span className="text-[10px] font-bold text-[#ba1a1a] dark:text-[#ffb4ab] flex items-center gap-1 opacity-70 cursor-not-allowed">
+                                            <CheckCircle2 size={12} /> Closed
+                                        </span>
                                     ) : (
-                                        <select 
-                                            value={reg.status}
-                                            onChange={(e) => handleUpdateStatus(reg.registration_id, e.target.value)}
-                                            className="bg-transparent border-none text-[10px] font-bold text-[#43474e] dark:text-[#c4c7c5] focus:ring-0 cursor-pointer hover:underline outline-none"
-                                        >
-                                            <option value="closed">Keep Closed</option>
-                                            <option value="pending">Re-open</option>
-                                        </select>
-                                    )}
-
-                                    {reg.refund_status !== 'initiated' && parseFloat(reg.consultation_amount) > 0 && (
-                                        <button 
-                                            onClick={() => openRefundModal(reg)}
-                                            className="flex items-center gap-1.5 px-4 py-2 bg-[#ba1a1a] text-white rounded-[12px] text-xs font-bold hover:bg-[#93000a] transition-all shadow-md shadow-red-900/20"
-                                        >
-                                            <DollarSign size={14} /> Refund
-                                        </button>
+                                        <>
+                                            <StatusDropdown 
+                                                currentStatus={reg.status} 
+                                                onUpdate={(val) => handleUpdateStatus(reg.registration_id, val)}
+                                            />
+                                            
+                                            {parseFloat(reg.consultation_amount) > 0 && (
+                                                <button 
+                                                    onClick={() => openRefundModal(reg)}
+                                                    className="flex items-center gap-1.5 px-4 py-2 bg-[#ba1a1a] text-white rounded-[12px] text-xs font-bold hover:bg-[#93000a] transition-all shadow-md shadow-red-900/20"
+                                                >
+                                                    <DollarSign size={14} /> Refund
+                                                </button>
+                                            )}
+                                        </>
                                     )}
                                 </div>
                             </motion.div>
@@ -467,10 +563,10 @@ const CancelledRegistrations: React.FC = () => {
                                             onChange={(e) => setRefundAmount(e.target.value)}
                                             max={selectedForRefund.consultation_amount}
                                             required
-                                            className="w-full pl-8 pr-4 py-3 bg-[#e0e2ec] dark:bg-[#43474e] border-none rounded-[16px] text-lg font-bold text-[#1a1c1e] dark:text-[#e3e2e6] focus:ring-2 focus:ring-[#006e1c] outline-none transition-all"
+                                            className="w-full pl-8 pr-4 py-3 bg-[#e0e2ec] dark:bg-[#43474e] border-none rounded-[16px] text-lg font-bold text-[#1a1c1e] dark:text-[#e3e2e6] focus:ring-2 focus:ring-[#ba1a1a] outline-none transition-all"
                                         />
                                     </div>
-                                    <p className="text-[10px] text-[#006e1c] dark:text-[#88d99d] font-bold mt-2 uppercase tracking-wide">Max: ₹ {selectedForRefund.consultation_amount}</p>
+                                    <p className="text-[10px] text-[#ba1a1a] dark:text-[#ffb4ab] font-bold mt-2 uppercase tracking-wide">Max: ₹ {selectedForRefund.consultation_amount}</p>
                                 </div>
 
                                 <div>
@@ -480,14 +576,14 @@ const CancelledRegistrations: React.FC = () => {
                                         onChange={(e) => setRefundReason(e.target.value)}
                                         placeholder="Reason for cancellation..."
                                         rows={3}
-                                        className="w-full px-4 py-3 bg-[#e0e2ec] dark:bg-[#43474e] border-none rounded-[16px] text-sm font-medium text-[#1a1c1e] dark:text-[#e3e2e6] focus:ring-2 focus:ring-[#006e1c] outline-none transition-all resize-none"
+                                        className="w-full px-4 py-3 bg-[#e0e2ec] dark:bg-[#43474e] border-none rounded-[16px] text-sm font-medium text-[#1a1c1e] dark:text-[#e3e2e6] focus:ring-2 focus:ring-[#ba1a1a] outline-none transition-all resize-none"
                                     />
                                 </div>
 
                                 <button 
                                     type="submit"
                                     disabled={isProcessingRefund}
-                                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#006e1c] text-white rounded-[16px] text-sm font-bold shadow-lg hover:bg-[#005313] disabled:opacity-50 transition-all"
+                                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#ba1a1a] text-white rounded-[16px] text-sm font-bold shadow-lg hover:bg-[#93000a] disabled:opacity-50 transition-all"
                                 >
                                     {isProcessingRefund ? (
                                         <RefreshCw size={18} className="animate-spin" />

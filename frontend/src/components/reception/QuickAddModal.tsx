@@ -130,10 +130,10 @@ const QuickAddModal = ({ isOpen, onClose, registration, type, onSuccess }: Quick
     const fetchOptions = async () => {
         setIsLoadingOptions(true);
         try {
-            const resOptions = await authFetch(`${API_BASE_URL}/reception/form_options.php?branch_id=${registration.branch_id}`);
+            const resOptions = await authFetch(`${API_BASE_URL}/reception/form_options?branch_id=${registration.branch_id}`);
             const dataOptions = await resOptions.json();
             
-            const resPayments = await authFetch(`${API_BASE_URL}/reception/get_payment_methods.php`);
+            const resPayments = await authFetch(`${API_BASE_URL}/reception/get_payment_methods`);
             const dataPayments = await resPayments.json();
 
             setOptions({
@@ -151,7 +151,7 @@ const QuickAddModal = ({ isOpen, onClose, registration, type, onSuccess }: Quick
         setIsLoadingSlots(true);
         try {
             const serviceType = isPhysio ? 'physio' : 'speech_therapy';
-            const res = await authFetch(`${API_BASE_URL}/reception/get_treatment_slots.php?date=${startDate}&service_type=${serviceType}`);
+            const res = await authFetch(`${API_BASE_URL}/reception/get_treatment_slots?date=${startDate}&service_type=${serviceType}`);
             const data = await res.json();
             
             if (data.success) {
@@ -214,7 +214,7 @@ const QuickAddModal = ({ isOpen, onClose, registration, type, onSuccess }: Quick
 
         setIsSaving(true);
         try {
-            const res = await authFetch(`${API_BASE_URL}/reception/quick_add_patient.php`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/quick_add_patient`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

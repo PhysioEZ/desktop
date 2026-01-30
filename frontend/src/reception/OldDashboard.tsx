@@ -93,8 +93,8 @@ const ReceptionDashboard = () => {
         setIsLoading(true);
         try {
             const [dashRes, optRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/reception/dashboard.php?branch_id=${user?.branch_id}`),
-                fetch(`${API_BASE_URL}/reception/form_options.php?branch_id=${user?.branch_id}&appointment_date=${appointmentDate}`)
+                fetch(`${API_BASE_URL}/reception/dashboard?branch_id=${user?.branch_id}`),
+                fetch(`${API_BASE_URL}/reception/form_options?branch_id=${user?.branch_id}&appointment_date=${appointmentDate}`)
             ]);
             const dashData = await dashRes.json();
             const optData = await optRes.json();
@@ -124,7 +124,7 @@ const ReceptionDashboard = () => {
         setAppointmentDate(newDate);
         if (user?.branch_id) {
             try {
-                const optRes = await fetch(`${API_BASE_URL}/reception/form_options.php?branch_id=${user.branch_id}&appointment_date=${newDate}`);
+                const optRes = await fetch(`${API_BASE_URL}/reception/form_options?branch_id=${user.branch_id}&appointment_date=${newDate}`);
                 const optData = await optRes.json();
                 if (optData.status === 'success' && formOptions) {
                     setFormOptions({ ...formOptions, timeSlots: optData.data.timeSlots });
@@ -221,7 +221,7 @@ const ReceptionDashboard = () => {
             };
 
             if (activeModal === 'registration') {
-                endpoint = `${API_BASE_URL}/reception/registration_submit.php`;
+                endpoint = `${API_BASE_URL}/reception/registration_submit`;
                 payload = {
                     ...payload,
                     patient_name: formObject.patient_name,
@@ -244,7 +244,7 @@ const ReceptionDashboard = () => {
                     patient_photo_data: photoData || ''
                 };
             } else if (activeModal === 'test') {
-                endpoint = `${API_BASE_URL}/reception/test_submit.php`;
+                endpoint = `${API_BASE_URL}/reception/test_submit`;
                 const testNames = Object.entries(selectedTests)
                     .filter(([, val]) => val.checked)
                     .map(([key]) => key);
@@ -278,7 +278,7 @@ const ReceptionDashboard = () => {
                     payment_method: formObject.payment_method
                 };
             } else if (activeModal === 'inquiry') {
-                endpoint = `${API_BASE_URL}/reception/inquiry_submit.php`;
+                endpoint = `${API_BASE_URL}/reception/inquiry_submit`;
                 payload = {
                     ...payload,
                     patient_name: formObject.patient_name,
@@ -294,7 +294,7 @@ const ReceptionDashboard = () => {
                     expected_date: formObject.expected_date || null
                 };
             } else if (activeModal === 'test_inquiry') {
-                endpoint = `${API_BASE_URL}/reception/test_inquiry_submit.php`;
+                endpoint = `${API_BASE_URL}/reception/test_inquiry_submit`;
                 payload = {
                     ...payload,
                     patient_name: formObject.patient_name,
@@ -316,7 +316,7 @@ const ReceptionDashboard = () => {
             if (result.success) {
                 setSubmitMessage({ type: 'success', text: result.message || 'Submitted successfully!' });
                 // Refresh dashboard data
-                const dashRes = await fetch(`${API_BASE_URL}/reception/dashboard.php?branch_id=${user.branch_id}`);
+                const dashRes = await fetch(`${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`);
                 const dashData = await dashRes.json();
                 if (dashData.status === 'success') setData(dashData.data);
                 // Close modal after brief delay

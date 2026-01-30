@@ -4,15 +4,16 @@
 
 // API Base URL
 // API Base URL
-export const API_BASE_URL = "https://prospine.in/admin/server/api";
-// export const API_BASE_URL = "http://localhost/admin/desktop/server/api";  
+// export const API_BASE_URL = "https://prospine.in/admin/server/api";
+export const API_BASE_URL = "http://localhost:3000/api";  
 
-// Example usage: `${API_BASE_URL}/reception/test_connection.php`
+// Example usage: `${API_BASE_URL}/reception/test_connection`
 
 /**
  * Get authentication headers for API requests
  * This function reads from localStorage to avoid circular imports with the store
  */
+
 function getAuthHeaders(): Record<string, string> {
   try {
     const stored = localStorage.getItem('auth-storage');
@@ -38,7 +39,7 @@ function getAuthHeaders(): Record<string, string> {
  * Automatically adds authentication headers to all API requests
  * 
  * Usage: Same as native fetch
- * authFetch('/reception/dashboard.php?branch_id=1')
+ * authFetch('/reception/dashboard?branch_id=1')
  * authFetch(url, { method: 'POST', body: JSON.stringify(data) })
  */
 export async function authFetch(

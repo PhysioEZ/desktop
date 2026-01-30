@@ -1,14 +1,14 @@
-# CareSyncOS
+# PhysioEZ
 
-**CareSyncOS** is a comprehensive clinic management system designed to streamline operations within healthcare facilities. It provides a centralized platform for managing patient records, appointments, employee workflows, and medical data. The desktop applications provided here act as a secure, native wrapper for the cloud-based CareSync platform, enhancing it with native features like permanent storage, camera access, and system notifications.
+**PhysioEZ** is a comprehensive clinic management system designed to streamline operations within healthcare facilities. It provides a centralized platform for managing patient records, appointments, employee workflows, and medical data. The desktop applications provided here act as a secure, native wrapper for the cloud-based PhysioEZ platform, enhancing it with native features like permanent storage, camera access, and system notifications.
 
 ## Desktop Applications
 
-This directory contains the native desktop installers for CareSyncOS:
+This directory contains the native desktop installers for PhysioEZ:
 
-- **Windows**: `CareSyncOS_Windows_x64.exe`
-- **Linux (Debian/Ubuntu)**: `CareSyncOS_Linux_x64.deb`
-- **Linux (RedHat/Fedora)**: `CareSyncOS_Linux_x64.rpm`
+- **Windows**: `PhysioEZ_Windows_x64.exe`
+- **Linux (Debian/Ubuntu)**: `PhysioEZ_Linux_x64.deb`
+- **Linux (RedHat/Fedora)**: `PhysioEZ_Linux_x64.rpm`
 
 ### Features
 
@@ -21,11 +21,11 @@ This directory contains the native desktop installers for CareSyncOS:
 
 ## System Overview
 
-CareSyncOS separates functionality for various personnel (admin, doctors, reception, and assistants), ensuring secure, role-based access.
+PhysioEZ separates functionality for various personnel (admin, doctors, reception, and assistants), ensuring secure, role-based access.
 
 ### 1. System Purpose
 
-CareSyncOS centralizes:
+PhysioEZ centralizes:
 
 - Role-based access and routing
 - Module separation (admin, doctor, reception, etc.)

@@ -27,12 +27,14 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 
 // --- Types ---
+// --- Types ---
 interface Appointment {
     registration_id: string;
     patient_name: string;
     appointment_date: string; // YYYY-MM-DD
     appointment_time: string; // HH:MM:SS
     status: string;
+    approval_status?: string; // Added field
     patient_uid: string | null;
 }
 
@@ -74,7 +76,11 @@ const DraggableAppointment = ({ appointment, onClick }: { appointment: Appointme
         zIndex: isDragging ? 1000 : 1
     };
 
+    const isApprovalPending = appointment.approval_status === 'pending';
+
     const getStatusColors = (status: string) => {
+        if (isApprovalPending) return 'bg-[#fff8e1] dark:bg-[#3e2723] text-[#ff6f00] dark:text-[#ffca28] border-yellow-400 border-dashed';
+        
         const s = status.toLowerCase();
         if (s === 'consulted' || s === 'completed') return 'bg-[#ccebc4] text-[#0c200e] border-[#ccebc4]';
         if (s === 'pending') return 'bg-[#ffdad6] text-[#410002] border-[#ffdad6]';
@@ -104,8 +110,17 @@ const DraggableAppointment = ({ appointment, onClick }: { appointment: Appointme
             </div>
             {/* Status Pill */}
              <div className="flex items-center gap-1 mt-1">
-                 <div className={`w-2 h-2 rounded-full ${appointment.status === 'completed' ? 'bg-green-500' : appointment.status === 'pending' ? 'bg-red-500' : 'bg-blue-500'}`}></div>
-                 <span className="text-[10px] font-medium opacity-60 uppercase text-[#1a1c1e] dark:text-[#e3e2e6]">{appointment.status}</span>
+                 {isApprovalPending ? (
+                    <>
+                        <AlertCircle size={10} className="text-yellow-600 dark:text-yellow-400" />
+                        <span className="text-[10px] font-bold uppercase text-yellow-700 dark:text-yellow-400">Approval Pending</span>
+                    </>
+                 ) : (
+                    <>
+                        <div className={`w-2 h-2 rounded-full ${appointment.status === 'completed' ? 'bg-green-500' : appointment.status === 'pending' ? 'bg-red-500' : 'bg-blue-500'}`}></div>
+                        <span className="text-[10px] font-medium opacity-60 uppercase text-[#1a1c1e] dark:text-[#e3e2e6]">{appointment.status}</span>
+                    </>
+                 )}
              </div>
         </div>
     );
@@ -196,7 +211,7 @@ const Schedule = () => {
         if (!user?.branch_id) return;
         setIsLoading(true);
         try {
-            const res = await authFetch(`${API_BASE_URL}/reception/schedule.php?action=fetch&week_start=${weekStartStr}&branch_id=${user.branch_id}&employee_id=${user.employee_id}`);
+            const res = await authFetch(`${API_BASE_URL}/reception/schedule?week_start=${weekStartStr}&branch_id=${user.branch_id}&employee_id=${user.employee_id}`);
             const data = await res.json();
             if (data.success) setAppointments(data.appointments);
         } catch (e) { showToast('Failed to load schedule', 'error'); } 
@@ -209,7 +224,7 @@ const Schedule = () => {
     useEffect(() => {
         const fetchNotifs = async () => {
             try {
-                const res = await authFetch(`${API_BASE_URL}/reception/notifications.php?employee_id=${user?.employee_id || ''}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ''}`);
                 const data = await res.json();
                 if (data.success || data.status === 'success') { setNotifications(data.notifications || []); setUnreadCount(data.unread_count || 0); }
             } catch (err) { console.error(err); }
@@ -223,7 +238,7 @@ const Schedule = () => {
         if (!user?.branch_id || searchQuery.length < 2) { setSearchResults([]); return; }
         debounceRef.current = setTimeout(async () => {
             try {
-                const res = await authFetch(`${API_BASE_URL}/reception/search_patients.php?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/search_patients?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`);
                 const data = await res.json();
                 if (data.success) { setSearchResults(data.patients || []); }
             } catch (err) { console.error(err); }
@@ -246,8 +261,7 @@ const Schedule = () => {
         { keys: ['Alt', '2'], description: 'Schedule', group: 'Navigation', action: () => navigate('/reception/schedule') },
         { keys: ['Alt', '3'], description: 'Inquiry', group: 'Navigation', action: () => navigate('/reception/inquiry') },
         { keys: ['Alt', '4'], description: 'Registration', group: 'Navigation', action: () => navigate('/reception/registration') },
-        { keys: ['Alt', '5'], description: 'Book Test', group: 'Navigation', action: () => navigate('/reception/tests') }, // Mapped to Tests page
-        { keys: ['Alt', '6'], description: 'Patients', group: 'Navigation', action: () => navigate('/reception/patients') },
+        { keys: ['Alt', '5'], description: 'Patients', group: 'Navigation', action: () => navigate('/reception/patients') },
 
         // Schedule Controls
 
@@ -290,7 +304,7 @@ const Schedule = () => {
         
         setIsUpdating(true);
         try {
-            const res = await authFetch(`${API_BASE_URL}/reception/schedule.php?action=reschedule`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/schedule/reschedule`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ registration_id: appointment.registration_id, new_date: newDate, new_time: newTime, branch_id: user?.branch_id, employee_id: user?.employee_id })
             });
@@ -531,7 +545,7 @@ const RescheduleModal = ({ appointment, onClose, onSuccess, showToast }: any) =>
             if (!user?.branch_id) return;
             setIsLoadingSlots(true);
             try {
-                const res = await authFetch(`${API_BASE_URL}/reception/schedule.php?action=slots&date=${selectedDate}&branch_id=${user.branch_id}`);
+                const res = await authFetch(`${API_BASE_URL}/reception/schedule/slots?date=${selectedDate}&branch_id=${user.branch_id}`);
                 const data = await res.json();
                 if (data.success) setSlots(data.slots);
             } catch (e) { console.error(e); } 
@@ -543,7 +557,7 @@ const RescheduleModal = ({ appointment, onClose, onSuccess, showToast }: any) =>
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            const res = await authFetch(`${API_BASE_URL}/reception/schedule.php?action=reschedule`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/schedule/reschedule`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ registration_id: appointment.registration_id, new_date: selectedDate, new_time: selectedSlot, branch_id: user?.branch_id, employee_id: user?.employee_id })
             });

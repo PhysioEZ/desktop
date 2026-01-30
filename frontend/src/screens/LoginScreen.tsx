@@ -1,7 +1,19 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL } from '../config'; 
 import { useAuthStore } from '../store/useAuthStore';
+import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  Lock, 
+  User, 
+  Eye, 
+  EyeOff, 
+  AlertCircle, 
+  ShieldCheck, 
+  KeyRound,
+  ArrowRight,
+  Info
+} from 'lucide-react';
 
 const LoginScreen = () => {
   const navigate = useNavigate();
@@ -12,6 +24,7 @@ const LoginScreen = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showForgotPopup, setShowForgotPopup] = useState(false);
+  const [isFocused, setIsFocused] = useState<string | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,7 +32,7 @@ const LoginScreen = () => {
     setError(null);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login.php`, {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -36,7 +49,6 @@ const LoginScreen = () => {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Success!
       login({
         id: data.data.user.employee_id,
         name: data.data.user.full_name,
@@ -59,186 +71,192 @@ const LoginScreen = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-white overflow-hidden font-sans relative">
+    <div className="min-h-screen flex flex-col bg-[#fef7ff] dark:bg-[#141218] overflow-hidden font-sans relative">
       
-      {/* Background Ambience (Subtle Aurora) */}
+      {/* MD3 Ambient Background */}
       <div className="absolute inset-0 pointer-events-none z-0">
-          <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-teal-50/80 rounded-full blur-[80px]" />
-          <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-indigo-50/80 rounded-full blur-[80px]" />
+          <div className="absolute top-[-15%] right-[-5%] w-[600px] h-[600px] bg-[#006a6a]/10 rounded-full blur-[100px]" />
+          <div className="absolute bottom-[-15%] left-[-5%] w-[600px] h-[600px] bg-[#6750a4]/10 rounded-full blur-[100px]" />
       </div>
 
-      <div className="relative z-10 flex-1 flex flex-col">
-        {/* Header Section */}
-        <div className="flex-none pt-20 pb-10 flex flex-col items-center text-center px-6">
-          {/* Animated Brand Symbol (Smaller version) */}
-          <div className="mb-8 relative w-16 h-16 flex items-center justify-center">
-             <div className="absolute inset-0 bg-teal-400/20 rounded-full blur-xl animate-pulse" />
-             <div className="relative grid grid-cols-2 gap-1.5 transform rotate-45">
-                <div className="w-4 h-4 rounded-full bg-gradient-to-tr from-teal-500 to-emerald-400"></div>
-                <div className="w-4 h-4 rounded-full bg-slate-200 border border-slate-300"></div>
-                <div className="w-4 h-4 rounded-full bg-slate-200 border border-slate-300"></div>
-                <div className="w-4 h-4 rounded-full bg-gradient-to-bl from-teal-600 to-cyan-500"></div>
-             </div>
-          </div>
-
-          <h1 className="text-4xl font-bold tracking-tight text-slate-800 drop-shadow-sm">
-            Physio<span className="font-light text-teal-600">EZ</span>
-          </h1>
-          <p className="text-sm text-slate-500 mt-3 font-medium tracking-wide uppercase">
-            Next Gen Medical System
-          </p>
-        </div>
-
-        {/* Login Form */}
-        <div className="flex-1 px-8 md:px-12 w-full max-w-md mx-auto">
-          <form onSubmit={handleLogin} className="space-y-6">
-            
-            {/* Email Input */}
-            <div className="relative group">
-              <input
-                type="text"
-                id="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="peer w-full px-4 py-3.5 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 placeholder-transparent bg-white/50 backdrop-blur-sm transition-all shadow-sm"
-                placeholder="Email or Username"
-              />
-              <label
-                htmlFor="email"
-                className="absolute left-3.5 -top-2.5 bg-white/80 px-1.5 text-xs text-teal-600 font-medium rounded-full transition-all 
-                           peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-3.5 peer-placeholder-shown:left-4 peer-placeholder-shown:bg-transparent
-                           peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-teal-600 peer-focus:bg-white/90"
-              >
-                Email or Username
-              </label>
-            </div>
-
-            {/* Password Input */}
-            <div className="relative group">
-              <input
-                type={showPassword ? "text" : "password"}
-                id="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="peer w-full px-4 py-3.5 pr-12 border border-gray-200 rounded-xl text-gray-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 placeholder-transparent bg-white/50 backdrop-blur-sm transition-all shadow-sm"
-                placeholder="Password"
-              />
-              <label
-                htmlFor="password"
-                className="absolute left-3.5 -top-2.5 bg-white/80 px-1.5 text-xs text-teal-600 font-medium rounded-full transition-all 
-                           peer-placeholder-shown:text-base peer-placeholder-shown:text-gray-400 peer-placeholder-shown:top-3.5 peer-placeholder-shown:left-4 peer-placeholder-shown:bg-transparent
-                           peer-focus:-top-2.5 peer-focus:text-xs peer-focus:text-teal-600 peer-focus:bg-white/90"
-              >
-                Password
-              </label>
-              
-              {/* Toggle Password Visibility */}
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-3.5 text-gray-400 hover:text-teal-600 focus:outline-none transition-colors"
-                tabIndex={-1}
-              >
-                {showPassword ? (
-                   // Eye Off Icon
-                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                   </svg>
-                ) : (
-                   // Eye Icon
-                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                   </svg>
-                )}
-              </button>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="p-4 bg-red-50/80 backdrop-blur-sm border border-red-100 text-red-600 text-sm rounded-xl flex items-center gap-3 animate-fadeIn shadow-sm">
-                <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-                {error}
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex items-center justify-end text-sm">
-              <button 
-                type="button" 
-                onClick={() => setShowForgotPopup(true)} 
-                className="font-medium text-teal-600 hover:text-teal-800 transition-colors"
-              >
-                Forgot password?
-              </button>
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full flex justify-center py-3.5 px-4 border border-transparent rounded-xl shadow-lg shadow-teal-500/30 text-sm font-bold text-white bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-[0.98]"
-            >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                'Sign In'
-              )}
-            </button>
-          </form>
-        </div>
-
-        {/* Footer */}
-        <div className="flex-none pb-8 text-center space-y-4 px-6 relative z-10">
-          
-          <div className="flex flex-col items-center space-y-1">
-             <span className="px-3 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-mono text-slate-400 tracking-wider">
-               v0.1.0
-             </span>
-             
-             <p className="text-sm font-medium tracking-wide">
-               <span className="text-slate-400">Created by </span>
-               <span className="bg-gradient-to-r from-teal-600 via-emerald-600 to-indigo-600 bg-clip-text text-transparent font-bold">
-                 Sumit Srivastava
-               </span>
-             </p>
-          </div>
-
-          <p className="text-xs text-slate-300">
-             &copy; 2026 PhysioEZ. All rights reserved.
-          </p>
-        </div>
-
-      </div>
-
-      {/* Forgot Password Popup */}
-      {showForgotPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center transform transition-all scale-100">
-            <div className="w-12 h-12 rounded-full bg-teal-100 text-teal-600 flex items-center justify-center mx-auto mb-4">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-              </svg>
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-6">
+        
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+          className="w-full max-w-md"
+        >
+          {/* Brand Identity / Header */}
+          <div className="text-center mb-10">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-[24px] bg-[#006a6a] text-white shadow-xl shadow-[#006a6a]/20 mb-6 group transition-transform hover:scale-105 duration-300">
+               <ShieldCheck size={40} className="group-hover:rotate-12 transition-transform" />
             </div>
             
-            <h3 className="text-lg font-bold text-gray-900 mb-2">Reset Password</h3>
-            <p className="text-gray-500 text-sm mb-6">
-              Password reset is not available directly. Please contact your system administrator to request a new password.
+            <h1 className="text-4xl font-bold tracking-tight text-[#1c1b1f] dark:text-[#e6e1e5]">
+              Physio<span className="text-[#006a6a]">EZ</span>
+            </h1>
+            <p className="text-sm text-[#49454f] dark:text-[#cac4d0] mt-2 font-medium tracking-wide uppercase">
+              Next Gen Medical Console
             </p>
-
-            <button
-              onClick={() => setShowForgotPopup(false)}
-              className="w-full py-2.5 px-4 bg-teal-600 text-white rounded-xl font-medium hover:bg-teal-700 transition-colors"
-            >
-              Got it
-            </button>
           </div>
-        </div>
-      )}
+
+          {/* Login Container (MD3 Card) */}
+          <div className="bg-white dark:bg-[#1d1b20] p-8 md:p-10 rounded-[28px] shadow-[0_4px_30px_rgba(0,0,0,0.05)] border border-[#eaddff] dark:border-[#49454f]">
+            <h2 className="text-2xl font-semibold text-[#1c1b1f] dark:text-[#e6e1e5] mb-8">Sign In</h2>
+            
+            <form onSubmit={handleLogin} className="space-y-6">
+              
+              {/* Email / Username Field */}
+              <div className="relative group">
+                <div className={`absolute -top-2.5 left-3 px-1.5 text-[11px] font-bold uppercase tracking-wider bg-white dark:bg-[#1d1b20] transition-colors z-10 ${isFocused === 'email' || email ? 'text-[#006a6a]' : 'text-[#49454f] dark:text-[#cac4d0]'}`}>
+                  Username or Email
+                </div>
+                <div className={`relative flex items-center border-2 rounded-2xl transition-all ${isFocused === 'email' ? 'border-[#006a6a] ring-4 ring-[#006a6a]/5' : 'border-[#cac4d0] dark:border-[#49454f] hover:border-[#1c1b1f] dark:hover:border-[#e6e1e5]'}`}>
+                  <User size={18} className={`absolute left-4 transition-colors ${isFocused === 'email' ? 'text-[#006a6a]' : 'text-[#49454f] dark:text-[#cac4d0]'}`} />
+                  <input
+                    type="text"
+                    required
+                    value={email}
+                    onFocus={() => setIsFocused('email')}
+                    onBlur={() => setIsFocused(null)}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full bg-transparent pl-12 pr-4 py-4 text-sm font-medium outline-none text-[#1c1b1f] dark:text-[#e6e1e5] placeholder-transparent"
+                    placeholder="Username"
+                  />
+                </div>
+              </div>
+
+              {/* Password Field */}
+              <div className="relative group">
+                <div className={`absolute -top-2.5 left-3 px-1.5 text-[11px] font-bold uppercase tracking-wider bg-white dark:bg-[#1d1b20] transition-colors z-10 ${isFocused === 'password' || password ? 'text-[#006a6a]' : 'text-[#49454f] dark:text-[#cac4d0]'}`}>
+                  Password
+                </div>
+                <div className={`relative flex items-center border-2 rounded-2xl transition-all ${isFocused === 'password' ? 'border-[#006a6a] ring-4 ring-[#006a6a]/5' : 'border-[#cac4d0] dark:border-[#49454f] hover:border-[#1c1b1f] dark:hover:border-[#e6e1e5]'}`}>
+                  <Lock size={18} className={`absolute left-4 transition-colors ${isFocused === 'password' ? 'text-[#006a6a]' : 'text-[#49454f] dark:text-[#cac4d0]'}`} />
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onFocus={() => setIsFocused('password')}
+                    onBlur={() => setIsFocused(null)}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full bg-transparent pl-12 pr-12 py-4 text-sm font-medium outline-none text-[#1c1b1f] dark:text-[#e6e1e5] placeholder-transparent"
+                    placeholder="Password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-4 text-[#49454f] hover:text-[#006a6a] transition-colors p-1 rounded-full hover:bg-[#006a6a]/5"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Error Message */}
+              <AnimatePresence>
+                {error && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="p-3 bg-[#ffdad6] dark:bg-[#93000a]/20 text-[#ba1a1a] dark:text-[#ffb4ab] text-xs font-bold rounded-xl flex items-center gap-3 border border-[#ffdad6] dark:border-[#93000a]/30">
+                      <AlertCircle size={16} className="shrink-0" />
+                      {error}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Actions */}
+              <div className="flex items-center justify-end">
+                <button 
+                  type="button" 
+                  onClick={() => setShowForgotPopup(true)} 
+                  className="text-xs font-bold text-[#006a6a] hover:underline underline-offset-4 tracking-wide uppercase"
+                >
+                  Forgot password?
+                </button>
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full relative group h-14 bg-[#006a6a] disabled:bg-[#1c1b1f]/12 disabled:text-[#1c1b1f]/38 rounded-full shadow-lg hover:shadow-xl hover:shadow-[#006a6a]/20 transition-all active:scale-[0.98] overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-white/0 group-hover:bg-white/10 transition-colors" />
+                <div className="flex items-center justify-center gap-3 text-white font-bold tracking-wide uppercase text-sm">
+                  {isLoading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <span>Enter Workspace</span>
+                      <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                    </>
+                  )}
+                </div>
+              </button>
+            </form>
+          </div>
+        </motion.div>
+
+        {/* Footer Info */}
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="mt-12 text-center space-y-4"
+        >
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#eaddff]/20 border border-[#eaddff]/30 text-[10px] font-bold text-[#49454f] dark:text-[#cac4d0] uppercase tracking-widest">
+            <Info size={12} /> Console Version 0.5.0
+          </div>
+          <p className="text-xs text-[#49454f] dark:text-[#cac4d0] font-medium opacity-60">
+            &copy; 2026 PhysioEZ Medical Inc. All rights reserved.
+          </p>
+        </motion.div>
+      </div>
+
+      {/* Forgot Password Popup (MD3 Dialog) */}
+      <AnimatePresence>
+        {showForgotPopup && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowForgotPopup(false)}
+              className="absolute inset-0 bg-[#1c1b1f]/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative bg-[#fef7ff] dark:bg-[#1d1b20] rounded-[28px] shadow-2xl max-w-sm w-full p-8 text-center border border-[#eaddff] dark:border-[#49454f]"
+            >
+              <div className="w-16 h-16 rounded-2xl bg-[#006a6a]/10 text-[#006a6a] flex items-center justify-center mx-auto mb-6">
+                <KeyRound size={32} />
+              </div>
+              
+              <h3 className="text-xl font-bold text-[#1c1b1f] dark:text-[#e6e1e5] mb-2 leading-tight">Access Recovery</h3>
+              <p className="text-[#49454f] dark:text-[#cac4d0] text-sm mb-8 leading-relaxed">
+                Direct password recovery is disabled for security. Please contact your <span className="font-bold text-[#006a6a]">System Administrator</span> to reset credentials.
+              </p>
+
+              <button
+                onClick={() => setShowForgotPopup(false)}
+                className="w-full py-3.5 px-6 bg-[#006a6a] text-white rounded-full font-bold text-sm uppercase tracking-widest shadow-lg hover:shadow-xl transition-all"
+              >
+                Acknowledge
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

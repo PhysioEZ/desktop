@@ -49,7 +49,7 @@ const AddTestModal = ({ isOpen, onClose, patient, onSuccess }: AddTestModalProps
                 due_amount: dueAmount
             };
 
-            const res = await authFetch(`${API_BASE_URL}/reception/add_test_for_patient.php`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/add_test_for_patient`, {
                 method: 'POST',
                 body: JSON.stringify(payload),
             });

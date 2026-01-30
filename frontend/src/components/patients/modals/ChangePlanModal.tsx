@@ -115,7 +115,7 @@ const discountVal = parseFloat(discount) || 0;
                 reason_for_change: reason
             };
 
-            const res = await authFetch(`${API_BASE_URL}/reception/change_treatment_plan.php`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/change_treatment_plan`, {
                 method: 'POST',
                 body: JSON.stringify(payload),
             });

@@ -59,7 +59,7 @@ const ReceptionLayout: React.FC<ReceptionLayoutProps> = ({ children, pageSpecifi
         const timer = setTimeout(async () => {
             if (globalSearchQuery.trim().length >= 2) {
                 try {
-                    const res = await authFetch(`${API_BASE_URL}/reception/search_patients.php?q=${globalSearchQuery}&branch_id=${user?.branch_id}`);
+                    const res = await authFetch(`${API_BASE_URL}/reception/search_patients?q=${globalSearchQuery}&branch_id=${user?.branch_id}`);
                     const data = await res.json();
                     if (data.success) {
                         setGlobalSearchResults(data.patients);
@@ -78,14 +78,13 @@ const ReceptionLayout: React.FC<ReceptionLayoutProps> = ({ children, pageSpecifi
         { keys: ['Alt', '2'], description: 'Schedule', group: 'Navigation', action: () => navigate('/reception/schedule') },
         { keys: ['Alt', '3'], description: 'Inquiry', group: 'Navigation', action: () => navigate('/reception/inquiry') },
         { keys: ['Alt', '4'], description: 'Registration', group: 'Navigation', action: () => navigate('/reception/registration') },
-        { keys: ['Alt', '6'], description: 'Patients', group: 'Navigation', action: () => navigate('/reception/patients') },
+        { keys: ['Alt', '5'], description: 'Patients', group: 'Navigation', action: () => navigate('/reception/patients') },
         { keys: ['Alt', 'S'], description: 'Global Search', group: 'General', action: () => setShowGlobalSearch(true) },
         { keys: ['Alt', '/'], description: 'Shortcuts', group: 'General', action: () => setShowShortcuts(prev => !prev) },
         { keys: ['Alt', 'L'], description: 'Logout', group: 'Actions', action: () => setShowLogoutConfirm(true) },
         { keys: ['Alt', 'W'], description: 'Toggle Theme', group: 'Actions', action: toggleTheme },
         { keys: ['Alt', 'N'], description: 'Notifications', group: 'Modals', action: () => setShowNotifPopup(prev => !prev) },
         { keys: ['Alt', 'P'], description: 'Profile', group: 'Modals', action: () => setShowProfilePopup(prev => !prev) },
-        { keys: ['Alt', 'C'], description: 'Toggle Chat', group: 'Modals', action: () => setShowChatModal(prev => !prev) },
     ];
 
     const allShortcuts = [...pageSpecificShortcuts, ...globalShortcuts];

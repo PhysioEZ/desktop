@@ -103,7 +103,7 @@ const EditPlanModal = ({ isOpen, onClose, patient, onSuccess }: EditPlanModalPro
                 edit_remarks: formData.remarks
             };
 
-            const res = await authFetch(`${API_BASE_URL}/reception/edit_treatment_plan.php`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/edit_treatment_plan`, {
                 method: 'POST',
                 body: JSON.stringify(payload),
             });

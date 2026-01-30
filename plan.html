@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <title>&#x1f5fa;&#xfe0f; Patient Management Migration Plan &lpar;Node&period;js&rpar;</title>
+            <style>
+/* From extension vscode.github */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.vscode-dark img[src$=\#gh-light-mode-only],
+.vscode-light img[src$=\#gh-dark-mode-only],
+.vscode-high-contrast:not(.vscode-high-contrast-light) img[src$=\#gh-light-mode-only],
+.vscode-high-contrast-light img[src$=\#gh-dark-mode-only] {
+	display: none;
+}
+
+</style>
+            
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/markdown.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/Microsoft/vscode/extensions/markdown-language-features/media/highlight.css">
+<style>
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+                font-size: 14px;
+                line-height: 1.6;
+            }
+        </style>
+        <style>
+.task-list-item {
+    list-style-type: none;
+}
+
+.task-list-item-checkbox {
+    margin-left: -20px;
+    vertical-align: middle;
+    pointer-events: none;
+}
+</style>
+<style>
+:root {
+  --color-note: #0969da;
+  --color-tip: #1a7f37;
+  --color-warning: #9a6700;
+  --color-severe: #bc4c00;
+  --color-caution: #d1242f;
+  --color-important: #8250df;
+}
+
+</style>
+<style>
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-note: #2f81f7;
+    --color-tip: #3fb950;
+    --color-warning: #d29922;
+    --color-severe: #db6d28;
+    --color-caution: #f85149;
+    --color-important: #a371f7;
+  }
+}
+
+</style>
+<style>
+.markdown-alert {
+  padding: 0.5rem 1rem;
+  margin-bottom: 16px;
+  color: inherit;
+  border-left: .25em solid #888;
+}
+
+.markdown-alert>:first-child {
+  margin-top: 0
+}
+
+.markdown-alert>:last-child {
+  margin-bottom: 0
+}
+
+.markdown-alert .markdown-alert-title {
+  display: flex;
+  font-weight: 500;
+  align-items: center;
+  line-height: 1
+}
+
+.markdown-alert .markdown-alert-title .octicon {
+  margin-right: 0.5rem;
+  display: inline-block;
+  overflow: visible !important;
+  vertical-align: text-bottom;
+  fill: currentColor;
+}
+
+.markdown-alert.markdown-alert-note {
+  border-left-color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-note .markdown-alert-title {
+  color: var(--color-note);
+}
+
+.markdown-alert.markdown-alert-important {
+  border-left-color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-important .markdown-alert-title {
+  color: var(--color-important);
+}
+
+.markdown-alert.markdown-alert-warning {
+  border-left-color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-warning .markdown-alert-title {
+  color: var(--color-warning);
+}
+
+.markdown-alert.markdown-alert-tip {
+  border-left-color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-tip .markdown-alert-title {
+  color: var(--color-tip);
+}
+
+.markdown-alert.markdown-alert-caution {
+  border-left-color: var(--color-caution);
+}
+
+.markdown-alert.markdown-alert-caution .markdown-alert-title {
+  color: var(--color-caution);
+}
+
+</style>
+        
+        </head>
+        <body class="vscode-body vscode-light">
+            <h1 id="️-patient-management-migration-plan-nodejs">🗺️ Patient Management Migration Plan (Node.js)</h1>
+<p>This document outlines the step-by-step refactoring of the Patient Management system to ensure it is dynamic, modular, and high-performance.</p>
+<hr>
+<h2 id="️-phase-1-modular-backend-architecture">🏗️ Phase 1: Modular Backend Architecture</h2>
+<p>We will break down the monolithic <code>patients.js</code> into specialized, single-responsibility controllers.</p>
+<h3 id="11-core-patients-api-patientsjs">1.1 Core Patients API (<code>patients.js</code>)</h3>
+<ul>
+<li><strong>Responsibility</strong>: Fetching list, filtering, search, and pagination.</li>
+<li><strong>Goal</strong>: Zero database updates during GET requests. No side-effects.</li>
+<li><strong>Optimization</strong>: Use an optimized SQL query to fetch &quot;Effective Balance&quot; in a single pass (avoiding the current loop-based N+1 query issue).</li>
+</ul>
+<h3 id="12-treatment-plan-api-treatmentplansjs---new">1.2 Treatment Plan API (<code>treatmentPlans.js</code>) - <strong>New</strong></h3>
+<ul>
+<li><strong>Responsibility</strong>: Dynamic plan allocation and migration.</li>
+<li><strong>No Hardcoding</strong>: Will fetch available pricing/track data from <code>service_tracks</code>.</li>
+<li><strong>Archive Logic</strong>: Handle the &quot;Closing&quot; of old plans and starting new ones with carried-over credit.</li>
+</ul>
+<h3 id="13-attendance-api-attendancejs">1.3 Attendance API (<code>attendance.js</code>)</h3>
+<ul>
+<li><strong>Responsibility</strong>: Marking attendance, reverting sessions, and calculating progress.</li>
+<li><strong>Financial Validation</strong>: Ensure a session cannot be marked without sufficient balance or admin approval (migrating the complex PHP logic).</li>
+</ul>
+<h3 id="14-ledger--finance-api-financejs--paymentsjs">1.4 Ledger &amp; Finance API (<code>finance.js</code> / <code>payments.js</code>)</h3>
+<ul>
+<li><strong>Responsibility</strong>: Managing the &quot;Patient Wallet&quot;, recording payments, and due amounts.</li>
+</ul>
+<h3 id="15-token-api-tokensjs---new">1.5 Token API (<code>tokens.js</code>) - <strong>New</strong></h3>
+<ul>
+<li><strong>Responsibility</strong>: Generating daily sequence IDs and providing data for print modals.</li>
+</ul>
+<hr>
+<h2 id="-phase-2-dynamic-treatment-logic">🧬 Phase 2: Dynamic Treatment Logic</h2>
+<p>Removing &quot;Daily&quot;, &quot;Advance&quot;, and &quot;Package&quot; hardcodings.</p>
+<ol>
+<li><strong>Service Track Integration</strong>: When registration or plan change occurs, the UI will fetch tracks from the DB.</li>
+<li><strong>Pricing Engine</strong>: A centralized helper function in the backend to calculate <code>cost_per_session</code> or <code>total_package_cost</code> based on the JSON rules defined in <code>service_tracks.pricing</code>.</li>
+<li><strong>Dynamic Forms</strong>: Plan migration and edit modals will build their fields based on the selected service's requirements.</li>
+</ol>
+<hr>
+<h2 id="️-phase-3-enhanced-printing-system">🖨️ Phase 3: Enhanced Printing System</h2>
+<p>We will implement two distinct printing workflows:</p>
+<h3 id="31-thermal-printer-3-inch--80mm">3.1 Thermal Printer (3-inch / 80mm)</h3>
+<ul>
+<li><strong>Goal</strong>: High-speed, high-contrast, compact CSS.</li>
+<li><strong>Trigger</strong>: Direct print to 80mm paper.</li>
+<li><strong>Use Case</strong>: Quick daily visits, token collection.</li>
+</ul>
+<h3 id="32-standard-printer-a4--normal">3.2 Standard Printer (A4 / Normal)</h3>
+<ul>
+<li><strong>Goal</strong>: Professional formatted document with headers and footers.</li>
+<li><strong>Trigger</strong>: Generate PDF or stylized A4 print view.</li>
+<li><strong>Use Case</strong>: Full billing statements, treatment logs for patient records.</li>
+</ul>
+<hr>
+<h2 id="-phase-4-performance--cleanup">🚀 Phase 4: Performance &amp; Cleanup</h2>
+<ol>
+<li><strong>Worker Task</strong>: Move &quot;Auto-Deactivation&quot; (the 3-day inactivity check) from the page-load logic to a centralized background worker or a dedicated &quot;App Initialization&quot; trigger.</li>
+<li><strong>Snapshotting</strong>: Instead of recalculating a patient's entire lifetime history for every request, we will explore updating a cached <code>current_balance</code> column in the <code>patients</code> table during payment/attendance events.</li>
+</ol>
+<hr>
+<h2 id="️-step-by-step-execution-order">🛠️ Step-by-Step Execution Order</h2>
+<ol class="contains-task-list">
+<li class="task-list-item enabled"><input class="task-list-item-checkbox"type="checkbox"> <strong>Step 1</strong>: Create <code>treatmentPlans.js</code> and move the migration logic there.</li>
+<li class="task-list-item enabled"><input class="task-list-item-checkbox"type="checkbox"> <strong>Step 2</strong>: Create <code>tokens.js</code> and implement the sequence generator.</li>
+<li class="task-list-item enabled"><input class="task-list-item-checkbox"type="checkbox"> <strong>Step 3</strong>: Re-write the &quot;Effective Balance&quot; query to be a single, high-performance SQL statement.</li>
+<li class="task-list-item enabled"><input class="task-list-item-checkbox"type="checkbox"> <strong>Step 4</strong>: Update <code>attendance.js</code> with the financial validation &quot;Guardian&quot; logic.</li>
+<li class="task-list-item enabled"><input class="task-list-item-checkbox"type="checkbox"> <strong>Step 5</strong>: Frontend: Implement the dual printing modals in the Patients Dashboard.</li>
+<li class="task-list-item enabled"><input class="task-list-item-checkbox"type="checkbox"> <strong>Step 6</strong>: Final cleanup of <code>patients.php</code> references in the backend.</li>
+</ol>
+
+            
+            
+        </body>
+        </html>

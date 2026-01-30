@@ -17,6 +17,11 @@
   .dark .custom-scrollbar::-webkit-scrollbar-thumb {
     background-color: #475569;
   }
+
+  /* Radial gradient for ambient background orbs */
+  .bg-gradient-radial {
+    background-image: radial-gradient(circle, var(--tw-gradient-stops));
+  }
 }
 
 @layer base {

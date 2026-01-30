@@ -14,12 +14,11 @@ export const GLOBAL_SHORTCUTS: ShortcutItem[] = [
     { keys: ['Alt', '2'], description: 'Schedule', group: 'Navigation' },
     { keys: ['Alt', '3'], description: 'Inquiry List', group: 'Navigation' },
     { keys: ['Alt', '4'], description: 'Registration List', group: 'Navigation' },
-    { keys: ['Alt', '6'], description: 'Patients List', group: 'Navigation' },
+    { keys: ['Alt', '5'], description: 'Patients List', group: 'Navigation' },
 ];
 
 export const DASHBOARD_SHORTCUTS: ShortcutItem[] = [
     // Dashboard Specific Navigation
-    { keys: ['Alt', '5'], description: 'Cancelled List', group: 'Navigation' },
     
     // Modals & Features
     { keys: ['Alt', 'R'], description: 'New Registration', group: 'Dashboard' },

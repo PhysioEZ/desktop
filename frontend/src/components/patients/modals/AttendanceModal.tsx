@@ -64,7 +64,7 @@ const AttendanceModal = ({ isOpen, onClose, patient, onSuccess }: AttendanceModa
                 status: markAsDue ? 'pending' : 'present' // Explicitly set status
             };
 
-            const res = await authFetch(`${API_BASE_URL}/reception/add_attendance.php`, {
+            const res = await authFetch(`${API_BASE_URL}/reception/attendance`, {
                 method: 'POST',
                 body: JSON.stringify(payload),
             });

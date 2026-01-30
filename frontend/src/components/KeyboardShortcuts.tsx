@@ -34,8 +34,10 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({ shortcuts, isOpen
                 return;
             }
 
-            // Don't trigger shortcuts if typing in search, unless using modifiers (Alt/Ctrl/Meta)
-            if (document.activeElement === inputRef.current && !e.altKey && !e.ctrlKey && !e.metaKey) return;
+            // Don't trigger shortcuts if typing in ANY input, unless using modifiers (Alt/Ctrl/Meta)
+            const target = e.target as HTMLElement;
+            const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+            if (isInput && !e.altKey && !e.ctrlKey && !e.metaKey) return;
 
             for (const shortcut of shortcuts) {
                 if (shortcut.action) {
