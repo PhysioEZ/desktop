@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { X, Check, Loader2, Clock } from 'lucide-react';
 import { API_BASE_URL, authFetch } from '../../../config';
 import { type Patient, usePatientStore } from '../../../store/usePatientStore';
+import DatePicker from '../../ui/DatePicker';
+import { AnimatePresence } from 'framer-motion';
+import { Calendar } from 'lucide-react';
 
 interface EditPlanModalProps {
     isOpen: boolean;
@@ -23,6 +26,8 @@ const EditPlanModal = ({ isOpen, onClose, patient, onSuccess }: EditPlanModalPro
         remarks: ''
     });
     const [note, setNote] = useState('');
+    const [openStartPicker, setOpenStartPicker] = useState(false);
+    const [openEndPicker, setOpenEndPicker] = useState(false);
 
     useEffect(() => {
         if (isOpen && patient) {
@@ -32,7 +37,7 @@ const EditPlanModal = ({ isOpen, onClose, patient, onSuccess }: EditPlanModalPro
                 start_date: patient.start_date || '',
                 end_date: patient.end_date || '',
                 assigned_doctor: patient.assigned_doctor || '',
-                discount_percentage: patient.discount_percentage || '0',
+                discount_percentage: patient.discount_percentage?.toString() || '0',
                 remarks: ''
             });
             setNote('');
@@ -61,31 +66,22 @@ const EditPlanModal = ({ isOpen, onClose, patient, onSuccess }: EditPlanModalPro
         // Calculate Cost Note
         if (days > 0) {
             let newTotal = 0;
-            const type = patient.treatment_type?.toLowerCase();
             const costPerDay = parseFloat(patient.cost_per_day?.toString() || '0');
+            const discountPct = parseFloat(formData.discount_percentage) || 0;
 
-            if (type === 'package') {
-                newTotal = costPerDay * days; 
-            } else if (type === 'daily') {
-                newTotal = 600 * days; // Legacy logic? Or usage costPerDay? 
-                // Legacy JS line 1284 hardcoded 600 for 'daily' and 1000 for 'advance'.
-                // Ideally we should rely on costPerDay but legacy had hardcodes.
-                // Let's stick to costPerDay if available, else fallback logic.
-                // Actually legacy lines 1284/1287 hardcoded it.
-                // But `costPerDay` on patient object reflects "current rate".
-                // I'll filter logic:
-                if (costPerDay > 0) newTotal = costPerDay * days;
-                else newTotal = 600 * days; // Fallback
+            if (costPerDay > 0) {
+                const subtotal = costPerDay * days;
+                newTotal = subtotal * (1 - (discountPct / 100));
             } else {
-                 if (costPerDay > 0) newTotal = costPerDay * days;
+                newTotal = 600 * days * (1 - (discountPct / 100)); // Fallback
             }
 
-            setNote(`New total will be roughly ₹${newTotal.toLocaleString()} (${days} days)`);
+            setNote(`New total will be roughly ₹${Math.round(newTotal).toLocaleString()} (${days} days)`);
         } else {
             setNote('');
         }
 
-    }, [formData.treatment_days, formData.start_date, patient, isOpen]);
+    }, [formData.treatment_days, formData.start_date, formData.discount_percentage, patient, isOpen]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -134,8 +130,20 @@ const EditPlanModal = ({ isOpen, onClose, patient, onSuccess }: EditPlanModalPro
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
+                    <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-black/20 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Current Plan</p>
+                            <p className="text-sm font-black text-[#006e1c] dark:text-[#88d99d] uppercase">{patient?.treatment_type || 'Custom'}</p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Daily Rate</p>
+                            <p className="text-sm font-black text-slate-700 dark:text-slate-300">₹{parseFloat(patient?.cost_per_day?.toString() || '0').toLocaleString()}</p>
+                        </div>
+                    </div>
+
                     {note && (
-                        <div className="p-3 bg-[#ccebc4]/30 text-[#006e1c] dark:text-[#88d99d] rounded-xl text-sm font-medium border border-[#ccebc4] dark:border-[#0c3b10]">
+                        <div className="p-4 bg-[#ccebc4]/20 text-[#006e1c] dark:text-[#88d99d] rounded-2xl text-sm font-bold border border-[#ccebc4]/30 flex items-center gap-3">
+                            <div className="w-2 h-2 rounded-full bg-[#006e1c] animate-pulse" />
                             {note}
                         </div>
                     )}
@@ -167,21 +175,45 @@ const EditPlanModal = ({ isOpen, onClose, patient, onSuccess }: EditPlanModalPro
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <label className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5] uppercase tracking-wider ml-1">Start Date</label>
-                            <input
-                                type="date"
-                                value={formData.start_date}
-                                onChange={(e) => setFormData({...formData, start_date: e.target.value})}
-                                className="w-full px-4 py-3 bg-[#e0e2ec]/30 dark:bg-[#43474e]/30 border border-[#74777f] dark:border-[#8e918f] rounded-xl focus:ring-2 focus:ring-[#006e1c] outline-none transition-all text-[#1a1c1e] dark:text-[#e3e2e6]"
-                            />
+                            <div 
+                                onClick={() => setOpenStartPicker(true)}
+                                className="w-full px-4 py-3 bg-[#e0e2ec]/30 dark:bg-[#43474e]/30 border border-[#74777f] dark:border-[#8e918f] rounded-xl cursor-pointer flex items-center justify-between hover:border-[#006e1c] transition-all"
+                            >
+                                <span className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">
+                                    {formData.start_date ? new Date(formData.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Select Date'}
+                                </span>
+                                <Calendar size={16} className="text-[#43474e]" />
+                            </div>
+                            <AnimatePresence>
+                                {openStartPicker && (
+                                    <DatePicker 
+                                        value={formData.start_date} 
+                                        onChange={(date) => setFormData(prev => ({ ...prev, start_date: date }))} 
+                                        onClose={() => setOpenStartPicker(false)} 
+                                    />
+                                )}
+                            </AnimatePresence>
                         </div>
                         <div className="space-y-1">
                             <label className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5] uppercase tracking-wider ml-1">End Date</label>
-                            <input
-                                type="date"
-                                value={formData.end_date}
-                                onChange={(e) => setFormData({...formData, end_date: e.target.value})}
-                                className="w-full px-4 py-3 bg-[#e0e2ec]/30 dark:bg-[#43474e]/30 border border-[#74777f] dark:border-[#8e918f] rounded-xl focus:ring-2 focus:ring-[#006e1c] outline-none transition-all text-[#1a1c1e] dark:text-[#e3e2e6]"
-                            />
+                            <div 
+                                onClick={() => setOpenEndPicker(true)}
+                                className="w-full px-4 py-3 bg-[#e0e2ec]/30 dark:bg-[#43474e]/30 border border-[#74777f] dark:border-[#8e918f] rounded-xl cursor-pointer flex items-center justify-between hover:border-[#006e1c] transition-all"
+                            >
+                                <span className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">
+                                    {formData.end_date ? new Date(formData.end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Select Date'}
+                                </span>
+                                <Calendar size={16} className="text-[#43474e]" />
+                            </div>
+                            <AnimatePresence>
+                                {openEndPicker && (
+                                    <DatePicker 
+                                        value={formData.end_date} 
+                                        onChange={(date) => setFormData(prev => ({ ...prev, end_date: date }))} 
+                                        onClose={() => setOpenEndPicker(false)} 
+                                    />
+                                )}
+                            </AnimatePresence>
                         </div>
                     </div>
 

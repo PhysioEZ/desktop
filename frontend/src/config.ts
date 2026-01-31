@@ -6,6 +6,7 @@
 // API Base URL
 // export const API_BASE_URL = "https://prospine.in/admin/server/api";
 export const API_BASE_URL = "http://localhost:3000/api";  
+export const FILE_BASE_URL = "http://localhost:3000"; // Base for /uploads
 
 // Example usage: `${API_BASE_URL}/reception/test_connection`
 

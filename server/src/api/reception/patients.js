@@ -124,11 +124,33 @@ async function fetchFilters(req, res, branchId) {
         WHERE branch_id = ?
     `, [branchId]);
 
+    // Resolve treatment names for the filter dropdown
+    const [trackRows] = await pool.query("SELECT id, pricing FROM service_tracks");
+    const tracksMap = new Map();
+    trackRows.forEach(t => {
+        tracksMap.set(t.id, typeof t.pricing === 'string' ? JSON.parse(t.pricing) : t.pricing);
+    });
+
+    const resolvedTreatments = new Map(); // Use Map to avoid duplicates and keep value/label
+    for (let t of treatments[0]) {
+        let value = t.treatment_type;
+        let label = value;
+        // Search all tracks to find if this is a known plan ID
+        for (let pricing of tracksMap.values()) {
+            const plan = pricing.plans?.find(pl => String(pl.id) === String(value));
+            if (plan) {
+                label = plan.name;
+                break;
+            }
+        }
+        resolvedTreatments.set(value, label);
+    }
+
     res.json({
         status: "success",
         data: {
             doctors: doctors[0].map((d) => d.assigned_doctor),
-            treatments: treatments[0].map((t) => t.treatment_type),
+            treatments: Array.from(resolvedTreatments.entries()).map(([value, label]) => ({ label, value })),
             statuses: statuses[0].map((s) => s.status),
             services: services[0].map((s) => s.service_type),
             payment_methods: paymentMethods,
@@ -193,7 +215,7 @@ async function fetchPatients(req, res, branchId, input) {
     // Optimized Data Query
     const [patients] = await pool.query(`
         SELECT
-            p.patient_id, p.treatment_type, p.service_type, p.treatment_cost_per_day,
+            p.patient_id, p.treatment_type, p.service_type, p.service_track_id, p.treatment_cost_per_day,
             p.package_cost, p.treatment_days, p.total_amount, p.advance_payment,
             p.discount_amount, p.due_amount, p.assigned_doctor, p.start_date,
             pm.patient_uid, p.end_date, p.status AS patient_status,
@@ -237,11 +259,25 @@ async function fetchPatients(req, res, branchId, input) {
         LIMIT ? OFFSET ?
     `, [...params, limit, offset]);
 
-    // Calculate effective balance in JS for final touches
+    // Calculate effective balance and resolve plan names in JS
+    const [trackRows] = await pool.query("SELECT id, pricing FROM service_tracks");
+    const tracksMap = new Map();
+    trackRows.forEach(t => {
+        tracksMap.set(t.id, typeof t.pricing === 'string' ? JSON.parse(t.pricing) : t.pricing);
+    });
+
     patients.map(p => {
         const curConsumed = p.attendance_count * (parseFloat(p.cost_per_day) || 0);
         p.effective_balance = parseFloat(p.total_paid) - (parseFloat(p.total_history_consumed) + curConsumed);
         p.cost_per_day = parseFloat(p.cost_per_day);
+
+        // Resolve plan name
+        if (p.service_track_id && tracksMap.has(p.service_track_id)) {
+            const pricing = tracksMap.get(p.service_track_id);
+            const plan = pricing.plans?.find(pl => String(pl.id) === String(p.treatment_type));
+            if (plan) p.treatment_type = plan.name;
+        }
+
         return p;
     });
 
@@ -317,6 +353,16 @@ async function fetchDetails(req, res, patientId) {
     p.cost_per_day = curRate;
     p.due_amount = p.effective_balance < 0 ? Math.abs(p.effective_balance) : 0;
     p.total_consumed = totalConsumed;
+
+    // Resolve plan name for current plan
+    if (p.service_track_id) {
+        const [tRows] = await pool.query("SELECT pricing FROM service_tracks WHERE id = ?", [p.service_track_id]);
+        if (tRows.length > 0) {
+            const pricing = typeof tRows[0].pricing === 'string' ? JSON.parse(tRows[0].pricing) : tRows[0].pricing;
+            const plan = pricing.plans?.find(pl => String(pl.id) === String(p.treatment_type));
+            if (plan) p.treatment_type = plan.name;
+        }
+    }
 
     const [payments] = await pool.query(
         "SELECT payment_id, amount, payment_date, mode as payment_method, remarks, created_at FROM payments WHERE patient_id = ? ORDER BY payment_date DESC, created_at DESC",

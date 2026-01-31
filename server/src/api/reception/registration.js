@@ -149,8 +149,8 @@ exports.submitRegistration = async (req, res) => {
 
                         fs.writeFileSync(filePath, buffer);
 
-                        // Relative path for DB (matching PHP structure)
-                        const relativePath = 'admin/desktop/server/uploads/patient_photos/' + fileName;
+                        // Relative path for DB (matching public structure)
+                        const relativePath = 'uploads/patient_photos/' + fileName;
                         await connection.query("UPDATE registration SET patient_photo_path = ? WHERE registration_id = ?", [relativePath, newRegistrationId]);
                     }
                 }
@@ -195,7 +195,18 @@ exports.quickAddPatient = async (req, res) => {
         const registrationId = input.registrationId || null;
         const serviceTrackId = input.serviceTrackId || null;
         const serviceType = input.serviceType || 'physio';
-        const treatmentType = input.treatmentType || null;
+        let treatmentType = input.treatmentType || null;
+
+        // Resolve plan name if it's an ID
+        if (serviceTrackId && treatmentType) {
+            const [rows] = await connection.query("SELECT pricing FROM service_tracks WHERE id = ?", [serviceTrackId]);
+            if (rows.length > 0) {
+                const pricing = typeof rows[0].pricing === 'string' ? JSON.parse(rows[0].pricing) : rows[0].pricing;
+                const plan = pricing.plans?.find(pl => String(pl.id) === String(treatmentType));
+                if (plan) treatmentType = plan.name;
+            }
+        }
+
         const treatmentDays = parseInt(input.treatmentDays) || 0;
         const totalAmount = parseFloat(input.totalCost || 0);
         const advancePayment = parseFloat(input.advancePayment || 0);
@@ -273,9 +284,9 @@ exports.quickAddPatient = async (req, res) => {
         // Record Payment
         if (advancePayment > 0) {
             const [pResult] = await connection.query(`
-                INSERT INTO payments (patient_id, payment_date, amount, mode, remarks, processed_by_employee_id)
-                VALUES (?, ?, ?, ?, 'Initial advance payment', ?)
-            `, [newPatientId, startDate, advancePayment, paymentMethodString, employeeId]);
+                INSERT INTO payments (patient_id, branch_id, payment_date, amount, mode, remarks, processed_by_employee_id)
+                VALUES (?, ?, ?, ?, ?, 'Initial advance payment', ?)
+            `, [newPatientId, branchId, startDate, advancePayment, paymentMethodString, employeeId]);
             const newPaymentId = pResult.insertId;
 
             // Handle splits

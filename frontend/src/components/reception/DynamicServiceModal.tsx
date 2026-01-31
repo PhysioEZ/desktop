@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL, authFetch } from '../../config';
 import { format, addDays } from 'date-fns';
 import CustomSelect from '../ui/CustomSelect';
+import DatePicker from '../ui/DatePicker';
 
 interface FormField {
     id: string;
@@ -126,8 +127,8 @@ const DynamicServiceModal = ({ isOpen, onClose, registration, track, onSuccess }
     const [advance, setAdvance] = useState<string>('0');
     const [paymentSplits, setPaymentSplits] = useState<Record<string, number>>({});
     const [selectedSlot, setSelectedSlot] = useState<string>('');
-    const [formValues, setFormValues] = useState<Record<string, any>>({});
     const [authorizedBy, setAuthorizedBy] = useState<string>('');
+    const [openDatePicker, setOpenDatePicker] = useState(false);
 
     // UI & Options State
     const [isLoadingSlots, setIsLoadingSlots] = useState(false);
@@ -260,7 +261,7 @@ const DynamicServiceModal = ({ isOpen, onClose, registration, track, onSuccess }
             setError('Please select an available time slot');
             return;
         }
-        if (discount > 0 && track.permissions?.requireDiscountApproval && !authorizedBy) {
+        if (parseFloat(discount) > 0 && track.permissions?.requireDiscountApproval && !authorizedBy) {
             setError('Discount authorization required from a clinical lead');
             return;
         }
@@ -285,7 +286,7 @@ const DynamicServiceModal = ({ isOpen, onClose, registration, track, onSuccess }
                         paymentSplits: Object.entries(paymentSplits).map(([method, amount]) => ({ method, amount })),
                         treatment_time_slot: selectedSlot,
                         discount_approved_by_employee_id: authorizedBy,
-                        customFields: formValues,
+                        customFields: {},
                         isDynamic: true
                     })
             });
@@ -391,8 +392,38 @@ const DynamicServiceModal = ({ isOpen, onClose, registration, track, onSuccess }
                                     <div className="grid grid-cols-2 gap-4">
                                         <OutlinedInput label="Rate / Day" value={rate} onChange={(e:any) => setRate(e.target.value)} type="number" prefix="₹" themeColor={track.themeColor} />
                                         <OutlinedInput label="Total Days" value={days} onChange={(e:any) => setDays(e.target.value)} type="number" icon={Hash} themeColor={track.themeColor} />
-                                        <OutlinedInput label="Start From" value={startDate} onChange={(e:any) => setStartDate(e.target.value)} type="date" themeColor={track.themeColor} />
-                                        <OutlinedInput label="End Date" value={endDate} readOnly type="date" themeColor={track.themeColor} />
+                                        
+                                        <div className="relative group w-full">
+                                            <span className="absolute -top-2 left-3 px-1 text-[10px] font-bold uppercase tracking-wider bg-white dark:bg-[#141218] transition-colors z-10" style={{ color: track.themeColor }}>
+                                                Start From
+                                            </span>
+                                            <div 
+                                                onClick={() => setOpenDatePicker(true)}
+                                                className="relative flex items-center border rounded-xl transition-all border-[#79747e] dark:border-[#938f99] hover:ring-2 shadow-sm cursor-pointer px-4 py-3"
+                                            >
+                                                <Calendar size={16} className="absolute left-3.5 text-[#49454f] dark:text-[#cac4d0]" />
+                                                <span className="pl-6 text-sm font-medium text-[#1c1b1f] dark:text-[#e3e2e6]">{format(new Date(startDate), 'dd MMM yyyy')}</span>
+                                            </div>
+                                            <AnimatePresence>
+                                                {openDatePicker && (
+                                                    <DatePicker 
+                                                        value={startDate} 
+                                                        onChange={setStartDate} 
+                                                        onClose={() => setOpenDatePicker(false)} 
+                                                    />
+                                                )}
+                                            </AnimatePresence>
+                                        </div>
+
+                                        <div className="relative group w-full opacity-60">
+                                            <span className="absolute -top-2 left-3 px-1 text-[10px] font-bold uppercase tracking-wider bg-white dark:bg-[#141218] transition-colors z-10 text-[#49454f]">
+                                                End Date
+                                            </span>
+                                            <div className="relative flex items-center border rounded-xl bg-[#1c1b1f]/5 dark:bg-[#e6e1e5]/5 border-[#79747e]/30 px-4 py-3">
+                                                <Calendar size={16} className="absolute left-3.5 text-[#49454f]/60 dark:text-[#cac4d0]/60" />
+                                                <span className="pl-6 text-sm font-medium text-[#49454f]/60 dark:text-[#cac4d0]/60">{endDate ? format(new Date(endDate), 'dd MMM yyyy') : 'N/A'}</span>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     {track.scheduling?.enabled && (
@@ -408,7 +439,7 @@ const DynamicServiceModal = ({ isOpen, onClose, registration, track, onSuccess }
                                     )}
 
                                     {/* Payment Distribution */}
-                                    {advance > 0 && (
+                                    {parseFloat(advance) > 0 && (
                                         <div className="space-y-4 pt-4">
                                             <span className="text-[11px] font-bold uppercase tracking-widest px-2 block" style={{ color: track.themeColor }}>Payment Distribution</span>
                                             <div className="p-1 rounded-2xl border border-[#cac4d0] dark:border-[#49454f] overflow-hidden bg-white/40 dark:bg-black/10">
@@ -496,8 +527,8 @@ const DynamicServiceModal = ({ isOpen, onClose, registration, track, onSuccess }
                                             value={authorizedBy}
                                             onChange={setAuthorizedBy}
                                             options={options.employees.map((e:any) => ({ value: e.employee_id.toString(), label: `${e.first_name} ${e.last_name}` }))}
-                                            disabled={discount === 0 || !track.permissions?.requireDiscountApproval}
-                                            placeholder={discount > 0 && track.permissions?.requireDiscountApproval ? "Select Admin" : "Not Required"}
+                                            disabled={parseFloat(discount) === 0 || !track.permissions?.requireDiscountApproval}
+                                            placeholder={parseFloat(discount) > 0 && track.permissions?.requireDiscountApproval ? "Select Admin" : "Not Required"}
                                         />
 
                                         {/* Billing Box - M3 Dashed Style */}

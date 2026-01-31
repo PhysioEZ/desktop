@@ -12,6 +12,7 @@ import Inquiry from './reception/Inquiry';
 import Registration from './reception/Registration';
 import CancelledRegistrations from './reception/CancelledRegistrations';
 import Patients from './reception/Patients';
+import Billing from './reception/Billing';
 
 import ServiceManager from './admin/ServiceManager';
 import RegistrationSimulator from './admin/RegistrationSimulator';
@@ -58,6 +59,7 @@ function App() {
         <Route path="/reception/registration" element={<Registration />} />
         <Route path="/reception/registration/cancelled" element={<CancelledRegistrations />} />
         <Route path="/reception/patients" element={<Patients />} />
+        <Route path="/reception/billing" element={<Billing />} />
         
         {/* Admin Routes */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />

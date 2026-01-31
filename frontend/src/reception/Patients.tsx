@@ -9,7 +9,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/useAuthStore';
 import { usePatientStore } from '../store/usePatientStore';
-import { API_BASE_URL, authFetch } from '../config';
+import { API_BASE_URL, authFetch, FILE_BASE_URL } from '../config';
 import CustomSelect from '../components/ui/CustomSelect';
 import PatientDetailsModal from '../components/patients/PatientDetailsModal';
 import AttendanceModal from '../components/patients/modals/AttendanceModal';
@@ -17,8 +17,149 @@ import TokenPreviewModal from '../components/patients/modals/TokenPreviewModal';
 import GlobalSearch from '../components/GlobalSearch';
 import { toast } from 'sonner';
 
-const Patients = () => {
+// --- Extracted Components to avoid re-mounting on parent re-render ---
+
+const Header = ({ user, logout, onRefresh, toggleTheme, onOpenSearch }: any) => {
     const navigate = useNavigate();
+    const [notifications, setNotifications] = useState<any[]>([]);
+    const [unreadCount, setUnreadCount] = useState(0);
+    const [showNotifPopup, setShowNotifPopup] = useState(false);
+    const [showProfilePopup, setShowProfilePopup] = useState(false);
+    
+    const notifRef = useRef<HTMLButtonElement>(null);
+    const profileRef = useRef<HTMLDivElement>(null);
+
+    // Notifications logic localized here
+    useEffect(() => {
+        const fetchNotifs = async () => {
+            try {
+                const res = await authFetch(`${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ''}`);
+                const data = await res.json();
+                if (data.success || data.status === 'success') { 
+                    setNotifications(data.notifications || []);
+                    setUnreadCount(data.unread_count || 0); 
+                }
+            } catch (err) { console.error(err); }
+        };
+        if(user?.employee_id) { 
+            fetchNotifs(); 
+            const inv = setInterval(fetchNotifs, 30000); 
+            return () => clearInterval(inv); 
+        }
+    }, [user?.employee_id]);
+
+    useEffect(() => {
+        const handleClickOutside = (e: MouseEvent) => {
+            if (notifRef.current && !notifRef.current.contains(e.target as Node) && !(e.target as Element).closest('#notif-popup')) setShowNotifPopup(false);
+            if (profileRef.current && !profileRef.current.contains(e.target as Node)) setShowProfilePopup(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    return (
+        <header className="fixed top-0 left-0 right-0 z-50 bg-[#fdfcff]/80 dark:bg-[#111315]/80 backdrop-blur-md px-4 md:px-8 py-4 flex items-center justify-between border-b border-[#e0e2ec] dark:border-[#43474e] transition-colors duration-300">
+            <div className="flex items-center gap-4">
+                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/reception/dashboard')}>
+                        <div className="w-10 h-10 rounded-xl bg-[#ccebc4] flex items-center justify-center text-[#0c200e] font-bold">PE</div>
+                        <h1 className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight hidden md:block" style={{ fontFamily: 'serif' }}>PhysioEZ</h1>
+                 </div>
+            </div>
+            <div className="flex items-center gap-2 lg:gap-4">
+                {/* Search Bar */}
+                <div className="hidden md:flex items-center relative z-50">
+                    <div 
+                        className="flex items-center bg-[#e0e2ec] dark:bg-[#43474e] rounded-full px-4 py-2 w-64 lg:w-96 transition-colors duration-300 cursor-pointer hover:bg-[#dadae2] dark:hover:bg-[#50545c]"
+                        onClick={onOpenSearch}
+                    >
+                        <Search size={18} className="text-[#43474e] dark:text-[#c4c7c5] mr-2" />
+                        <span className="text-sm text-[#43474e] dark:text-[#8e918f]">Search patients... (Alt + S)</span>
+                    </div>
+                </div>
+
+                <button onClick={onRefresh} className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors"><RefreshCw size={22} strokeWidth={1.5} /></button>
+                
+                <button onClick={toggleTheme} className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors">
+                    <Moon size={22} strokeWidth={1.5} className="block dark:hidden" />
+                    <Sun size={22} strokeWidth={1.5} className="hidden dark:block" />
+                </button>
+                
+                <div className="relative">
+                    <button ref={notifRef} onClick={() => { setShowNotifPopup(!showNotifPopup); setShowProfilePopup(false); }} className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors relative">
+                        <Bell size={22} strokeWidth={1.5} />
+                        {unreadCount > 0 && <span className="absolute top-3 right-3 w-2 h-2 bg-[#b3261e] rounded-full"></span>}
+                    </button>
+                    <AnimatePresence>
+                        {showNotifPopup && (
+                            <motion.div id="notif-popup" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute top-full right-0 mt-2 w-80 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden transition-colors">
+                                <div className="p-4 border-b border-[#e0e2ec] dark:border-[#43474e] font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">Notifications</div>
+                                <div className="max-h-60 overflow-y-auto">
+                                    {notifications.map(n => (
+                                        <div key={n.notification_id} className={`p-3 border-b border-[#e0e2ec] dark:border-[#43474e] hover:bg-[#e0e2ec]/50 dark:hover:bg-[#43474e]/50 ${n.is_read === 0 ? 'bg-[#ccebc4]/20 dark:bg-[#ccebc4]/10' : ''}`}>
+                                            <p className="text-sm text-[#1a1c1e] dark:text-[#e3e2e6]">{n.message}</p>
+                                            <p className="text-[10px] text-[#43474e] dark:text-[#c4c7c5] mt-1">{n.time_ago}</p>
+                                        </div>
+                                    ))}
+                                    {notifications.length === 0 && <div className="p-4 text-center text-sm text-[#43474e] dark:text-[#c4c7c5]">No notifications</div>}
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
+                <div className="relative" ref={profileRef}>
+                    <div onClick={() => { setShowProfilePopup(!showProfilePopup); setShowNotifPopup(false); }} className="w-10 h-10 bg-[#ccebc4] dark:bg-[#0c3b10] rounded-full flex items-center justify-center text-[#0c200e] dark:text-[#ccebc4] font-bold border border-[#74777f] dark:border-[#8e918f] ml-1 overflow-hidden cursor-pointer hover:ring-2 ring-[#ccebc4] transition-colors">
+                        {user?.name?.charAt(0).toUpperCase() || 'U'}
+                    </div>
+                    <AnimatePresence>
+                        {showProfilePopup && (
+                            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute top-full right-0 mt-2 w-56 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden p-2 transition-colors">
+                                    <button onClick={() => navigate('/reception/profile')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"><User size={18} /> Profile</button>
+                                    <button onClick={() => { logout(); navigate('/login'); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#ffdad6] dark:hover:bg-[#93000a] text-[#410002] dark:text-[#ffdad6] text-sm font-medium mt-1 transition-colors"><LogOut size={18} /> Logout</button>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+            </div>
+        </header>
+    );
+};
+
+const NavChips = ({ currentPath }: { currentPath: string }) => {
+    const navigate = useNavigate();
+    const navItems = [
+        { label: 'Dashboard', path: '/reception/dashboard' },
+        { label: 'Schedule', path: '/reception/schedule' },
+        { label: 'Inquiry', path: '/reception/inquiry' },
+        { label: 'Registration', path: '/reception/registration' },
+        { label: 'Patients', path: '/reception/patients' },
+        { label: 'Billing', path: '/reception/billing' },
+        { label: 'Attendance', path: '/reception/attendance' },
+        { label: 'Tests', path: '/reception/tests' },
+        { label: 'Feedback', path: '/reception/feedback' },
+        { label: 'Reports', path: '/reception/reports' },
+        { label: 'Expenses', path: '/reception/expenses' },
+        { label: 'Support', path: '/reception/support' }
+    ];
+
+    return (
+        <div className="fixed top-[72px] left-0 right-0 z-40 bg-[#fdfcff]/80 dark:bg-[#111315]/80 backdrop-blur-md border-b border-[#e0e2ec] dark:border-[#43474e] transition-colors duration-300">
+            <div className="flex gap-3 overflow-x-auto py-3 px-6 scrollbar-hide">
+                {navItems.map((nav) => (
+                    <button 
+                        key={nav.label} 
+                        onClick={() => { if (nav.path !== currentPath) navigate(nav.path); }} 
+                        className={`px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${currentPath === nav.path ? 'bg-[#1a1c1e] text-white dark:bg-[#e3e2e6] dark:text-[#1a1c1e] shadow-md' : 'bg-[#f2f6fa] dark:bg-[#1a1c1e] hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] border border-[#74777f] dark:border-[#8e918f] text-[#43474e] dark:text-[#c4c7c5]'}`}
+                    >
+                        {nav.label}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const Patients = () => {
     const { user, logout } = useAuthStore();
     
     // Store State
@@ -31,10 +172,6 @@ const Patients = () => {
     // Local UI State
     const [globalSearchQuery, setGlobalSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState<any[]>([]);
-    const [notifications, setNotifications] = useState<any[]>([]);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [showNotifPopup, setShowNotifPopup] = useState(false);
-    const [showProfilePopup, setShowProfilePopup] = useState(false);
     const [isDark, setIsDark] = useState(false);
     const [showGlobalModal, setShowGlobalModal] = useState(false);
 
@@ -43,8 +180,6 @@ const Patients = () => {
     const [tokenModal, setTokenModal] = useState<{ open: boolean, patientId: number | null }>({ open: false, patientId: null });
 
     const searchRef = useRef<HTMLDivElement>(null);
-    const notifRef = useRef<HTMLButtonElement>(null);
-    const profileRef = useRef<HTMLDivElement>(null);
     const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Initial Data Fetch
@@ -80,31 +215,22 @@ const Patients = () => {
     }, []);
 
     const toggleTheme = () => {
-        if (isDark) { document.documentElement.classList.remove('dark'); localStorage.setItem('theme', 'light'); setIsDark(false); }
-        else { document.documentElement.classList.add('dark'); localStorage.setItem('theme', 'dark'); setIsDark(true); }
+        const newDark = !isDark;
+        if (newDark) { 
+            document.documentElement.classList.add('dark'); 
+            localStorage.setItem('theme', 'dark'); 
+        } else { 
+            document.documentElement.classList.remove('dark'); 
+            localStorage.setItem('theme', 'light'); 
+        }
+        setIsDark(newDark);
     };
 
     const handleClickOutside = (e: MouseEvent) => {
         if (searchRef.current && !searchRef.current.contains(e.target as Node)) {};
-        if (notifRef.current && !notifRef.current.contains(e.target as Node) && !(e.target as Element).closest('#notif-popup')) setShowNotifPopup(false);
-        if (profileRef.current && !profileRef.current.contains(e.target as Node)) setShowProfilePopup(false);
     };
     useEffect(() => { document.addEventListener('mousedown', handleClickOutside); return () => document.removeEventListener('mousedown', handleClickOutside); }, []);
 
-    // Notifications
-    useEffect(() => {
-        const fetchNotifs = async () => {
-            try {
-                const res = await authFetch(`${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ''}`);
-                const data = await res.json();
-                if (data.success || data.status === 'success') { 
-                    setNotifications(data.notifications || []);
-                    setUnreadCount(data.unread_count || 0); 
-                }
-            } catch (err) { console.error(err); }
-        };
-        if(user?.employee_id) { fetchNotifs(); const inv = setInterval(fetchNotifs, 30000); return () => clearInterval(inv); }
-    }, [user?.employee_id]);
 
     // Global Search Debounce
     useEffect(() => {
@@ -174,111 +300,16 @@ const Patients = () => {
         setTokenModal({ open: true, patientId });
     };
 
-    // Shared Header
-    const Header = () => (
-        <header className="fixed top-0 left-0 right-0 z-50 bg-[#fdfcff]/80 dark:bg-[#111315]/80 backdrop-blur-md px-4 md:px-8 py-4 flex items-center justify-between border-b border-[#e0e2ec] dark:border-[#43474e] transition-colors duration-300">
-            <div className="flex items-center gap-4">
-                 <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/reception/dashboard')}>
-                        <div className="w-10 h-10 rounded-xl bg-[#ccebc4] flex items-center justify-center text-[#0c200e] font-bold">PE</div>
-                        <h1 className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight hidden md:block" style={{ fontFamily: 'serif' }}>PhysioEZ</h1>
-                 </div>
-            </div>
-            <div className="flex items-center gap-2 lg:gap-4">
-                {/* Search Bar */}
-                <div ref={searchRef} className="hidden md:flex items-center relative z-50">
-                    <div 
-                        className="flex items-center bg-[#e0e2ec] dark:bg-[#43474e] rounded-full px-4 py-2 w-64 lg:w-96 transition-colors duration-300 cursor-pointer hover:bg-[#dadae2] dark:hover:bg-[#50545c]"
-                        onClick={() => setShowGlobalModal(true)}
-                    >
-                        <Search size={18} className="text-[#43474e] dark:text-[#c4c7c5] mr-2" />
-                        <span className="text-sm text-[#43474e] dark:text-[#8e918f]">
-                            {globalSearchQuery || 'Search patients... (Alt + S)'}
-                        </span>
-                    </div>
-                </div>
-
-                <button onClick={() => fetchPatients(user!.branch_id)} className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors"><RefreshCw size={22} strokeWidth={1.5} /></button>
-                
-                {/* Dark Mode Toggle */}
-                <button onClick={toggleTheme} className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors">
-                    <Moon size={22} strokeWidth={1.5} className="block dark:hidden" />
-                    <Sun size={22} strokeWidth={1.5} className="hidden dark:block" />
-                </button>
-                
-                {/* Notifications */}
-                <div className="relative">
-                    <button ref={notifRef} onClick={() => { setShowNotifPopup(!showNotifPopup); setShowProfilePopup(false); }} className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors relative">
-                        <Bell size={22} strokeWidth={1.5} />
-                        {unreadCount > 0 && <span className="absolute top-3 right-3 w-2 h-2 bg-[#b3261e] rounded-full"></span>}
-                    </button>
-                    <AnimatePresence>
-                        {showNotifPopup && (
-                            <motion.div id="notif-popup" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute top-full right-0 mt-2 w-80 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden transition-colors">
-                                <div className="p-4 border-b border-[#e0e2ec] dark:border-[#43474e] font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">Notifications</div>
-                                <div className="max-h-60 overflow-y-auto">
-                                    {notifications.map(n => (
-                                        <div key={n.notification_id} className={`p-3 border-b border-[#e0e2ec] dark:border-[#43474e] hover:bg-[#e0e2ec]/50 dark:hover:bg-[#43474e]/50 ${n.is_read === 0 ? 'bg-[#ccebc4]/20 dark:bg-[#ccebc4]/10' : ''}`}>
-                                            <p className="text-sm text-[#1a1c1e] dark:text-[#e3e2e6]">{n.message}</p>
-                                            <p className="text-[10px] text-[#43474e] dark:text-[#c4c7c5] mt-1">{n.time_ago}</p>
-                                        </div>
-                                    ))}
-                                    {notifications.length === 0 && <div className="p-4 text-center text-sm text-[#43474e] dark:text-[#c4c7c5]">No notifications</div>}
-                                </div>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-
-                <div className="relative" ref={profileRef}>
-                    <div onClick={() => { setShowProfilePopup(!showProfilePopup); setShowNotifPopup(false); }} className="w-10 h-10 bg-[#ccebc4] dark:bg-[#0c3b10] rounded-full flex items-center justify-center text-[#0c200e] dark:text-[#ccebc4] font-bold border border-[#74777f] dark:border-[#8e918f] ml-1 overflow-hidden cursor-pointer hover:ring-2 ring-[#ccebc4] transition-colors">
-                        {user?.name?.charAt(0).toUpperCase() || 'U'}
-                    </div>
-                    <AnimatePresence>
-                        {showProfilePopup && (
-                            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute top-full right-0 mt-2 w-56 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden p-2 transition-colors">
-                                    <button onClick={() => navigate('/reception/profile')} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"><User size={18} /> Profile</button>
-                                    <button onClick={() => { logout(); navigate('/login'); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#ffdad6] dark:hover:bg-[#93000a] text-[#410002] dark:text-[#ffdad6] text-sm font-medium mt-1 transition-colors"><LogOut size={18} /> Logout</button>
-                            </motion.div>
-                        )}
-                    </AnimatePresence>
-                </div>
-            </div>
-        </header>
-    );
-
-    const NavChips = () => (
-        <div className="fixed top-[72px] left-0 right-0 z-40 bg-[#fdfcff]/80 dark:bg-[#111315]/80 backdrop-blur-md border-b border-[#e0e2ec] dark:border-[#43474e] transition-colors duration-300">
-            <div className="flex gap-3 overflow-x-auto py-3 px-6 scrollbar-hide">
-                {[
-                    { label: 'Dashboard', path: '/reception/dashboard' },
-                    { label: 'Schedule', path: '/reception/schedule' },
-                    { label: 'Inquiry', path: '/reception/inquiry' },
-                    { label: 'Registration', path: '/reception/registration' },
-                    { label: 'Patients', path: '/reception/patients' },
-                    { label: 'Billing', path: '/reception/billing' },
-                    { label: 'Attendance', path: '/reception/attendance' },
-                    { label: 'Tests', path: '/reception/tests' },
-                    { label: 'Feedback', path: '/reception/feedback' },
-                    { label: 'Reports', path: '/reception/reports' },
-                    { label: 'Expenses', path: '/reception/expenses' },
-                    { label: 'Support', path: '/reception/support' }
-                ].map((nav) => (
-                    <button 
-                        key={nav.label} 
-                        onClick={() => { if (nav.label !== 'Patients') navigate(nav.path); }} 
-                        className={`px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${nav.label === 'Patients' ? 'bg-[#1a1c1e] text-white dark:bg-[#e3e2e6] dark:text-[#1a1c1e] shadow-md' : 'bg-[#f2f6fa] dark:bg-[#1a1c1e] hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] border border-[#74777f] dark:border-[#8e918f] text-[#43474e] dark:text-[#c4c7c5]'}`}
-                    >
-                        {nav.label}
-                    </button>
-                ))}
-            </div>
-        </div>
-    );
-
     return (
         <div className="min-h-screen bg-[#fdfcff] dark:bg-[#111315] text-[#1a1c1e] dark:text-[#e3e2e6] font-sans transition-colors duration-300 pb-20">
-            <Header />
-            <NavChips />
+            <Header 
+                user={user} 
+                logout={logout} 
+                onRefresh={() => fetchPatients(user!.branch_id)}
+                toggleTheme={toggleTheme}
+                onOpenSearch={() => setShowGlobalModal(true)}
+            />
+            <NavChips currentPath="/reception/patients" />
             
             <div className="max-w-[1600px] mx-auto p-6 pt-44">
                 {/* Header Section */}
@@ -409,7 +440,10 @@ const Patients = () => {
                             <CustomSelect 
                                 value={filters.treatment} 
                                 onChange={(v) => setFilters({ treatment: v })} 
-                                options={[{label:'Treatment', value:''}, ...metaData.treatments.map(t => ({label:t, value:t}))]} 
+                                options={[
+                                    {label:'Treatment', value:''}, 
+                                    ...metaData.treatments.map(t => typeof t === 'string' ? {label:t, value:t} : t)
+                                ]} 
                                 placeholder="Type" 
                                 className="!rounded-[28px] !bg-[#f2f0f4] dark:!bg-[#1f1f23] !border-transparent !py-4" 
                             />
@@ -482,7 +516,15 @@ const Patients = () => {
                                     <div className="flex justify-between items-start mb-6">
                                         <div className="relative">
                                             <div className="w-16 h-16 rounded-2xl bg-[#ccebc4] dark:bg-[#0c3b10] flex items-center justify-center text-[#0c200e] dark:text-[#ccebc4] font-black text-2xl shadow-inner overflow-hidden border border-[#e0e2ec] dark:border-[#43474e]">
-                                                {patient.patient_photo_path ? <img src={`/admin/${patient.patient_photo_path}`} className="w-full h-full object-cover" alt="" /> : (patient.patient_name?.charAt(0).toUpperCase() || 'P')}
+                                                {patient.patient_photo_path ? (
+                                                    <img 
+                                                        src={patient.patient_photo_path.startsWith('http') ? patient.patient_photo_path : `${FILE_BASE_URL}/${patient.patient_photo_path.replace('admin/desktop/server/', '')}`} 
+                                                        className="w-full h-full object-cover" 
+                                                        alt="" 
+                                                    />
+                                                ) : (
+                                                    patient.patient_name?.charAt(0).toUpperCase() || 'P'
+                                                )}
                                             </div>
                                             {isPresent && (
                                                 <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full border-4 border-white dark:border-[#111315] flex items-center justify-center">

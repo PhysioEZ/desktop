@@ -122,6 +122,7 @@ exports.submitTest = async (req, res) => {
 
         // 4. Insert Parent Record
         const parent_test_name = test_names.map(t => t.toUpperCase()).join(', ');
+        const patient_id = data.patient_id || null;
 
         const [parentResult] = await connection.query(`
             INSERT INTO tests (
@@ -129,14 +130,14 @@ exports.submitTest = async (req, res) => {
                 gender, age, dob, parents, relation, alternate_phone_no, address,
                 limb, test_name, referred_by, test_done_by, created_by_employee_id,
                 total_amount, advance_amount, discount, due_amount, payment_method,
-                payment_status, branch_id, approval_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                payment_status, branch_id, approval_status, patient_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             newTestUid, visit_date, assigned_test_date, patient_name, phone_number,
             gender, age, dob, parents, relation, alternate_phone_no, address,
             limb, parent_test_name, referred_by, test_done_by, employee_id,
             global_total_amount, advance_amount, discount, Math.max(0, global_due_amount), payment_method,
-            global_payment_status, branch_id, approval_status
+            global_payment_status, branch_id, approval_status, patient_id
         ]);
 
         const parent_test_id = parentResult.insertId;

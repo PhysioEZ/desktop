@@ -113,9 +113,9 @@ const PayDuesModal = ({ isOpen, onClose, patientId, currentDue, onSuccess }: Pay
                     <div className="space-y-1">
                         <label className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5] uppercase tracking-wider ml-1">Payment Method</label>
                         <div className="grid grid-cols-2 gap-2">
-                             {metaData.payment_methods.map((method) => (
+                             {metaData.payment_methods.map((method, idx) => (
                                  <button
-                                     key={method.method_id}
+                                     key={method.method_id || idx}
                                      type="button"
                                      onClick={() => setPaymentMethod(method.method_name)}
                                      className={`px-3 py-2 rounded-lg text-sm font-bold border transition-all ${

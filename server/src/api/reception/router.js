@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const authenticate = require('../../middleware/auth');
 
 const dashboardController = require('./dashboard');
 const formOptionsController = require('./formOptions');
@@ -62,6 +63,10 @@ router.post('/add_test_for_patient', testsController.addTestForPatient);
 // Patients & Attendance/Tokens
 router.all('/patients', patientsController.handlePatientsRequest);
 router.all('/treatment_plans', treatmentPlansController.handleTreatmentPlanRequest);
+router.post('/edit_treatment_plan', (req, res) => {
+    req.body.action = 'edit_plan';
+    treatmentPlansController.handleTreatmentPlanRequest(req, res);
+});
 router.all('/tokens', tokensController.handleTokensRequest);
 router.post('/attendance', attendanceController.handleAttendanceRequest);
 
@@ -84,5 +89,11 @@ router.post('/schedule/reschedule', scheduleController.reschedule);
 const registrationManager = require('./registration_manager');
 router.post('/inquiry', inquiryController.handleInquiryRequest);
 router.post('/registration', registrationManager.handleRegistrationRequest);
+
+const billingController = require("./billing");
+
+// ... (existing routes)
+
+router.post("/billing", authenticate, billingController.handleBillingRequest);
 
 module.exports = router;

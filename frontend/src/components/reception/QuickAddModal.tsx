@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { API_BASE_URL, authFetch } from '../../config';
 import { format, addDays } from 'date-fns';
 import CustomSelect from '../ui/CustomSelect';
+import DatePicker from '../ui/DatePicker';
 
 interface QuickAddModalProps {
     isOpen: boolean;
@@ -42,6 +43,7 @@ const QuickAddModal = ({ isOpen, onClose, registration, type, onSuccess }: Quick
         employees: []
     });
     const [timeSlots, setTimeSlots] = useState<any[]>([]);
+    const [openDatePicker, setOpenDatePicker] = useState(false);
 
     const existingPatient = useMemo(() => {
         if (!registration.existing_services) return null;
@@ -363,23 +365,31 @@ const QuickAddModal = ({ isOpen, onClose, registration, type, onSuccess }: Quick
                                         </div>
 
                                         <div className="relative group">
-                                            <span className="absolute -top-2 left-3 px-1 text-[10px] font-bold uppercase tracking-wider bg-[#fef7ff] dark:bg-[#141218] text-[#49454f] dark:text-[#cac4d0] z-10">Start From</span>
-                                            <input 
-                                                type="date" 
-                                                value={startDate} 
-                                                onChange={(e) => setStartDate(e.target.value)}
-                                                className="w-full px-4 py-3 bg-transparent border border-[#79747e] dark:border-[#938f99] rounded-xl text-sm font-medium focus:ring-1 ring-[#006a6a] outline-none transition-all"
-                                            />
+                                            <span className="absolute -top-2 left-3 px-1 text-[10px] font-bold uppercase tracking-wider bg-[#fef7ff] dark:bg-[#141218] text-[#49454f] dark:text-[#cac4d0] z-10 transition-colors group-hover:text-[#006a6a]">Start From</span>
+                                            <div 
+                                                onClick={() => setOpenDatePicker(true)}
+                                                className="w-full px-4 py-3 bg-transparent border border-[#79747e] dark:border-[#938f99] rounded-xl text-sm font-medium hover:border-[#006a6a] cursor-pointer flex items-center justify-between group transition-all"
+                                            >
+                                                <span>{format(new Date(startDate), 'dd MMM yyyy')}</span>
+                                                <Calendar size={16} className="text-[#49454f] group-hover:text-[#006a6a] transition-colors" />
+                                            </div>
+                                            <AnimatePresence>
+                                                {openDatePicker && (
+                                                    <DatePicker 
+                                                        value={startDate} 
+                                                        onChange={setStartDate} 
+                                                        onClose={() => setOpenDatePicker(false)} 
+                                                    />
+                                                )}
+                                            </AnimatePresence>
                                         </div>
 
                                         <div className="relative group">
                                             <span className="absolute -top-2 left-3 px-1 text-[10px] font-bold uppercase tracking-wider bg-[#fef7ff] dark:bg-[#141218] text-[#49454f] dark:text-[#cac4d0] z-10 opacity-60">End Date</span>
-                                            <input 
-                                                type="date" 
-                                                value={endDate || ''} 
-                                                readOnly
-                                                className="w-full px-4 py-3 bg-[#1c1b1f]/5 dark:bg-[#e6e1e5]/5 border border-[#79747e]/30 dark:border-[#938f99]/30 rounded-xl text-sm font-medium opacity-60 cursor-not-allowed outline-none"
-                                            />
+                                            <div className="w-full px-4 py-3 bg-[#1c1b1f]/5 dark:bg-[#e6e1e5]/5 border border-[#79747e]/30 dark:border-[#938f99]/30 rounded-xl text-sm font-medium opacity-60 cursor-not-allowed flex items-center justify-between">
+                                                <span>{endDate ? format(new Date(endDate), 'dd MMM yyyy') : 'N/A'}</span>
+                                                <Calendar size={16} className="text-[#49454f]" />
+                                            </div>
                                         </div>
 
                                         <div className="col-span-2">

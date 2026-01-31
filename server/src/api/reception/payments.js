@@ -13,9 +13,9 @@ exports.handleAddPayment = async (req, res) => {
         }
 
         await pool.query(`
-            INSERT INTO payments (patient_id, amount, mode, payment_date, remarks, created_at, processed_by_employee_id)
-            VALUES (?, ?, ?, CURDATE(), ?, NOW(), ?)
-        `, [patientId, amount, method, remarks, req.user.employee_id]);
+            INSERT INTO payments (patient_id, branch_id, amount, mode, payment_date, remarks, created_at, processed_by_employee_id)
+            VALUES (?, ?, ?, ?, CURDATE(), ?, NOW(), ?)
+        `, [patientId, req.user.branch_id, amount, method, remarks, req.user.employee_id]);
 
         res.json({ success: true, message: 'Payment added successfully' });
 

@@ -23,13 +23,21 @@ import {
 } from "lucide-react";
 import { usePatientStore } from "../../store/usePatientStore";
 import { format } from "date-fns";
-import { API_BASE_URL, authFetch } from "../../config";
+import { API_BASE_URL, authFetch, FILE_BASE_URL } from "../../config";
 import PayDuesModal from "./modals/PayDuesModal";
 import AddTestModal from "./modals/AddTestModal";
 import EditPlanModal from "./modals/EditPlanModal";
 import ChangePlanModal from "./modals/ChangePlanModal";
+import StatusChangeModal from "./modals/StatusChangeModal";
 import { toast } from "sonner";
 import { printPatientStatement } from "../../utils/printToken";
+
+const getPhotoUrl = (path: string | null) => {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    const cleanPath = path.replace('admin/desktop/server/', '');
+    return `${FILE_BASE_URL}/${cleanPath}`;
+};
 
 // --- Sub-components (Defined first to avoid ReferenceErrors) ---
 
@@ -226,6 +234,7 @@ const PatientDetailsModal = () => {
     addTest: false,
     editPlan: false,
     changePlan: false,
+    statusChange: false,
   });
 
   const toggleModal = (key: keyof typeof modals, state: boolean) => {
@@ -236,30 +245,6 @@ const PatientDetailsModal = () => {
     if (selectedPatient) fetchPatientDetails(selectedPatient.patient_id);
   };
 
-  const handleToggleStatus = async () => {
-    if (!selectedPatient) return;
-    if (!confirm("Are you sure you want to toggle this patient's status?"))
-      return;
-
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/toggle_patient_status`,
-        {
-          method: "POST",
-          body: JSON.stringify({ patient_id: selectedPatient.patient_id }),
-        },
-      );
-      const data = await res.json();
-      if (data.success) {
-        toast.success("Status updated successfully");
-        handleRefresh();
-      } else {
-        toast.error(data.message || "Failed to update status");
-      }
-    } catch (e) {
-      toast.error("Error updating status");
-    }
-  };
 
   const handlePrintBill = async () => {
     if (!selectedPatient?.patient_id) return;
@@ -309,15 +294,19 @@ const PatientDetailsModal = () => {
             <div className="flex items-center gap-6">
               <div className="relative">
                 <div className="w-28 h-28 rounded-[28px] bg-[#f0fdf4] dark:bg-[#064e3b] p-1 shadow-inner overflow-hidden border-2 border-white dark:border-[#334155]">
-                  <div className="w-full h-full rounded-[24px] bg-[#16a34a] flex items-center justify-center text-4xl font-black text-white overflow-hidden">
+                  <div className="w-24 h-24 rounded-3xl bg-[#006a6a] dark:bg-[#80d4d4] flex items-center justify-center text-white dark:text-[#003737] font-bold text-4xl shadow-lg overflow-hidden shrink-0">
                     {data.patient_photo_path ? (
                       <img
-                        src={`/admin/${data.patient_photo_path}`}
+                        src={getPhotoUrl(data.patient_photo_path) || ""}
                         className="w-full h-full object-cover"
                         alt=""
+                        onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            (e.target as HTMLImageElement).parentElement!.innerText = data.patient_name?.charAt(0) || "?";
+                        }}
                       />
                     ) : (
-                      data.patient_name?.charAt(0) || "P"
+                      data.patient_name?.charAt(0) || "?"
                     )}
                   </div>
                 </div>
@@ -398,8 +387,8 @@ const PatientDetailsModal = () => {
                    <ActionChip
                     label="Status"
                     icon={Power}
-                    onClick={handleToggleStatus}
-                    variant="danger"
+                    onClick={() => toggleModal("statusChange", true)}
+                    variant={data.patient_status === 'active' ? 'success' : (data.patient_status === 'inactive' ? 'danger' : 'default')}
                   />
             </div>
 
@@ -635,7 +624,7 @@ const PatientDetailsModal = () => {
                         />
                         <InfoRow
                           label="Discount"
-                          value={`${data.discount_amount ? "₹" + data.discount_amount : "0%"}`}
+                          value={Number(data.discount_percentage || 0) > 0 ? `${data.discount_percentage}%` : (data.discount_amount ? "₹" + data.discount_amount : "0%")}
                         />
                       </div>
                     </Section>
@@ -855,6 +844,12 @@ const PatientDetailsModal = () => {
         onClose={() => toggleModal("changePlan", false)}
         patient={data as any}
         onSuccess={handleRefresh}
+      />
+      <StatusChangeModal
+        isOpen={modals.statusChange}
+        onClose={() => toggleModal("statusChange", false)}
+        patientId={data.patient_id || 0}
+        currentStatus={data.patient_status || 'active'}
       />
     </AnimatePresence>
   );

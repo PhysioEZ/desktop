@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuthStore } from '../store/useAuthStore';
 import { motion } from 'framer-motion';
 import { 
     Users, ClipboardList, TestTube2, Wallet, Calendar,
-    ArrowUpRight, AlertCircle, Search, Bell, LogOut,
-    Moon, Sun, Plus, PhoneCall,
-    Menu, FlaskConical, Beaker, CheckCircle, Hourglass, Activity,
-    ChevronRight, ChevronDown, RefreshCw, MessageCircle
+    AlertCircle, Search, Bell, LogOut,
+    Plus, PhoneCall,
+    Menu, FlaskConical, Beaker, Hourglass, Activity,
+    ChevronDown, RefreshCw, MessageCircle
 } from 'lucide-react';
 
 /* --- DUMMY DATA MATCHING EXACT SPECS --- */
@@ -36,7 +35,7 @@ const fmt = (num: number) => `₹${num.toLocaleString('en-IN')}`;
 
 export default function DashboardNew() {
     const navigate = useNavigate();
-    const [isDark, setIsDark] = useState(false);
+    const [isDark] = useState(false);
     const [isSidebarOpen, setSidebarOpen] = useState(true);
 
     const navLinks = [

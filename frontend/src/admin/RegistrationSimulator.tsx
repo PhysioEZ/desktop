@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { 
     Plus, Activity, Zap, CreditCard, Calendar, ChevronDown, Check,
-    Clock, Box, Layout, ArrowLeft, Loader2, Info, UserPlus
+    Clock, Box, Layout, ArrowLeft, Loader2, UserPlus
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';

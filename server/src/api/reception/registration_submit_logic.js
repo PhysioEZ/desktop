@@ -149,8 +149,8 @@ exports.submitRegistration = async (req, res) => {
 
                         fs.writeFileSync(filePath, buffer);
 
-                        // Relative path for DB (matching PHP structure)
-                        const relativePath = 'admin/desktop/server/uploads/patient_photos/' + fileName;
+                        // Relative path for DB (matching public structure)
+                        const relativePath = 'uploads/patient_photos/' + fileName;
                         await connection.query("UPDATE registration SET patient_photo_path = ? WHERE registration_id = ?", [relativePath, newRegistrationId]);
                     }
                 }

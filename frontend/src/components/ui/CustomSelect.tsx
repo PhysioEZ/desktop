@@ -147,9 +147,9 @@ const CustomSelect = ({
                         }}
                     >
                         {options.length > 0 ? (
-                            options.map((option) => (
+                            options.map((option, idx) => (
                                 <button
-                                    key={option.value}
+                                    key={`${option.value}-${idx}`}
                                     type="button"
                                     disabled={option.disabled}
                                     onClick={(e) => {

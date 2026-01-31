@@ -11,6 +11,7 @@ export interface Patient {
     patient_photo_path: string;
     assigned_doctor: string;
     service_type: string;
+    service_track_id?: number;
     treatment_time_slot?: string;
     registration_id?: number;
     master_patient_id?: number | string;
@@ -51,7 +52,7 @@ export interface MetaData {
     doctors: string[];
     statuses: string[];
     services: string[];
-    treatments: string[];
+    treatments: (string | { label: string; value: string })[];
     referrers: string[];
     payment_methods: { method_id: number; method_name: string }[];
     counts?: {
@@ -101,6 +102,7 @@ interface PatientState {
     closePatientDetails: () => void;
     refreshPatients: (branchId: number) => Promise<void>;
     markAttendance: (patientId: number, branchId: number, status?: string) => Promise<boolean>;
+    updateLocalPatientStatus: (patientId: number, newStatus: string) => void;
 }
 
 export const usePatientStore = create<PatientState>((set, get) => ({
@@ -266,5 +268,13 @@ export const usePatientStore = create<PatientState>((set, get) => ({
             console.error('Attendance mark error:', error);
             return false;
         }
+    },
+
+    updateLocalPatientStatus: (patientId, newStatus) => {
+        set((state) => ({
+            patients: state.patients.map(p => p.patient_id === patientId ? { ...p, patient_status: newStatus } : p),
+            selectedPatient: state.selectedPatient?.patient_id === patientId ? { ...state.selectedPatient, patient_status: newStatus } : state.selectedPatient && state.selectedPatient,
+            patientDetails: state.patientDetails?.patient_id === patientId ? { ...state.patientDetails, patient_status: newStatus } : state.patientDetails
+        }));
     }
 }));

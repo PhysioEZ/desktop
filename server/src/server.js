@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const authRoutes = require('./api/auth/router');
@@ -8,15 +9,34 @@ const authRoutes = require('./api/auth/router');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Rate Turners
+const globalLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    limit: 100, // Limit each IP to 100 requests per `window` (here, per 1 minute)
+    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+const authLimiter = rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    limit: 10, // Strict limit for auth routes
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
 // Middleware
 app.use(cors({
     origin: true, // Reflect origin
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Employee-ID', 'X-Branch-ID'],
     credentials: true
+    // Note: Rate limiting is applied AFTER CORS so CORS headers are still sent on blocked requests
 }));
 app.use(express.json({ limit: '50mb' })); // Increased limit for photo uploads
 app.use(morgan('dev'));
+
+// Apply Global Rate Limiter to all requests
+app.use(globalLimiter);
 
 // Static Files - Serve uploads
 const path = require('path');
@@ -30,18 +50,10 @@ const authMiddleware = require('./middleware/auth');
 
 const adminRoutes = require('./api/admin/router');
 
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/reception', authMiddleware, receptionRoutes);
 app.use('/api/admin', authMiddleware, adminRoutes);
 
-// All APIs have been ported to Node.js. No proxy to PHP needed.
-// app.use('/api', createProxyMiddleware({ 
-//     target: 'http://localhost',
-//     changeOrigin: true,
-//     pathRewrite: {
-//         '^/api': '/admin/desktop/server/api'
-//     }
-// }));
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', message: 'PhysioEZ Node Server Running' });
 });

@@ -2,16 +2,15 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
     ChevronLeft, ChevronRight, Edit2, ChevronDown, Calendar,
-    RefreshCw, Phone, Stethoscope, X, Printer, Check, RotateCcw, Clock, UserPlus, Mic, AlertCircle, Trash2, CheckCircle2, Search,
+    RefreshCw, Phone, Stethoscope, X, Printer, Check, RotateCcw, Clock, UserPlus, AlertCircle, Trash2, CheckCircle2, Search,
     Bell, Moon, Sun, LogOut, User, Lock, Zap, Activity, HeartPulse, Syringe, Microscope, Dna, FlaskConical, Brain, HandHelping, ShieldPlus, Bone, Waves, Timer, Pill, Box, Plus, Eye, CreditCard
 } from 'lucide-react';
 import CustomSelect from '../components/ui/CustomSelect';
 import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '../store/useAuthStore';
-import { API_BASE_URL, authFetch } from '../config';
+import { API_BASE_URL, authFetch, FILE_BASE_URL } from '../config';
 import { format, parseISO, isValid } from 'date-fns';
-import QuickAddModal from '../components/reception/QuickAddModal';
 import DynamicServiceModal from '../components/reception/DynamicServiceModal';
 import UpdatePaymentModal from '../components/reception/UpdatePaymentModal';
 import GlobalSearch from '../components/GlobalSearch';
@@ -147,6 +146,13 @@ interface RegistrationRecord {
     patient_photo_path?: string;
 }
 
+const getPhotoUrl = (path: string | null) => {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    const cleanPath = path.replace('admin/desktop/server/', '');
+    return `${FILE_BASE_URL}/${cleanPath}`;
+};
+
 const Registration = () => {
     const navigate = useNavigate();
     const { user, logout } = useAuthStore();
@@ -160,9 +166,7 @@ const Registration = () => {
         onConfirm: () => {}
     });
 
-    // Quick Add Modal State
-    const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState(false);
-    const [quickAddType, setQuickAddType] = useState<'physio' | 'speech'>('physio');
+
     
     // Payment Fix Modal State
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -385,9 +389,7 @@ const Registration = () => {
             if (e.key === 'Escape') {
                 if (showGlobalModal) setShowGlobalModal(false);
                 else if (showShortcuts) setShowShortcuts(false);
-                else if (showLogoutConfirm) setShowLogoutConfirm(false);
-                else if (isQuickAddModalOpen) setIsQuickAddModalOpen(false);
-                else if (isPaymentModalOpen) setIsPaymentModalOpen(false);
+
                 else if (isDetailsModalOpen) setIsDetailsModalOpen(false);
                 return;
             }
@@ -408,7 +410,7 @@ const Registration = () => {
 
         window.addEventListener('keydown', handleKeyDown);
         return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showGlobalModal, showShortcuts, showLogoutConfirm, isQuickAddModalOpen, isPaymentModalOpen, isDetailsModalOpen, fetchRegistrations, navigate]);
+    }, [showGlobalModal, showShortcuts, showLogoutConfirm, isPaymentModalOpen, isDetailsModalOpen, fetchRegistrations, navigate]);
 
     useEffect(() => {
         fetchRegistrations();
@@ -594,9 +596,9 @@ const Registration = () => {
                             {showNotifPopup && (
                                 <motion.div id="notif-popup" initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="absolute top-full right-0 mt-2 w-80 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden transition-colors">
                                     <div className="p-4 border-b border-[#e0e2ec] dark:border-[#43474e] font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">Notifications</div>
-                                    <div className="max-h-60 overflow-y-auto">
-                                        {notifications.map(n => (
-                                            <div key={n.notification_id} className={`p-3 border-b border-[#e0e2ec] dark:border-[#43474e] hover:bg-[#e0e2ec]/50 dark:hover:bg-[#43474e]/50 ${n.is_read === 0 ? 'bg-[#ccebc4]/20 dark:bg-[#ccebc4]/10' : ''}`}>
+                                    <div className="space-y-4">
+                                        {notifications.map((n, idx) => (
+                                            <div key={n.notification_id || `notification-${idx}`} className={`p-3 border-b border-[#e0e2ec] dark:border-[#43474e] hover:bg-[#e0e2ec]/50 dark:hover:bg-[#43474e]/50 ${n.is_read === 0 ? 'bg-[#ccebc4]/20 dark:bg-[#ccebc4]/10' : ''}`}>
                                                 <p className="text-sm text-[#1a1c1e] dark:text-[#e3e2e6]">{n.message}</p>
                                                 <p className="text-[10px] text-[#43474e] dark:text-[#c4c7c5] mt-1">{n.time_ago}</p>
                                             </div>
@@ -709,7 +711,7 @@ const Registration = () => {
                             
                             return (
                             <motion.div 
-                                key={reg.registration_id}
+                                key={reg.registration_id || idx}
                                 initial={{ opacity: 0, y: 10 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: idx * 0.03, duration: 0.3 }}
@@ -728,7 +730,17 @@ const Registration = () => {
                                 <div className="col-span-3 flex items-center gap-4 w-full">
                                     <div className="relative shrink-0">
                                         <div className={`w-12 h-12 rounded-[14px] flex items-center justify-center font-black text-lg shadow-sm border overflow-hidden ${isPendingApproval ? 'bg-[#e0e2ec] text-[#43474e] border-transparent' : 'bg-[#ccebc4] dark:bg-[#0c3b10] text-[#002105] dark:text-[#ccebc4] border-[#ccebc4] dark:border-[#0c3b10]'}`}>
-                                            {reg.patient_photo_path ? <img src={`${reg.patient_photo_path}`} className="w-full h-full object-cover" alt="" /> : (reg.patient_name?.charAt(0) || '?')}
+                                            {reg.patient_photo_path ? (
+                                                <img 
+                                                    src={getPhotoUrl(reg.patient_photo_path) || ''} 
+                                                    className="w-full h-full object-cover" 
+                                                    alt="" 
+                                                    onError={(e) => {
+                                                        (e.target as HTMLImageElement).style.display = 'none';
+                                                        (e.target as HTMLImageElement).parentElement!.innerText = reg.patient_name?.charAt(0) || '?';
+                                                    }}
+                                                />
+                                            ) : (reg.patient_name?.charAt(0) || '?')}
                                         </div>
                                         <div className="absolute -bottom-1 -right-1 bg-[#fdfcff] dark:bg-[#1a1c1e] rounded-md px-1.5 py-0.5 text-[9px] font-bold text-[#43474e] dark:text-[#c4c7c5] shadow-sm border border-[#e0e2ec] dark:border-[#43474e]">
                                             #{reg.registration_id}
@@ -953,29 +965,14 @@ const Registration = () => {
                                         )}
 
                                         <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5 ${(selectedRegistration.approval_status === 'pending' || selectedRegistration.approval_status === 'rejected') ? 'opacity-40 pointer-events-none grayscale' : ''}`}>
-                                            <button 
-                                                onClick={() => { setQuickAddType('physio'); setIsQuickAddModalOpen(true); }}
-                                                className="flex items-center gap-4 p-5 bg-white dark:bg-[#1a1c1e] border-2 border-transparent hover:border-[#006a6a]/30 rounded-[24px] hover:shadow-xl transition-all group relative overflow-hidden shadow-sm"
-                                            >
-                                                <div className="w-12 h-12 rounded-xl bg-[#d3e3fd] dark:bg-[#0842a0] flex items-center justify-center text-[#041e49] dark:text-[#d3e3fd] group-hover:rotate-12 transition-transform"><UserPlus size={22} /></div>
-                                                <div className="text-left"><span className="block text-sm font-black text-[#1a1c1e] dark:text-[#e3e2e6] uppercase tracking-tight">Physio</span><span className="block text-[9px] font-bold text-[#43474e] dark:text-[#c4c7c5] mt-0.5 uppercase opacity-60">Physiothearpy</span></div>
-                                                <div className="absolute top-0 right-0 w-8 h-8 bg-[#006a6a]/5 rounded-bl-3xl translate-x-2 -translate-y-2 group-hover:translate-x-0 group-hover:translate-y-0 transition-transform"></div>
-                                            </button>
-                                            <button 
-                                                onClick={() => { setQuickAddType('speech'); setIsQuickAddModalOpen(true); }}
-                                                className="flex items-center gap-4 p-5 bg-white dark:bg-[#1a1c1e] border-2 border-transparent hover:border-[#006a6a]/30 rounded-[24px] hover:shadow-xl transition-all group relative overflow-hidden shadow-sm"
-                                            >
-                                                <div className="w-12 h-12 rounded-xl bg-[#ffd8e4] dark:bg-[#631a36] flex items-center justify-center text-[#31111d] dark:text-[#ffd8e4] group-hover:rotate-12 transition-transform"><Mic size={22} /></div>
-                                                <div className="text-left"><span className="block text-sm font-black text-[#1a1c1e] dark:text-[#e3e2e6] uppercase tracking-tight">Speech</span><span className="block text-[9px] font-bold text-[#43474e] dark:text-[#c4c7c5] mt-0.5 uppercase opacity-60">Speech Therapy</span></div>
-                                                <div className="absolute top-0 right-0 w-8 h-8 bg-[#006a6a]/5 rounded-bl-3xl translate-x-2 -translate-y-2 group-hover:translate-x-0 group-hover:translate-y-0 transition-transform"></div>
-                                            </button>
+
 
                                             {/* Dynamic Service Tracks */}
-                                            {serviceTracks.map((track) => {
+                                            {serviceTracks.map((track, idx) => {
                                                 const Icon = AVAILABLE_ICONS.find(i => i.name === track.icon)?.icon || Zap;
                                                 return (
                                                     <button 
-                                                        key={track.id}
+                                                        key={track.id || idx}
                                                         onClick={() => { setSelectedTrack(track); setIsDynamicModalOpen(true); }}
                                                         className="flex items-center gap-4 p-5 bg-white dark:bg-[#1a1c1e] border-2 border-transparent hover:border-[#006a6a]/30 rounded-[24px] hover:shadow-xl transition-all group relative overflow-hidden shadow-sm"
                                                     >
@@ -1157,24 +1154,6 @@ const Registration = () => {
                 setSearchQuery={setGlobalSearchQuery}
                 searchResults={searchResults}
             />
-
-            {/* --- QUICK ADD MODAL --- */}
-            {selectedRegistration && (
-                <QuickAddModal 
-                    key={selectedRegistration.registration_id}
-                    isOpen={isQuickAddModalOpen}
-                    onClose={() => setIsQuickAddModalOpen(false)}
-                    registration={selectedRegistration}
-                    type={quickAddType}
-                    onSuccess={() => {
-                        showToast(`Successfully converted to ${quickAddType === 'physio' ? 'Physiotherapy' : 'Speech Therapy'} patient`, 'success');
-                        if (selectedRegistration?.registration_id) {
-                            fetchDetails(selectedRegistration.registration_id);
-                        }
-                        fetchRegistrations();
-                    }}
-                />
-            )}
 
             {/* --- DYNAMIC SERVICE MODAL --- */}
             {selectedRegistration && selectedTrack && (
