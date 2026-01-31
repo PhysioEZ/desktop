@@ -6,7 +6,8 @@ import {
     AlertCircle, Search, Bell, LogOut,
     Plus, PhoneCall,
     Menu, FlaskConical, Beaker, Hourglass, Activity,
-    ChevronDown, RefreshCw, MessageCircle
+    ChevronDown, RefreshCw, MessageCircle, ArrowUpRight,
+    LayoutGrid, Phone, Banknote, FileText, MessageSquare, LifeBuoy, PieChart, Sun, Moon
 } from 'lucide-react';
 
 /* --- DUMMY DATA MATCHING EXACT SPECS --- */
@@ -15,7 +16,7 @@ const dummyData = {
     branch_overview: 'Here\'s your daily branch overview',
     registration: { today_total: 0, month_total: 3, pending: 2, consulted: 4, approval_pending: 2 },
     inquiry: { total_today: 0, quick: 0, test: 0 },
-    patients: { today_attendance: 0, total_ever: 20, active: 0, inactive: 20, paid_today: 0 },
+    patients: { today_attendance: 0, total_ever: 20, active: 0, inactive: 20, paid_today: 0, practice_health: 94, total_patients: 22, paid_amount: 53960 },
     tests: { today_total: 0, pending: 0, completed: 0, approval_pending: 0, revenue_today: 0, total_month: 5 },
     collections: { today_total: 0, reg_amount: 0, treatment_amount: 0, test_amount: 0, today_dues: 0, patient_dues: 0, test_dues: 0 },
     schedule: [
@@ -35,17 +36,22 @@ const fmt = (num: number) => `₹${num.toLocaleString('en-IN')}`;
 
 export default function DashboardNew() {
     const navigate = useNavigate();
-    const [isDark] = useState(false);
-    const [isSidebarOpen, setSidebarOpen] = useState(true);
+    const [isDark, setIsDark] = useState(false);
 
+    // Navigation Links from DashboardNew2 (Image 2 Sidebar)
     const navLinks = [
-        { icon: Calendar, label: 'Schedule', path: '/reception/schedule' },
-        { icon: PhoneCall, label: 'Inquiries', path: '/reception/inquiry' },
-        { icon: ClipboardList, label: 'Registration', path: '/reception/registration' },
-        { icon: Users, label: 'Patients', path: '/reception/patients' },
-        { icon: Wallet, label: 'Billing', path: '/reception/billing' },
-        { icon: Activity, label: 'Attendance', path: '/reception/attendance' },
-        { icon: TestTube2, label: 'Lab Tests', path: '/reception/tests' },
+        { icon: LayoutGrid, label: 'Dashboard', desc: 'Overview & Stats', path: '/reception/dashboard', active: true },
+        { icon: Calendar, label: 'Schedule', desc: 'Appmts & Queue', path: '/reception/schedule' },
+        { icon: Phone, label: 'Inquiry', desc: 'New Leads', path: '/reception/inquiry' },
+        { icon: Users, label: 'Registration', desc: 'New Patient', path: '/reception/registration' }, 
+        { icon: Users, label: 'Patients', desc: 'All Records', path: '/reception/patients' },
+        { icon: Banknote, label: 'Billing', desc: 'Invoices & Dues', path: '/reception/billing' },
+        { icon: Users, label: 'Attendance', desc: 'Daily Track', path: '/reception/attendance' },
+        { icon: TestTube2, label: 'Tests', desc: 'Lab Orders', path: '/reception/tests' },
+        { icon: MessageSquare, label: 'Feedback', desc: 'Patient Reviews', path: '/reception/feedback' },
+        { icon: FileText, label: 'Reports', desc: 'Analytics', path: '/reception/reports' },
+        { icon: PieChart, label: 'Expenses', desc: 'Clinic Exp', path: '/reception/expenses' },
+        { icon: LifeBuoy, label: 'Support', desc: 'Help & Docs', path: '/reception/support' },
     ];
 
     const actionButtons = [
@@ -56,60 +62,117 @@ export default function DashboardNew() {
     ];
 
     return (
-        <div className={`min-h-screen flex font-sans ${isDark ? 'bg-[#0C0D0C] text-[#E0E2E0]' : 'bg-[#FAFAFA] text-[#1A1A1A]'}`}>
+        <div className={`flex h-screen overflow-hidden font-sans transition-colors duration-300 ${isDark ? 'bg-[#050505] text-[#E2E8F0]' : 'bg-[#FAFAFA] text-[#1A1A1A]'}`}>
             
-            {/* 1. SIDEBAR */}
-            <aside className={`flex flex-col h-screen sticky top-0 transition-all duration-300 z-50 ${isDark ? 'bg-[#121412] border-r border-[#2A2D2A]' : 'bg-white border-r border-gray-100'} ${isSidebarOpen ? 'w-[260px]' : 'w-[80px]'}`}>
-                <div className="h-20 flex items-center px-6 gap-4">
-                    <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="p-2 -ml-2 hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-colors">
-                        <Menu size={20} />
-                    </button>
-                    {isSidebarOpen && (
-                        <div className="font-bold text-lg flex items-center gap-2">
-                             <div className="w-6 h-6 bg-[#0C200E] text-white flex items-center justify-center rounded text-xs select-none">PE</div>
-                             <span>PhysioEZ</span>
-                        </div>
-                    )}
+            {/* === SIDEBAR (COLLAPSED) FROM IMAGE 2 === */}
+            <div className={`w-20 hidden md:flex flex-col items-center py-8 border-r z-[60] shrink-0 gap-6 transition-colors duration-300 ${isDark ? 'bg-[#0A0A0A] border-[#151515]' : 'bg-white border-gray-200 shadow-xl'}`}>
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#4ADE80] to-[#22c55e] flex items-center justify-center text-black shadow-[0_0_20px_rgba(74,222,128,0.3)]">
+                    <span className="font-extrabold text-sm">PE</span>
                 </div>
 
-                <div className="flex-1 px-4 py-4 space-y-1 overflow-y-auto custom-scrollbar">
+                <div className="flex-1 w-full flex flex-col items-center gap-4 pt-4">
                     {navLinks.map((link) => (
-                        <button key={link.label} onClick={() => navigate(link.path)} className={`flex items-center gap-4 p-3.5 rounded-xl w-full transition-all group relative hover:bg-gray-50 dark:hover:bg-[#1A1C1A] text-gray-500 dark:text-gray-400 hover:text-[#0C200E] dark:hover:text-[#E0E2E0]`}>
-                            <link.icon size={20} className="shrink-0" strokeWidth={1.5} />
-                            {isSidebarOpen && <span className="text-sm font-medium">{link.label}</span>}
-                        </button>
+                        <div key={link.label} className="group relative flex items-center justify-center w-full px-4">
+                            <button 
+                                onClick={() => navigate(link.path)}
+                                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+                                    link.active 
+                                        ? (isDark ? 'bg-[#1C1C1C] text-[#4ADE80] ring-1 ring-[#4ADE80]/30' : 'bg-gray-100 text-[#16a34a] ring-1 ring-[#16a34a]/30') 
+                                        : (isDark ? 'text-gray-500 hover:text-white hover:bg-[#1C1C1C]' : 'text-gray-400 hover:text-gray-900 hover:bg-gray-50')
+                                }`}
+                            >
+                                <link.icon size={18} strokeWidth={2} />
+                            </button>
+                            
+                            {/* Hover Tooltip */}
+                            <div className={`absolute left-14 top-1/2 -translate-y-1/2 rounded-lg p-3 w-32 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ml-2 z-[60] border ${isDark ? 'bg-[#1A1A1A] border-[#2A2A2A]' : 'bg-white border-gray-200'}`}>
+                                <div className="text-xs font-bold text-white mb-0.5">{link.label}</div>
+                                <div className={`text-[10px] font-medium ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{link.desc}</div>
+                                <div className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 border-l border-b rotate-45 ${isDark ? 'bg-[#1A1A1A] border-[#2A2A2A]' : 'bg-white border-gray-200'}`}></div>
+                            </div>
+
+                            {link.active && <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[#4ADE80] rounded-r-full" />}
+                        </div>
                     ))}
                 </div>
 
-                <div className="p-4 border-t border-gray-100 dark:border-[#2A2D2A] space-y-2">
-                     <button className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-red-50 text-red-600 transition-colors">
-                         <LogOut size={20} strokeWidth={1.5} />
-                         {isSidebarOpen && <span className="text-sm font-medium">Logout</span>}
-                     </button>
-                     <div className={`p-3 rounded-xl flex items-center gap-3 ${isDark ? 'bg-[#1A1C1A]' : 'bg-gray-50'}`}>
-                        <div className="w-8 h-8 rounded-full bg-[#0C200E] text-white flex items-center justify-center font-bold text-xs shrink-0 select-none">{dummyData.user_name.charAt(0)}</div>
-                        {isSidebarOpen && (
-                            <div className="flex-1 min-w-0">
-                                <div className="text-xs font-bold truncate">{dummyData.user_name}</div>
-                                <div className="text-[10px] uppercase font-bold opacity-50 flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Online</div>
-                            </div>
-                        )}
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer ${isDark ? 'bg-[#1C1C1C] text-gray-500 hover:text-white' : 'bg-gray-100 text-gray-400 hover:text-black'}`}>
+                   <Users size={18} />
+                </div>
+            </div>
+
+            {/* === LEFT PANEL FROM IMAGE 2 === */}
+            <div className={`hidden xl:flex w-[400px] flex-col justify-between p-10 border-r relative shrink-0 transition-colors duration-300 ${isDark ? 'border-[#151515]' : 'bg-white border-gray-200'}`}>
+                {/* Brand & Greeting */}
+                <div className="space-y-10 z-10">   
+                    <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded flex items-center justify-center text-[#4ADE80] ${isDark ? 'bg-[#1C1C1C]' : 'bg-green-50'}`}><LayoutGrid size={18} /></div>
+                        <span className="font-bold tracking-widest text-xs uppercase text-gray-500">PhysioEZ Core</span>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h1 className="text-6xl font-medium tracking-tighter leading-[1.1]">
+                            Hello,<br/>
+                            <span className={isDark ? "text-[#4ADE80]" : "text-[#16a34a]"}>Saniyas<br/>Parween</span>
+                        </h1>
+                        <p className="text-gray-500 text-lg">Here's your daily branch overview.</p>
                     </div>
                 </div>
-            </aside>
 
-            {/* 2. MAIN CONTENT */}
+                {/* --- REGISTRATION CARD & KPI --- */}
+                <div className="space-y-4 z-10 w-full">
+                    {/* Big Registration Card */}
+                    <div className={`p-6 rounded-[24px] border transition-colors ${isDark ? 'bg-[#0F0F10] border-[#1A1A1A]' : 'bg-gray-50 border-gray-200'}`}>
+                         <div className="flex justify-between items-start mb-4">
+                             <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Registration</span>
+                             <div className={`p-1.5 rounded-lg text-[#4ADE80] ${isDark ? 'bg-white/5' : 'bg-green-100 text-[#16a34a]'}`}><Users size={14} /></div>
+                         </div>
+                         <div className={`text-5xl font-medium tracking-tight mb-4 ${isDark ? 'text-white' : 'text-gray-900'}`}>{dummyData.registration.today_total}<span className="text-base ml-1 text-gray-500 font-normal">Today</span></div>
+                         <div className="flex flex-wrap gap-2">
+                             <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-[#4ADE80]/10 text-[#4ADE80] border border-[#4ADE80]/20">Done: {dummyData.registration.consulted}</span>
+                             <span className="px-3 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20">Wait: {dummyData.registration.pending}</span>
+                         </div>
+                    </div>
+
+                    {/* Small KPI Grid */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className={`p-4 rounded-[20px] border flex flex-col justify-between h-24 transition-colors ${isDark ? 'bg-[#0F0F10] border-[#1A1A1A]' : 'bg-gray-50 border-gray-200'}`}>
+                            <div className="flex justify-between items-start">
+                                <span className="text-[10px] uppercase font-bold text-gray-500">Inquiries</span>
+                                <Phone size={12} className="text-purple-500"/>
+                            </div>
+                            <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{dummyData.inquiry.total_today}</div>
+                        </div>
+
+                        <div className={`p-4 rounded-[20px] border flex flex-col justify-between h-24 transition-colors ${isDark ? 'bg-[#0F0F10] border-[#1A1A1A]' : 'bg-gray-50 border-gray-200'}`}>
+                            <div className="flex justify-between items-start">
+                                <span className="text-[10px] uppercase font-bold text-gray-500">Tests</span>
+                                <TestTube2 size={12} className="text-blue-500"/>
+                            </div>
+                            <div className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{dummyData.tests.today_total}</div>
+                        </div>
+
+                         <div className={`p-4 rounded-[20px] border col-span-2 flex items-center justify-between transition-colors ${isDark ? 'bg-[#0F0F10] border-[#1A1A1A]' : 'bg-gray-50 border-gray-200'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500"><Banknote size={16} /></div>
+                                 <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">Collections</span>
+                            </div>
+                            <span className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>₹{dummyData.collections.today_total.toLocaleString()}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Decoration */}
+                <div className="absolute top-1/2 left-0 w-full h-full bg-gradient-to-t from-green-900/10 to-transparent pointer-events-none" />
+            </div>
+
+            {/* === MAIN CONTENT (RIGHT PANEL - ORIGINAL IMAGE 1 CONTENT) === */}
             <main className="flex-1 h-screen overflow-y-auto">
                 <div className="p-6 lg:p-10 max-w-[1920px] mx-auto space-y-10">
 
-                    {/* HEADER SECTION (Search, Refresh, Notif) */}
-                    <div className="flex flex-col xl:flex-row justify-between items-start xl:items-end gap-6">
-                        <div>
-                            <h1 className="text-5xl lg:text-7xl font-normal tracking-tight mb-2 selection:bg-[#CCEBC4]" style={{ fontFamily: 'serif' }}>
-                                Hello, <span className="italic text-[#0C6E1C] dark:text-[#CCEBC4]">{dummyData.user_name}</span>
-                            </h1>
-                            <p className="opacity-60 text-lg">{dummyData.branch_overview}</p>
-                        </div>
+                    {/* HEADER SECTION (Search, Refresh, Notif) - Moved from Original, Removing Greeting */}
+                    <div className="flex justify-between items-center bg-transparent backdrop-blur-sm sticky top-0 z-40 py-2">
+                        <h2 className="text-xl font-bold opacity-0">Dashboard</h2> {/* spacer */}
 
                         <div className="flex items-center gap-3">
                              {/* Global Search */}
@@ -146,219 +209,216 @@ export default function DashboardNew() {
                         ))}
                     </div>
 
-                    {/* DASHBOARD GRID */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6">
-                        
-                        {/* 1. REGISTRATION (Dark Card) - Span 5 */}
-                        <div className={`col-span-1 lg:col-span-5 p-8 rounded-[32px] relative overflow-hidden group min-h-[300px] flex flex-col justify-between ${isDark ? 'bg-[#CCEBC4] text-[#0C200E]' : 'bg-[#0C200E] text-[#CCEBC4]'}`}>
-                            <div className="flex justify-between items-start z-10">
-                                <div className="flex items-center gap-2 mb-2 opacity-80">
-                                    <ClipboardList size={18} />
+                    {/* FLAT STATS ROW */}
+                    <div className={`rounded-3xl border ${isDark ? 'bg-[#121412]/50 border-[#2A2D2A]' : 'bg-white border-gray-200'} overflow-hidden shadow-sm`}>
+                        <div className={`grid grid-cols-1 xl:grid-cols-4 divide-y xl:divide-y-0 xl:divide-x ${isDark ? 'divide-[#2A2D2A]' : 'divide-gray-100'}`}>
+                            
+                            {/* 1. REGISTRATION */}
+                            <div className="p-8 space-y-6">
+                                <div className="flex items-center gap-3 opacity-60">
+                                    <ClipboardList size={20} strokeWidth={1.5}/>
                                     <span className="text-xs font-bold uppercase tracking-widest">Registration</span>
                                 </div>
-                                <div className="text-right">
-                                    <div className="text-4xl font-bold leading-none">{dummyData.registration.month_total}</div>
-                                    <div className="text-[10px] uppercase font-bold opacity-60 mt-1">This Month</div>
+                                
+                                <div>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-6xl font-serif leading-none text-[#0C6E1C] dark:text-[#CCEBC4]">{dummyData.registration.today_total}</span>
+                                        <span className="text-sm font-bold opacity-60">Today</span>
+                                    </div>
+                                    <div className="text-xs font-bold opacity-40 mt-1">Month Total: {dummyData.registration.month_total}</div>
+                                </div>
+
+                                <div className="space-y-3 pt-2">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="opacity-60 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-yellow-500"/> Pending</span>
+                                        <span className="font-bold">{dummyData.registration.pending}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="opacity-60 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-green-500"/> Consulted</span>
+                                        <span className="font-bold">{dummyData.registration.consulted}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="opacity-60 flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-red-500"/> Appeals</span>
+                                        <span className="font-bold">{dummyData.registration.approval_pending}</span>
+                                    </div>
+                                </div>
+
+                                <div className={`pt-4 border-t border-dashed ${isDark ? 'border-[#2A2D2A]' : 'border-gray-200'}`}>
+                                    <div className="flex justify-between items-center">
+                                        <div className="flex items-center gap-2 text-xs font-bold opacity-60">
+                                            <PhoneCall size={14}/> Inquiries Today
+                                        </div>
+                                        <span className="font-bold">{dummyData.inquiry.total_today}</span>
+                                    </div>
                                 </div>
                             </div>
-                            
-                            <div className="z-10">
-                                <div className="text-7xl font-serif leading-none mb-1">{dummyData.registration.today_total}</div>
-                                <div className="text-sm font-bold opacity-60 ml-1">Today</div>
+
+                            {/* 2. PATIENTS */}
+                            <div className="p-8 space-y-6">
+                                <div className="flex items-center gap-3 opacity-60">
+                                    <Users size={20} strokeWidth={1.5}/>
+                                    <span className="text-xs font-bold uppercase tracking-widest">Census</span>
+                                </div>
+
+                                <div>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-6xl font-serif leading-none">{dummyData.patients.today_attendance}</span>
+                                        <span className="text-sm font-bold opacity-60">Attended</span>
+                                    </div>
+                                    <div className="text-xs font-bold opacity-40 mt-1">Total Patients: {dummyData.patients.total_ever}</div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4 pt-2">
+                                    <div className={`p-4 rounded-2xl ${isDark ? 'bg-[#1A1C1A]' : 'bg-gray-50'}`}>
+                                        <div className="text-2xl font-bold">{dummyData.patients.active}</div>
+                                        <div className="text-[10px] uppercase font-bold opacity-50">Active</div>
+                                    </div>
+                                    <div className={`p-4 rounded-2xl ${isDark ? 'bg-[#1A1C1A]' : 'bg-gray-50'}`}>
+                                        <div className="text-2xl font-bold opacity-50">{dummyData.patients.inactive}</div>
+                                        <div className="text-[10px] uppercase font-bold opacity-30">Inactive</div>
+                                    </div>
+                                </div>
                             </div>
 
-                            <div className="space-y-4 z-10">
-                                <div className="flex gap-2 flex-wrap">
-                                    <span className="bg-white/10 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 backdrop-blur-md">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span> Pending: {dummyData.registration.pending}
-                                    </span>
-                                    <span className="bg-white/10 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 backdrop-blur-md">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500"></span> Consulted: {dummyData.registration.consulted}
-                                    </span>
-                                    <span className="bg-white/10 px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 backdrop-blur-md">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span> Appeals: {dummyData.registration.approval_pending}
-                                    </span>
+                            {/* 3. LAB OPERATIONS */}
+                            <div className="p-8 space-y-6">
+                                <div className="flex items-center gap-3 opacity-60">
+                                    <TestTube2 size={20} strokeWidth={1.5}/>
+                                    <span className="text-xs font-bold uppercase tracking-widest">Lab Ops</span>
                                 </div>
-                                <div className="pt-4 border-t border-white/10 flex justify-between items-center text-xs font-bold">
-                                     <div className="flex items-center gap-2"><PhoneCall size={14} /> INQUIRIES</div>
-                                     <div className="flex gap-4 opacity-80">
-                                         <span>Total: {dummyData.inquiry.total_today}</span>
-                                         <span>Quick: {dummyData.inquiry.quick}</span>
-                                         <span>Test: {dummyData.inquiry.test}</span>
-                                     </div>
+
+                                <div>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-6xl font-serif leading-none">{dummyData.tests.today_total}</span>
+                                        <span className="text-sm font-bold opacity-60">Tests</span>
+                                    </div>
+                                    <div className="text-xs font-bold opacity-40 mt-1">Revenue: {fmt(dummyData.tests.revenue_today)}</div>
+                                </div>
+
+                                <div className="space-y-4 pt-2">
+                                    <div className={`flex text-center divide-x ${isDark ? 'divide-[#2A2D2A]' : 'divide-gray-100'}`}>
+                                        <div className="flex-1 px-2">
+                                            <div className="text-lg font-bold text-yellow-600">{dummyData.tests.approval_pending}</div>
+                                            <div className="text-[9px] uppercase font-bold opacity-40">Wait</div>
+                                        </div>
+                                        <div className="flex-1 px-2">
+                                            <div className="text-lg font-bold text-blue-500">{dummyData.tests.pending}</div>
+                                            <div className="text-[9px] uppercase font-bold opacity-40">Process</div>
+                                        </div>
+                                        <div className="flex-1 px-2">
+                                            <div className="text-lg font-bold text-green-500">{dummyData.tests.completed}</div>
+                                            <div className="text-[9px] uppercase font-bold opacity-40">Done</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className={`pt-4 border-t border-dashed ${isDark ? 'border-[#2A2D2A]' : 'border-gray-200'}`}>
+                                     <div className="flex justify-between items-center">
+                                        <span className="text-xs font-bold opacity-60">Month Total</span>
+                                        <span className="font-bold text-[#0C200E] dark:text-[#CCEBC4]">{dummyData.tests.total_month}</span>
+                                    </div>
                                 </div>
                             </div>
 
-                            <ClipboardList className="absolute -right-4 top-10 w-96 h-96 opacity-[0.03] rotate-12 pointer-events-none" />
+                            {/* 4. COLLECTIONS */}
+                            <div className="p-8 space-y-6">
+                                 <div className="flex items-center gap-3 opacity-60">
+                                    <Wallet size={20} strokeWidth={1.5}/>
+                                    <span className="text-xs font-bold uppercase tracking-widest">Collections</span>
+                                </div>
+
+                                <div>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-6xl font-serif leading-none text-[#0C200E] dark:text-[#CCEBC4]">{fmt(dummyData.collections.today_total)}</span>
+                                    </div>
+                                    <div className="text-xs font-bold opacity-40 mt-1">Today's Revenue</div>
+                                </div>
+
+                                <div className="space-y-3 pt-2">
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="opacity-60">Registration</span>
+                                        <span className="font-mono font-bold">{fmt(dummyData.collections.reg_amount)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="opacity-60">Treatment</span>
+                                        <span className="font-mono font-bold">{fmt(dummyData.collections.treatment_amount)}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="opacity-60">Lab Tests</span>
+                                        <span className="font-mono font-bold">{fmt(dummyData.collections.test_amount)}</span>
+                                    </div>
+                                </div>
+
+                                <div className={`pt-4 border-t border-dashed ${isDark ? 'border-[#2A2D2A]' : 'border-gray-200'}`}>
+                                    <div className="flex justify-between items-center text-red-500">
+                                        <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-2">
+                                            <AlertCircle size={14}/> Dues
+                                        </span>
+                                        <span className="font-bold">{fmt(dummyData.collections.today_dues)}</span>
+                                    </div>
+                                </div>
+                            </div>
+
                         </div>
-
-                        {/* 2. PATIENTS CARD - Span 4 */}
-                        <div className={`col-span-1 lg:col-span-4 p-8 rounded-[32px] flex flex-col justify-between min-h-[300px] relative overflow-hidden ${isDark ? 'bg-[#121412] border border-[#2A2D2A]' : 'bg-[#E8F5E9] text-[#05210A]'}`}>
-                             <div className="flex justify-between items-start z-10">
-                                 <div className="flex items-center gap-2 opacity-80">
-                                     <Users size={18} />
-                                     <span className="text-xs font-bold uppercase tracking-widest">Patients</span>
-                                 </div>
-                                 <span className="text-[10px] font-bold uppercase px-2 py-1 rounded bg-black/5 dark:bg-white/5">Total: {dummyData.patients.total_ever}</span>
-                             </div>
-
-                             <div className="text-center z-10">
-                                 <div className="text-6xl font-serif leading-none">{dummyData.patients.today_attendance}</div>
-                                 <div className="text-xs font-bold uppercase tracking-widest opacity-60 mt-2">Attended Today</div>
-                             </div>
-
-                             <div className="grid grid-cols-2 gap-4 z-10">
-                                 <div className="bg-white/60 dark:bg-white/5 p-4 rounded-2xl text-center backdrop-blur-sm">
-                                     <div className="text-xl font-bold">{dummyData.patients.active}</div>
-                                     <div className="text-[10px] font-bold uppercase opacity-50">Active</div>
-                                 </div>
-                                 <div className="text-center p-4 opacity-60">
-                                     <div className="text-xl font-bold">{dummyData.patients.inactive}</div>
-                                     <div className="text-[10px] font-bold uppercase opacity-50">Inactive</div>
-                                 </div>
-                             </div>
-                             
-                             <Users className="absolute -left-10 -bottom-10 w-64 h-64 opacity-[0.03] rotate-[-12deg] pointer-events-none" />
-                        </div>
-
-                         {/* 3. LAB TESTS CARD - Span 3 */}
-                        <div className={`col-span-1 lg:col-span-3 p-8 rounded-[32px] flex flex-col justify-between min-h-[300px] ${isDark ? 'bg-[#121412] border border-[#2A2D2A]' : 'bg-white border border-gray-100'}`}>
-                             <div className="flex justify-between items-start">
-                                 <div className="flex items-center gap-2 text-[#B3261E] dark:text-[#FFB4AB]">
-                                     <TestTube2 size={18} />
-                                     <span className="text-xs font-bold uppercase tracking-widest">Lab</span>
-                                 </div>
-                                 <span className="text-5xl font-serif leading-none">{dummyData.tests.today_total}</span>
-                             </div>
-
-                             <div className="flex justify-between text-center py-4">
-                                 <div className="space-y-1">
-                                     <div className="text-xl font-bold text-yellow-600">{dummyData.tests.approval_pending}</div>
-                                     <div className="text-[9px] font-bold uppercase opacity-40">Approval</div>
-                                 </div>
-                                 <div className="space-y-1">
-                                     <div className="text-xl font-bold text-orange-600">{dummyData.tests.pending}</div>
-                                     <div className="text-[9px] font-bold uppercase opacity-40">Pending</div>
-                                 </div>
-                                 <div className="space-y-1">
-                                     <div className="text-xl font-bold text-green-600">{dummyData.tests.completed}</div>
-                                     <div className="text-[9px] font-bold uppercase opacity-40">Done</div>
-                                 </div>
-                             </div>
-
-                             <div className="pt-4 border-t border-gray-100 dark:border-[#2A2D2A] flex justify-between items-end">
-                                 <div>
-                                     <div className="text-[10px] font-bold uppercase opacity-40 mb-1">Revenue</div>
-                                     <div className="text-lg font-mono font-bold">{fmt(dummyData.tests.revenue_today)}</div>
-                                 </div>
-                                 <div className="text-right">
-                                     <div className="text-[10px] font-bold uppercase opacity-40 mb-1">Month Total</div>
-                                     <div className="text-lg font-bold">{dummyData.tests.total_month}</div>
-                                 </div>
-                             </div>
-                        </div>
-
                     </div>
 
-                    {/* ROW 2: COLLECTIONS & GRAPH */}
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                        
-                         {/* 4. COLLECTIONS - Span 4 */}
-                        <div className={`col-span-1 lg:col-span-4 p-8 rounded-[32px] flex flex-col justify-between min-h-[220px] ${isDark ? 'bg-[#121412] border border-[#2A2D2A]' : 'bg-[#1A1C1A] text-[#E0E2E0]'}`}>
-                            <div className="flex justify-between items-center">
-                                <span className="text-xs font-bold uppercase tracking-widest opacity-60">Total Collected Today</span>
-                                <div className="p-2 bg-white/10 rounded-full"><ChevronDown size={14} /></div>
-                            </div>
-                            <div className="text-6xl font-mono font-bold text-[#CCEBC4]">{fmt(dummyData.collections.today_total)}</div>
-                            <div className="space-y-2 pt-4 border-t border-white/10 text-sm">
-                                <div className="flex justify-between"><span className="opacity-60">Registration</span><span className="font-mono font-bold">{fmt(dummyData.collections.reg_amount)}</span></div>
-                                <div className="flex justify-between"><span className="opacity-60">Treatment</span><span className="font-mono font-bold">{fmt(dummyData.collections.treatment_amount)}</span></div>
-                                <div className="flex justify-between"><span className="opacity-60">Lab Tests</span><span className="font-mono font-bold">{fmt(dummyData.collections.test_amount)}</span></div>
-                            </div>
-                        </div>
-
-                         {/* 5. NEW RECENT ACTIVITY CARD (Bar Chart) - Span 8 */}
-                        <div className={`col-span-1 lg:col-span-8 p-8 rounded-[32px] ${isDark ? 'bg-[#121412] border border-[#2A2D2A]' : 'bg-white border border-gray-100'}`}>
+                    {/* BOTTOM ROW: GRAPHS & SCHEDULE */}
+                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 pb-20">
+                         {/* RECENT ACTIVITY */}
+                        <div className={`col-span-1 xl:col-span-8 p-8 rounded-[32px] ${isDark ? 'bg-[#121412] border border-[#2A2D2A]' : 'bg-white border-gray-200 shadow-sm'}`}>
                             <div className="flex justify-between items-center mb-8">
-                                <div className="flex items-center gap-2">
-                                    <Activity size={18} />
-                                    <h3 className="font-bold">Recent Activity</h3>
+                                <div className="flex items-center gap-3">
+                                    <Activity size={20}/>
+                                    <h3 className="font-bold text-lg">Recent Activity</h3>
                                 </div>
-                                <span className="bg-green-100 text-green-800 text-[10px] font-bold uppercase px-2 py-1 rounded">Live</span>
+                                <span className="bg-[#CCEBC4] text-[#0C200E] text-[10px] font-bold uppercase px-2 py-1 rounded">Live</span>
                             </div>
 
-                            <div className="flex items-end justify-between h-[150px] gap-4">
+                            <div className="flex items-end justify-between h-[180px] gap-4">
                                 {dummyData.weekly.map((d, i) => (
                                     <div key={i} className="flex-1 flex flex-col gap-3 h-full justify-end group">
-                                         <div className="w-full bg-gray-50 dark:bg-[#1A1C1A] rounded-2xl relative overflow-hidden h-full flex items-end">
+                                         <div className={`w-full rounded-xl relative overflow-hidden h-full flex items-end ${isDark ? 'bg-[#1A1C1A]' : 'bg-gray-50'}`}>
                                              <motion.div 
                                                 initial={{ height: 0 }}
                                                 animate={{ height: d.total > 0 ? '60%' : '5px' }}
                                                 className={`w-full ${d.total > 0 ? 'bg-[#0C200E] dark:bg-[#CCEBC4]' : 'bg-transparent'}`}
                                              />
-                                             {d.total > 0 && <div className="absolute w-full text-center bottom-2 text-[10px] font-bold text-white mix-blend-difference">{fmt(d.total)}</div>}
+                                             {d.total > 0 && <div className="absolute w-full text-center bottom-2 text-[10px] font-bold text-[#fcfcfc] dark:text-[#0C200E]">{fmt(d.total)}</div>}
                                          </div>
                                          <div className="text-center text-[10px] font-bold uppercase opacity-30">{d.day}</div>
                                     </div>
                                 ))}
                             </div>
                         </div>
-                    </div>
 
-                    {/* ROW 3: SCHEDULE & DUES */}
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-20">
-                        
-                         {/* 6. SCHEDULE - Span 8 */}
-                        <div className={`col-span-1 lg:col-span-8 p-8 rounded-[32px] ${isDark ? 'bg-[#121412] border border-[#2A2D2A]' : 'bg-white border border-gray-100'}`}>
-                            <div className="flex justify-between items-center mb-8">
-                                <h3 className="font-bold text-lg">Today's Schedule</h3>
-                                <span className="px-3 py-1 rounded-full bg-[#E8F5E9] text-[#0C200E] text-xs font-bold">Jan 28</span>
+                         {/* TODAY'S SCHEDULE */}
+                        <div className={`col-span-1 xl:col-span-4 p-8 rounded-[32px] ${isDark ? 'bg-[#121412] border border-[#2A2D2A]' : 'bg-white border-gray-200 shadow-sm'}`}>
+                            <div className="flex justify-between items-center mb-6">
+                                <h3 className="font-bold text-lg">Schedule</h3>
+                                <button onClick={() => navigate('/reception/schedule')} className="w-8 h-8 flex items-center justify-center rounded-full border border-gray-200 dark:border-white/10 hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+                                    <ArrowUpRight size={16}/>
+                                </button>
                             </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            
+                            <div className="space-y-4">
                                 {dummyData.schedule.map((apt) => (
-                                    <div key={apt.id} className="p-4 rounded-2xl border border-gray-100 dark:border-[#2A2D2A] hover:border-[#0C200E] transition-colors group">
-                                         <div className="flex items-center gap-4 mb-3">
-                                             <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${['Sumit', 'Ravi'].includes(apt.patient_name) ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700'}`}>
-                                                 {apt.patient_name.charAt(0)}
-                                             </div>
-                                             <div>
-                                                 <div className="font-bold">{apt.patient_name}</div>
-                                                 <div className="text-xs opacity-50">{apt.type}</div>
-                                             </div>
-                                             <div className="ml-auto text-xs font-bold opacity-40">{apt.appointment_time}</div>
+                                    <div key={apt.id} className={`p-4 rounded-2xl border transition-colors group flex items-start gap-4 ${isDark ? 'border-[#2A2D2A] hover:border-[#CCEBC4]/50' : 'border-gray-100 hover:border-gray-300'}`}>
+                                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${['Sumit', 'Ravi'].includes(apt.patient_name) ? 'bg-orange-500/20 text-orange-500' : 'bg-green-500/20 text-green-500'}`}>
+                                             {apt.patient_name.charAt(0)}
                                          </div>
-                                         <div className="flex gap-2 pl-14">
-                                             {apt.approval_status === 'pending' && <span className="text-[10px] font-bold uppercase bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Waiting</span>}
-                                             {apt.status === 'Pending' && <span className="text-[10px] font-bold uppercase bg-[#FFDAD6] text-[#410002] px-2 py-1 rounded">Pending</span>}
-                                             {apt.status === 'Consulted' && <span className="text-[10px] font-bold uppercase bg-green-100 text-green-800 px-2 py-1 rounded">Consulted</span>}
+                                         <div className="flex-1 min-w-0">
+                                             <div className="flex justify-between items-start">
+                                                 <div className="font-bold truncate">{apt.patient_name}</div>
+                                                 <div className="text-xs font-bold opacity-40 bg-gray-100 dark:bg-white/5 px-1.5 py-0.5 rounded">{apt.appointment_time}</div>
+                                             </div>
+                                             <div className="text-xs opacity-50 mt-0.5">{apt.type}</div>
+                                             <div className="flex items-center gap-2 mt-2">
+                                                 <span className={`w-1.5 h-1.5 rounded-full ${apt.status === 'Pending' ? 'bg-orange-500' : 'bg-green-500'}`}/>
+                                                 <span className="text-[10px] uppercase font-bold opacity-60">{apt.status}</span>
+                                             </div>
                                          </div>
                                     </div>
                                 ))}
-                            </div>
-                        </div>
-
-                         {/* 7. DUES ALERT - Span 4 */}
-                        <div className={`col-span-1 lg:col-span-4 p-8 rounded-[32px] flex flex-col justify-center text-center relative overflow-hidden ${isDark ? 'bg-[#210E0E]' : 'bg-[#FFF8F6] border border-red-100'}`}>
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-[#FFDAD6] rounded-bl-full opacity-50 pointer-events-none"></div>
-
-                            <div className="flex justify-center items-center gap-2 mb-2 relative z-10 text-[#B3261E] dark:text-[#FFB4AB]">
-                                <AlertCircle size={20} />
-                                <h3 className="font-bold">Dues Alert</h3>
-                            </div>
-
-                            <div className="text-6xl font-mono font-bold text-[#B3261E] dark:text-[#FFB4AB] relative z-10 mb-2">{fmt(dummyData.collections.today_dues)}</div>
-                            <div className="text-xs font-bold uppercase tracking-widest opacity-60 mb-6 dark:text-[#FFDAD6]">Total Pending</div>
-
-                            <div className="flex justify-between px-4 pb-2 relative z-10">
-                                <div className="text-right">
-                                    <div className="text-xs font-bold dark:text-[#FFDAD6]">Patient Dues</div>
-                                    <div className="text-red-600 dark:text-[#FFB4AB] font-bold">{fmt(0)}</div>
-                                </div>
-                                <div className="text-left border-l border-red-200 pl-4">
-                                     <div className="text-xs font-bold dark:text-[#FFDAD6]">Test Dues</div>
-                                     <div className="text-red-600 dark:text-[#FFB4AB] font-bold">{fmt(0)}</div>
-                                </div>
                             </div>
                         </div>
 
@@ -371,7 +431,7 @@ export default function DashboardNew() {
                  <button className="w-14 h-14 bg-white dark:bg-[#1A1C1A] text-gray-600 dark:text-gray-300 rounded-2xl shadow-xl flex items-center justify-center border border-gray-100 dark:border-[#2A2D2A] hover:bg-gray-50 transition-colors">
                      <MessageCircle size={24} />
                  </button>
-                 <button className="w-16 h-16 bg-[#CCEBC4] text-[#0C200E] rounded-[24px] shadow-2xl shadow-green-900/20 flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
+                 <button className="w-16 h-16 bg-[#0C200E] text-[#CCEBC4] dark:bg-[#CCEBC4] dark:text-[#0C200E] rounded-[24px] shadow-2xl shadow-green-900/20 flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
                      <Plus size={32} />
                  </button>
             </div>

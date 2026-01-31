@@ -213,7 +213,7 @@ const LoginScreen = () => {
           className="mt-12 text-center space-y-4"
         >
           <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#eaddff]/20 border border-[#eaddff]/30 text-[10px] font-bold text-[#49454f] dark:text-[#cac4d0] uppercase tracking-widest">
-            <Info size={12} /> Console Version 0.5.0
+            <Info size={12} /> Console Version 0.6.0
           </div>
           <p className="text-xs text-[#49454f] dark:text-[#cac4d0] font-medium opacity-60">
             &copy; 2026 PhysioEZ Medical Inc. All rights reserved.
