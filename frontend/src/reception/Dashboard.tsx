@@ -49,7 +49,8 @@ import KeyboardShortcuts, {
   type ShortcutItem,
 } from "../components/KeyboardShortcuts";
 import LogoutConfirmation from "../components/LogoutConfirmation";
-import GlobalSearch from "../components/GlobalSearch";
+
+import pack from "../../package.json";
 
 // Types
 interface DashboardData {
@@ -106,14 +107,16 @@ interface Notification {
   time_ago: string;
 }
 
-interface PatientSearch {
-  patient_id: number;
-  patient_name: string;
-  patient_uid: string | null;
-  age: string;
-  gender: string;
-  phone_number: string;
+interface UnifiedSearchResult {
+  id: number;
+  name: string;
+  phone: string;
+  uid: string | null;
+  category: "Patient" | "Registration" | "Test" | "Inquiry";
   status: string;
+  target_id: number;
+  gender: string;
+  age: string;
 }
 
 interface FormOptions {
@@ -153,19 +156,6 @@ type ModalType =
   | "test_inquiry"
   | "approvals"
   | null;
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.1 },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-};
 
 const TimePicker = ({ value, onChange, onClose, slots }: any) => {
   const [selected, setSelected] = useState(value || "");
@@ -285,7 +275,7 @@ const ReceptionDashboard = () => {
 
   // Header Logic (Search, Notifications, Profile)
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<PatientSearch[]>([]);
+  const [searchResults, setSearchResults] = useState<UnifiedSearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -293,7 +283,7 @@ const ReceptionDashboard = () => {
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLButtonElement>(null);
@@ -544,9 +534,12 @@ const ReceptionDashboard = () => {
   // Search Logic
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!user?.branch_id || searchQuery.length < 2) {
+    if (!user?.branch_id) {
       setSearchResults([]);
-      setShowSearchResults(false);
+      return;
+    }
+    if (searchQuery.length < 2) {
+      setSearchResults([]);
       return;
     }
 
@@ -557,7 +550,7 @@ const ReceptionDashboard = () => {
         );
         const data = await res.json();
         if (data.success) {
-          setSearchResults(data.patients || []);
+          setSearchResults(data.results || []);
           setShowSearchResults(true);
         }
       } catch (err) {
@@ -573,8 +566,12 @@ const ReceptionDashboard = () => {
     fetchAll();
     // Click outside handler for popups
     const handleClickOutside = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node))
-        setShowSearchResults(false);
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        // Only close if not clicking the search modal as well
+        if (!(e.target as Element).closest("#search-modal-container")) {
+          setShowSearchResults(false);
+        }
+      }
       if (
         notifRef.current &&
         !notifRef.current.contains(e.target as Node) &&
@@ -614,12 +611,13 @@ const ReceptionDashboard = () => {
     }
   }, [activeModal]);
 
-  // Global ESC Key Handler
+  // Global ESC & Hotkey Handler
   useEffect(() => {
-    const handleEsc = (e: KeyboardEvent) => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 1. ESC Key Logic
       if (e.key === "Escape") {
         // Priority Order (LIFOish)
-        if (showGlobalSearch) setShowGlobalSearch(false);
+        if (showSearchResults) setShowSearchResults(false);
         else if (showShortcuts) setShowShortcuts(false);
         else if (showLogoutConfirm) setShowLogoutConfirm(false);
         else if (showPhotoModal) closePhotoModal();
@@ -629,11 +627,22 @@ const ReceptionDashboard = () => {
         else if (showProfilePopup) setShowProfilePopup(false);
         else if (activeModal) closeModal();
       }
+
+      // 2. Quick Search Shortcut (Alt + S)
+      const isS =
+        e.key.toLowerCase() === "s" || e.code.toLowerCase() === "keys";
+      if (e.altKey && isS && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        setShowSearchResults(true);
+      }
     };
-    window.addEventListener("keydown", handleEsc);
-    return () => window.removeEventListener("keydown", handleEsc);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [
-    showGlobalSearch,
+    showSearchResults,
     showShortcuts,
     showLogoutConfirm,
     showPhotoModal,
@@ -989,14 +998,6 @@ const ReceptionDashboard = () => {
 
   // Helper
   const fmt = (n: number) => `₹${(n || 0).toLocaleString("en-IN")}`;
-  const getTimeRange = (timeStr: string) => {
-    if (!timeStr) return "";
-    const today = new Date().toISOString().split("T")[0];
-    const start = new Date(`${today}T${timeStr}`);
-    if (isNaN(start.getTime())) return timeStr;
-    const end = new Date(start.getTime() + 30 * 60 * 1000);
-    return `${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true })} - ${end.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true })}`;
-  };
 
   const actionButtons = [
     {
@@ -1100,9 +1101,13 @@ const ReceptionDashboard = () => {
     },
     {
       keys: ["Alt", "S"],
-      description: "Global Search",
-      group: "Modals",
-      action: () => setShowGlobalSearch(true),
+      description: "Quick Search",
+      group: "General",
+      action: () => {
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+        setShowSearchResults(true);
+      },
     },
     {
       keys: ["Alt", "L"],
@@ -1322,26 +1327,59 @@ const ReceptionDashboard = () => {
             <AnimatePresence>
               {showProfilePopup && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute bottom-full left-full mb-2 ml-2 w-56 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden p-2 transition-colors"
+                  initial={{ opacity: 0, scale: 0.9, y: 10, x: -10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
+                  exit={{ opacity: 0, scale: 0.9, y: 10, x: -10 }}
+                  className="absolute bottom-0 left-full ml-4 w-64 bg-[#fdfcff] dark:bg-[#111315] rounded-[24px] shadow-2xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden transition-colors"
                 >
-                  <button
-                    onClick={() => navigate("/reception/profile")}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"
-                  >
-                    <User size={18} /> Profile
-                  </button>
-                  <button
-                    onClick={() => {
-                      logout();
-                      navigate("/login");
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#ffdad6] dark:hover:bg-[#93000a] text-[#410002] dark:text-[#ffdad6] text-sm font-medium mt-1 transition-colors"
-                  >
-                    <LogOut size={18} /> Logout
-                  </button>
+                  {/* User Header */}
+                  <div className="p-5 border-b border-[#e0e2ec] dark:border-[#43474e] bg-slate-50/50 dark:bg-white/5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 rounded-2xl bg-[#4ADE80]/10 flex items-center justify-center text-[#16a34a] dark:text-[#4ADE80] font-bold text-xl border border-[#4ADE80]/20">
+                        {user?.name?.charAt(0).toUpperCase() || "R"}
+                      </div>
+                      <div className="overflow-hidden">
+                        <p className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6] truncate">
+                          {user?.name || "Receptionist"}
+                        </p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mt-0.5">
+                          {user?.role
+                            ? user.role.charAt(0).toUpperCase() +
+                              user.role.slice(1)
+                            : "Staff Member"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="p-2">
+                    <button
+                      onClick={() => navigate("/reception/profile")}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"
+                    >
+                      <User size={18} /> Profile
+                    </button>
+                    <button
+                      onClick={() => {
+                        logout();
+                        navigate("/login");
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#ffdad6] dark:hover:bg-[#93000a] text-[#410002] dark:text-[#ffdad6] text-sm font-medium mt-1 transition-colors"
+                    >
+                      <LogOut size={18} /> Logout
+                    </button>
+                  </div>
+
+                  {/* Version Footer */}
+                  <div className="px-5 py-3 bg-slate-100/50 dark:bg-white/5 border-t border-[#e0e2ec] dark:border-[#43474e] flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
+                      Console Version
+                    </span>
+                    <span className="text-sm font-black text-slate-600 dark:text-slate-300">
+                      v{pack.version}
+                    </span>
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1489,136 +1527,51 @@ const ReceptionDashboard = () => {
       <main className="flex-1 h-screen overflow-y-auto bg-transparent relative">
         <div className="p-6 lg:p-10 max-w-[1920px] mx-auto space-y-10">
           {/* HEADER SECTION (Search, Refresh, Notif) */}
-          <div className="flex justify-between items-center bg-transparent backdrop-blur-sm sticky top-0 z-[45] py-2">
-            <h2 className="text-xl font-bold opacity-0">Dashboard</h2>{" "}
-            {/* spacer */}
-            <div className="flex items-center gap-3">
-              <div
-                ref={searchRef}
-                className={`relative z-[60] transition-all duration-300 ease-in-out ${searchQuery || showSearchResults ? "xl:w-[700px]" : "xl:w-96"}`}
-              >
-                <div
-                  className={`flex items-center px-4 py-2.5 rounded-2xl border transition-all duration-300 focus-within:ring-2 focus-within:ring-[#4ADE80]/30 ${isDark ? "bg-[#121412] border-[#2A2D2A]" : "bg-white border-gray-100 shadow-sm"}`}
+          <div
+            className={`flex justify-between items-center bg-transparent backdrop-blur-sm sticky top-0 py-2 transition-all duration-300 z-[45]`}
+          >
+            <div
+              className={`flex items-center gap-2 transition-all duration-300 ${showSearchResults ? "opacity-20 blur-[2px] pointer-events-none scale-98" : "opacity-100"}`}
+            >
+              {actionButtons.map((btn) => (
+                <button
+                  key={btn.id}
+                  onClick={() => setActiveModal(btn.id)}
+                  className={`flex items-center gap-3 px-5 py-3 rounded-full transition-all duration-300 shadow-sm border ${
+                    isDark
+                      ? "bg-[#1A1C1A] text-white/70 hover:text-white hover:bg-[#252825] border-white/5"
+                      : "bg-white text-gray-600 hover:text-gray-900 border-gray-100 hover:shadow-md"
+                  }`}
                 >
-                  <Search
-                    size={16}
-                    className={`transition-colors ${searchQuery ? (isDark ? "text-[#4ADE80]" : "text-[#16a34a]") : "opacity-40"}`}
-                  />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onFocus={() => setShowSearchResults(true)}
-                    placeholder="Search patients, phone, records..."
-                    className="bg-transparent border-none outline-none px-3 text-sm w-full placeholder:opacity-40"
-                  />
-                  {!searchQuery && (
-                    <div className="text-[9px] font-bold opacity-30 border px-1.5 py-0.5 rounded shrink-0">
-                      Alt + S
-                    </div>
-                  )}
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      className="hover:bg-gray-100 dark:hover:bg-white/5 p-1 rounded-full transition-colors"
-                    >
-                      <X size={14} className="opacity-40" />
-                    </button>
-                  )}
-                </div>
+                  <btn.icon size={16} strokeWidth={2} />
+                  <span className="text-xs font-bold tracking-tight whitespace-nowrap">
+                    {btn.label}
+                  </span>
+                </button>
+              ))}
+            </div>
 
-                {/* Search Results & Power Search Hint */}
-                <AnimatePresence>
-                  {showSearchResults && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.98 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.98 }}
-                      className={`absolute top-full left-0 right-0 mt-3 p-2 rounded-[24px] shadow-2xl border overflow-hidden z-[60] ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-gray-100"}`}
-                    >
-                      {!searchQuery ? (
-                        <div className="p-4 space-y-4">
-                          <div className="flex items-center gap-3 text-[#4ADE80]">
-                            <LayoutGrid size={20} />
-                            <span className="font-bold text-sm tracking-wide">
-                              Universal Search
-                            </span>
-                          </div>
-                          <p
-                            className={`text-xs leading-relaxed opacity-60 ${isDark ? "text-gray-400" : "text-gray-600"}`}
-                          >
-                            Our powerful search lets you find anything from
-                            across the system. Just start typing to find:
-                          </p>
-                          <div className="grid grid-cols-2 gap-2">
-                            {[
-                              { label: "Patients", desc: "By name or ID" },
-                              { label: "Contacts", desc: "Phone numbers" },
-                              { label: "Records", desc: "Lab test IDs" },
-                              { label: "Inquiries", desc: "Past follow-ups" },
-                            ].map((item) => (
-                              <div
-                                key={item.label}
-                                className={`p-3 rounded-xl border ${isDark ? "bg-white/5 border-white/5" : "bg-gray-50 border-gray-100"}`}
-                              >
-                                <div className="font-bold text-[11px] uppercase tracking-wider mb-1 opacity-80">
-                                  {item.label}
-                                </div>
-                                <div className="text-[10px] opacity-50">
-                                  {item.desc}
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                          <div className="p-3 border-b dark:border-white/5 border-gray-100 mb-2">
-                            <span className="text-[10px] font-bold uppercase tracking-widest opacity-40">
-                              Search Results
-                            </span>
-                          </div>
-                          {searchResults.map((p) => (
-                            <div
-                              key={p.patient_id}
-                              onClick={() => {
-                                setSearchQuery("");
-                                setShowSearchResults(false);
-                                navigate(`/reception/patients`);
-                              }}
-                              className={`p-4 mx-1 rounded-xl cursor-pointer transition-all flex items-center justify-between group ${isDark ? "hover:bg-white/5" : "hover:bg-gray-50"}`}
-                            >
-                              <div>
-                                <p
-                                  className={`font-bold text-sm ${isDark ? "text-white" : "text-gray-900"}`}
-                                >
-                                  {p.patient_name}
-                                </p>
-                                <p className={`text-xs opacity-50 mt-0.5`}>
-                                  {p.phone_number}
-                                </p>
-                              </div>
-                              <ArrowUpRight
-                                size={16}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity"
-                              />
-                            </div>
-                          ))}
-                          {searchResults.length === 0 && (
-                            <div className="p-8 text-center space-y-2">
-                              <div className="w-12 h-12 rounded-full bg-gray-50 dark:bg-white/5 flex items-center justify-center mx-auto">
-                                <Search size={20} className="opacity-20" />
-                              </div>
-                              <p className="text-sm font-medium opacity-40">
-                                No entries matched your search
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+            <div className="flex items-center gap-3">
+              <div ref={searchRef} className="relative z-[160] xl:w-90">
+                <div
+                  onClick={() => setShowSearchResults(true)}
+                  className={`flex items-center px-5 py-3 rounded-[24px] border transition-all duration-300 cursor-text ${
+                    isDark
+                      ? "bg-[#121412]/80 border-[#2A2D2A] hover:bg-[#121412] shadow-2xl shadow-black/20"
+                      : "bg-white border-gray-100 shadow-xl shadow-black/[0.03] hover:bg-white"
+                  } backdrop-blur-md`}
+                >
+                  <Search size={18} className="opacity-30" />
+                  <div className="bg-transparent px-4 text-base w-full opacity-30 font-medium select-none">
+                    Search anything... (Alt + S)
+                  </div>
+                  <div
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-black tracking-tight opacity-40 ${isDark ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-200"}`}
+                  >
+                    <span className="text-[12px] opacity-60">⌥</span>
+                    <span>S</span>
+                  </div>
+                </div>
               </div>
 
               {/* Utilities */}
@@ -1720,22 +1673,6 @@ const ReceptionDashboard = () => {
                 </button>
               )}
             </div>
-          </div>
-
-          {/* NEW BUTTON UI (Black Pills) */}
-          <div className="flex flex-wrap gap-4">
-            {actionButtons.map((btn) => (
-              <button
-                key={btn.label}
-                onClick={() => setActiveModal(btn.id)}
-                className={`flex items-center gap-3 pl-4 pr-6 py-3.5 rounded-full shadow-lg shadow-black/5 hover:shadow-black/10 hover:-translate-y-0.5 active:translate-y-0 transition-all bg-[#0C200E] text-white`}
-              >
-                <btn.icon size={18} />
-                <span className="font-bold text-sm tracking-wide">
-                  {btn.label}
-                </span>
-              </button>
-            ))}
           </div>
 
           {/* --- REDESIGNED STATS GRID - 4 Columns --- */}
@@ -3710,6 +3647,267 @@ const ReceptionDashboard = () => {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Global Search Overlay Layer */}
+      <AnimatePresence>
+        {showSearchResults && (
+          <>
+            {/* Background Overlay - Light dimmed whole page */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSearchResults(false)}
+              className="fixed inset-0 bg-black/40 backdrop-blur-[8px] z-[140] cursor-default"
+            />
+
+            {/* Search Results Centered Modal */}
+            <motion.div
+              id="search-modal-container"
+              initial={{ opacity: 0, y: -20, x: "-50%", scale: 0.95 }}
+              animate={{ opacity: 1, y: "-50%", x: "-50%", scale: 1 }}
+              exit={{ opacity: 0, y: -20, x: "-50%", scale: 0.95 }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className={`fixed top-1/2 left-1/2 p-0 rounded-[40px] shadow-[0_64px_120px_-30px_rgba(0,0,0,0.5)] border overflow-hidden z-[160] w-[680px] ${
+                isDark
+                  ? "bg-[#1A1C1A]/95 border-white/10 backdrop-blur-3xl ring-1 ring-white/5"
+                  : "bg-white/95 border-gray-200 shadow-2xl backdrop-blur-3xl"
+              }`}
+            >
+              {/* Modal Search Input Header */}
+              <div className="p-6 border-b dark:border-white/5 border-gray-100">
+                <div className="flex items-center px-6 py-4 rounded-[28px] bg-black/5 dark:bg-white/5 border border-transparent focus-within:border-emerald-500/30 transition-all">
+                  <Search size={22} className="opacity-30 mr-4" />
+                  <input
+                    ref={searchInputRef}
+                    autoFocus
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Type to search patients, records..."
+                    className="bg-transparent border-none outline-none text-xl w-full placeholder:opacity-20 font-medium"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-all"
+                    >
+                      <X size={20} className="opacity-40" />
+                    </button>
+                  )}
+                  <div className="ml-4 px-2 py-1 rounded text-[10px] font-bold border border-black/10 dark:border-white/10 opacity-30">
+                    ESC to close
+                  </div>
+                </div>
+              </div>
+              {!searchQuery ? (
+                <div className="p-10 space-y-10">
+                  <div className="flex items-center gap-6">
+                    <div className="w-16 h-16 rounded-[24px] bg-emerald-500/10 flex items-center justify-center text-emerald-500 relative group">
+                      <div className="absolute inset-0 bg-emerald-500/20 rounded-[24px] blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
+                      <LayoutGrid size={32} className="relative" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold tracking-tight">
+                        Universal Search
+                      </h3>
+                      <p className="text-base opacity-40 font-medium tracking-tight">
+                        Navigate to any patient, lead, or record instantly.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-5">
+                    {[
+                      {
+                        label: "Patients",
+                        desc: "Access full medical history",
+                        icon: "PT",
+                        color: "emerald",
+                      },
+                      {
+                        label: "Contacts",
+                        desc: "Manage phone & mobile info",
+                        icon: "CH",
+                        color: "blue",
+                      },
+                      {
+                        label: "Records",
+                        desc: "Lab & test diagnostic IDs",
+                        icon: "RX",
+                        color: "purple",
+                      },
+                      {
+                        label: "Inquiries",
+                        desc: "Lead follow-ups & funnel",
+                        icon: "IQ",
+                        color: "orange",
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className={`p-6 rounded-[32px] border transition-all duration-300 group/card cursor-default ${
+                          isDark
+                            ? "bg-white/[0.03] border-white/5 hover:bg-white/[0.07] hover:border-white/10"
+                            : "bg-gray-50/50 border-gray-100 hover:bg-white hover:shadow-2xl hover:shadow-black/[0.04] hover:border-transparent"
+                        }`}
+                      >
+                        <div className="flex items-center gap-5">
+                          <div
+                            className={`w-12 h-12 rounded-2xl bg-${item.color}-500/10 text-${item.color}-500 flex items-center justify-center text-xs font-black tracking-tighter transition-transform duration-500 group-hover/card:scale-110 group-hover/card:rotate-3`}
+                          >
+                            {item.icon}
+                          </div>
+                          <div>
+                            <div className="font-bold text-sm uppercase tracking-widest opacity-80 mb-0.5">
+                              {item.label}
+                            </div>
+                            <div className="text-xs opacity-40 font-medium">
+                              {item.desc}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-6 border-t dark:border-white/5 border-gray-100">
+                    <div className="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest opacity-20">
+                      <div className="flex items-center gap-2">
+                        <span className="px-1.5 py-0.5 rounded border border-current">
+                          ↑↓
+                        </span>
+                        <span>Navigate</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-1.5 py-0.5 rounded border border-current">
+                          Enter
+                        </span>
+                        <span>Select</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-1.5 py-0.5 rounded border border-current">
+                          ESC
+                        </span>
+                        <span>Close</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="max-h-[600px] overflow-y-auto custom-scrollbar p-3">
+                  <div className="px-8 py-6 mb-2">
+                    <span className="text-xs font-black uppercase tracking-[0.3em] opacity-20">
+                      Search Results
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 px-2">
+                    {searchResults.map((p, idx) => (
+                      <motion.div
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.03 }}
+                        key={`${p.category}-${p.id}-${idx}`}
+                        onClick={() => {
+                          setSearchQuery("");
+                          setShowSearchResults(false);
+                          if (
+                            p.category === "Patient" ||
+                            p.category === "Test"
+                          ) {
+                            navigate(`/reception/patients?id=${p.target_id}`);
+                          } else if (p.category === "Registration") {
+                            navigate(
+                              `/reception/registration?id=${p.target_id}`,
+                            );
+                          } else if (p.category === "Inquiry") {
+                            navigate(`/reception/inquiry?id=${p.target_id}`);
+                          }
+                        }}
+                        className={`p-5 rounded-[28px] cursor-pointer transition-all flex items-center justify-between group ${
+                          isDark
+                            ? "hover:bg-white/[0.05]"
+                            : "hover:bg-gray-50 shadow-sm"
+                        }`}
+                      >
+                        <div className="flex items-center gap-6">
+                          <div
+                            className={`w-14 h-14 rounded-[20px] shadow-inner flex items-center justify-center font-bold text-xl relative ${
+                              p.category === "Patient"
+                                ? "bg-emerald-500/10 text-emerald-500"
+                                : p.category === "Registration"
+                                  ? "bg-blue-500/10 text-blue-500"
+                                  : p.category === "Test"
+                                    ? "bg-purple-500/10 text-purple-500"
+                                    : "bg-orange-500/10 text-orange-500"
+                            }`}
+                          >
+                            {p.name.charAt(0)}
+                            <div
+                              className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 ${isDark ? "border-[#1A1C1A]" : "border-white"} flex items-center justify-center text-[8px] font-black uppercase ${
+                                p.category === "Patient"
+                                  ? "bg-emerald-500 text-white"
+                                  : p.category === "Registration"
+                                    ? "bg-blue-500 text-white"
+                                    : p.category === "Test"
+                                      ? "bg-purple-500 text-white"
+                                      : "bg-orange-500 text-white"
+                              }`}
+                            >
+                              {p.category.charAt(0)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-3 mb-1">
+                              <p className="font-bold text-lg tracking-tight leading-none">
+                                {p.name}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-4 text-sm opacity-40 font-medium">
+                              <div className="flex items-center gap-1.5">
+                                <Phone size={12} className="opacity-50" />
+                                <span>{p.phone}</span>
+                              </div>
+                              {p.uid && p.uid !== "N/A" && (
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-1 h-1 rounded-full bg-current opacity-30" />
+                                  <span>{p.uid}</span>
+                                </div>
+                              )}
+                              {p.age && p.age !== "N/A" && (
+                                <div className="flex items-center gap-1.5">
+                                  <div className="w-1 h-1 rounded-full bg-current opacity-30" />
+                                  <span>{p.age}y</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="bg-emerald-500/10 text-emerald-500 p-3 rounded-2xl opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
+                          <ArrowUpRight size={20} strokeWidth={2.5} />
+                        </div>
+                      </motion.div>
+                    ))}
+                    {searchResults.length === 0 && (
+                      <div className="py-24 text-center">
+                        <div className="w-20 h-20 bg-gray-500/5 rounded-[40px] flex items-center justify-center mx-auto mb-6 transform rotate-12">
+                          <Search size={40} className="opacity-10" />
+                        </div>
+                        <p className="text-lg font-bold opacity-20 uppercase tracking-[0.2em]">
+                          No direct matches
+                        </p>
+                        <p className="text-sm opacity-40 font-medium mt-1">
+                          Try searching by name, phone or ID
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </>
         )}
       </AnimatePresence>
     </div>

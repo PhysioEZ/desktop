@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import pack from "../../package.json";
 import { API_BASE_URL } from "../config";
 import { useAuthStore } from "../store/useAuthStore";
 import { motion, AnimatePresence } from "framer-motion";
@@ -336,8 +337,8 @@ const LoginScreen = () => {
           transition={{ delay: 0.4 }}
           className="mt-12 text-center space-y-4"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#eaddff]/20 border border-[#eaddff]/30 text-[10px] font-bold text-[#49454f] dark:text-[#cac4d0] uppercase tracking-widest">
-            <Info size={12} /> Console Version 0.6.0
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#eaddff]/20 border border-[#eaddff]/30 text-xs font-bold text-[#49454f] dark:text-[#cac4d0] uppercase tracking-widest">
+            <Info size={14} /> Console Version {pack.version}
           </div>
           <p className="text-xs text-[#49454f] dark:text-[#cac4d0] font-medium opacity-60">
             &copy; 2026 PhysioEZ Medical Inc. All rights reserved.

@@ -4,78 +4,151 @@ const pool = require('../../config/db');
 exports.handleSearchPatients = async (req, res) => {
     try {
         const branch_id = req.user.branch_id || req.query.branch_id;
-        const searchTerm = req.query.q || '';
+        const searchTerm = (req.query.q || '').trim();
 
         if (!branch_id) {
-            return res.status(400).json({ success: false, message: 'Branch ID required', patients: [] });
+            return res.status(400).json({ success: false, message: 'Branch ID required', results: [] });
         }
 
-        if (!searchTerm) {
+        if (!searchTerm || searchTerm.length < 2) {
+            // Default: Show recent active patients
             const [rows] = await pool.query(`
                 SELECT
-                    p.patient_id,
-                    r.patient_name,
-                    pm.patient_uid,
-                    r.age,
+                    p.patient_id as id,
+                    r.patient_name as name,
+                    r.phone_number as phone,
+                    pm.patient_uid as uid,
+                    'Patient' as category,
+                    p.status as status,
+                    p.patient_id as target_id,
                     r.gender,
-                    r.phone_number,
-                    p.status
+                    r.age
                 FROM patients p
                 JOIN registration r ON p.registration_id = r.registration_id
                 LEFT JOIN patient_master pm ON r.master_patient_id = pm.master_patient_id
                 WHERE p.branch_id = ?
                 ORDER BY p.patient_id DESC
-                LIMIT 20
+                LIMIT 15
             `, [branch_id]);
-            return res.json({ success: true, patients: rows });
+            return res.json({ success: true, results: rows });
         }
-
-        if (searchTerm.length < 2) {
-            return res.json({ success: true, patients: [] });
-        }
-
-        const query = `
-            SELECT
-                p.patient_id,
-                r.patient_name,
-                pm.patient_uid,
-                r.age,
-                r.gender,
-                r.phone_number,
-                p.status
-            FROM patients p
-            JOIN registration r ON p.registration_id = r.registration_id
-            LEFT JOIN patient_master pm ON r.master_patient_id = pm.master_patient_id
-            WHERE
-                p.branch_id = ? AND (
-                    r.patient_name LIKE ? OR
-                    pm.patient_uid LIKE ? OR
-                    r.phone_number LIKE ?
-                )
-            ORDER BY 
-                CASE 
-                    WHEN r.patient_name LIKE ? THEN 1
-                    WHEN r.patient_name LIKE ? THEN 2
-                    ELSE 3
-                END,
-                p.patient_id DESC
-            LIMIT 15
-        `;
 
         const p = `%${searchTerm}%`;
+
+        const query = `
+            SELECT * FROM (
+                -- 1. Patients
+                SELECT 
+                    p.patient_id as id,
+                    r.patient_name as name,
+                    r.phone_number as phone,
+                    pm.patient_uid as uid,
+                    'Patient' as category,
+                    p.status as status,
+                    p.patient_id as target_id,
+                    r.gender,
+                    r.age,
+                    p.created_at
+                FROM patients p
+                JOIN registration r ON p.registration_id = r.registration_id
+                LEFT JOIN patient_master pm ON r.master_patient_id = pm.master_patient_id
+                WHERE p.branch_id = ? AND (r.patient_name LIKE ? OR r.phone_number LIKE ? OR pm.patient_uid LIKE ?)
+
+                UNION ALL
+
+                -- 2. Registration (Only those not converted to patients)
+                SELECT 
+                    r.registration_id as id,
+                    r.patient_name as name,
+                    r.phone_number as phone,
+                    'N/A' as uid,
+                    'Registration' as category,
+                    r.status as status,
+                    r.registration_id as target_id,
+                    r.gender,
+                    r.age,
+                    r.created_at
+                FROM registration r
+                LEFT JOIN patients p ON r.registration_id = p.registration_id
+                WHERE r.branch_id = ? AND p.patient_id IS NULL AND (r.patient_name LIKE ? OR r.phone_number LIKE ?)
+
+                UNION ALL
+
+                -- 3. Tests
+                SELECT 
+                    t.test_id as id,
+                    t.patient_name as name,
+                    t.phone_number as phone,
+                    t.test_uid as uid,
+                    'Test' as category,
+                    'N/A' as status,
+                    t.test_id as target_id,
+                    t.gender,
+                    t.age,
+                    t.created_at
+                FROM tests t
+                WHERE t.branch_id = ? AND (t.patient_name LIKE ? OR t.phone_number LIKE ? OR t.test_uid LIKE ?)
+
+                UNION ALL
+
+                -- 4. Inquiry (Quick)
+                SELECT 
+                    q.inquiry_id as id,
+                    q.name as name,
+                    q.phone_number as phone,
+                    'N/A' as uid,
+                    'Inquiry' as category,
+                    q.status as status,
+                    q.inquiry_id as target_id,
+                    q.gender,
+                    q.age,
+                    q.created_at
+                FROM quick_inquiry q
+                WHERE q.branch_id = ? AND (q.name LIKE ? OR q.phone_number LIKE ?)
+
+                UNION ALL
+
+                -- 5. Inquiry (Test)
+                SELECT 
+                    ti.inquiry_id as id,
+                    ti.name as name,
+                    ti.mobile_number as phone,
+                    'N/A' as uid,
+                    'Inquiry' as category,
+                    ti.status as status,
+                    ti.inquiry_id as target_id,
+                    'N/A' as gender,
+                    'N/A' as age,
+                    ti.created_at
+                FROM test_inquiry ti
+                WHERE ti.branch_id = ? AND (ti.name LIKE ? OR ti.mobile_number LIKE ?)
+            ) AS combined_search
+            ORDER BY 
+                CASE 
+                    WHEN name = ? THEN 1
+                    WHEN name LIKE ? THEN 2
+                    ELSE 3
+                END,
+                created_at DESC
+            LIMIT 30
+        `;
+
         const params = [
-            branch_id,
-            p, p, p,
-            searchTerm,     // exact match
-            `${searchTerm}%` // starts with
+            branch_id, p, p, p,        // patients
+            branch_id, p, p,            // registration
+            branch_id, p, p, p,        // tests
+            branch_id, p, p,            // inquiry quick
+            branch_id, p, p,            // inquiry test
+            searchTerm,                 // exact name match 1
+            `${searchTerm}%`            // starts with name match 2
         ];
 
         const [rows] = await pool.query(query, params);
-        res.json({ success: true, patients: rows });
+        res.json({ success: true, results: rows });
 
     } catch (error) {
-        console.error("Search Patients Error:", error);
-        res.status(500).json({ success: false, message: error.message, patients: [] });
+        console.error("Unified Search Error:", error);
+        res.status(500).json({ success: false, message: error.message, results: [] });
     }
 };
 
