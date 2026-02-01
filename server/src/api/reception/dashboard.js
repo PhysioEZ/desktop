@@ -217,6 +217,18 @@ exports.getDashboardData = async (req, res) => {
             };
         });
 
+        // -------------------------------------------------------------------------
+        // 7. SYSTEM STATUS
+        // -------------------------------------------------------------------------
+        const systemStatus = {
+            maintenance: true,
+            updateBanner: {
+                show: true,
+                message: "Routine system maintenance scheduled for 10:00 PM tonight."
+            },
+            latestVersion: "2.5.0"
+        };
+
         res.json({
             status: "success",
             data: {
@@ -226,7 +238,8 @@ exports.getDashboardData = async (req, res) => {
                 tests: testStats,
                 collections: collStats,
                 schedule,
-                weekly: weeklyStats
+                weekly: weeklyStats,
+                systemStatus
             }
         });
 

@@ -379,8 +379,6 @@ const ReceptionDashboard = () => {
   const [tiTestName, setTiTestName] = useState("");
   const [regComplaint, setRegComplaint] = useState("");
 
-  // UI State
-
   // Approval Logic
   const [showApprovals, setShowApprovals] = useState(false);
   const [pendingList, setPendingList] = useState<any[]>([]);
@@ -451,6 +449,9 @@ const ReceptionDashboard = () => {
       setIsLoading(true);
     }
     try {
+      // Trigger system status check globally
+      window.dispatchEvent(new CustomEvent("trigger-system-status-check"));
+
       // Trigger all fetches in parallel
       await Promise.all([
         (async () => {
@@ -458,7 +459,9 @@ const ReceptionDashboard = () => {
             `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
           );
           const data = await res.json();
-          if (data.status === "success") setData(data.data);
+          if (data.status === "success") {
+            setData(data.data);
+          }
         })(),
         (async () => {
           const res = await authFetch(

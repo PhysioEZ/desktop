@@ -49,10 +49,12 @@ const receptionRoutes = require('./api/reception/router');
 const authMiddleware = require('./middleware/auth');
 
 const adminRoutes = require('./api/admin/router');
+const systemRoutes = require('./api/system/router');
 
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/reception', authMiddleware, receptionRoutes);
 app.use('/api/admin', authMiddleware, adminRoutes);
+app.use('/api/system', systemRoutes);
 
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', message: 'PhysioEZ Node Server Running' });

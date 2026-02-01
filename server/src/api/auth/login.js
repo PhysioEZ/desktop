@@ -10,6 +10,24 @@ exports.login = async (req, res) => {
     }
 
     try {
+        // 0. CHECK SYSTEM STATUS
+        const [settingsRows] = await pool.query("SELECT setting_key, setting_value FROM system_settings WHERE setting_key IN ('maintenance_mode', 'force_logout', 'maintenance_message')");
+        const settings = {};
+        settingsRows.forEach(row => settings[row.setting_key] = row.setting_value);
+
+        if (settings.maintenance_mode === '1') {
+            return res.status(403).json({
+                status: 'error',
+                message: settings.maintenance_message || 'System is under maintenance. Login is currently disabled.'
+            });
+        }
+
+        if (settings.force_logout === '1') {
+            return res.status(403).json({
+                status: 'error',
+                message: 'System access is temporarily restricted. Please try again later.'
+            });
+        }
         const baseQuery = `
             SELECT
                 e.employee_id, e.password_hash, e.is_active,
