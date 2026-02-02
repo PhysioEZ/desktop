@@ -6,10 +6,15 @@
 -- Generation Time: Jan 31, 2026 at 09:38 AM
 -- Server version: 12.1.2-MariaDB
 -- PHP Version: 8.5.2
+ 
+SET FOREIGN_KEY_CHECKS = 0;
+
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
+
+
 
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
@@ -37,7 +42,7 @@ CREATE TABLE `api_tokens` (
   `is_revoked` tinyint(1) DEFAULT 0,
   `user_agent` varchar(255) DEFAULT NULL,
   `ip_address` varchar(45) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ;
 
 --
 -- Dumping data for table `api_tokens`
@@ -2227,7 +2232,7 @@ CREATE TABLE `system_settings` (
   `setting_value` text DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `updated_by` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_uca1400_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci ;
 
 --
 -- Dumping data for table `system_settings`
@@ -3364,7 +3369,7 @@ ALTER TABLE `user_device_tokens`
 -- Constraints for table `api_tokens`
 --
 ALTER TABLE `api_tokens`
-  ADD CONSTRAINT `1` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`employee_id`) ON DELETE CASCADE;
+  ADD FOREIGN KEY (`employee_id`) REFERENCES `employees` (`employee_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `appointments`
@@ -3419,25 +3424,25 @@ ALTER TABLE `chat_messages`
 -- Constraints for table `chief_complaints`
 --
 ALTER TABLE `chief_complaints`
-  ADD CONSTRAINT `1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
+  ADD FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
 
 --
 -- Constraints for table `clinic_settings`
 --
 ALTER TABLE `clinic_settings`
-  ADD CONSTRAINT `1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`) ON DELETE CASCADE;
+  ADD FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `consultation_types`
 --
 ALTER TABLE `consultation_types`
-  ADD CONSTRAINT `1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
+  ADD FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
 
 --
 -- Constraints for table `departments`
 --
 ALTER TABLE `departments`
-  ADD CONSTRAINT `1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`) ON DELETE CASCADE;
+  ADD FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `employees`
@@ -3462,19 +3467,19 @@ ALTER TABLE `expenses`
 -- Constraints for table `inquiry_service_types`
 --
 ALTER TABLE `inquiry_service_types`
-  ADD CONSTRAINT `1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
+  ADD FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
 
 --
 -- Constraints for table `issue_attachments`
 --
 ALTER TABLE `issue_attachments`
-  ADD CONSTRAINT `1` FOREIGN KEY (`issue_id`) REFERENCES `system_issues` (`issue_id`) ON DELETE CASCADE;
+  ADD FOREIGN KEY (`issue_id`) REFERENCES `system_issues` (`issue_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `limb_types`
 --
 ALTER TABLE `limb_types`
-  ADD CONSTRAINT `1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
+  ADD FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
 
 --
 -- Constraints for table `notifications`
@@ -3528,13 +3533,13 @@ ALTER TABLE `payments`
 -- Constraints for table `payment_methods`
 --
 ALTER TABLE `payment_methods`
-  ADD CONSTRAINT `1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
+  ADD FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
 
 --
 -- Constraints for table `payment_splits`
 --
 ALTER TABLE `payment_splits`
-  ADD CONSTRAINT `1` FOREIGN KEY (`payment_id`) REFERENCES `payments` (`payment_id`) ON DELETE CASCADE;
+  ADD FOREIGN KEY (`payment_id`) REFERENCES `payments` (`payment_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `quick_inquiry`
@@ -3547,13 +3552,13 @@ ALTER TABLE `quick_inquiry`
 -- Constraints for table `referral_rates`
 --
 ALTER TABLE `referral_rates`
-  ADD CONSTRAINT `1` FOREIGN KEY (`partner_id`) REFERENCES `referral_partners` (`partner_id`) ON DELETE CASCADE;
+  ADD FOREIGN KEY (`partner_id`) REFERENCES `referral_partners` (`partner_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `referral_sources`
 --
 ALTER TABLE `referral_sources`
-  ADD CONSTRAINT `1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
+  ADD FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
 
 --
 -- Constraints for table `registration`
@@ -3568,7 +3573,7 @@ ALTER TABLE `registration`
 -- Constraints for table `registration_payments`
 --
 ALTER TABLE `registration_payments`
-  ADD CONSTRAINT `1` FOREIGN KEY (`registration_id`) REFERENCES `registration` (`registration_id`) ON DELETE CASCADE;
+  ADD FOREIGN KEY (`registration_id`) REFERENCES `registration` (`registration_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `tests`
@@ -3601,19 +3606,19 @@ ALTER TABLE `test_items`
 -- Constraints for table `test_payments`
 --
 ALTER TABLE `test_payments`
-  ADD CONSTRAINT `1` FOREIGN KEY (`test_id`) REFERENCES `tests` (`test_id`) ON DELETE CASCADE;
+  ADD FOREIGN KEY (`test_id`) REFERENCES `tests` (`test_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `test_staff`
 --
 ALTER TABLE `test_staff`
-  ADD CONSTRAINT `1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
+  ADD FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
 
 --
 -- Constraints for table `test_types`
 --
 ALTER TABLE `test_types`
-  ADD CONSTRAINT `1` FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
+  ADD FOREIGN KEY (`branch_id`) REFERENCES `branches` (`branch_id`);
 
 --
 -- Constraints for table `tokens`
@@ -3623,6 +3628,10 @@ ALTER TABLE `tokens`
   ADD CONSTRAINT `fk_token_created_by_employee` FOREIGN KEY (`created_by_employee_id`) REFERENCES `employees` (`employee_id`) ON DELETE SET NULL ON UPDATE CASCADE,
   ADD CONSTRAINT `fk_token_patient` FOREIGN KEY (`patient_id`) REFERENCES `patients` (`patient_id`) ON DELETE CASCADE;
 COMMIT;
+
+
+SET FOREIGN_KEY_CHECKS = 1;
+
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
 /*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
