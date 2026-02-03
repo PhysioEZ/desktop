@@ -1,576 +1,700 @@
-import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { useAuthStore } from '../../store/useAuthStore';
-import { API_BASE_URL, authFetch } from '../../config';
-import { 
-    X, Send, RefreshCw, Search, Lock, MessageCircle, 
-    Loader2, CheckCheck, Clock, Paperclip, FileText, Download
-} from 'lucide-react';
+import { useState, useEffect, useRef, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useAuthStore } from "../../store/useAuthStore";
+import { useThemeStore } from "../../store/useThemeStore";
+import { API_BASE_URL, authFetch } from "../../config";
+import {
+  X,
+  Send,
+  Search,
+  Loader2,
+  CheckCheck,
+  Check,
+  Paperclip,
+  FileText,
+  ChevronLeft,
+  Lock,
+  Sparkles,
+  ShieldCheck,
+  MessageSquare,
+  Download,
+} from "lucide-react";
+import FileViewer from "../FileViewer/FileViewer";
 
 interface ChatUser {
-    id: number;
-    username: string;
-    full_name: string;
-    role: string;
-    unread_count: number;
+  id: number;
+  username: string;
+  full_name: string;
+  role: string;
+  unread_count: number;
 }
 
 interface ChatMessage {
-    message_id: number;
-    sender_employee_id: number;
-    message_type: string;
-    message_text: string;
-    created_at: string;
-    is_read: number;
-    is_sender: boolean;
+  message_id: number;
+  sender_employee_id: number;
+  message_type: string;
+  message_text: string;
+  created_at: string;
+  is_read: number;
+  is_sender: boolean;
 }
 
 interface ChatModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    user?: any; // Add user to interface to accept the prop passed from Dashboard
+  isOpen: boolean;
+  onClose: () => void;
 }
 
-const ChatModal = ({ isOpen, onClose, user: propUser }: ChatModalProps) => {
-    const { user: storeUser } = useAuthStore();
-    const user = propUser || storeUser; // Use prop if available, else store
-    const [users, setUsers] = useState<ChatUser[]>([]);
-    const [messages, setMessages] = useState<ChatMessage[]>([]);
-    const [activePartner, setActivePartner] = useState<ChatUser | null>(null);
-    const [messageText, setMessageText] = useState('');
-    const [searchQuery, setSearchQuery] = useState('');
-    const [isLoadingUsers, setIsLoadingUsers] = useState(false);
-    const [isLoadingMessages, setIsLoadingMessages] = useState(false);
-    const [isSending, setIsSending] = useState(false);
-    const [imagePreview, setImagePreview] = useState<string | null>(null);
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [error, setError] = useState<string | null>(null);
-    
-    const messagesEndRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
-    const fileInputRef = useRef<HTMLInputElement>(null);
-    const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
+  const { user } = useAuthStore();
+  const { isDark } = useThemeStore();
 
-    // Fetch users when modal opens
-    useEffect(() => {
-        if (isOpen && user?.branch_id && user?.employee_id) {
-            fetchUsers();
-            startPolling();
-        }
-        return () => stopPolling();
-    }, [isOpen, user?.branch_id, user?.employee_id]);
+  const [users, setUsers] = useState<ChatUser[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activePartner, setActivePartner] = useState<ChatUser | null>(null);
+  const [messageText, setMessageText] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [viewerConfig, setViewerConfig] = useState<{
+    isOpen: boolean;
+    url: string;
+    fileName: string;
+  } | null>(null);
 
-    // Scroll to bottom when messages change
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, [messages]);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pollingRef = useRef<any>(null);
 
-    const startPolling = () => {
-        if (!pollingRef.current) {
-            pollingRef.current = setInterval(() => {
-                if (activePartner) {
-                    fetchMessages(activePartner.id, true);
-                }
-            }, 5000);
-        }
+  useEffect(() => {
+    if (isOpen && user) {
+      fetchUsers();
+    }
+    return () => {
+      stopPolling();
+      setActivePartner(null);
+      setMessages([]);
     };
+  }, [isOpen, user]);
 
-    const stopPolling = () => {
-        if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-        }
-    };
+  useEffect(() => {
+    if (activePartner && isOpen) {
+      startPolling();
+    } else {
+      stopPolling();
+    }
+  }, [activePartner, isOpen]);
 
-    const fetchUsers = async () => {
-        if (!user?.branch_id || !user?.employee_id) return;
-        setIsLoadingUsers(true);
-        try {
-            const res = await authFetch(
-                `${API_BASE_URL}/reception/chat/users?branch_id=${user.branch_id}&employee_id=${user.employee_id}`
-            );
-            const data = await res.json();
-            if (data.success) {
-                setUsers(data.users);
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }, 100);
+    }
+  }, [messages]);
+
+  const startPolling = () => {
+    stopPolling();
+    pollingRef.current = setInterval(() => {
+      if (activePartner) fetchMessages(activePartner.id, true);
+    }, 5000);
+  };
+
+  const stopPolling = () => {
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+      pollingRef.current = null;
+    }
+  };
+
+  const fetchUsers = async () => {
+    if (!user) return;
+    setIsLoadingUsers(true);
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/chat/users?branch_id=${user.branch_id || ""}&employee_id=${user.employee_id || ""}`,
+      );
+      const data = await res.json();
+      if (data.success && Array.isArray(data.users)) setUsers(data.users);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  const fetchMessages = async (partnerId: number, silent = false) => {
+    if (!user) return;
+    if (!silent) setIsLoadingMessages(true);
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/chat/fetch?employee_id=${user.employee_id}&partner_id=${partnerId}`,
+      );
+      const data = await res.json();
+      if (data.success && Array.isArray(data.messages)) {
+        setMessages(data.messages);
+        setUsers((prev) =>
+          prev.map((u) => (u.id === partnerId ? { ...u, unread_count: 0 } : u)),
+        );
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (!silent) setIsLoadingMessages(false);
+    }
+  };
+
+  const selectUser = (selectedUser: ChatUser) => {
+    setActivePartner(selectedUser);
+    setMessages([]);
+    fetchMessages(selectedUser.id);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      if (!messageText.trim()) setMessageText(`File: ${file.name}`);
+      e.target.value = "";
+    }
+  };
+
+  const sendMessage = async () => {
+    if ((!messageText.trim() && !selectedFile) || !activePartner || !user)
+      return;
+    setIsSending(true);
+    try {
+      let body: any;
+      const headers: any = {};
+
+      if (selectedFile) {
+        const fd = new FormData();
+        fd.append("sender_id", String(user.employee_id));
+        fd.append("receiver_id", String(activePartner.id));
+        fd.append("message_text", messageText);
+        fd.append("branch_id", String(user.branch_id));
+        fd.append("sender_name", user.name || "");
+        fd.append("chat_file", selectedFile);
+        body = fd;
+      } else {
+        headers["Content-Type"] = "application/json";
+        body = JSON.stringify({
+          sender_id: user.employee_id,
+          receiver_id: activePartner.id,
+          message_text: messageText,
+          branch_id: user.branch_id,
+          sender_name: user.name || "",
+        });
+      }
+
+      const res = await authFetch(`${API_BASE_URL}/reception/chat/send`, {
+        method: "POST",
+        headers,
+        body,
+      });
+      const result = await res.json();
+      if (result.success) {
+        setMessageText("");
+        setSelectedFile(null);
+        fetchMessages(activePartner.id, true);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) =>
+      (u.full_name || u.username || "")
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase()),
+    );
+  }, [users, searchQuery]);
+
+  const formatTime = (dateStr: string) => {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "";
+    }
+  };
+
+  const getDateLabel = (dateStr: string) => {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    const msgDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+    if (msgDate.getTime() === today.getTime()) return "Today";
+    if (msgDate.getTime() === yesterday.getTime()) return "Yesterday";
+
+    return d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+  };
+
+  const renderMessageContent = (msg: ChatMessage) => {
+    const serverOrigin = (API_BASE_URL || "").replace("/api", "");
+    const text = msg.message_text || "";
+
+    switch (msg.message_type) {
+      case "image":
+        const imageUrl = `${serverOrigin}/${text.replace("admin/desktop/server/", "")}`;
+        return (
+          <img
+            src={imageUrl}
+            alt="Shared Content"
+            onClick={() =>
+              setViewerConfig({
+                isOpen: true,
+                url: imageUrl,
+                fileName: text.split("/").pop() || "Image",
+              })
             }
-        } catch (e) {
-            console.error('Failed to fetch users:', e);
-            setError('Could not load user list');
-            setTimeout(() => setError(null), 3000);
-        } finally {
-            setIsLoadingUsers(false);
-        }
-    };
-
-    const fetchMessages = async (partnerId: number, silent = false) => {
-        if (!user?.employee_id) return;
-        if (!silent) setIsLoadingMessages(true);
-        try {
-            const res = await authFetch(
-                `${API_BASE_URL}/reception/chat/fetch?employee_id=${user.employee_id}&partner_id=${partnerId}`
-            );
-            const data = await res.json();
-            if (data.success) {
-                setMessages(data.messages);
-                setUsers(prev => prev.map(u => 
-                    u.id === partnerId ? { ...u, unread_count: 0 } : u
-                ));
+            className="max-w-full max-h-48 rounded-xl cursor-pointer hover:opacity-90 transition-opacity shadow-sm border border-black/5"
+            onError={(e) => {
+              (e.target as HTMLImageElement).src =
+                "https://placehold.co/400?text=Media+Error";
+            }}
+          />
+        );
+      case "pdf":
+      case "doc":
+      case "docx":
+      case "xls":
+      case "xlsx":
+        const fileUrl = `${serverOrigin}/${text.replace("admin/desktop/server/", "")}`;
+        return (
+          <div
+            onClick={() =>
+              setViewerConfig({
+                isOpen: true,
+                url: fileUrl,
+                fileName: text.split("/").pop() || "Document",
+              })
             }
-        } catch (e) {
-            console.error('Failed to fetch messages:', e);
-            if (!silent) {
-                setError('Could not load messages');
-                setTimeout(() => setError(null), 3000);
-            }
-        } finally {
-            if (!silent) setIsLoadingMessages(false);
-        }
-    };
+            className={`flex items-center gap-2 p-2 rounded-xl transition-colors cursor-pointer ${
+              msg.is_sender
+                ? "bg-white/10 hover:bg-white/20"
+                : "bg-black/5 hover:bg-black/10"
+            }`}
+          >
+            <FileText size={16} />
+            <span className="text-[11px] font-bold truncate max-w-[120px]">
+              {text.split("/").pop()}
+            </span>
+            <Download size={14} className="opacity-40" />
+          </div>
+        );
+      default:
+        return (
+          <p className="text-[12.5px] font-bold leading-relaxed tracking-tight pr-1">
+            {text}
+          </p>
+        );
+    }
+  };
 
-    const sendMessage = async () => {
-        if ((!messageText.trim() && !selectedFile) || !activePartner || !user?.employee_id) return;
-        
-        setIsSending(true);
-        try {
-            let res;
-            if (activePartner && user) {
-                if (selectedFile) {
-                    // Use FormData for file upload
-                    const formData = new FormData();
-                    formData.append('sender_id', String(user.employee_id));
-                    formData.append('receiver_id', String(activePartner.id));
-                    formData.append('message_text', messageText);
-                    formData.append('branch_id', String(user.branch_id));
-                    formData.append('sender_name', user.name);
-                    formData.append('chat_file', selectedFile);
+  if (!isOpen) return null;
 
-                    res = await authFetch(`${API_BASE_URL}/reception/chat/send`, {
-                        method: 'POST',
-                        body: formData
-                    });
-                } else {
-                    // Use JSON for text only - Actually my Node API handles everything via body parser but let's stick to JSON or FormData.
-                    // The previous Node implementation assumed body fields.
-                    // Let's safe bet to use JSON for text, but wait, the Node backend was using `req.body`.
-                    // The Node backend I wrote expects: sender_id, receiver_id, etc. in `req.body`.
-                    // It does NOT handle `action=send` query param anymore.
-                    
-                    res = await authFetch(`${API_BASE_URL}/reception/chat/send`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            sender_id: user.employee_id,
-                            receiver_id: activePartner.id,
-                            message_text: messageText,
-                            branch_id: user.branch_id,
-                            sender_name: user.name || user.username // Fallback for name
-                        })
-                    });
-                }
+  return (
+    <div className="fixed inset-0 z-[10010] flex items-center justify-end p-6 md:p-10 pointer-events-none">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-black/10 backdrop-blur-[2px] pointer-events-auto"
+      />
 
-                const data = await res.json();
-                if (data.success) {
-                    setMessageText('');
-                    setSelectedFile(null);
-                    fetchMessages(activePartner.id);
-                    inputRef.current?.focus();
-                } else {
-                    setError(data.message || 'Failed to send message');
-                    setTimeout(() => setError(null), 3000);
-                }
-            }
-        } catch (e) {
-            console.error('Failed to send message:', e);
-        } finally {
-            setIsSending(false);
-        }
-    };
+      <motion.div
+        initial={{ x: 600, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: 600, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 220, damping: 28 }}
+        className={`w-full max-w-[480px] h-[calc(100vh-80px)] rounded-[32px] border relative overflow-hidden flex flex-col shadow-xl pointer-events-auto ${
+          isDark
+            ? "bg-[#0A0A0A]/95 border-white/10"
+            : "bg-white border-slate-200"
+        }`}
+      >
+        {/* Header */}
+        <div
+          className={`px-6 py-5 shrink-0 border-b flex items-center justify-between z-10 transition-colors ${
+            isDark
+              ? "bg-white/[0.02] border-white/5"
+              : "bg-slate-50 border-slate-100"
+          }`}
+        >
+          <div className="flex items-center gap-4">
+            {activePartner && (
+              <button
+                onClick={() => {
+                  setActivePartner(null);
+                  setMessages([]);
+                }}
+                className="w-8 h-8 rounded-full hover:bg-emerald-500/10 text-emerald-500 flex items-center justify-center transition-all bg-white/5"
+              >
+                <ChevronLeft size={18} />
+              </button>
+            )}
+            <div>
+              <h2
+                className={`text-[15px] font-black tracking-tight leading-none uppercase ${isDark ? "text-white" : "text-slate-900"}`}
+              >
+                {activePartner
+                  ? activePartner.full_name || activePartner.username
+                  : "Messenger"}
+              </h2>
+              <div className="flex items-center gap-1.5 mt-1.5 opacity-30 text-[8px] font-black uppercase tracking-[0.2em]">
+                <ShieldCheck size={10} className="text-emerald-500" />
+                <span>Staff</span>
+              </div>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+              isDark
+                ? "bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-500"
+                : "bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600"
+            }`}
+          >
+            <X size={18} />
+          </button>
+        </div>
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            setSelectedFile(file);
-            // Pre-fill the input with filename if it's currently empty or just placeholder
-            if (!messageText.trim()) {
-                setMessageText(`File: ${file.name}`);
-            }
-            e.target.value = ''; // Reset input to allow re-selecting same file
-        }
-    };
+        <div className="flex-1 overflow-hidden relative">
+          <AnimatePresence mode="wait">
+            {!activePartner ? (
+              <motion.div
+                key="list"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -10 }}
+                className="absolute inset-0 flex flex-col"
+              >
+                {/* Introduction Section */}
+                <div className="p-5 pb-2">
+                  <div
+                    className={`p-5 rounded-3xl border text-center relative overflow-hidden ${
+                      isDark
+                        ? "bg-white/[0.03] border-white/10"
+                        : "bg-slate-50 border-slate-100 shadow-inner"
+                    }`}
+                  >
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 mx-auto mb-4">
+                      <MessageSquare size={24} />
+                    </div>
+                    <h3
+                      className={`text-sm font-black uppercase tracking-tight mb-2 ${isDark ? "text-white" : "text-slate-800"}`}
+                    >
+                      Select a chat
+                    </h3>
+                    <p
+                      className={`text-[11px] font-bold leading-relaxed mb-4 ${isDark ? "text-white/40" : "text-slate-500"}`}
+                    >
+                      Choose a user from the list below to start messaging. You
+                      can also share images, PDFs, and other documents securely.
+                    </p>
+                    <div
+                      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest ${
+                        isDark
+                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
+                          : "bg-white border-slate-200 text-emerald-600 shadow-sm"
+                      }`}
+                    >
+                      <Lock size={10} />
+                      Messages are end-to-end encrypted
+                    </div>
+                  </div>
+                </div>
 
-    const selectUser = (selectedUser: ChatUser) => {
-        setActivePartner(selectedUser);
-        setMessages([]);
-        fetchMessages(selectedUser.id);
-    };
-
-    const formatTime = (dateStr: string) => {
-        const date = new Date(dateStr);
-        return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-    };
-
-    const getFileName = (path: string) => {
-        return path.split('/').pop() || 'file';
-    };
-
-    const renderMessageContent = (msg: ChatMessage) => {
-        // Derive the server origin from API_BASE_URL (e.g., http://localhost)
-        const serverOrigin = API_BASE_URL.split('/admin')[0];
-        
-        switch (msg.message_type) {
-            case 'image':
-                return (
-                    <img 
-                        // Fix for image path: Node usually serves uploads/ directly if static or we need full URL
-                        // PHP saved to admin/desktop/server/uploads...
-                        // Node saves to ../uploads
-                        // We need a reliable way to serve these.
-                        // Assuming the API returns the path stored in DB.
-                        // If it's a relative path starting with admin/..., we might need to prepend base URL.
-                        src={`${API_BASE_URL.replace('/api', '')}/${msg.message_text.replace('admin/desktop/server/', '')}`}
-                        alt="Shared image"
-                        className="max-w-full max-h-64 rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={() => setImagePreview(`${serverOrigin}/${msg.message_text}`)}
-                        onError={(e) => {
-                            // Fallback if image fails to load
-                            const target = e.target as HTMLImageElement;
-                            target.src = 'https://placehold.co/600x400?text=Image+Not+Found';
-                        }}
+                {/* Search */}
+                <div className="px-5 pt-3 pb-2">
+                  <div className="relative group">
+                    <Search
+                      size={14}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 opacity-20"
                     />
-                );
-            case 'pdf':
-                return (
-                    <a 
-                        href={`${serverOrigin}/${msg.message_text}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex items-center gap-3 p-3 rounded-xl ${
-                            msg.is_sender 
-                                ? 'bg-[#00390a] hover:bg-[#005313] text-[#ccebc4]' 
-                                : 'bg-[#e0e2ec] dark:bg-[#43474e] hover:bg-[#d2d5db] dark:hover:bg-[#50545c] text-[#1a1c1e] dark:text-[#c4c7c5]'
-                        } transition-colors`}
-                    >
-                        <FileText className="w-8 h-8 text-[#b3261e] dark:text-[#ffb4ab]" />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{getFileName(msg.message_text)}</p>
-                            <p className="text-xs opacity-70">PDF Document</p>
-                        </div>
-                        <Download className="w-4 h-4 opacity-70" />
-                    </a>
-                );
-            case 'doc':
-                return (
-                    <a 
-                        href={`${serverOrigin}/${msg.message_text}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex items-center gap-3 p-3 rounded-xl ${
-                            msg.is_sender 
-                                ? 'bg-[#00390a] hover:bg-[#005313] text-[#ccebc4]' 
-                                : 'bg-[#e0e2ec] dark:bg-[#43474e] hover:bg-[#d2d5db] dark:hover:bg-[#50545c] text-[#1a1c1e] dark:text-[#c4c7c5]'
-                        } transition-colors`}
-                    >
-                        <FileText className="w-8 h-8 text-[#00639b] dark:text-[#7fcfff]" />
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{getFileName(msg.message_text)}</p>
-                            <p className="text-xs opacity-70">Document</p>
-                        </div>
-                        <Download className="w-4 h-4 opacity-70" />
-                    </a>
-                );
-            default:
-                return <p className="text-sm whitespace-pre-wrap break-words">{msg.message_text}</p>;
-        }
-    };
+                    <input
+                      type="text"
+                      placeholder="Search colleagues..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className={`w-full rounded-2xl pl-11 pr-4 py-3 text-[11.5px] font-bold outline-none border transition-all ${
+                        isDark
+                          ? "bg-white/[0.03] border-white/[0.04] focus:border-emerald-500/40"
+                          : "bg-slate-100 border-slate-100 focus:bg-white focus:border-emerald-500/40"
+                      }`}
+                    />
+                  </div>
+                </div>
 
-    const filteredUsers = users.filter(u => 
-        u.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        u.full_name?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-
-    if (!isOpen) return null;
-
-    return (
-        <AnimatePresence>
-            <motion.div 
-                className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-end justify-end p-4 md:p-8"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={(e) => e.target === e.currentTarget && onClose()}
-            >
-                <motion.div 
-                    className="w-full max-w-4xl h-[85vh] bg-[#fdfcff] dark:bg-[#1a1c1e] rounded-[28px] shadow-2xl overflow-hidden flex font-sans"
-                    initial={{ opacity: 0, y: 100, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 100, scale: 0.95 }}
-                    transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                >
-                    {/* Sidebar - User List */}
-                    <div className="w-80 border-r border-[#e0e2ec] dark:border-[#43474e] flex flex-col bg-[#f0f2f5] dark:bg-[#1a1c1e]">
-                        {/* Sidebar Header */}
-                        <div className="p-4 border-b border-[#e0e2ec] dark:border-[#43474e] flex items-center gap-2">
-                            <div className="relative flex-1">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#43474e] dark:text-[#c4c7c5]" />
-                                <input
-                                    type="text"
-                                    placeholder="Search users..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-2 bg-[#e0e2ec] dark:bg-[#43474e]/50 border-0 rounded-full text-sm text-[#1a1c1e] dark:text-[#e3e2e6] focus:outline-none focus:ring-2 focus:ring-[#006e1c] dark:focus:ring-[#88d99d] placeholder:text-[#43474e]/50"
-                                />
-                            </div>
-                            <button 
-                                onClick={fetchUsers}
-                                disabled={isLoadingUsers}
-                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 disabled:opacity-50"
-                            >
-                                <RefreshCw className={`w-4 h-4 ${isLoadingUsers ? 'animate-spin' : ''}`} />
-                            </button>
-                            <button 
-                                onClick={onClose}
-                                className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"
-                            >
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-
-                        {/* User List */}
-                        <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                            {isLoadingUsers ? (
-                                <div className="flex items-center justify-center py-8">
-                                    <Loader2 className="w-6 h-6 animate-spin text-[#006e1c]" />
-                                </div>
-                            ) : filteredUsers.length === 0 ? (
-                                <div className="text-center py-8 text-[#43474e] dark:text-[#c4c7c5] text-sm">
-                                    No users found
-                                </div>
-                            ) : (
-                                filteredUsers.map(chatUser => (
-                                    <motion.div
-                                        key={chatUser.id}
-                                        onClick={() => selectUser(chatUser)}
-                                        className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-colors mx-2 ${
-                                            activePartner?.id === chatUser.id 
-                                                ? 'bg-[#ccebc4] dark:bg-[#0c3b10] text-[#001e2f] dark:text-[#ccebc4]' 
-                                                : 'hover:bg-[#e0e2ec]/50 dark:hover:bg-[#43474e]/30'
-                                        }`}
-                                        whileHover={{ scale: 1.02 }}
-                                        whileTap={{ scale: 0.98 }}
-                                    >
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
-                                            activePartner?.id === chatUser.id 
-                                            ? 'bg-[#006e1c] text-white' 
-                                            : 'bg-[#e0e2ec] dark:bg-[#43474e] text-[#1a1c1e] dark:text-[#c4c7c5]'
-                                        }`}>
-                                            {(chatUser.full_name || chatUser.username).charAt(0).toUpperCase()}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className={`font-semibold text-sm truncate ${activePartner?.id === chatUser.id ? 'text-[#001d36] dark:text-[#ccebc4]' : 'text-[#1a1c1e] dark:text-[#e3e2e6]'}`}>
-                                                {chatUser.full_name || chatUser.username}
-                                            </p>
-                                            <p className={`text-xs truncate ${activePartner?.id === chatUser.id ? 'text-[#001d36]/70 dark:text-[#ccebc4]/70' : 'text-[#43474e] dark:text-[#c4c7c5]'}`}>
-                                                {chatUser.role}
-                                            </p>
-                                        </div>
-                                        {chatUser.unread_count > 0 && (
-                                            <span className="w-5 h-5 flex items-center justify-center text-xs font-bold text-white bg-[#b3261e] rounded-full">
-                                                {chatUser.unread_count}
-                                            </span>
-                                        )}
-                                    </motion.div>
-                                ))
-                            )}
-                        </div>
+                <div className="flex-1 overflow-y-auto px-4 pb-6 custom-scrollbar">
+                  {isLoadingUsers ? (
+                    <div className="flex justify-center py-20 opacity-20">
+                      <Loader2 size={24} className="animate-spin" />
                     </div>
-
-                    {/* Chat Area */}
-                    <div className="flex-1 flex flex-col">
-                        {activePartner ? (
-                            <>
-                                {/* Chat Header */}
-                                <div className="p-4 border-b border-[#e0e2ec] dark:border-[#43474e] flex items-center gap-3 bg-[#fdfcff] dark:bg-[#1a1c1e]">
-                                    <div className="w-10 h-10 rounded-full bg-[#e0e2ec] dark:bg-[#43474e] flex items-center justify-center text-[#1a1c1e] dark:text-[#e3e2e6] font-bold">
-                                        {(activePartner.full_name || activePartner.username).charAt(0).toUpperCase()}
-                                    </div>
-                                    <div className="flex-1">
-                                        <h3 className="font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">
-                                            {activePartner.full_name || activePartner.username}
-                                        </h3>
-                                        <p className="text-xs text-[#43474e] dark:text-[#c4c7c5] flex items-center gap-1">
-                                            <Lock className="w-3 h-3" />
-                                            End-to-end encrypted
-                                        </p>
-                                    </div>
-                                    <button 
-                                        onClick={() => fetchMessages(activePartner.id)}
-                                        className="p-2 rounded-full hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#43474e] dark:text-[#c4c7c5]"
-                                    >
-                                        <RefreshCw className={`w-4 h-4 ${isLoadingMessages ? 'animate-spin' : ''}`} />
-                                    </button>
-                                </div>
-
-                                {/* Messages */}
-                                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[#fdfcff] dark:bg-[#1a1c1e]">
-                                    {isLoadingMessages ? (
-                                        <div className="flex items-center justify-center h-full">
-                                            <Loader2 className="w-6 h-6 animate-spin text-[#006e1c]" />
-                                        </div>
-                                    ) : messages.length === 0 ? (
-                                        <div className="flex flex-col items-center justify-center h-full text-[#43474e] dark:text-[#c4c7c5]">
-                                            <MessageCircle className="w-12 h-12 mb-2 opacity-30" />
-                                            <p className="text-sm">No messages yet</p>
-                                            <p className="text-xs">Start the conversation!</p>
-                                        </div>
-                                    ) : (
-                                        messages.map(msg => (
-                                            <div 
-                                                key={msg.message_id}
-                                                className={`flex ${msg.is_sender ? 'justify-end' : 'justify-start'}`}
-                                            >
-                                                <div className={`max-w-[70%] px-4 py-2 rounded-[20px] ${
-                                                    msg.is_sender 
-                                                        ? 'bg-[#006e1c] text-white rounded-br-none' 
-                                                        : 'bg-[#e0e2ec] dark:bg-[#30333b] text-[#1a1c1e] dark:text-[#e3e2e6] rounded-bl-none'
-                                                }`}>
-                                                    {renderMessageContent(msg)}
-                                                    <div className={`flex items-center justify-end gap-1 mt-1 text-[10px] ${
-                                                        msg.is_sender ? 'text-[#ccebc4]' : 'text-[#43474e] dark:text-[#c4c7c5]'
-                                                    }`}>
-                                                        <Clock className="w-2.5 h-2.5" />
-                                                        {formatTime(msg.created_at)}
-                                                        {msg.is_sender && (
-                                                            <CheckCheck className={`w-3 h-3 ${msg.is_read ? 'text-[#ccebc4]' : ''}`} />
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                    <div ref={messagesEndRef} />
-                                </div>
-
-                                {/* Input Area */}
-                                <div className="p-4 border-t border-[#e0e2ec] dark:border-[#43474e] bg-[#fdfcff] dark:bg-[#1a1c1e]">
-                                    {selectedFile && (
-                                        <div className="mb-3 flex items-center gap-2 bg-[#ccebc4]/30 p-2 rounded-xl border border-[#ccebc4] animate-in slide-in-from-bottom-2">
-                                            <Paperclip className="w-4 h-4 text-[#006e1c]" />
-                                            <span className="text-xs font-medium text-[#006e1c] truncate flex-1">
-                                                {selectedFile.name}
-                                            </span>
-                                            <button 
-                                                onClick={() => setSelectedFile(null)}
-                                                className="p-1 hover:bg-[#ccebc4] rounded-full text-[#006e1c]"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    )}
-                                    <div className="flex items-center gap-3">
-                                        <input
-                                            type="file"
-                                            ref={fileInputRef}
-                                            onChange={handleFileSelect}
-                                            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                                            className="hidden"
-                                        />
-                                        <button
-                                            onClick={() => fileInputRef.current?.click()}
-                                            disabled={isSending}
-                                            className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#43474e] dark:text-[#c4c7c5] disabled:opacity-50 transition-colors"
-                                            title="Attach File"
-                                        >
-                                            <Paperclip className="w-5 h-5" />
-                                        </button>
-                                        <input
-                                            ref={inputRef}
-                                            type="text"
-                                            value={messageText}
-                                            onChange={(e) => setMessageText(e.target.value)}
-                                            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-                                            placeholder="Type your message..."
-                                            className="flex-1 px-5 py-3 bg-[#e0e2ec] dark:bg-[#43474e]/30 border-0 rounded-full text-sm text-[#1a1c1e] dark:text-[#e3e2e6] focus:outline-none focus:ring-2 focus:ring-[#006e1c] dark:focus:ring-[#88d99d] transition-all font-medium placeholder:text-[#43474e]/50"
-                                        />
-                                        <motion.button
-                                            onClick={sendMessage}
-                                            disabled={isSending || (!messageText.trim() && !selectedFile)}
-                                            className="w-11 h-11 flex items-center justify-center rounded-full bg-[#006e1c] text-white hover:bg-[#005313] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transition-all"
-                                            whileHover={{ scale: 1.05 }}
-                                            whileTap={{ scale: 0.95 }}
-                                            title="Send Message"
-                                        >
-                                            {isSending ? (
-                                                <Loader2 className="w-5 h-5 animate-spin" />
-                                            ) : (
-                                                <Send className="w-5 h-5" />
-                                            )}
-                                        </motion.button>
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                            /* Welcome Screen */
-                            <div className="flex-1 flex flex-col items-center justify-center text-[#43474e] dark:text-[#c4c7c5] p-8 bg-[#fdfcff] dark:bg-[#1a1c1e]">
-                                <div className="w-20 h-20 rounded-full bg-[#e0e2ec] dark:bg-[#43474e] flex items-center justify-center mb-4">
-                                    <MessageCircle className="w-10 h-10 text-[#006e1c] dark:text-[#88d99d]" />
-                                </div>
-                                <h3 className="text-lg font-semibold text-[#1a1c1e] dark:text-[#e3e2e6] mb-2">
-                                    Select a chat
-                                </h3>
-                                <p className="text-sm text-center max-w-xs">
-                                    Choose a user from the list to start messaging securely.
-                                </p>
-                                <div className="flex items-center gap-1 mt-4 text-xs opacity-70">
-                                    <Lock className="w-3 h-3" />
-                                    Messages are end-to-end encrypted
-                                </div>
-                            </div>
+                  ) : filteredUsers.length === 0 ? (
+                    <div className="text-center py-20 opacity-20 text-[9px] font-black uppercase tracking-widest">
+                      No nodes found
+                    </div>
+                  ) : (
+                    filteredUsers.map((u) => (
+                      <button
+                        key={u.id}
+                        onClick={() => selectUser(u)}
+                        className={`w-full flex items-center gap-4 p-4 rounded-[26px] mb-1 transition-all group ${
+                          isDark
+                            ? "hover:bg-white/[0.04]"
+                            : "hover:bg-slate-50 border border-transparent hover:border-slate-100"
+                        }`}
+                      >
+                        <div
+                          className={`w-10 h-10 rounded-[18px] flex items-center justify-center font-black text-xs shrink-0 ${
+                            isDark
+                              ? "bg-white/5 text-emerald-500"
+                              : "bg-slate-100 text-emerald-600"
+                          }`}
+                        >
+                          {(u.full_name || u.username || "?")
+                            .charAt(0)
+                            .toUpperCase()}
+                        </div>
+                        <div className="text-left flex-1 min-w-0">
+                          <p
+                            className={`font-black text-[12.5px] truncate ${isDark ? "text-white/80" : "text-slate-800"}`}
+                          >
+                            {u.full_name || u.username}
+                          </p>
+                          <p className="text-[8.5px] font-black uppercase tracking-widest opacity-30 mt-0.5">
+                            {u.role}
+                          </p>
+                        </div>
+                        {u.unread_count > 0 && (
+                          <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center text-[8px] font-black text-white">
+                            {u.unread_count}
+                          </div>
                         )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="chat"
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="absolute inset-0 flex flex-col"
+              >
+                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar scroll-smooth">
+                  {isLoadingMessages ? (
+                    <div className="h-full flex items-center justify-center opacity-10">
+                      <Loader2 size={24} className="animate-spin" />
                     </div>
-                </motion.div>
+                  ) : (
+                    messages.map((msg, index) => {
+                      const showDateHeader =
+                        index === 0 ||
+                        getDateLabel(msg.created_at) !==
+                          getDateLabel(messages[index - 1].created_at);
 
-                {/* Image Preview Modal */}
-                <AnimatePresence>
-                    {imagePreview && (
-                        <motion.div
-                            className="fixed inset-0 bg-black/90 z-[10000] flex items-center justify-center p-4"
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            onClick={() => setImagePreview(null)}
+                      return (
+                        <div
+                          key={msg.message_id}
+                          className="flex flex-col gap-4"
                         >
-                            <button
-                                onClick={() => setImagePreview(null)}
-                                className="absolute top-4 right-4 text-white text-4xl hover:text-gray-300"
+                          {showDateHeader && (
+                            <div className="flex justify-center my-4">
+                              <span
+                                className={`px-4 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${isDark ? "bg-white/5 text-white/20" : "bg-slate-100 text-slate-400"}`}
+                              >
+                                {getDateLabel(msg.created_at)}
+                              </span>
+                            </div>
+                          )}
+                          <div
+                            className={`flex ${msg.is_sender ? "justify-end" : "justify-start"}`}
+                          >
+                            <div
+                              className={`max-w-[85%] group relative ${msg.is_sender ? "items-end" : "items-start"}`}
                             >
-                                ×
-                            </button>
-                            <img
-                                src={imagePreview}
-                                alt="Preview"
-                                className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg"
-                            />
-                        </motion.div>
-                    )}
-                </AnimatePresence>
+                              <div
+                                className={`px-4 py-2.5 rounded-[22px] shadow-sm relative ${
+                                  msg.is_sender
+                                    ? "bg-emerald-600 text-white rounded-br-none"
+                                    : isDark
+                                      ? "bg-white/[0.04] text-white rounded-bl-none border border-white/5"
+                                      : "bg-slate-100 text-slate-900 rounded-bl-none"
+                                }`}
+                              >
+                                {renderMessageContent(msg)}
+                              </div>
+                              <div
+                                className={`mt-2 flex items-center gap-2 transition-all ${
+                                  msg.is_sender
+                                    ? "justify-end"
+                                    : "justify-start"
+                                }`}
+                              >
+                                <span className="text-[8px] font-black uppercase tracking-widest opacity-30">
+                                  {formatTime(msg.created_at)}
+                                </span>
+                                {msg.is_sender && (
+                                  <div className="flex items-center gap-1">
+                                    {msg.is_read ? (
+                                      <>
+                                        <CheckCheck
+                                          size={10}
+                                          className="text-emerald-500"
+                                        />
+                                        <span className="text-[7px] font-black uppercase text-emerald-500/60 tracking-tighter">
+                                          READ
+                                        </span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Check
+                                          size={10}
+                                          className="opacity-30"
+                                        />
+                                        <span className="text-[7px] font-black uppercase opacity-20 tracking-tighter">
+                                          SENT
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
 
-                {/* Toast Notification */}
-                <AnimatePresence>
-                    {error && (
-                        <motion.div
-                            className="fixed bottom-24 right-8 z-[10001] bg-[#b3261e] text-white px-6 py-3 rounded-[20px] shadow-2xl flex items-center gap-3"
-                            initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+                <div
+                  className={`p-6 border-t shrink-0 ${isDark ? "bg-black/20 border-white/5" : "bg-white border-slate-100"}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all ${
+                        isDark
+                          ? "bg-white/5 hover:bg-white/10 text-white/20"
+                          : "bg-slate-100 hover:bg-slate-200 text-slate-400"
+                      }`}
+                    >
+                      <Paperclip size={18} />
+                    </button>
+
+                    <div className="relative flex-1">
+                      <input
+                        type="text"
+                        value={messageText}
+                        onChange={(e) => setMessageText(e.target.value)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && !e.shiftKey && sendMessage()
+                        }
+                        placeholder="Message..."
+                        className={`w-full rounded-[20px] pl-5 pr-12 py-3.5 text-[12.5px] font-bold outline-none border transition-all ${
+                          isDark
+                            ? "bg-white/[0.03] border border-white/[0.05] text-white focus:bg-white/[0.05] focus:border-emerald-500/40"
+                            : "bg-slate-50 border-slate-100 text-slate-900 focus:bg-white focus:border-emerald-500/40"
+                        }`}
+                      />
+                      <div className="absolute right-1.5 top-1/2 -translate-y-1/2 font-black">
+                        <button
+                          onClick={sendMessage}
+                          disabled={
+                            isSending || (!messageText.trim() && !selectedFile)
+                          }
+                          className={`w-9 h-9 rounded-[14px] flex items-center justify-center transition-all ${
+                            isSending || (!messageText.trim() && !selectedFile)
+                              ? "opacity-10 grayscale"
+                              : "bg-emerald-500 text-black shadow-lg"
+                          }`}
                         >
-                            <X className="w-5 h-5 cursor-pointer" onClick={() => setError(null)} />
-                            <span className="text-sm font-medium">{error}</span>
-                        </motion.div>
-                    )}
-                </AnimatePresence>
-            </motion.div>
-        </AnimatePresence>
-    );
+                          {isSending ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <Send size={16} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  {selectedFile && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`mt-4 p-3 rounded-2xl flex items-center gap-3 border ${
+                        isDark
+                          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
+                          : "bg-emerald-50 border-emerald-100 text-emerald-600 font-bold shadow-sm"
+                      }`}
+                    >
+                      <FileText size={16} />
+                      <span className="text-[10px] font-black truncate flex-1 tracking-tight">
+                        {selectedFile.name}
+                      </span>
+                      <button
+                        onClick={() => setSelectedFile(null)}
+                        className="p-1 hover:bg-emerald-500/20 rounded-full"
+                      >
+                        <X size={14} />
+                      </button>
+                    </motion.div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+
+        {/* Branding Footer */}
+        <div
+          className={`px-8 py-3 shrink-0 border-t flex items-center gap-3 opacity-20 ${isDark ? "bg-[#050505] border-white/5" : "bg-slate-50 border-slate-100"}`}
+        >
+          <Sparkles size={10} className="text-emerald-500" />
+          <span className="text-[8px] font-black uppercase tracking-[0.4em]">
+            Messenger
+          </span>
+        </div>
+      </motion.div>
+
+      {/* Modular File Viewer integration */}
+      {viewerConfig && (
+        <FileViewer
+          isOpen={viewerConfig.isOpen}
+          url={viewerConfig.url}
+          fileName={viewerConfig.fileName}
+          onClose={() => setViewerConfig(null)}
+        />
+      )}
+    </div>
+  );
 };
 
 export default ChatModal;

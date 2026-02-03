@@ -23,8 +23,19 @@ import ServiceManager from "./admin/ServiceManager";
 import RegistrationSimulator from "./admin/RegistrationSimulator";
 import AdminDashboard from "./admin/Dashboard";
 import SystemStatusManager from "./components/SystemStatusManager";
+import { useThemeStore } from "./store/useThemeStore";
 
 function App() {
+  const { isDark } = useThemeStore();
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }, [isDark]);
+
   // Check session storage to see if splash has already been shown this session
   const [showSplash, setShowSplash] = useState(() => {
     return !sessionStorage.getItem("splashShown");

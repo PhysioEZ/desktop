@@ -9,9 +9,12 @@ import {
   ArrowUp,
   ArrowDown,
   Search,
+  Sparkles,
+  Command as CmdIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ShortcutItem } from "../types/shortcuts";
+import { useThemeStore } from "../store/useThemeStore";
 
 export type { ShortcutItem };
 
@@ -30,13 +33,13 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const { isDark } = useThemeStore();
   const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
 
   // Reset search on open
   useEffect(() => {
     if (isOpen) {
       setSearchQuery("");
-      // Focus search input after animation
       setTimeout(() => inputRef.current?.focus(), 150);
     }
   }, [isOpen]);
@@ -44,7 +47,6 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
   // Handle Keyboard Events
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Priority 1: Escape (only if modal is open)
       if (e.key === "Escape" && isOpen) {
         onClose();
         return;
@@ -56,7 +58,6 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
         target.tagName === "TEXTAREA" ||
         target.isContentEditable;
 
-      // Allow all shortcuts if any modifier (Alt, Ctrl, Meta) is pressed, even in inputs
       const hasModifier = e.altKey || e.ctrlKey || e.metaKey;
       if (isInput && !hasModifier) return;
 
@@ -65,7 +66,6 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
 
         const definitionKeys = shortcut.keys.map((k) => k.toLowerCase());
 
-        // Modifier matches
         const altRequired = definitionKeys.includes("alt");
         const ctrlRequired =
           definitionKeys.includes("ctrl") || definitionKeys.includes("control");
@@ -80,7 +80,6 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
 
         if (!altMatch || !ctrlMatch || !metaMatch || !shiftMatch) continue;
 
-        // Main key match
         const mainKey = definitionKeys.find(
           (k) =>
             !["alt", "ctrl", "control", "meta", "cmd", "shift"].includes(k),
@@ -90,7 +89,6 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
         const eventKey = e.key.toLowerCase();
         const eventCode = e.code.toLowerCase();
 
-        // Highly robust key matching
         const isKeyMatch =
           eventKey === mainKey ||
           eventCode === `key${mainKey}` ||
@@ -101,7 +99,6 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
           e.preventDefault();
           e.stopPropagation();
           shortcut.action();
-          // Close shortcut list if it's open and we triggered a navigation/modal
           if (
             isOpen &&
             shortcut.group !== "General" &&
@@ -114,12 +111,10 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
       }
     };
 
-    // Use capture phase to ensure we catch it before browser or other listeners
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [shortcuts, isOpen, onClose]);
 
-  // Filter and Group Shortcuts
   const filteredAndGrouped = React.useMemo(() => {
     const query = searchQuery.toLowerCase();
 
@@ -141,250 +136,333 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
   }, [shortcuts, searchQuery]);
 
   const renderKey = (key: string) => {
-    if (key === "Alt") return <Option size={14} strokeWidth={3} />;
+    if (key === "Alt") return <Option size={14} strokeWidth={2.5} />;
     if (key === "Ctrl")
       return isMac ? (
-        <Command size={14} strokeWidth={3} />
+        <Command size={14} strokeWidth={2.5} />
       ) : (
-        <span className="text-xs font-bold">Ctrl</span>
+        <span className="text-[10px] font-black">CTRL</span>
       );
     if (key === "Shift")
-      return <span className="text-xs font-bold">Shift</span>;
-    if (key === "ArrowLeft") return <ArrowLeft size={16} strokeWidth={3} />;
-    if (key === "ArrowRight") return <ArrowRight size={16} strokeWidth={3} />;
-    if (key === "ArrowUp") return <ArrowUp size={16} strokeWidth={3} />;
-    if (key === "ArrowDown") return <ArrowDown size={16} strokeWidth={3} />;
-    return <span className="text-sm font-bold uppercase">{key}</span>;
+      return <span className="text-[10px] font-black">SHIFT</span>;
+    if (key === "ArrowLeft") return <ArrowLeft size={16} strokeWidth={2.5} />;
+    if (key === "ArrowRight") return <ArrowRight size={16} strokeWidth={2.5} />;
+    if (key === "ArrowUp") return <ArrowUp size={16} strokeWidth={2.5} />;
+    if (key === "ArrowDown") return <ArrowDown size={16} strokeWidth={2.5} />;
+    return <span className="text-xs font-black uppercase">{key}</span>;
   };
 
-  // Columns Configuration
   const commonGroups = ["Navigation", "General", "Actions"];
   const getShortcutKey = (s: ShortcutItem) => s.description + s.keys.join("-");
 
   return (
-    <>
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
-        onClick={onToggle}
-        className="fixed bottom-6 left-6 z-50 w-14 h-14 bg-[#e8def8] dark:bg-[#4a4458] text-[#1d192b] dark:text-[#e8def8] rounded-2xl shadow-lg hover:shadow-xl flex items-center justify-center transition-all"
-        title="Keyboard Shortcuts"
-      >
-        <Keyboard size={24} />
-      </motion.button>
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[10010] flex items-center justify-center p-6 md:p-12 overflow-hidden">
+          {/* Backdrop */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="absolute inset-0 bg-black/60 backdrop-blur-xl"
+          />
 
-      <AnimatePresence>
-        {isOpen && (
-          <div
-            className="fixed inset-0 z-[10010] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
-            onClick={(e) => e.target === e.currentTarget && onClose()}
+          {/* Modal Container */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9, y: 30 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 30 }}
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className={`w-full max-w-5xl rounded-[48px] border relative overflow-hidden flex flex-col max-h-[90vh] shadow-[0_40px_80px_-20px_rgba(0,0,0,0.5)] ${
+              isDark
+                ? "bg-[#0A0A0A]/90 border-white/10 shadow-black"
+                : "bg-white/95 border-slate-200"
+            }`}
           >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#fdfcff] dark:bg-[#1a1c1e] w-full max-w-5xl rounded-[28px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
-            >
-              {/* Header */}
-              <div className="px-8 py-6 border-b border-[#e0e2ec] dark:border-[#43474e] flex flex-col gap-4 shrink-0 bg-[#fdfcff] dark:bg-[#1a1c1e]">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-[#e8def8] dark:bg-[#4a4458] flex items-center justify-center shrink-0">
-                      <Keyboard
-                        size={20}
-                        className="text-[#1d192b] dark:text-[#e8def8]"
-                      />
-                    </div>
-                    <h2 className="text-2xl font-normal text-[#1a1c1e] dark:text-[#e3e2e6] font-serif">
-                      Keyboard Shortcuts
-                    </h2>
-                  </div>
+            {/* Header Identity Overlay */}
+            <div
+              className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent opacity-50`}
+            />
 
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2 text-xs text-[#444746] dark:text-[#c4c7c5] bg-[#f2f0f4] dark:bg-[#30333b] px-3 py-1.5 rounded-full border border-[#e0e2ec] dark:border-[#43474e]">
-                      <Option size={14} /> <span>Alt / Option</span>
-                    </div>
-
-                    <button
-                      onClick={onClose}
-                      className="w-8 h-8 rounded-full hover:bg-[#f2f0f4] dark:hover:bg-[#30333b] flex items-center justify-center transition-colors ml-2"
-                    >
-                      <X
-                        size={20}
-                        className="text-[#444746] dark:text-[#c4c7c5]"
-                      />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Search Bar Row */}
-                <div className="relative max-w-full">
-                  <input
-                    ref={inputRef}
-                    type="text"
-                    placeholder="Search shortcuts..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-[#f2f0f4] dark:bg-[#30333b] rounded-full pl-12 pr-4 py-3 text-sm text-[#1a1c1e] dark:text-[#e3e2e6] placeholder:text-[#74777f] focus:outline-none focus:ring-2 focus:ring-[#006e1c] dark:focus:ring-[#88d99d] transition-shadow"
-                  />
-                  <Search
-                    size={18}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-[#74777f]"
-                  />
-                </div>
-              </div>
-
-              {/* Body */}
-              <div className="p-8 overflow-y-auto bg-[#fdfcff] dark:bg-[#1a1c1e]">
-                <motion.div
-                  layout
-                  className="grid gap-8 grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
-                >
-                  {/* Column 1: Navigation */}
-                  {filteredAndGrouped["Navigation"] &&
-                    filteredAndGrouped["Navigation"].length > 0 && (
-                      <motion.div layout className="space-y-6">
-                        <div className="space-y-3">
-                          <h3 className="text-xs font-bold text-[#006c4c] dark:text-[#88d99d] tracking-widest uppercase border-b border-[#e0e2ec] dark:border-[#43474e] pb-2 mb-2">
-                            Navigation
-                          </h3>
-                          <motion.div layout className="space-y-1">
-                            <AnimatePresence>
-                              {filteredAndGrouped["Navigation"].map((s) => (
-                                <ShortcutRow
-                                  key={getShortcutKey(s)}
-                                  shortcut={s}
-                                  renderKey={renderKey}
-                                />
-                              ))}
-                            </AnimatePresence>
-                          </motion.div>
-                        </div>
-                      </motion.div>
-                    )}
-
-                  {/* Column 2: General & Actions */}
-                  {(filteredAndGrouped["General"] ||
-                    filteredAndGrouped["Actions"]) && (
-                    <motion.div layout className="space-y-6">
-                      {filteredAndGrouped["General"] &&
-                        filteredAndGrouped["General"].length > 0 && (
-                          <div className="space-y-3">
-                            <h3 className="text-xs font-bold text-[#006c4c] dark:text-[#88d99d] tracking-widest uppercase border-b border-[#e0e2ec] dark:border-[#43474e] pb-2 mb-2">
-                              General
-                            </h3>
-                            <motion.div layout className="space-y-1">
-                              <AnimatePresence>
-                                {filteredAndGrouped["General"].map((s) => (
-                                  <ShortcutRow
-                                    key={getShortcutKey(s)}
-                                    shortcut={s}
-                                    renderKey={renderKey}
-                                  />
-                                ))}
-                              </AnimatePresence>
-                            </motion.div>
-                          </div>
-                        )}
-                      {filteredAndGrouped["Actions"] &&
-                        filteredAndGrouped["Actions"].length > 0 && (
-                          <div className="space-y-3">
-                            <h3 className="text-xs font-bold text-[#b3261e] dark:text-[#ffb4ab] tracking-widest uppercase border-b border-[#e0e2ec] dark:border-[#43474e] pb-2 mb-2">
-                              Actions
-                            </h3>
-                            <motion.div layout className="space-y-1">
-                              <AnimatePresence>
-                                {filteredAndGrouped["Actions"].map((s) => (
-                                  <ShortcutRow
-                                    key={getShortcutKey(s)}
-                                    shortcut={s}
-                                    renderKey={renderKey}
-                                  />
-                                ))}
-                              </AnimatePresence>
-                            </motion.div>
-                          </div>
-                        )}
-                    </motion.div>
-                  )}
-
-                  {/* Column 3: Specific Groups (The Rest) */}
-                  <motion.div
-                    layout
-                    className="space-y-6 bg-[#f0f4ff] dark:bg-[#004a77]/20 rounded-2xl p-6 -my-6"
+            {/* Header Content */}
+            <div className="px-10 py-8 shrink-0 flex flex-col gap-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-6">
+                  <div
+                    className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${
+                      isDark
+                        ? "bg-emerald-500 text-black"
+                        : "bg-emerald-600 text-white"
+                    }`}
                   >
-                    {Object.entries(filteredAndGrouped).map(
-                      ([group, items]) => {
-                        if (commonGroups.includes(group)) return null;
-                        return (
-                          <div key={group} className="space-y-3">
-                            <h3 className="text-xs font-bold tracking-widest uppercase border-b border-[#c2e7ff] dark:border-[#004a77] pb-2 mb-2 text-[#00639b] dark:text-[#7fcfff]">
-                              {group}
-                            </h3>
-                            <motion.div layout className="space-y-1">
-                              <AnimatePresence>
-                                {items.map((s) => (
-                                  <ShortcutRow
-                                    key={getShortcutKey(s)}
-                                    shortcut={s}
-                                    renderKey={renderKey}
-                                  />
-                                ))}
-                              </AnimatePresence>
-                            </motion.div>
-                          </div>
-                        );
-                      },
-                    )}
+                    <Keyboard size={30} strokeWidth={1.5} />
+                  </div>
+                  <div>
+                    <h2
+                      className={`text-3xl font-black tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}
+                    >
+                      Command Center
+                    </h2>
+                    <div className="flex items-center gap-3 mt-1.5 font-black uppercase text-[10px] tracking-[0.2em]">
+                      <span
+                        className={
+                          isDark ? "text-emerald-500" : "text-emerald-600"
+                        }
+                      >
+                        PhysioEZ Core
+                      </span>
+                      <span className="opacity-20">•</span>
+                      <span
+                        className={isDark ? "text-white/40" : "text-slate-400"}
+                      >
+                        Keyboard Shortcuts
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
-                    {/* If no specific groups found */}
-                    {Object.keys(filteredAndGrouped).every((g) =>
-                      commonGroups.includes(g),
-                    ) &&
-                      searchQuery === "" && (
-                        <div className="text-center text-[#74777f] py-4 border-2 border-dashed border-[#e0e2ec] dark:border-[#43474e] rounded-xl">
-                          <p className="text-xs font-medium">
-                            No page-specific shortcuts.
-                          </p>
-                        </div>
-                      )}
-                  </motion.div>
-                </motion.div>
+                <div className="flex items-center gap-4">
+                  <div
+                    className={`hidden md:flex items-center gap-3 px-5 py-2.5 rounded-2xl border text-[10px] font-black uppercase tracking-widest ${
+                      isDark
+                        ? "bg-white/[0.03] border-white/10 text-white/40"
+                        : "bg-slate-50 border-slate-200 text-slate-500"
+                    }`}
+                  >
+                    <Option size={14} className="text-emerald-500/60" />
+                    <span>Alt Key Optimized</span>
+                  </div>
+
+                  <button
+                    onClick={onClose}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all hover:scale-105 active:scale-95 ${
+                      isDark
+                        ? "bg-white/5 hover:bg-red-500/20 text-white border border-white/5 hover:text-red-500"
+                        : "bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600"
+                    }`}
+                  >
+                    <X size={24} strokeWidth={2} />
+                  </button>
+                </div>
               </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-    </>
+
+              {/* Search Bar */}
+              <div className="relative group">
+                <Search
+                  size={20}
+                  className={`absolute left-5 top-1/2 -translate-y-1/2 transition-colors ${
+                    isDark
+                      ? "text-white/20 group-focus-within:text-emerald-500"
+                      : "text-slate-300 group-focus-within:text-emerald-600"
+                  }`}
+                />
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder="Filter commands..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className={`w-full rounded-2xl pl-16 pr-6 py-5 text-sm font-bold outline-none transition-all ${
+                    isDark
+                      ? "bg-white/[0.03] border border-white/[0.05] text-white focus:bg-white/[0.06] focus:border-emerald-500/40 focus:ring-4 focus:ring-emerald-500/10 placeholder:text-white/10"
+                      : "bg-slate-50 border border-slate-100 text-slate-900 focus:bg-white focus:border-emerald-500/40 focus:ring-4 focus:ring-emerald-500/10 placeholder:text-slate-300"
+                  }`}
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-5 top-1/2 -translate-y-1/2 p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                  >
+                    <X size={14} className="opacity-50" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Content Body */}
+            <div className="flex-1 overflow-y-auto px-10 pb-12 custom-scrollbar">
+              <motion.div
+                layout
+                className="grid gap-10 grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+              >
+                {/* Column 1: Navigation */}
+                {filteredAndGrouped["Navigation"] && (
+                  <GroupSection
+                    title="Navigation"
+                    items={filteredAndGrouped["Navigation"]}
+                    isDark={isDark}
+                    renderKey={renderKey}
+                    accent="text-emerald-500"
+                  />
+                )}
+
+                {/* Column 2: General \u0026 Actions */}
+                <div className="space-y-10">
+                  {filteredAndGrouped["General"] && (
+                    <GroupSection
+                      title="General"
+                      items={filteredAndGrouped["General"]}
+                      isDark={isDark}
+                      renderKey={renderKey}
+                      accent="text-blue-500"
+                    />
+                  )}
+                  {filteredAndGrouped["Actions"] && (
+                    <GroupSection
+                      title="Quick Actions"
+                      items={filteredAndGrouped["Actions"]}
+                      isDark={isDark}
+                      renderKey={renderKey}
+                      accent="text-amber-500"
+                    />
+                  )}
+                </div>
+
+                {/* Column 3: The Rest */}
+                <div
+                  className={`rounded-[32px] p-8 -mx-4 ${
+                    isDark
+                      ? "bg-white/[0.02]"
+                      : "bg-slate-50 border border-slate-100"
+                  }`}
+                >
+                  {Object.entries(filteredAndGrouped).map(([group, items]) => {
+                    if (commonGroups.includes(group)) return null;
+                    return (
+                      <GroupSection
+                        key={group}
+                        title={group}
+                        items={items}
+                        isDark={isDark}
+                        renderKey={renderKey}
+                        accent="text-purple-500"
+                      />
+                    );
+                  })}
+
+                  {Object.keys(filteredAndGrouped).length === 0 && (
+                    <div className="py-20 text-center space-y-4">
+                      <Search size={40} className="mx-auto opacity-10" />
+                      <p
+                        className={`text-[10px] uppercase font-black tracking-widest ${isDark ? "text-white/20" : "text-slate-300"}`}
+                      >
+                        No results found
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Bottom Meta */}
+            <div
+              className={`px-10 py-5 shrink-0 border-t flex items-center justify-between ${
+                isDark
+                  ? "bg-black border-white/5"
+                  : "bg-slate-50 border-slate-100"
+              }`}
+            >
+              <div className="flex items-center gap-2 opacity-40">
+                <Sparkles size={12} className="text-emerald-500" />
+                <span className="text-[9px] font-black uppercase tracking-[0.3em]">
+                  Precision Control v0.7.2b
+                </span>
+              </div>
+              <div
+                className={`px-3 py-1 rounded-lg text-[9px] font-black border tracking-widest ${
+                  isDark
+                    ? "border-white/10 text-white/30"
+                    : "border-slate-200 text-slate-400"
+                }`}
+              >
+                ESC TO CLOSE
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };
 
+interface GroupSectionProps {
+  title: string;
+  items: ShortcutItem[];
+  isDark: boolean;
+  renderKey: (k: string) => React.ReactNode;
+  accent: string;
+}
+
+const GroupSection = ({
+  title,
+  items,
+  isDark,
+  renderKey,
+  accent,
+}: GroupSectionProps) => (
+  <motion.div layout className="space-y-5">
+    <div className="flex items-center gap-3">
+      <div
+        className={`w-2 h-2 rounded-full ${accent.replace("text-", "bg-")}`}
+      />
+      <h3
+        className={`text-[10px] font-black uppercase tracking-[0.3em] ${isDark ? "text-white/40" : "text-slate-500"}`}
+      >
+        {title}
+      </h3>
+    </div>
+    <div className="space-y-1">
+      {items.map((s, i) => (
+        <ShortcutRow
+          key={i}
+          shortcut={s}
+          isDark={isDark}
+          renderKey={renderKey}
+        />
+      ))}
+    </div>
+  </motion.div>
+);
+
 const ShortcutRow = ({
   shortcut,
+  isDark,
   renderKey,
 }: {
   shortcut: ShortcutItem;
+  isDark: boolean;
   renderKey: (k: string) => React.ReactNode;
 }) => (
   <motion.div
     layout
-    initial={{ opacity: 0, y: 10 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -10 }}
-    transition={{ duration: 0.2 }}
-    className="flex items-center justify-between py-2 group hover:bg-[#f2f0f4] dark:hover:bg-[#30333b] px-3 -mx-3 rounded-lg transition-colors cursor-default"
+    className={`flex items-center justify-between py-3.5 px-4 -mx-4 rounded-2xl transition-all group hover:scale-[1.01] ${
+      isDark
+        ? "hover:bg-white/[0.03]"
+        : "hover:bg-white hover:shadow-lg hover:shadow-slate-200/50"
+    }`}
   >
-    <span className="text-sm text-[#1a1c1e] dark:text-[#e3e2e6] font-medium">
+    <span
+      className={`text-[13px] font-bold tracking-tight ${isDark ? "text-white/60 group-hover:text-white" : "text-slate-600 group-hover:text-slate-900"}`}
+    >
       {shortcut.description}
     </span>
     <div className="flex items-center gap-1.5">
       {shortcut.keys.map((key, i) => (
-        <kbd
-          key={i}
-          className="h-8 min-w-[32px] px-2 flex items-center justify-center bg-white dark:bg-[#1a1c1e] border border-[#74777f] dark:border-[#8e918f] rounded-lg text-xs font-bold text-[#1a1c1e] dark:text-[#e3e2e6] shadow-sm font-sans mx-0.5"
-        >
-          {renderKey(key)}
-        </kbd>
+        <React.Fragment key={i}>
+          <kbd
+            className={`h-8 min-w-[32px] px-2.5 flex items-center justify-center rounded-[10px] text-[11px] font-black shadow-sm transition-colors border ${
+              isDark
+                ? "bg-[#121212] border-white/10 text-white group-hover:border-emerald-500/30"
+                : "bg-[#F3F4F6] border-slate-200 text-slate-800 group-hover:border-emerald-500/30"
+            }`}
+          >
+            {renderKey(key)}
+          </kbd>
+          {i < shortcut.keys.length - 1 && (
+            <span className="text-[10px] font-black opacity-20">+</span>
+          )}
+        </React.Fragment>
       ))}
     </div>
   </motion.div>

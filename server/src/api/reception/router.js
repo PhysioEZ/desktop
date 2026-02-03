@@ -14,6 +14,7 @@ const treatmentPlansController = require('./treatmentPlans');
 const tokensController = require('./tokens');
 const attendanceController = require('./attendance');
 const paymentsController = require('./payments');
+const insightsController = require('./insights');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -41,6 +42,7 @@ router.get('/dashboard', dashboardController.getDashboardData);
 
 // GET /api/reception/form_options
 router.get('/form_options', formOptionsController.getFormOptions);
+router.get('/daily_intelligence', insightsController.getDailyIntelligence);
 
 // GET /api/reception/notifications
 router.get('/notifications', fetchDataController.getNotifications);

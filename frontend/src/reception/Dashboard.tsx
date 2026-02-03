@@ -41,7 +41,10 @@ import {
   PieChart,
   Banknote,
   FileText,
+  Keyboard,
+  Info,
 } from "lucide-react";
+import { useThemeStore } from "../store/useThemeStore";
 import CustomSelect from "../components/ui/CustomSelect";
 import DatePicker from "../components/ui/DatePicker";
 import ChatModal from "../components/Chat/ChatModal";
@@ -49,8 +52,8 @@ import KeyboardShortcuts, {
   type ShortcutItem,
 } from "../components/KeyboardShortcuts";
 import LogoutConfirmation from "../components/LogoutConfirmation";
-
-import pack from "../../package.json";
+import GlobalSearch from "../components/GlobalSearch";
+import DailyIntelligence from "../components/DailyIntelligence";
 
 // Types
 interface DashboardData {
@@ -265,6 +268,7 @@ const ReceptionDashboard = () => {
   const [data, setData] = useState<DashboardData | null>(null);
   const [formOptions, setFormOptions] = useState<FormOptions | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [serverVersion, setServerVersion] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFabOpen, setIsFabOpen] = useState(false);
@@ -283,7 +287,6 @@ const ReceptionDashboard = () => {
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const searchInputRef = useRef<HTMLInputElement>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLButtonElement>(null);
@@ -293,6 +296,7 @@ const ReceptionDashboard = () => {
   // Form logic
   const formRef = useRef<HTMLFormElement>(null);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [showIntelligence, setShowIntelligence] = useState(false);
   const [photoData, setPhotoData] = useState<string | null>(null);
   const [photoCaptured, setPhotoCaptured] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -388,33 +392,30 @@ const ReceptionDashboard = () => {
     }
   }, [user?.branch_id]);
 
-  // Theme Logic
-  const [isDark, setIsDark] = useState(false);
-  useEffect(() => {
-    const saved = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    if (saved === "dark" || (!saved && prefersDark)) {
-      document.documentElement.classList.add("dark");
-      setIsDark(true);
-    } else {
-      document.documentElement.classList.remove("dark");
-      setIsDark(false);
+  const fetchServerStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/system/status`);
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.status === "success" && data.data?.current_app_version) {
+        setServerVersion(data.data.current_app_version);
+      }
+    } catch (err) {
+      console.warn("Build check failure:", err);
     }
   }, []);
 
-  const toggleTheme = () => {
+  // Theme Logic from store
+  const { isDark, toggleTheme } = useThemeStore();
+
+  useEffect(() => {
     if (isDark) {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-      setIsDark(false);
-    } else {
       document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-      setIsDark(true);
+    } else {
+      document.documentElement.classList.remove("dark");
     }
-  };
+    fetchServerStatus();
+  }, [isDark, fetchServerStatus]);
 
   // --- LOGIC: FETCHING ---
   const fetchNotifs = useCallback(async () => {
@@ -634,8 +635,6 @@ const ReceptionDashboard = () => {
       if (e.altKey && isS && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         e.stopPropagation();
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
         setShowSearchResults(true);
       }
     };
@@ -1104,8 +1103,6 @@ const ReceptionDashboard = () => {
       description: "Quick Search",
       group: "General",
       action: () => {
-        searchInputRef.current?.focus();
-        searchInputRef.current?.select();
         setShowSearchResults(true);
       },
     },
@@ -1300,21 +1297,10 @@ const ReceptionDashboard = () => {
 
         {/* Chat & Profile Actions */}
         <div className="flex flex-col items-center gap-4">
-          {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isDark ? "text-gray-500 hover:text-white hover:bg-[#1C1C1C]" : "text-gray-400 hover:text-gray-900 hover:bg-gray-50"}`}
-          >
-            {isDark ? (
-              <Sun size={18} strokeWidth={2} />
-            ) : (
-              <Moon size={18} strokeWidth={2} />
-            )}
-          </button>
-
           <button
             onClick={() => setShowChatModal(true)}
             className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isDark ? "text-gray-500 hover:text-white hover:bg-[#1C1C1C]" : "text-gray-400 hover:text-gray-900 hover:bg-gray-50"}`}
+            title="Messenger"
           >
             <MessageCircle size={18} strokeWidth={2} />
           </button>
@@ -1327,29 +1313,59 @@ const ReceptionDashboard = () => {
             <AnimatePresence>
               {showProfilePopup && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.9, y: 10, x: -10 }}
+                  initial={{ opacity: 0, scale: 0.9, y: 15, x: -10 }}
                   animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, y: 10, x: -10 }}
-                  className="absolute bottom-0 left-full ml-4 w-64 bg-[#fdfcff] dark:bg-[#111315] rounded-[24px] shadow-2xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden transition-colors"
+                  exit={{ opacity: 0, scale: 0.9, y: 15, x: -10 }}
+                  className="absolute bottom-0 left-full ml-6 w-80 bg-white/95 dark:bg-[#0A0A0A]/95 backdrop-blur-3xl rounded-[32px] shadow-[0_32px_80px_-20px_rgba(0,0,0,0.3)] border border-gray-100 dark:border-white/5 z-[100] overflow-hidden"
                 >
                   {/* User Header */}
-                  <div className="p-5 border-b border-[#e0e2ec] dark:border-[#43474e] bg-slate-50/50 dark:bg-white/5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-12 h-12 rounded-2xl bg-[#4ADE80]/10 flex items-center justify-center text-[#16a34a] dark:text-[#4ADE80] font-bold text-xl border border-[#4ADE80]/20">
-                        {user?.name?.charAt(0).toUpperCase() || "R"}
+                  <div className="p-6 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.01]">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-[22px] bg-emerald-500/10 flex items-center justify-center text-[#16a34a] dark:text-[#4ADE80] font-black text-2xl border border-emerald-500/10 shadow-inner">
+                        {user?.name?.charAt(0).toUpperCase() || "S"}
                       </div>
                       <div className="overflow-hidden">
-                        <p className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6] truncate">
-                          {user?.name || "Receptionist"}
+                        <p
+                          className={`text-lg font-black tracking-tight leading-none mb-1.5 ${isDark ? "text-white" : "text-[#1a1c1e]"}`}
+                        >
+                          {user?.name || "Saniyas Parween"}
                         </p>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 mt-0.5">
-                          {user?.role
-                            ? user.role.charAt(0).toUpperCase() +
-                              user.role.slice(1)
-                            : "Staff Member"}
+                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                          {user?.role || "RECEPTION"}
                         </p>
                       </div>
                     </div>
+                  </div>
+
+                  {/* Settings & Utilities */}
+                  <div className="p-2 border-b border-gray-100 dark:border-white/5">
+                    <button
+                      onClick={toggleTheme}
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        {isDark ? <Sun size={18} /> : <Moon size={18} />}
+                        <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
+                      </div>
+                      <span className="text-[10px] opacity-30 font-black uppercase">
+                        Alt + W
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowShortcuts(true);
+                        setShowProfilePopup(false);
+                      }}
+                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium mt-1 transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Keyboard size={18} />
+                        <span>Shortcuts</span>
+                      </div>
+                      <span className="text-[10px] opacity-30 font-black uppercase">
+                        Alt + /
+                      </span>
+                    </button>
                   </div>
 
                   {/* Actions */}
@@ -1358,7 +1374,7 @@ const ReceptionDashboard = () => {
                       onClick={() => navigate("/reception/profile")}
                       className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"
                     >
-                      <User size={18} /> Profile
+                      <User size={18} /> Profile Settings
                     </button>
                     <button
                       onClick={() => {
@@ -1372,13 +1388,47 @@ const ReceptionDashboard = () => {
                   </div>
 
                   {/* Version Footer */}
-                  <div className="px-5 py-3 bg-slate-100/50 dark:bg-white/5 border-t border-[#e0e2ec] dark:border-[#43474e] flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">
-                      Console Version
+                  <div className="px-6 py-4 bg-gray-50/50 dark:bg-white/[0.01] border-t border-gray-100 dark:border-white/5 flex items-center justify-between">
+                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] opacity-40">
+                      Build System
                     </span>
-                    <span className="text-sm font-black text-slate-600 dark:text-slate-300">
-                      v{pack.version}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      {(() => {
+                        const vStr = (
+                          serverVersion || "Checking..."
+                        ).toLowerCase();
+                        const isAlpha = vStr.includes("a");
+                        const isBeta = vStr.includes("b");
+                        const isStable =
+                          vStr.includes("s") ||
+                          (serverVersion && !isAlpha && !isBeta);
+
+                        return (
+                          <>
+                            <span
+                              className={`text-[8px] font-black px-1.5 py-0.5 rounded-[6px] uppercase tracking-widest ${
+                                isAlpha
+                                  ? "bg-amber-500/10 text-amber-500"
+                                  : isBeta
+                                    ? "bg-blue-500/10 text-blue-500"
+                                    : "bg-emerald-500/10 text-emerald-500"
+                              }`}
+                            >
+                              {isAlpha
+                                ? "Alpha"
+                                : isBeta
+                                  ? "Beta"
+                                  : isStable
+                                    ? "Stable"
+                                    : "..."}
+                            </span>
+                            <span className="text-[13px] font-black text-slate-500 dark:text-slate-400 tabular-nums">
+                              {serverVersion ? `v${serverVersion}` : "---"}
+                            </span>
+                          </>
+                        );
+                      })()}
+                    </div>
                   </div>
                 </motion.div>
               )}
@@ -1507,14 +1557,16 @@ const ReceptionDashboard = () => {
                   <span>Test: {data?.inquiry.test || 0}</span>
                 </div>
               </div>
-              <div
-                className={`w-12 h-12 rounded-full flex items-center justify-center border transition-colors ${isDark ? "border-white/10 hover:bg-white/5" : "border-gray-200 hover:bg-gray-50"}`}
+              <button
+                onClick={() => navigate("/reception/inquiry")}
+                className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all hover:scale-110 active:scale-90 ${isDark ? "border-white/10 bg-white/5 hover:bg-emerald-500/10 text-emerald-500" : "border-gray-200 bg-white hover:bg-emerald-50 text-emerald-600 shadow-sm"}`}
+                title="View Inquiries"
               >
                 <ArrowUpRight
                   size={20}
-                  className="opacity-50 text-[#1a1c1e] dark:text-[#e3e2e6]"
+                  className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
                 />
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -1574,90 +1626,108 @@ const ReceptionDashboard = () => {
                 </div>
               </div>
 
-              {/* Utilities */}
-              <button
-                onClick={fetchAll}
-                disabled={isLoading}
-                className={`w-12 h-12 flex items-center justify-center rounded-2xl border transition-colors hover:bg-gray-50 dark:hover:bg-[#1A1C1A] ${isDark ? "border-[#2A2D2A] bg-[#121412]" : "border-gray-200 bg-white"} ${isLoading ? "animate-spin" : ""}`}
-              >
-                <RefreshCw size={20} strokeWidth={1.5} />
-              </button>
-
-              {/* Notifications */}
-              <div className="relative">
+              {/* Utilities Area */}
+              <div className="flex items-center p-1.5 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
                 <button
-                  ref={notifRef}
-                  onClick={() => {
-                    setShowNotifPopup(!showNotifPopup);
-                    setShowProfilePopup(false);
-                  }}
-                  className={`w-12 h-12 flex items-center justify-center rounded-2xl border transition-colors hover:bg-gray-50 dark:hover:bg-[#1A1C1A] relative ${isDark ? "border-[#2A2D2A] bg-[#121412]" : "border-gray-200 bg-white"}`}
+                  onClick={fetchAll}
+                  disabled={isLoading}
+                  className={`w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 ${isLoading ? "animate-spin" : ""}`}
+                  title="Refresh Dashboard"
                 >
-                  <Bell size={20} strokeWidth={1.5} />
-                  {unreadCount > 0 && (
-                    <span className="absolute top-3 right-3 w-2 h-2 bg-[#B3261E] rounded-full ring-2 ring-white dark:ring-[#121412]"></span>
-                  )}
+                  <RefreshCw size={18} strokeWidth={2} className="opacity-40" />
                 </button>
-                <AnimatePresence>
-                  {showNotifPopup && (
-                    <motion.div
-                      id="notif-popup"
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 5 }}
-                      className={`absolute top-full right-0 mt-3 w-80 rounded-[24px] shadow-2xl border overflow-hidden z-[60] ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-gray-100"}`}
-                    >
-                      <div className="px-5 py-4 border-b dark:border-white/5 border-gray-100 flex items-center justify-between">
-                        <span className="font-bold text-sm">Notifications</span>
-                        {unreadCount > 0 && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#CCEBC4] text-[#0C200E]">
-                            {unreadCount}
+
+                <div className="w-px h-6 bg-black/10 dark:bg-white/10 mx-1" />
+
+                {/* Notifications */}
+                <div className="relative flex items-center">
+                  <button
+                    ref={notifRef}
+                    onClick={() => {
+                      setShowNotifPopup(!showNotifPopup);
+                      setShowProfilePopup(false);
+                    }}
+                    className="w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 relative"
+                  >
+                    <Bell size={18} strokeWidth={2} className="opacity-40" />
+                    {unreadCount > 0 && (
+                      <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-[#1A1C1A]" />
+                    )}
+                  </button>
+
+                  <AnimatePresence>
+                    {showNotifPopup && (
+                      <motion.div
+                        id="notif-popup"
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 5 }}
+                        className={`absolute top-full right-0 mt-3 w-80 rounded-[24px] shadow-2xl border overflow-hidden z-[60] ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-gray-100"}`}
+                      >
+                        <div className="px-5 py-4 border-b dark:border-white/5 border-gray-100 flex items-center justify-between">
+                          <span className="font-bold text-sm">
+                            Notifications
                           </span>
-                        )}
-                      </div>
-                      <div className="max-h-80 overflow-y-auto p-1.5">
-                        {notifications.map((n) => (
-                          <div
-                            key={n.notification_id}
-                            className={`p-3 rounded-xl transition-all cursor-pointer group mb-1 ${
-                              n.is_read === 0
-                                ? isDark
-                                  ? "bg-[#CCEBC4]/5 hover:bg-[#CCEBC4]/10"
-                                  : "bg-green-50 hover:bg-green-100/50"
-                                : isDark
-                                  ? "hover:bg-white/5"
-                                  : "hover:bg-gray-50"
-                            }`}
-                          >
-                            <p
-                              className={`text-xs leading-snug ${n.is_read === 0 ? "font-bold" : ""} ${isDark ? "text-gray-200" : "text-gray-800"}`}
-                            >
-                              {n.message}
-                            </p>
-                            <p className="text-[9px] opacity-30 font-medium mt-1 uppercase">
-                              {n.time_ago}
-                            </p>
-                          </div>
-                        ))}
-                        {notifications.length === 0 && (
-                          <div className="py-10 text-center opacity-30 flex flex-col items-center gap-2">
-                            <Bell size={24} strokeWidth={1.5} />
-                            <p className="text-xs font-medium">
-                              All notifications cleared
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                      {notifications.length > 0 && (
-                        <div className="p-3 border-t dark:border-white/5 border-gray-100 text-center">
-                          <button className="text-[10px] font-bold text-[#4ADE80] uppercase tracking-widest hover:opacity-80">
-                            Mark all as read
-                          </button>
+                          {unreadCount > 0 && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#CCEBC4] text-[#0C200E]">
+                              {unreadCount}
+                            </span>
+                          )}
                         </div>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
+                        <div className="max-h-80 overflow-y-auto p-1.5">
+                          {notifications.map((n) => (
+                            <div
+                              key={n.notification_id}
+                              className={`p-3 rounded-xl transition-all cursor-pointer group mb-1 ${
+                                n.is_read === 0
+                                  ? isDark
+                                    ? "bg-[#CCEBC4]/5 hover:bg-[#CCEBC4]/10"
+                                    : "bg-green-50 hover:bg-green-100/50"
+                                  : isDark
+                                    ? "hover:bg-white/5"
+                                    : "hover:bg-gray-50"
+                              }`}
+                            >
+                              <p
+                                className={`text-xs leading-snug ${n.is_read === 0 ? "font-bold" : ""} ${isDark ? "text-gray-200" : "text-gray-800"}`}
+                              >
+                                {n.message}
+                              </p>
+                              <p className="text-[9px] opacity-30 font-medium mt-1 uppercase">
+                                {n.time_ago}
+                              </p>
+                            </div>
+                          ))}
+                          {notifications.length === 0 && (
+                            <div className="py-10 text-center opacity-30 flex flex-col items-center gap-2">
+                              <Bell size={24} strokeWidth={1.5} />
+                              <p className="text-sm font-medium">
+                                All notifications cleared
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                        {notifications.length > 0 && (
+                          <div className="p-3 border-t dark:border-white/5 border-gray-100 text-center">
+                            <button className="text-[10px] font-black text-[#4ADE80] uppercase tracking-widest hover:opacity-80">
+                              Mark all as read
+                            </button>
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                <div className="w-px h-6 bg-black/10 dark:bg-white/10 mx-1" />
+
+                <button
+                  onClick={() => setShowIntelligence(true)}
+                  className="w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 text-indigo-500"
+                  title="Daily Intelligence"
+                >
+                  <Info size={19} strokeWidth={2.5} />
+                </button>
               </div>
 
               {/* Approvals */}
@@ -2053,28 +2123,55 @@ const ReceptionDashboard = () => {
         <AnimatePresence>
           {isFabOpen && (
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 10 }}
-              transition={{ duration: 0.1 }}
-              className="flex flex-col gap-3 mb-2"
+              initial={{ opacity: 0, y: 20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 20, scale: 0.95 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="flex flex-col gap-3 mb-4"
             >
               {[
-                { label: "Registration", icon: Plus, id: "registration" },
-                { label: "Book Test", icon: FlaskConical, id: "test" },
-                { label: "Inquiry", icon: PhoneCall, id: "inquiry" },
-                { label: "Test Inquiry", icon: Beaker, id: "test_inquiry" },
-              ].map((btn) => (
+                {
+                  label: "New Registration",
+                  icon: UserPlus,
+                  id: "registration",
+                  color: "bg-emerald-500",
+                },
+                {
+                  label: "Book Lab Test",
+                  icon: FlaskConical,
+                  id: "test",
+                  color: "bg-blue-500",
+                },
+                {
+                  label: "Quick Inquiry",
+                  icon: PhoneCall,
+                  id: "inquiry",
+                  color: "bg-purple-500",
+                },
+                {
+                  label: "Test Inquiry",
+                  icon: Beaker,
+                  id: "test_inquiry",
+                  color: "bg-amber-500",
+                },
+              ].map((btn, idx) => (
                 <motion.button
                   key={btn.label}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.05 }}
                   onClick={() => {
                     setActiveModal(btn.id as any);
                     setIsFabOpen(false);
                   }}
-                  className="flex items-center gap-3 pl-4 pr-6 py-3.5 rounded-full shadow-xl bg-[#CCEBC4] text-[#0C200E] hover:bg-[#b8e6ad] border border-[#CCEBC4] transition-all whitespace-nowrap"
+                  className={`group flex items-center gap-4 pl-5 pr-7 py-4 rounded-[22px] shadow-2xl transition-all hover:scale-105 active:scale-95 whitespace-nowrap border border-white/10 ${isDark ? "bg-[#1A1C1A] text-white hover:bg-[#252825]" : "bg-white text-slate-900 border-slate-200 hover:bg-slate-50"}`}
                 >
-                  <btn.icon size={18} />
-                  <span className="font-bold text-sm tracking-wide">
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg ${btn.color}`}
+                  >
+                    <btn.icon size={20} />
+                  </div>
+                  <span className="font-bold text-sm tracking-tight opacity-80 group-hover:opacity-100 italic__not">
                     {btn.label}
                   </span>
                 </motion.button>
@@ -2085,14 +2182,27 @@ const ReceptionDashboard = () => {
 
         <button
           onClick={() => setIsFabOpen(!isFabOpen)}
-          className={`w-16 h-16 bg-[#CCEBC4] text-[#0C200E] rounded-[24px] shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-150 z-50`}
+          className={`w-16 h-16 rounded-[24px] shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-300 z-50 group ${isFabOpen ? "bg-red-500 text-white" : "bg-emerald-500 text-white"}`}
         >
           <motion.div
             animate={{ rotate: isFabOpen ? 135 : 0 }}
-            transition={{ duration: 0.1 }}
+            transition={{ type: "spring", stiffness: 300, damping: 20 }}
           >
-            <Plus size={32} />
+            {isFabOpen ? (
+              <X size={32} strokeWidth={2.5} />
+            ) : (
+              <Plus size={32} strokeWidth={2.5} />
+            )}
           </motion.div>
+
+          {/* Pulse Effect when closed */}
+          {!isFabOpen && (
+            <motion.div
+              animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="absolute inset-0 rounded-[24px] bg-emerald-500 -z-10"
+            />
+          )}
         </button>
       </div>
 
@@ -3459,7 +3569,6 @@ const ReceptionDashboard = () => {
       {showChatModal && (
         <ChatModal
           isOpen={showChatModal}
-          user={user}
           onClose={() => setShowChatModal(false)}
         />
       )}
@@ -3506,6 +3615,7 @@ const ReceptionDashboard = () => {
         )}
       </AnimatePresence>
       {/* --- GLOBAL COMPONENTS --- */}
+      {/* Global Shortcut Help */}
       <KeyboardShortcuts
         shortcuts={shortcuts}
         isOpen={showShortcuts}
@@ -3650,266 +3760,35 @@ const ReceptionDashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* Global Search Overlay Layer */}
-      <AnimatePresence>
-        {showSearchResults && (
-          <>
-            {/* Background Overlay - Light dimmed whole page */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowSearchResults(false)}
-              className="fixed inset-0 bg-black/40 backdrop-blur-[8px] z-[140] cursor-default"
-            />
+      {/* Global Search Component */}
+      <GlobalSearch
+        isOpen={showSearchResults}
+        onClose={() => setShowSearchResults(false)}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        searchResults={searchResults}
+      />
 
-            {/* Search Results Centered Modal */}
-            <motion.div
-              id="search-modal-container"
-              initial={{ opacity: 0, y: -20, x: "-50%", scale: 0.95 }}
-              animate={{ opacity: 1, y: "-50%", x: "-50%", scale: 1 }}
-              exit={{ opacity: 0, y: -20, x: "-50%", scale: 0.95 }}
-              transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className={`fixed top-1/2 left-1/2 p-0 rounded-[40px] shadow-[0_64px_120px_-30px_rgba(0,0,0,0.5)] border overflow-hidden z-[160] w-[680px] ${
-                isDark
-                  ? "bg-[#1A1C1A]/95 border-white/10 backdrop-blur-3xl ring-1 ring-white/5"
-                  : "bg-white/95 border-gray-200 shadow-2xl backdrop-blur-3xl"
-              }`}
-            >
-              {/* Modal Search Input Header */}
-              <div className="p-6 border-b dark:border-white/5 border-gray-100">
-                <div className="flex items-center px-6 py-4 rounded-[28px] bg-black/5 dark:bg-white/5 border border-transparent focus-within:border-emerald-500/30 transition-all">
-                  <Search size={22} className="opacity-30 mr-4" />
-                  <input
-                    ref={searchInputRef}
-                    autoFocus
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Type to search patients, records..."
-                    className="bg-transparent border-none outline-none text-xl w-full placeholder:opacity-20 font-medium"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-all"
-                    >
-                      <X size={20} className="opacity-40" />
-                    </button>
-                  )}
-                  <div className="ml-4 px-2 py-1 rounded text-[10px] font-bold border border-black/10 dark:border-white/10 opacity-30">
-                    ESC to close
-                  </div>
-                </div>
-              </div>
-              {!searchQuery ? (
-                <div className="p-10 space-y-10">
-                  <div className="flex items-center gap-6">
-                    <div className="w-16 h-16 rounded-[24px] bg-emerald-500/10 flex items-center justify-center text-emerald-500 relative group">
-                      <div className="absolute inset-0 bg-emerald-500/20 rounded-[24px] blur-xl opacity-20 group-hover:opacity-40 transition-opacity" />
-                      <LayoutGrid size={32} className="relative" />
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-bold tracking-tight">
-                        Universal Search
-                      </h3>
-                      <p className="text-base opacity-40 font-medium tracking-tight">
-                        Navigate to any patient, lead, or record instantly.
-                      </p>
-                    </div>
-                  </div>
+      <KeyboardShortcuts
+        shortcuts={shortcuts}
+        isOpen={showShortcuts}
+        onClose={() => setShowShortcuts(false)}
+        onToggle={() => setShowShortcuts((prev) => !prev)}
+      />
 
-                  <div className="grid grid-cols-2 gap-5">
-                    {[
-                      {
-                        label: "Patients",
-                        desc: "Access full medical history",
-                        icon: "PT",
-                        color: "emerald",
-                      },
-                      {
-                        label: "Contacts",
-                        desc: "Manage phone & mobile info",
-                        icon: "CH",
-                        color: "blue",
-                      },
-                      {
-                        label: "Records",
-                        desc: "Lab & test diagnostic IDs",
-                        icon: "RX",
-                        color: "purple",
-                      },
-                      {
-                        label: "Inquiries",
-                        desc: "Lead follow-ups & funnel",
-                        icon: "IQ",
-                        color: "orange",
-                      },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        className={`p-6 rounded-[32px] border transition-all duration-300 group/card cursor-default ${
-                          isDark
-                            ? "bg-white/[0.03] border-white/5 hover:bg-white/[0.07] hover:border-white/10"
-                            : "bg-gray-50/50 border-gray-100 hover:bg-white hover:shadow-2xl hover:shadow-black/[0.04] hover:border-transparent"
-                        }`}
-                      >
-                        <div className="flex items-center gap-5">
-                          <div
-                            className={`w-12 h-12 rounded-2xl bg-${item.color}-500/10 text-${item.color}-500 flex items-center justify-center text-xs font-black tracking-tighter transition-transform duration-500 group-hover/card:scale-110 group-hover/card:rotate-3`}
-                          >
-                            {item.icon}
-                          </div>
-                          <div>
-                            <div className="font-bold text-sm uppercase tracking-widest opacity-80 mb-0.5">
-                              {item.label}
-                            </div>
-                            <div className="text-xs opacity-40 font-medium">
-                              {item.desc}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+      <LogoutConfirmation
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={() => {
+          logout();
+          navigate("/login");
+        }}
+      />
 
-                  <div className="flex items-center justify-between pt-6 border-t dark:border-white/5 border-gray-100">
-                    <div className="flex items-center gap-6 text-[10px] font-black uppercase tracking-widest opacity-20">
-                      <div className="flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 rounded border border-current">
-                          ↑↓
-                        </span>
-                        <span>Navigate</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 rounded border border-current">
-                          Enter
-                        </span>
-                        <span>Select</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-1.5 py-0.5 rounded border border-current">
-                          ESC
-                        </span>
-                        <span>Close</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="max-h-[600px] overflow-y-auto custom-scrollbar p-3">
-                  <div className="px-8 py-6 mb-2">
-                    <span className="text-xs font-black uppercase tracking-[0.3em] opacity-20">
-                      Search Results
-                    </span>
-                  </div>
-                  <div className="space-y-1.5 px-2">
-                    {searchResults.map((p, idx) => (
-                      <motion.div
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.03 }}
-                        key={`${p.category}-${p.id}-${idx}`}
-                        onClick={() => {
-                          setSearchQuery("");
-                          setShowSearchResults(false);
-                          if (
-                            p.category === "Patient" ||
-                            p.category === "Test"
-                          ) {
-                            navigate(`/reception/patients?id=${p.target_id}`);
-                          } else if (p.category === "Registration") {
-                            navigate(
-                              `/reception/registration?id=${p.target_id}`,
-                            );
-                          } else if (p.category === "Inquiry") {
-                            navigate(`/reception/inquiry?id=${p.target_id}`);
-                          }
-                        }}
-                        className={`p-5 rounded-[28px] cursor-pointer transition-all flex items-center justify-between group ${
-                          isDark
-                            ? "hover:bg-white/[0.05]"
-                            : "hover:bg-gray-50 shadow-sm"
-                        }`}
-                      >
-                        <div className="flex items-center gap-6">
-                          <div
-                            className={`w-14 h-14 rounded-[20px] shadow-inner flex items-center justify-center font-bold text-xl relative ${
-                              p.category === "Patient"
-                                ? "bg-emerald-500/10 text-emerald-500"
-                                : p.category === "Registration"
-                                  ? "bg-blue-500/10 text-blue-500"
-                                  : p.category === "Test"
-                                    ? "bg-purple-500/10 text-purple-500"
-                                    : "bg-orange-500/10 text-orange-500"
-                            }`}
-                          >
-                            {p.name.charAt(0)}
-                            <div
-                              className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 ${isDark ? "border-[#1A1C1A]" : "border-white"} flex items-center justify-center text-[8px] font-black uppercase ${
-                                p.category === "Patient"
-                                  ? "bg-emerald-500 text-white"
-                                  : p.category === "Registration"
-                                    ? "bg-blue-500 text-white"
-                                    : p.category === "Test"
-                                      ? "bg-purple-500 text-white"
-                                      : "bg-orange-500 text-white"
-                              }`}
-                            >
-                              {p.category.charAt(0)}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-3 mb-1">
-                              <p className="font-bold text-lg tracking-tight leading-none">
-                                {p.name}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-4 text-sm opacity-40 font-medium">
-                              <div className="flex items-center gap-1.5">
-                                <Phone size={12} className="opacity-50" />
-                                <span>{p.phone}</span>
-                              </div>
-                              {p.uid && p.uid !== "N/A" && (
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-1 h-1 rounded-full bg-current opacity-30" />
-                                  <span>{p.uid}</span>
-                                </div>
-                              )}
-                              {p.age && p.age !== "N/A" && (
-                                <div className="flex items-center gap-1.5">
-                                  <div className="w-1 h-1 rounded-full bg-current opacity-30" />
-                                  <span>{p.age}y</span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="bg-emerald-500/10 text-emerald-500 p-3 rounded-2xl opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0">
-                          <ArrowUpRight size={20} strokeWidth={2.5} />
-                        </div>
-                      </motion.div>
-                    ))}
-                    {searchResults.length === 0 && (
-                      <div className="py-24 text-center">
-                        <div className="w-20 h-20 bg-gray-500/5 rounded-[40px] flex items-center justify-center mx-auto mb-6 transform rotate-12">
-                          <Search size={40} className="opacity-10" />
-                        </div>
-                        <p className="text-lg font-bold opacity-20 uppercase tracking-[0.2em]">
-                          No direct matches
-                        </p>
-                        <p className="text-sm opacity-40 font-medium mt-1">
-                          Try searching by name, phone or ID
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
+      <DailyIntelligence
+        isOpen={showIntelligence}
+        onClose={() => setShowIntelligence(false)}
+      />
     </div>
   );
 };
