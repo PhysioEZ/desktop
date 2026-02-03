@@ -1,13 +1,16 @@
 {
   "name": "prospine_app",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "start": "concurrently \"npm run dev --prefix frontend\" \"npm run dev --prefix server\"",
+    "dev": "concurrently \"npm run dev --prefix frontend\" \"npm run dev --prefix server\""
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2"
+    "@tauri-apps/cli": "^2",
+    "concurrently": "^9.2.1"
   },
   "dependencies": {
     "@tauri-apps/plugin-notification": "^2.3.3",
