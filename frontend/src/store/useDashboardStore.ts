@@ -11,6 +11,14 @@ interface DashboardStore {
   unreadCount: number;
   insights: any[] | null;
   profileData: any | null;
+  publicNotes: any[] | null;
+  privateNotes: any[] | null;
+  branchUsers: any[] | null;
+  searchCache: Record<string, any[]>;
+  notesPagination: {
+    public: { hasMore: boolean; offset: number };
+    private: { hasMore: boolean; offset: number };
+  };
   setData: (data: any) => void;
   setFormOptions: (options: any) => void;
   setPendingApprovals: (approvals: any[]) => void;
@@ -19,6 +27,11 @@ interface DashboardStore {
   setUnreadCount: (count: number) => void;
   setInsights: (insights: any[]) => void;
   setProfileData: (profile: any) => void;
+  setPublicNotes: (notes: any[]) => void;
+  setPrivateNotes: (notes: any[]) => void;
+  setBranchUsers: (users: any[]) => void;
+  setSearchCache: (query: string, results: any[]) => void;
+  setNotesPagination: (type: "public" | "private", pagination: { hasMore: boolean; offset: number }) => void;
   setLastSync: (time: string) => void;
   clearStore: () => void;
 }
@@ -35,6 +48,14 @@ export const useDashboardStore = create<DashboardStore>()(
       unreadCount: 0,
       insights: null,
       profileData: null,
+      publicNotes: null,
+      privateNotes: null,
+      branchUsers: null,
+      searchCache: {},
+      notesPagination: {
+        public: { hasMore: true, offset: 0 },
+        private: { hasMore: true, offset: 0 },
+      },
       setData: (data) => set({ data }),
       setFormOptions: (options) => set({ formOptions: options }),
       setPendingApprovals: (approvals) => set({ pendingApprovals: approvals }),
@@ -43,6 +64,20 @@ export const useDashboardStore = create<DashboardStore>()(
       setUnreadCount: (count) => set({ unreadCount: count }),
       setInsights: (insights) => set({ insights }),
       setProfileData: (profileData) => set({ profileData }),
+      setPublicNotes: (publicNotes) => set({ publicNotes }),
+      setPrivateNotes: (privateNotes) => set({ privateNotes }),
+      setBranchUsers: (branchUsers) => set({ branchUsers }),
+      setSearchCache: (query, results) => 
+        set((state) => ({ 
+          searchCache: { ...state.searchCache, [query]: results } 
+        })),
+      setNotesPagination: (type, pagination) =>
+        set((state) => ({
+          notesPagination: {
+            ...state.notesPagination,
+            [type]: pagination,
+          },
+        })),
       setLastSync: (time) => set({ lastSync: time }),
       clearStore: () =>
         set({
@@ -55,6 +90,14 @@ export const useDashboardStore = create<DashboardStore>()(
           unreadCount: 0,
           insights: null,
           profileData: null,
+          publicNotes: null,
+          privateNotes: null,
+          branchUsers: null,
+          searchCache: {},
+          notesPagination: {
+            public: { hasMore: true, offset: 0 },
+            private: { hasMore: true, offset: 0 },
+          },
         }),
     }),
     {

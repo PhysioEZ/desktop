@@ -38,6 +38,22 @@ const upload = multer({
     limits: { fileSize: 75 * 1024 * 1024 } // 75MB max
 });
 
+const notesStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const notesDir = path.join(__dirname, '../../../uploads/note_attachments');
+        if (!fs.existsSync(notesDir)) fs.mkdirSync(notesDir, { recursive: true });
+        cb(null, notesDir);
+    },
+    filename: (req, file, cb) => {
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9-_\.]/g, "");
+        cb(null, `note-${Date.now()}-${safeName}`);
+    }
+});
+const uploadNotes = multer({
+    storage: notesStorage,
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB max
+});
+
 // GET /api/reception/dashboard
 router.get('/dashboard', dashboardController.getDashboardData);
 
@@ -100,8 +116,13 @@ router.post('/inquiry', inquiryController.handleInquiryRequest);
 router.post('/registration', registrationManager.handleRegistrationRequest);
 
 const billingController = require("./billing");
+const notesController = require('./notes');
 
-// ... (existing routes)
+// Notes Routes
+router.get('/notes', authenticate, notesController.getNotes);
+router.get('/notes/users', authenticate, notesController.getBranchUsers);
+router.post('/notes', authenticate, uploadNotes.single('attachment'), notesController.addNote);
+router.delete('/notes/:id', authenticate, notesController.deleteNote);
 
 router.post("/billing", authenticate, billingController.handleBillingRequest);
 

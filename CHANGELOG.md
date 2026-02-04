@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.6.1-alpha] - 2026-02-04 - Sumit
+
+### Added
+- **Centralized Note-Taking System**: Implemented a comprehensive `NotesDrawer` for branch-wide communication.
+  - Supports both **Public** (all staff) and **Private** (authenticated user) note streams.
+  - Full CRUD functionality with granular delete permissions.
+  - Integrated a **File Attachment** system with a built-in `FileViewer` for medical documents and receipts.
+  - Added **User Mentions** logic and intelligent pagination (Offset-based "Load More") for high-volume environments.
+  - Backend integration via specialized `/reception/notes` endpoints with automatic branch context scoping.
+- **Search Result Caching**: Integrated a shared `searchCache` in the global store to store recent query results, providing instant retrieval and zero-latency UI responses for repeat searches.
+- **Reception Note Table**: Added a new table `reception_notes` to store note-taking data.
+  - **Database Modifications File**: See `database/dbmodif.md` for details.
+  - **Note Drawer**: Added a new `NotesDrawer` component for note-taking and management.
+
+### Changed
+- **Optimized Search Experience**: Replaced the performance-heavy auto-fetch logic with a **Manual Search Trigger**.
+  - Searches now only fire on **Enter key** or **Search button click**, drastically reducing unnecessary API load.
+  - Added an `isSearchLoading` visual feedback state within the search modal.
+- **Responsive Header Redesign**: Overhauled the Dashboard header for modern devices.
+  - Implemented a **horizontal scroll container** for action buttons on mobile to prevent layout squashing.
+  - Unified the search bar and utility alignment using a flexible, wrap-aware grid system.
+  - Refined paddings and font-scaling for small-screen accessibility.
+
+### Fixed
+- **Stale Data Prevention**: Implemented proactive **Cache Invalidation** across the dashboard. The search cache is now automatically purged on system refreshes or successful new record submissions (Registration/Tests).
+- **Search UI Stability**: Fixed a bug where the search modal would unexpectedly close when clearing input or typing short queries.
+
 ## [0.6.6.0-alpha] - 2026-02-04 - Sumit
 
 ### Added

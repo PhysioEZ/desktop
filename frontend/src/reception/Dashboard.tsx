@@ -34,6 +34,7 @@ import {
   LayoutGrid,
   Banknote,
   Info,
+  StickyNote,
 } from "lucide-react";
 import { useThemeStore } from "../store/useThemeStore";
 import CustomSelect from "../components/ui/CustomSelect";
@@ -48,6 +49,7 @@ import DailyIntelligence from "../components/DailyIntelligence";
 import { useUIStore } from "../store/useUIStore";
 import { useDashboardStore } from "../store";
 import Sidebar from "../components/Sidebar";
+import NotesDrawer from "../components/NotesDrawer";
 
 interface UnifiedSearchResult {
   id: number;
@@ -199,6 +201,8 @@ const ReceptionDashboard = () => {
     setNotifications,
     unreadCount,
     setUnreadCount,
+    searchCache,
+    setSearchCache,
   } = useDashboardStore();
 
   const { hasDashboardAnimated, setHasDashboardAnimated } = useUIStore();
@@ -214,6 +218,8 @@ const ReceptionDashboard = () => {
     type: "success" | "error";
     text: string;
   } | null>(null);
+
+  const [showNotes, setShowNotes] = useState(false);
 
   // Mark animation as complete on mount
   useEffect(() => {
@@ -273,6 +279,7 @@ const ReceptionDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<UnifiedSearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
@@ -281,7 +288,6 @@ const ReceptionDashboard = () => {
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLButtonElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Form logic
   const formRef = useRef<HTMLFormElement>(null);
@@ -557,6 +563,10 @@ const ReceptionDashboard = () => {
 
           if (syncTasks.length > 0) {
             await Promise.all(syncTasks);
+            // Clear search cache if patients or related records changed
+            if (hasMainChanges) {
+              useDashboardStore.setState({ searchCache: {} });
+            }
             toast.success("System updated with latest records", {
               id: toastId,
             });
@@ -611,36 +621,43 @@ const ReceptionDashboard = () => {
     }
   }, [activeModal, appointmentDate, fetchTimeSlots, storeTimeSlots]);
 
-  // Search Logic
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!user?.branch_id) {
-      setSearchResults([]);
-      return;
-    }
-    if (searchQuery.length < 2) {
+  // Manual Search Performance
+  const handlePerformSearch = async () => {
+    if (!user?.branch_id) return;
+
+    const query = searchQuery.trim().toLowerCase();
+    if (query.length < 2) {
       setSearchResults([]);
       return;
     }
 
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await authFetch(
-          `${API_BASE_URL}/reception/search_patients?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`,
-        );
-        const data = await res.json();
-        if (data.success) {
-          setSearchResults(data.results || []);
-          setShowSearchResults(true);
-        }
-      } catch (err) {
-        console.error(err);
+    // 1. Instant Cache Check
+    if (searchCache[query]) {
+      setSearchResults(searchCache[query]);
+      setShowSearchResults(true);
+      return;
+    }
+
+    // 2. Network Fetch
+    setIsSearchLoading(true);
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/search_patients?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`,
+      );
+      const data = await res.json();
+      if (data.success) {
+        const results = data.results || [];
+        setSearchResults(results);
+        setShowSearchResults(true);
+        // Store in cache for future use
+        setSearchCache(query, results);
       }
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [searchQuery, user?.branch_id]);
+    } catch (err) {
+      console.error("Search Error:", err);
+    } finally {
+      setIsSearchLoading(false);
+    }
+  };
 
   useEffect(() => {
     // ONLY fetch if we have no data in cache (Zustand)
@@ -1065,6 +1082,9 @@ const ReceptionDashboard = () => {
         if (activeModal === "registration") {
           useDashboardStore.setState({ timeSlots: null });
         }
+
+        // Clear search cache on successful submission
+        useDashboardStore.setState({ searchCache: {} });
         handleRefresh();
 
         setTimeout(() => closeModal(), 1500);
@@ -1407,45 +1427,48 @@ const ReceptionDashboard = () => {
         >
           {/* HEADER SECTION (Search, Refresh, Notif) */}
           <div
-            className={`flex justify-between items-center bg-transparent backdrop-blur-sm sticky top-0 py-2 transition-all duration-300 z-[45]`}
+            className={`flex flex-wrap lg:flex-nowrap justify-between items-center gap-4 bg-transparent backdrop-blur-sm sticky top-0 py-3 transition-all duration-300 z-[45]`}
           >
             <div
-              className={`flex items-center gap-2 transition-all duration-300 ${showSearchResults ? "opacity-20 blur-[2px] pointer-events-none scale-98" : "opacity-100"}`}
+              className={`flex flex-nowrap lg:flex-wrap items-center gap-2 transition-all duration-300 ${showSearchResults ? "opacity-20 blur-[2px] pointer-events-none scale-98" : "opacity-100"} overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scrollbar-hide max-w-full`}
             >
               {actionButtons.map((btn) => (
                 <button
                   key={btn.id}
                   onClick={() => setActiveModal(btn.id)}
-                  className={`flex items-center gap-3 px-5 py-3 rounded-full transition-all duration-300 shadow-sm border ${
+                  className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full transition-all duration-300 shadow-sm border shrink-0 ${
                     isDark
                       ? "bg-[#1A1C1A] text-white/70 hover:text-white hover:bg-[#252825] border-white/5"
                       : "bg-white text-gray-600 hover:text-gray-900 border-gray-100 hover:shadow-md"
                   }`}
                 >
                   <btn.icon size={16} strokeWidth={2} />
-                  <span className="text-xs font-bold tracking-tight whitespace-nowrap">
+                  <span className="text-[10px] sm:text-xs font-bold tracking-tight whitespace-nowrap">
                     {btn.label}
                   </span>
                 </button>
               ))}
             </div>
 
-            <div className="flex items-center gap-3">
-              <div ref={searchRef} className="relative z-[160] xl:w-90">
+            <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-end">
+              <div
+                ref={searchRef}
+                className="relative z-[160] flex-1 lg:flex-none lg:w-[320px] xl:w-[400px]"
+              >
                 <div
                   onClick={() => setShowSearchResults(true)}
-                  className={`flex items-center px-5 py-3 rounded-[24px] border transition-all duration-300 cursor-text ${
+                  className={`flex items-center px-4 py-2.5 sm:py-3 rounded-[24px] border transition-all duration-300 cursor-text ${
                     isDark
                       ? "bg-[#121412]/80 border-[#2A2D2A] hover:bg-[#121412] shadow-2xl shadow-black/20"
                       : "bg-white border-gray-100 shadow-xl shadow-black/[0.03] hover:bg-white"
                   } backdrop-blur-md`}
                 >
-                  <Search size={18} className="opacity-30" />
-                  <div className="bg-transparent px-4 text-base w-full opacity-30 font-medium select-none">
-                    Search anything... (Alt + S)
+                  <Search size={18} className="opacity-30 flex-shrink-0" />
+                  <div className="bg-transparent px-3 text-sm sm:text-base w-full opacity-30 font-medium select-none truncate">
+                    Search anything...
                   </div>
                   <div
-                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-black tracking-tight opacity-40 ${isDark ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-200"}`}
+                    className={`hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-black tracking-tight opacity-40 shrink-0 ${isDark ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-200"}`}
                   >
                     <span className="text-[12px] opacity-60">⌥</span>
                     <span>S</span>
@@ -1454,7 +1477,7 @@ const ReceptionDashboard = () => {
               </div>
 
               {/* Utilities Area */}
-              <div className="flex items-center p-1.5 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
+              <div className="flex items-center p-1 sm:p-1.5 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 shrink-0">
                 <div className="flex flex-col items-end mr-2">
                   <button
                     onClick={handleRefresh}
@@ -1564,6 +1587,14 @@ const ReceptionDashboard = () => {
                   title="Daily Intelligence"
                 >
                   <Info size={19} strokeWidth={2.5} />
+                </button>
+
+                <button
+                  onClick={() => setShowNotes(true)}
+                  className="w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 text-pink-500"
+                  title="Branch Notes"
+                >
+                  <StickyNote size={19} strokeWidth={2.5} />
                 </button>
               </div>
 
@@ -3690,6 +3721,8 @@ const ReceptionDashboard = () => {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         searchResults={searchResults}
+        onSearch={handlePerformSearch}
+        isLoading={isSearchLoading}
       />
 
       <KeyboardShortcuts
@@ -3712,6 +3745,8 @@ const ReceptionDashboard = () => {
         isOpen={showIntelligence}
         onClose={() => setShowIntelligence(false)}
       />
+
+      <NotesDrawer isOpen={showNotes} onClose={() => setShowNotes(false)} />
     </div>
   );
 };

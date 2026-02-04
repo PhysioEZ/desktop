@@ -22,6 +22,8 @@ interface GlobalSearchProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   searchResults: SearchResult[];
+  onSearch: () => void;
+  isLoading?: boolean;
 }
 
 const GlobalSearch: React.FC<GlobalSearchProps> = ({
@@ -30,6 +32,8 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
   searchQuery,
   setSearchQuery,
   searchResults,
+  onSearch,
+  isLoading = false,
 }) => {
   const { isDark } = useThemeStore();
   const navigate = useNavigate();
@@ -100,21 +104,33 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Type to search patients, records..."
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") onSearch();
+                  }}
                   className={`bg-transparent border-none outline-none text-xl w-full placeholder:opacity-20 font-medium ${
                     isDark ? "text-white" : "text-black"
                   }`}
                 />
-                {searchQuery && (
+                <div className="flex items-center gap-2 ml-4">
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-all"
+                    >
+                      <X size={20} className="opacity-40" />
+                    </button>
+                  )}
                   <button
-                    onClick={() => setSearchQuery("")}
-                    className="p-2 hover:bg-black/5 dark:hover:bg-white/5 rounded-full transition-all"
+                    onClick={onSearch}
+                    disabled={isLoading || !searchQuery.trim()}
+                    className={`px-6 py-2 rounded-2xl font-bold text-sm transition-all shadow-sm ${
+                      isDark
+                        ? "bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-20"
+                        : "bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-gray-100 disabled:text-gray-400"
+                    }`}
                   >
-                    <X size={20} className="opacity-40" />
+                    {isLoading ? "Searching..." : "Search"}
                   </button>
-                )}
-                <div className="ml-4 px-2 w-[100px] py-1 rounded text-[10px] font-bold border border-black/10 dark:border-white/10 opacity-30 text-center">
-                  ESC to close
                 </div>
               </div>
             </div>
