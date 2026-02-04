@@ -2,12 +2,20 @@ const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const http = require('http');
 require('dotenv').config();
 
 const authRoutes = require('./api/auth/router');
+const wsManager = require('./utils/websocket');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Create HTTP server for both Express and Socket.IO
+const httpServer = http.createServer(app);
+
+// Initialize WebSocket server
+wsManager.initialize(httpServer);
 
 // Rate Turners
 const globalLimiter = rateLimit({
@@ -74,8 +82,10 @@ app.use((err, req, res, next) => {
     res.status(500).json({ status: 'error', message: err.message });
 });
 
-app.listen(PORT, () => {
+// Use httpServer instead of app.listen
+httpServer.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Test Health: http://localhost:${PORT}/health`);
     console.log(`Test Login: http://localhost:${PORT}/api/auth/login`);
+    console.log(`WebSocket: ws://localhost:${PORT}`);
 });

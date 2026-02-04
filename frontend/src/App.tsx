@@ -17,7 +17,7 @@ import Inquiry from "./reception/Inquiry";
 import Registration from "./reception/Registration";
 import CancelledRegistrations from "./reception/CancelledRegistrations";
 import Patients from "./reception/Patients";
-import Billing from "./reception/Billing";
+import Billing from "./examples/OptimizedBilling";
 
 import ServiceManager from "./admin/ServiceManager";
 import RegistrationSimulator from "./admin/RegistrationSimulator";

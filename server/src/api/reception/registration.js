@@ -108,8 +108,8 @@ exports.submitRegistration = async (req, res) => {
             for (const [method, amt] of Object.entries(paymentAmounts)) {
                 if (parseFloat(amt) > 0) {
                     await connection.query(`
-                        INSERT INTO registration_payments (registration_id, payment_method, amount, branch_id) VALUES (?, ?, ?, ?)
-                    `, [newRegistrationId, method, parseFloat(amt), branch_id]);
+                        INSERT INTO registration_payments (registration_id, payment_method, amount) VALUES (?, ?, ?)
+                    `, [newRegistrationId, method, parseFloat(amt)]);
                 }
             }
         }

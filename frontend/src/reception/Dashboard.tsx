@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
 import { API_BASE_URL, authFetch } from "../config";
@@ -216,13 +217,12 @@ const TimePicker = ({ value, onChange, onClose, slots }: any) => {
                 key={slot.time}
                 disabled={slot.disabled}
                 onClick={() => setSelected(slot.time)}
-                className={`py-2 px-1 text-sm rounded-lg border transition-all ${
-                  selected === slot.time
+                className={`py-2 px-1 text-sm rounded-lg border transition-all ${selected === slot.time
                     ? "bg-[#6750a4] dark:bg-[#d0bcff] text-white dark:text-[#381e72] border-[#6750a4] dark:border-[#d0bcff]"
                     : slot.disabled
                       ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed"
                       : "bg-transparent border-[#79747e] text-[#49454f] dark:text-[#cac4d0] hover:bg-[#6750a4]/10"
-                }`}
+                  }`}
               >
                 <span
                   className={slot.disabled ? "line-through decoration-2" : ""}
@@ -265,9 +265,8 @@ const TimePicker = ({ value, onChange, onClose, slots }: any) => {
 const ReceptionDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [formOptions, setFormOptions] = useState<FormOptions | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const queryClient = useQueryClient();
+
   const [serverVersion, setServerVersion] = useState<string | null>(null);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -281,8 +280,6 @@ const ReceptionDashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<UnifiedSearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
@@ -345,7 +342,6 @@ const ReceptionDashboard = () => {
   );
   const [appointmentTime, setAppointmentTime] = useState("");
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [timeSlots, setTimeSlots] = useState<any[]>([]);
 
   // Inquiry Dates
   const [inquiryDate, setInquiryDate] = useState(
@@ -375,22 +371,95 @@ const ReceptionDashboard = () => {
 
   // Approval Logic
   const [showApprovals, setShowApprovals] = useState(false);
-  const [pendingList, setPendingList] = useState<any[]>([]);
 
-  const fetchApprovals = useCallback(async () => {
-    if (!user?.branch_id) return;
-    try {
+  // Queries
+  const { data: dashboardData, isLoading: isDashboardLoading } = useQuery<DashboardData | null>({
+    queryKey: ["dashboard", user?.branch_id],
+    queryFn: async () => {
+      if (!user?.branch_id) return null;
       const res = await authFetch(
-        `${API_BASE_URL}/reception/get_pending_approvals?branch_id=${user.branch_id}`,
+        `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`
       );
-      const data = await res.json();
-      if (data.success) {
-        setPendingList(data.data || []);
-      }
-    } catch (e) {
-      console.error("Error fetching approvals", e);
+      const json = await res.json();
+      return json.status === "success" ? json.data : null;
+    },
+    enabled: !!user?.branch_id
+  });
+  const data = dashboardData || null;
+
+  const { data: formOptionsData, isLoading: isFormLoading } = useQuery<FormOptions | null>({
+    queryKey: ["formOptions", user?.branch_id, appointmentDate],
+    queryFn: async () => {
+      if (!user?.branch_id) return null;
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/form_options?branch_id=${user.branch_id}&appointment_date=${appointmentDate}&service_type=physio`
+      );
+      const json = await res.json();
+      return json.status === "success" ? json.data : null;
+    },
+    enabled: !!user?.branch_id
+  });
+  const formOptions = formOptionsData || null;
+
+  const { data: approvalsData } = useQuery({
+    queryKey: ["approvals", user?.branch_id],
+    queryFn: async () => {
+      if (!user?.branch_id) return [];
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/get_pending_approvals?branch_id=${user.branch_id}`
+      );
+      const json = await res.json();
+      return json.success ? json.data : [];
+    },
+    enabled: !!user?.branch_id
+  });
+  const pendingList = approvalsData || [];
+
+  const { data: notifsData } = useQuery({
+    queryKey: ["notifications", user?.employee_id],
+    queryFn: async () => {
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ""}`
+      );
+      const json = await res.json();
+      return json.success || json.status === "success" ? json : { notifications: [], unread_count: 0 };
+    },
+    refetchInterval: 30000,
+  });
+  const notifications = notifsData?.notifications || [];
+  const unreadCount = notifsData?.unread_count || 0;
+
+  const { data: slotsData } = useQuery({
+    queryKey: ["slots", appointmentDate],
+    queryFn: async () => {
+      if (!appointmentDate) return [];
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/get_slots?date=${appointmentDate}`
+      );
+      const json = await res.json();
+      return json.success ? json.slots : [];
     }
-  }, [user?.branch_id]);
+  });
+  const timeSlots = slotsData || [];
+
+  const isLoading = isDashboardLoading || isFormLoading;
+
+  // Sync selectedTests with formOptions
+  useEffect(() => {
+    if (formOptions && Object.keys(selectedTests).length === 0) {
+      const initialTests: Record<string, { checked: boolean; amount: string }> = {};
+      formOptions?.testTypes?.forEach((t: any) => {
+        const cost = parseFloat(String(t.default_cost)) || 0;
+        initialTests[t.test_code] = {
+          checked: false,
+          amount: cost > 0 ? cost.toFixed(2) : "",
+        };
+      });
+      setSelectedTests(initialTests);
+    }
+  }, [formOptions]);
+
+
 
   const fetchServerStatus = useCallback(async () => {
     try {
@@ -417,120 +486,8 @@ const ReceptionDashboard = () => {
     fetchServerStatus();
   }, [isDark, fetchServerStatus]);
 
-  // --- LOGIC: FETCHING ---
-  const fetchNotifs = useCallback(async () => {
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ""}`,
-      );
-      const data = await res.json();
-      if (data.success || data.status === "success") {
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unread_count || 0);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  }, [user?.employee_id]);
-
-  const isInitialLoad = useRef(true);
-  const fetchAll = useCallback(async () => {
-    if (!user?.branch_id) return;
-    if (isInitialLoad.current) {
-      setIsLoading(true);
-    }
-    try {
-      // Trigger system status check globally
-      window.dispatchEvent(new CustomEvent("trigger-system-status-check"));
-
-      // Trigger all fetches in parallel
-      await Promise.all([
-        (async () => {
-          const res = await authFetch(
-            `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
-          );
-          const data = await res.json();
-          if (data.status === "success") {
-            setData(data.data);
-          }
-        })(),
-        (async () => {
-          const res = await authFetch(
-            `${API_BASE_URL}/reception/form_options?branch_id=${user.branch_id}&appointment_date=${appointmentDate}&service_type=physio`,
-          );
-          const data = await res.json();
-          if (data.status === "success") {
-            setFormOptions(data.data);
-            if (Object.keys(selectedTests).length === 0) {
-              const initialTests: Record<
-                string,
-                { checked: boolean; amount: string }
-              > = {};
-              data.data.testTypes?.forEach((t: any) => {
-                const cost = parseFloat(String(t.default_cost)) || 0;
-                initialTests[t.test_code] = {
-                  checked: false,
-                  amount: cost > 0 ? cost.toFixed(2) : "",
-                };
-              });
-              setSelectedTests(initialTests);
-            }
-          }
-        })(),
-        fetchApprovals(),
-        fetchNotifs(),
-        (async () => {
-          if (appointmentDate) {
-            const res = await authFetch(
-              `${API_BASE_URL}/reception/get_slots?date=${appointmentDate}`,
-            );
-            const data = await res.json();
-            if (data.success) setTimeSlots(data.slots);
-          }
-        })(),
-      ]);
-      isInitialLoad.current = false;
-    } catch (e) {
-      console.error("Error fetching data:", e);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user?.branch_id, appointmentDate, fetchApprovals, fetchNotifs]);
-
-  // Fetch Time Slots
-  const fetchTimeSlots = useCallback(
-    async (date: string) => {
-      if (!user?.branch_id) return;
-      try {
-        const res = await authFetch(
-          `${API_BASE_URL}/reception/get_slots?date=${date}`,
-        );
-        const data = await res.json();
-        if (data.success) {
-          setTimeSlots(data.slots);
-        }
-      } catch (e) {
-        console.error("Error fetching time slots:", e);
-      }
-    },
-    [user?.branch_id],
-  );
-
-  // Fetch time slots when appointment date changes
-  useEffect(() => {
-    if (appointmentDate) {
-      fetchTimeSlots(appointmentDate);
-    }
-  }, [appointmentDate, fetchTimeSlots]);
-
-  // Fetch Notifications
-  useEffect(() => {
-    if (user?.employee_id) {
-      fetchNotifs();
-      const inv = setInterval(fetchNotifs, 30000);
-      return () => clearInterval(inv);
-    }
-  }, [fetchNotifs, user?.employee_id]);
+  // --- LOGIC: FETCHING (Refactored to React Query) ---
+  // Search logic remains below
 
   // Search Logic
   useEffect(() => {
@@ -564,8 +521,8 @@ const ReceptionDashboard = () => {
   }, [searchQuery, user?.branch_id]);
 
   useEffect(() => {
-    fetchAll();
     // Click outside handler for popups
+
     const handleClickOutside = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         // Only close if not clicking the search modal as well
@@ -584,12 +541,9 @@ const ReceptionDashboard = () => {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [fetchAll]);
+  }, []);
 
-  // Fetch Approvals on Mount
-  useEffect(() => {
-    fetchApprovals();
-  }, [fetchApprovals]);
+
 
   // Auto-focus first input when modal opens
   useEffect(() => {
@@ -651,20 +605,8 @@ const ReceptionDashboard = () => {
     activeModal,
   ]);
 
-  const handleAppointmentDateChange = async (newDate: string) => {
+  const handleAppointmentDateChange = (newDate: string) => {
     setAppointmentDate(newDate);
-    if (user?.branch_id) {
-      try {
-        const optRes = await authFetch(
-          `${API_BASE_URL}/reception/form_options?branch_id=${user.branch_id}&appointment_date=${newDate}`,
-        );
-        const optData = await optRes.json();
-        if (optData.status === "success" && formOptions)
-          setFormOptions({ ...formOptions, timeSlots: optData.data.timeSlots });
-      } catch (e) {
-        console.error(e);
-      }
-    }
   };
 
   const handleTestCheckChange = (testCode: string, checked: boolean) => {
@@ -975,11 +917,7 @@ const ReceptionDashboard = () => {
           type: "success",
           text: result.message || "Submitted successfully!",
         });
-        const dashRes = await authFetch(
-          `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
-        );
-        const dashData = await dashRes.json();
-        if (dashData.status === "success") setData(dashData.data);
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] });
         setTimeout(() => closeModal(), 1500);
       } else {
         setSubmitMessage({
@@ -1256,15 +1194,14 @@ const ReceptionDashboard = () => {
             >
               <button
                 onClick={() => navigate(link.path)}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                  link.active
-                    ? isDark
-                      ? "bg-[#1C1C1C] text-[#4ADE80] ring-1 ring-[#4ADE80]/30"
-                      : "bg-gray-100 text-[#16a34a] ring-1 ring-[#16a34a]/30"
-                    : isDark
-                      ? "text-gray-500 hover:text-white hover:bg-[#1C1C1C]"
-                      : "text-gray-400 hover:text-gray-900 hover:bg-gray-50"
-                }`}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${link.active
+                  ? isDark
+                    ? "bg-[#1C1C1C] text-[#4ADE80] ring-1 ring-[#4ADE80]/30"
+                    : "bg-gray-100 text-[#16a34a] ring-1 ring-[#16a34a]/30"
+                  : isDark
+                    ? "text-gray-500 hover:text-white hover:bg-[#1C1C1C]"
+                    : "text-gray-400 hover:text-gray-900 hover:bg-gray-50"
+                  }`}
               >
                 <link.icon size={18} strokeWidth={2} />
               </button>
@@ -1406,13 +1343,12 @@ const ReceptionDashboard = () => {
                         return (
                           <>
                             <span
-                              className={`text-[8px] font-black px-1.5 py-0.5 rounded-[6px] uppercase tracking-widest ${
-                                isAlpha
-                                  ? "bg-amber-500/10 text-amber-500"
-                                  : isBeta
-                                    ? "bg-blue-500/10 text-blue-500"
-                                    : "bg-emerald-500/10 text-emerald-500"
-                              }`}
+                              className={`text-[8px] font-black px-1.5 py-0.5 rounded-[6px] uppercase tracking-widest ${isAlpha
+                                ? "bg-amber-500/10 text-amber-500"
+                                : isBeta
+                                  ? "bg-blue-500/10 text-blue-500"
+                                  : "bg-emerald-500/10 text-emerald-500"
+                                }`}
                             >
                               {isAlpha
                                 ? "Alpha"
@@ -1589,11 +1525,10 @@ const ReceptionDashboard = () => {
                 <button
                   key={btn.id}
                   onClick={() => setActiveModal(btn.id)}
-                  className={`flex items-center gap-3 px-5 py-3 rounded-full transition-all duration-300 shadow-sm border ${
-                    isDark
-                      ? "bg-[#1A1C1A] text-white/70 hover:text-white hover:bg-[#252825] border-white/5"
-                      : "bg-white text-gray-600 hover:text-gray-900 border-gray-100 hover:shadow-md"
-                  }`}
+                  className={`flex items-center gap-3 px-5 py-3 rounded-full transition-all duration-300 shadow-sm border ${isDark
+                    ? "bg-[#1A1C1A] text-white/70 hover:text-white hover:bg-[#252825] border-white/5"
+                    : "bg-white text-gray-600 hover:text-gray-900 border-gray-100 hover:shadow-md"
+                    }`}
                 >
                   <btn.icon size={16} strokeWidth={2} />
                   <span className="text-xs font-bold tracking-tight whitespace-nowrap">
@@ -1607,11 +1542,10 @@ const ReceptionDashboard = () => {
               <div ref={searchRef} className="relative z-[160] xl:w-90">
                 <div
                   onClick={() => setShowSearchResults(true)}
-                  className={`flex items-center px-5 py-3 rounded-[24px] border transition-all duration-300 cursor-text ${
-                    isDark
-                      ? "bg-[#121412]/80 border-[#2A2D2A] hover:bg-[#121412] shadow-2xl shadow-black/20"
-                      : "bg-white border-gray-100 shadow-xl shadow-black/[0.03] hover:bg-white"
-                  } backdrop-blur-md`}
+                  className={`flex items-center px-5 py-3 rounded-[24px] border transition-all duration-300 cursor-text ${isDark
+                    ? "bg-[#121412]/80 border-[#2A2D2A] hover:bg-[#121412] shadow-2xl shadow-black/20"
+                    : "bg-white border-gray-100 shadow-xl shadow-black/[0.03] hover:bg-white"
+                    } backdrop-blur-md`}
                 >
                   <Search size={18} className="opacity-30" />
                   <div className="bg-transparent px-4 text-base w-full opacity-30 font-medium select-none">
@@ -1629,7 +1563,7 @@ const ReceptionDashboard = () => {
               {/* Utilities Area */}
               <div className="flex items-center p-1.5 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
                 <button
-                  onClick={fetchAll}
+                  onClick={() => queryClient.invalidateQueries()}
                   disabled={isLoading}
                   className={`w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 ${isLoading ? "animate-spin" : ""}`}
                   title="Refresh Dashboard"
@@ -1678,15 +1612,14 @@ const ReceptionDashboard = () => {
                           {notifications.map((n) => (
                             <div
                               key={n.notification_id}
-                              className={`p-3 rounded-xl transition-all cursor-pointer group mb-1 ${
-                                n.is_read === 0
-                                  ? isDark
-                                    ? "bg-[#CCEBC4]/5 hover:bg-[#CCEBC4]/10"
-                                    : "bg-green-50 hover:bg-green-100/50"
-                                  : isDark
-                                    ? "hover:bg-white/5"
-                                    : "hover:bg-gray-50"
-                              }`}
+                              className={`p-3 rounded-xl transition-all cursor-pointer group mb-1 ${n.is_read === 0
+                                ? isDark
+                                  ? "bg-[#CCEBC4]/5 hover:bg-[#CCEBC4]/10"
+                                  : "bg-green-50 hover:bg-green-100/50"
+                                : isDark
+                                  ? "hover:bg-white/5"
+                                  : "hover:bg-gray-50"
+                                }`}
                             >
                               <p
                                 className={`text-xs leading-snug ${n.is_read === 0 ? "font-bold" : ""} ${isDark ? "text-gray-200" : "text-gray-800"}`}
@@ -2580,12 +2513,12 @@ const ReceptionDashboard = () => {
                                       >
                                         {regPaymentSplits[m.method_code] !==
                                           undefined && (
-                                          <Check
-                                            size={14}
-                                            className="text-white"
-                                            strokeWidth={4}
-                                          />
-                                        )}
+                                            <Check
+                                              size={14}
+                                              className="text-white"
+                                              strokeWidth={4}
+                                            />
+                                          )}
                                       </div>
                                       <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">
                                         {m.method_name}
@@ -2594,7 +2527,7 @@ const ReceptionDashboard = () => {
                                     {regPaymentSplits[m.method_code] !==
                                       undefined &&
                                       Object.keys(regPaymentSplits).length >
-                                        1 && (
+                                      1 && (
                                         <div className="flex items-center gap-2 bg-white dark:bg-black/40 px-3 py-2 rounded-xl border border-[#006e1c]/30 min-w-[140px]">
                                           <span className="text-xs font-black text-[#006e1c]">
                                             ₹
@@ -2631,8 +2564,8 @@ const ReceptionDashboard = () => {
                                     {Object.keys(regPaymentSplits).length === 1
                                       ? `Single Method`
                                       : `₹${Object.values(regPaymentSplits)
-                                          .reduce((a, b) => a + b, 0)
-                                          .toLocaleString()}`}
+                                        .reduce((a, b) => a + b, 0)
+                                        .toLocaleString()}`}
                                   </span>
                                 </div>
                               </div>
@@ -3020,7 +2953,7 @@ const ReceptionDashboard = () => {
                       <div>
                         <label className={labelClass}>Due Amount</label>
                         {parseFloat(advanceAmount) <= 0 ||
-                        parseFloat(discountAmount) > 200 ? (
+                          parseFloat(discountAmount) > 200 ? (
                           <div
                             className={`${inputClass} flex items-center gap-1 text-yellow-600 bg-yellow-50 dark:bg-yellow-900/10`}
                           >
@@ -3108,12 +3041,12 @@ const ReceptionDashboard = () => {
                                       >
                                         {testPaymentSplits[m.method_code] !==
                                           undefined && (
-                                          <Check
-                                            size={14}
-                                            className="text-white"
-                                            strokeWidth={3}
-                                          />
-                                        )}
+                                            <Check
+                                              size={14}
+                                              className="text-white"
+                                              strokeWidth={3}
+                                            />
+                                          )}
                                       </div>
                                       <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">
                                         {m.method_name}
@@ -3122,7 +3055,7 @@ const ReceptionDashboard = () => {
                                     {testPaymentSplits[m.method_code] !==
                                       undefined &&
                                       Object.keys(testPaymentSplits).length >
-                                        1 && (
+                                      1 && (
                                         <div className="flex items-center gap-1.5 bg-[#f0f0f0] dark:bg-[#3a3a3c] px-3 py-1.5 rounded-lg min-w-[120px]">
                                           <span className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5]">
                                             ₹
@@ -3131,7 +3064,7 @@ const ReceptionDashboard = () => {
                                             type="number"
                                             value={
                                               testPaymentSplits[
-                                                m.method_code
+                                              m.method_code
                                               ] || ""
                                             }
                                             onChange={(e) =>
@@ -3161,8 +3094,8 @@ const ReceptionDashboard = () => {
                                   {Object.keys(testPaymentSplits).length === 1
                                     ? `.`
                                     : `₹${Object.values(testPaymentSplits)
-                                        .reduce((a, b) => a + b, 0)
-                                        .toLocaleString()}`}
+                                      .reduce((a, b) => a + b, 0)
+                                      .toLocaleString()}`}
                                 </span>
                               </div>
                             </div>
@@ -3181,168 +3114,271 @@ const ReceptionDashboard = () => {
                 )}
                 {(activeModal === "inquiry" ||
                   activeModal === "test_inquiry") && (
-                  <form
-                    ref={formRef}
-                    onSubmit={(e) => e.preventDefault()}
-                    className="space-y-6"
-                  >
-                    {activeModal === "inquiry" && (
-                      <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className={labelClass}>Patient Name *</label>
-                            <input
-                              type="text"
-                              name="patient_name"
-                              required
-                              className={inputClass}
-                              placeholder="Full Name"
-                            />
-                          </div>
-                          <div>
-                            <label className={labelClass}>Age *</label>
-                            <input
-                              type="text"
-                              name="age"
-                              required
-                              className={inputClass}
-                              placeholder="e.g. 25 years"
-                            />
-                          </div>
+                    <form
+                      ref={formRef}
+                      onSubmit={(e) => e.preventDefault()}
+                      className="space-y-6"
+                    >
+                      {activeModal === "inquiry" && (
+                        <>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={labelClass}>Patient Name *</label>
+                              <input
+                                type="text"
+                                name="patient_name"
+                                required
+                                className={inputClass}
+                                placeholder="Full Name"
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass}>Age *</label>
+                              <input
+                                type="text"
+                                name="age"
+                                required
+                                className={inputClass}
+                                placeholder="e.g. 25 years"
+                              />
+                            </div>
 
-                          <div>
-                            <CustomSelect
-                              label="Gender *"
-                              value={inqGender}
-                              onChange={setInqGender}
-                              options={[
-                                { label: "Male", value: "Male" },
-                                { label: "Female", value: "Female" },
-                                { label: "Other", value: "Other" },
-                              ]}
-                              placeholder="Select"
-                            />
-                            <input
-                              type="hidden"
-                              name="gender"
-                              value={inqGender}
-                            />
-                          </div>
-                          <div>
-                            <CustomSelect
-                              label="Inquiry Service *"
-                              value={inqService}
-                              onChange={setInqService}
-                              options={
-                                formOptions?.inquiryServiceTypes.map((s) => ({
-                                  label: s.service_name,
-                                  value: s.service_code,
-                                })) || []
-                              }
-                              placeholder="Select"
-                            />
-                            <input
-                              type="hidden"
-                              name="inquiry_type"
-                              value={inqService}
-                            />
-                          </div>
+                            <div>
+                              <CustomSelect
+                                label="Gender *"
+                                value={inqGender}
+                                onChange={setInqGender}
+                                options={[
+                                  { label: "Male", value: "Male" },
+                                  { label: "Female", value: "Female" },
+                                  { label: "Other", value: "Other" },
+                                ]}
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="gender"
+                                value={inqGender}
+                              />
+                            </div>
+                            <div>
+                              <CustomSelect
+                                label="Inquiry Service *"
+                                value={inqService}
+                                onChange={setInqService}
+                                options={
+                                  formOptions?.inquiryServiceTypes.map((s) => ({
+                                    label: s.service_name,
+                                    value: s.service_code,
+                                  })) || []
+                                }
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="inquiry_type"
+                                value={inqService}
+                              />
+                            </div>
 
-                          <div>
-                            <CustomSelect
-                              label="How did you hear? *"
-                              value={inqSource}
-                              onChange={setInqSource}
-                              options={
-                                formOptions?.referralSources.map((s) => ({
-                                  label: s.source_name,
-                                  value: s.source_code,
-                                })) || []
-                              }
-                              placeholder="Select"
-                            />
-                            <input
-                              type="hidden"
-                              name="referralSource"
-                              value={inqSource}
-                            />
-                          </div>
-                          <div>
-                            <CustomSelect
-                              label="Communication Type *"
-                              value={inqCommType}
-                              onChange={setInqCommType}
-                              options={[
-                                "Call",
-                                "Walk-in",
-                                "Email",
-                                "Chat",
-                                "Whatsapp",
-                              ].map((v) => ({ label: v, value: v }))}
-                              placeholder="Select"
-                            />
-                            <input
-                              type="hidden"
-                              name="communication_type"
-                              value={inqCommType}
-                            />
-                          </div>
+                            <div>
+                              <CustomSelect
+                                label="How did you hear? *"
+                                value={inqSource}
+                                onChange={setInqSource}
+                                options={
+                                  formOptions?.referralSources.map((s) => ({
+                                    label: s.source_name,
+                                    value: s.source_code,
+                                  })) || []
+                                }
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="referralSource"
+                                value={inqSource}
+                              />
+                            </div>
+                            <div>
+                              <CustomSelect
+                                label="Communication Type *"
+                                value={inqCommType}
+                                onChange={setInqCommType}
+                                options={[
+                                  "Call",
+                                  "Walk-in",
+                                  "Email",
+                                  "Chat",
+                                  "Whatsapp",
+                                ].map((v) => ({ label: v, value: v }))}
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="communication_type"
+                                value={inqCommType}
+                              />
+                            </div>
 
-                          <div>
-                            <CustomSelect
-                              label="Chief Complaint *"
-                              value={inqComplaint}
-                              onChange={setInqComplaint}
-                              options={
-                                formOptions?.chiefComplaints.map((c) => ({
-                                  label: c.complaint_name,
-                                  value: c.complaint_code,
-                                })) || []
-                              }
-                              placeholder="Select"
-                            />
-                            <input
-                              type="hidden"
-                              name="conditionType"
-                              value={inqComplaint}
-                            />
-                            {inqComplaint === "other" && (
-                              <div className="mt-2">
-                                <input
-                                  type="text"
-                                  name="conditionType_other"
-                                  className={inputClass}
-                                  placeholder="Specify other complaint"
+                            <div>
+                              <CustomSelect
+                                label="Chief Complaint *"
+                                value={inqComplaint}
+                                onChange={setInqComplaint}
+                                options={
+                                  formOptions?.chiefComplaints.map((c) => ({
+                                    label: c.complaint_name,
+                                    value: c.complaint_code,
+                                  })) || []
+                                }
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="conditionType"
+                                value={inqComplaint}
+                              />
+                              {inqComplaint === "other" && (
+                                <div className="mt-2">
+                                  <input
+                                    type="text"
+                                    name="conditionType_other"
+                                    className={inputClass}
+                                    placeholder="Specify other complaint"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <label className={labelClass}>Mobile No. *</label>
+                              <input
+                                type="tel"
+                                name="phone"
+                                required
+                                maxLength={10}
+                                className={inputClass}
+                                placeholder="1234567890"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={labelClass}>
+                                Plan to Visit Date *
+                              </label>
+                              <div
+                                onClick={() => {
+                                  setActiveDateField("inquiry");
+                                  setShowDatePicker(true);
+                                }}
+                                className={`${inputClass} cursor-pointer flex items-center justify-between`}
+                              >
+                                <span>
+                                  {new Date(inquiryDate).toLocaleDateString(
+                                    "en-US",
+                                    {
+                                      weekday: "short",
+                                      month: "short",
+                                      day: "numeric",
+                                    },
+                                  )}
+                                </span>
+                                <Calendar
+                                  size={18}
+                                  className="text-[#43474e] dark:text-[#c4c7c5]"
                                 />
                               </div>
-                            )}
+                              <input
+                                type="hidden"
+                                name="expected_date"
+                                value={inquiryDate}
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass}>Remarks</label>
+                              <textarea
+                                name="remarks"
+                                className={`${inputClass} min-h-[50px] resize-none pt-3`}
+                                placeholder="Notes..."
+                              ></textarea>
+                            </div>
                           </div>
-                          <div>
-                            <label className={labelClass}>Mobile No. *</label>
-                            <input
-                              type="tel"
-                              name="phone"
-                              required
-                              maxLength={10}
-                              className={inputClass}
-                              placeholder="1234567890"
-                            />
+                        </>
+                      )}
+
+                      {activeModal === "test_inquiry" && (
+                        <>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={labelClass}>Patient Name *</label>
+                              <input
+                                type="text"
+                                name="patient_name"
+                                required
+                                className={inputClass}
+                                placeholder="Full Name"
+                              />
+                            </div>
+                            <div>
+                              <CustomSelect
+                                label="Test Name *"
+                                value={tiTestName}
+                                onChange={setTiTestName}
+                                options={
+                                  formOptions?.testTypes.map((t) => ({
+                                    label: t.test_name,
+                                    value: t.test_code,
+                                  })) || []
+                                }
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="test_name"
+                                value={tiTestName}
+                              />
+                            </div>
+
+                            <div>
+                              <label className={labelClass}>Referred By *</label>
+                              <input
+                                list="ti_referrers"
+                                name="referred_by"
+                                required
+                                className={inputClass}
+                                placeholder="Type"
+                              />
+                              <datalist id="ti_referrers">
+                                {formOptions?.referrers.map((r) => (
+                                  <option key={r} value={r} />
+                                ))}
+                              </datalist>
+                            </div>
+                            <div>
+                              <label className={labelClass}>Mobile No. *</label>
+                              <input
+                                type="tel"
+                                name="phone_number"
+                                required
+                                maxLength={10}
+                                className={inputClass}
+                              />
+                            </div>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className={labelClass}>
-                              Plan to Visit Date *
+                              Expected Visit Date *
                             </label>
                             <div
                               onClick={() => {
-                                setActiveDateField("inquiry");
+                                setActiveDateField("test_inquiry");
                                 setShowDatePicker(true);
                               }}
                               className={`${inputClass} cursor-pointer flex items-center justify-between`}
                             >
                               <span>
-                                {new Date(inquiryDate).toLocaleDateString(
+                                {new Date(testInquiryDate).toLocaleDateString(
                                   "en-US",
                                   {
                                     weekday: "short",
@@ -3358,117 +3394,14 @@ const ReceptionDashboard = () => {
                             </div>
                             <input
                               type="hidden"
-                              name="expected_date"
-                              value={inquiryDate}
+                              name="expected_visit_date"
+                              value={testInquiryDate}
                             />
                           </div>
-                          <div>
-                            <label className={labelClass}>Remarks</label>
-                            <textarea
-                              name="remarks"
-                              className={`${inputClass} min-h-[50px] resize-none pt-3`}
-                              placeholder="Notes..."
-                            ></textarea>
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    {activeModal === "test_inquiry" && (
-                      <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className={labelClass}>Patient Name *</label>
-                            <input
-                              type="text"
-                              name="patient_name"
-                              required
-                              className={inputClass}
-                              placeholder="Full Name"
-                            />
-                          </div>
-                          <div>
-                            <CustomSelect
-                              label="Test Name *"
-                              value={tiTestName}
-                              onChange={setTiTestName}
-                              options={
-                                formOptions?.testTypes.map((t) => ({
-                                  label: t.test_name,
-                                  value: t.test_code,
-                                })) || []
-                              }
-                              placeholder="Select"
-                            />
-                            <input
-                              type="hidden"
-                              name="test_name"
-                              value={tiTestName}
-                            />
-                          </div>
-
-                          <div>
-                            <label className={labelClass}>Referred By *</label>
-                            <input
-                              list="ti_referrers"
-                              name="referred_by"
-                              required
-                              className={inputClass}
-                              placeholder="Type"
-                            />
-                            <datalist id="ti_referrers">
-                              {formOptions?.referrers.map((r) => (
-                                <option key={r} value={r} />
-                              ))}
-                            </datalist>
-                          </div>
-                          <div>
-                            <label className={labelClass}>Mobile No. *</label>
-                            <input
-                              type="tel"
-                              name="phone_number"
-                              required
-                              maxLength={10}
-                              className={inputClass}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className={labelClass}>
-                            Expected Visit Date *
-                          </label>
-                          <div
-                            onClick={() => {
-                              setActiveDateField("test_inquiry");
-                              setShowDatePicker(true);
-                            }}
-                            className={`${inputClass} cursor-pointer flex items-center justify-between`}
-                          >
-                            <span>
-                              {new Date(testInquiryDate).toLocaleDateString(
-                                "en-US",
-                                {
-                                  weekday: "short",
-                                  month: "short",
-                                  day: "numeric",
-                                },
-                              )}
-                            </span>
-                            <Calendar
-                              size={18}
-                              className="text-[#43474e] dark:text-[#c4c7c5]"
-                            />
-                          </div>
-                          <input
-                            type="hidden"
-                            name="expected_visit_date"
-                            value={testInquiryDate}
-                          />
-                        </div>
-                      </>
-                    )}
-                  </form>
-                )}
+                        </>
+                      )}
+                    </form>
+                  )}
               </div>
               <div className="p-6 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center bg-[#fdfcff] dark:bg-[#111315] sticky bottom-0 z-10 transition-colors">
                 {submitMessage ? (
