@@ -10,7 +10,6 @@ import {
   ArrowDown,
   Search,
   Sparkles,
-  Command as CmdIcon,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { ShortcutItem } from "../types/shortcuts";
@@ -29,7 +28,6 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
   shortcuts,
   isOpen,
   onClose,
-  onToggle,
 }) => {
   const [searchQuery, setSearchQuery] = React.useState("");
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -136,7 +134,12 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
   }, [shortcuts, searchQuery]);
 
   const renderKey = (key: string) => {
-    if (key === "Alt") return <Option size={14} strokeWidth={2.5} />;
+    if (key === "Alt")
+      return isMac ? (
+        <Option size={14} strokeWidth={2.5} />
+      ) : (
+        <span className="text-[10px] font-black">ALT</span>
+      );
     if (key === "Ctrl")
       return isMac ? (
         <Command size={14} strokeWidth={2.5} />
@@ -153,7 +156,6 @@ const KeyboardShortcuts: React.FC<KeyboardShortcutsProps> = ({
   };
 
   const commonGroups = ["Navigation", "General", "Actions"];
-  const getShortcutKey = (s: ShortcutItem) => s.description + s.keys.join("-");
 
   return (
     <AnimatePresence>

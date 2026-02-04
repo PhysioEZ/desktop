@@ -731,6 +731,19 @@ const ReceptionDashboard = () => {
         e.stopPropagation();
         setShowSearchResults(true);
       }
+
+      // 3. Branch Notes Shortcut (Alt + E)
+      if (
+        e.altKey &&
+        e.key.toLowerCase() === "e" &&
+        !e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowNotes((prev) => !prev);
+      }
     };
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
@@ -1206,6 +1219,20 @@ const ReceptionDashboard = () => {
       pageSpecific: true,
     },
     {
+      keys: ["Alt", "E"],
+      description: "Branch Notes",
+      group: "Modals",
+      action: () => setShowNotes((prev) => !prev),
+      pageSpecific: true,
+    },
+    {
+      keys: ["Alt", "Shift", "E"],
+      description: "Quick Note",
+      group: "Modals",
+      action: () => setShowNotes(true),
+      pageSpecific: true,
+    },
+    {
       keys: ["Alt", "S"],
       description: "Quick Search",
       group: "General",
@@ -1589,13 +1616,22 @@ const ReceptionDashboard = () => {
                   <Info size={19} strokeWidth={2.5} />
                 </button>
 
-                <button
-                  onClick={() => setShowNotes(true)}
-                  className="w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 text-pink-500"
-                  title="Branch Notes"
-                >
-                  <StickyNote size={19} strokeWidth={2.5} />
-                </button>
+                <div className="relative group/note">
+                  <button
+                    onClick={() => setShowNotes(true)}
+                    className="w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 text-pink-500"
+                    title="Branch Notes"
+                  >
+                    <StickyNote size={19} strokeWidth={2.5} />
+                  </button>
+                  {/* Hint */}
+                  <div
+                    className={`absolute -bottom-1 -right-1 flex items-center gap-0.5 px-1 py-0.5 rounded-md border text-[8px] font-black tracking-tighter opacity-0 group-hover/note:opacity-100 transition-opacity bg-white dark:bg-[#1A1C1A] ${isDark ? "border-white/10 text-white/40" : "border-gray-200 text-slate-400"}`}
+                  >
+                    <span className="opacity-60 text-[10px]">⌥</span>
+                    <span>E</span>
+                  </div>
+                </div>
               </div>
 
               {/* Approvals */}
