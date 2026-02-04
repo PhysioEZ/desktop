@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { Settings, Sparkles, Download, LogOut, RefreshCw } from "lucide-react";
 import { API_BASE_URL } from "../config";
@@ -56,25 +55,19 @@ const SystemStatusManager: React.FC = () => {
     }
   }, [logout, showForcedLogout]);
 
-  const location = useLocation();
-
   useEffect(() => {
-    fetchStatus();
-    // Use a slightly longer polling interval to reduce server load and potential collisions
-    const interval = setInterval(fetchStatus, 45000);
-
     // Support for manual triggers from other components
+    // Removed polling and initial fetch to satisfy "Zero Noise" requirement
     const handleManualTrigger = () => fetchStatus();
     window.addEventListener("trigger-system-status-check", handleManualTrigger);
 
     return () => {
-      clearInterval(interval);
       window.removeEventListener(
         "trigger-system-status-check",
         handleManualTrigger,
       );
     };
-  }, [fetchStatus, location.pathname]);
+  }, [fetchStatus]);
 
   // Version comparison helper: returns true if v1 > v2
   const isNewerVersion = (v1: string, v2: string) => {

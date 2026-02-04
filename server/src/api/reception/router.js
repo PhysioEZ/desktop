@@ -15,6 +15,7 @@ const tokensController = require('./tokens');
 const attendanceController = require('./attendance');
 const paymentsController = require('./payments');
 const insightsController = require('./insights');
+const profileController = require('./profile');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -40,9 +41,14 @@ const upload = multer({
 // GET /api/reception/dashboard
 router.get('/dashboard', dashboardController.getDashboardData);
 
+// GET /api/reception/check_updates
+const checkUpdatesController = require('./checkUpdates');
+router.get('/check_updates', checkUpdatesController.checkUpdates);
+
 // GET /api/reception/form_options
 router.get('/form_options', formOptionsController.getFormOptions);
 router.get('/daily_intelligence', insightsController.getDailyIntelligence);
+router.get('/profile', profileController.getProfileData);
 
 // GET /api/reception/notifications
 router.get('/notifications', fetchDataController.getNotifications);
@@ -80,6 +86,7 @@ router.get('/chat/users', chatController.getUsers);
 router.get('/chat/fetch', chatController.fetchMessages);
 router.get('/chat/unread', chatController.unreadCount);
 router.post('/chat/send', upload.single('chat_file'), chatController.sendMessage);
+router.post('/chat/delete', chatController.deleteMessage);
 
 // Schedule Routes
 const scheduleController = require('./schedule');

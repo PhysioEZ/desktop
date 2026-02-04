@@ -2,7 +2,67 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.2.0] - 2026-02-04
+## [0.6.6.0-alpha] - 2026-02-04 - Sumit
+
+### Added
+- **Reusable Sidebar**: Extracted the hardcoded sidebar into a standalone `Sidebar` component, ensuring uniform navigation and actions across the application.
+- **Node.js Profile API**: Created a robust backend controller for profile and branch data fetching, replacing legacy dependencies.
+- **Security Center**: Integrated a dedicated section in the profile for managed security requests and password change workflows.
+- **Avatar Initials Fallback**: Implemented a smart fallback mechanism to generate initials-based avatars when user photos are unavailable.
+
+### Changed
+- **Profile Redesign**: Completely overhauled `Profile.tsx` with a premium split-panel layout, aligning the visual language with the core Dashboard.
+- **Read-Only Aesthetic**: Refined profile details to use a non-editable, high-clarity display style, removing the input-field appearance for better UX.
+- **Dashboard Refactor**: Cleaned up `Dashboard.tsx` by offloading sidebar logic and state to the new shared component.
+- **Glowing Active Status**: Added a pulsing visual indicator to the account status for a "live" system feel.
+
+### Fixed
+- **TypeScript Health**: Resolved critical typing errors in Framer Motion variants and cleaned up unused imports across the reception module.
+- **API Integration**: Fixed data fetching logic to correctly interface with the new Node.js endpoints using `authFetch`.
+
+## [0.6.5.9-alpha] - 2026-02-04 - Sumit
+
+### Changed
+- Refined Dashboard Animations: Implemented 'animate once' logic using persistent `hasDashboardAnimated` state to prevent repetitive entrance animations.
+- Enhanced UX: Added directional entrance animations (Sidebar slide-in, Left Panel slide-in, Main Content slide-up) for a smoother page transitions.
+- Improved Interactions: Merged entrance and interactive (hover/tap) animation states for all dashboard cards using unified `cardVariants`.
+- Fixed Layout: Corrected Sidebar icon spacing and positioning, restyled bottom utility icons (Chat & Chat) with distinct visual tones and added tooltips.
+- Codebase Health: Resolved critical nesting issues and missing closing tags in `Dashboard.tsx`, ensuring a valid component tree.
+
+## [0.6.5.8-alpha] - 2026-02-04 - Sumit
+
+### Added
+- Added manual "Refresh Chat" button to Chat Modal with a 10-second cooldown timer to prevent API spamming.
+- Removed automatic polling for chat messages to reduce server load and improve performance.
+- Implemented intelligent caching for chat users and messages using `useChatStore` (5-minute validity).
+- Added message deletion capability for senders with UI confirmation.
+
+## [0.6.5.7-alpha] - 2026-02-04 - Sumit
+
+### Added
+- Optimized "Daily Intelligence" fetching: moved insights to global Zustand store to prevent refetching on every open/close.
+- Implemented persistent caching for system alerts and actionable insights.
+
+## [0.6.5.6-alpha] - 2026-02-04 - Sumit
+
+### Added
+- Optimized "Pending Approvals" fetching: removed mount/page-switch fetches and integrated it into the granular refresh logic.
+- Globalized Notification State: Moved notifications and unread counts to `useDashboardStore` for persistence across pages.
+- Eliminated redundant notification fetches in both Dashboard and Schedule modules.
+- Refactored `fetchAll` to include initial approvals load only when cache is missing.
+- Enhanced UI stability by using safe derived state (`notifList`) for global notification rendering.
+
+## [0.6.5.5-alpha] - 2026-02-04 - Sumit
+
+### Added
+- Implemented "Zero Noise" dashboard refresh mechanism using granular `check_updates` API.
+- Fixed MySQL/Node.js timezone synchronization mismatch for accurate change detection.
+- Centralized Zustand stores with a new directory index and implemented persistent caching for time slots.
+- Optimized appointment slot fetching with smart date-based caching and proactive invalidation on submission.
+- Hardened TypeScript type safety by resolving implicit `any` errors across `Dashboard.tsx` and `Schedule.tsx`.
+- Synchronized frontend search result handling with the unified backend `search_patients` response.
+
+## [0.6.2.4-alpha] - 2026-02-04 - Avinash
 
 ### Added
 - Added `concurrently` package to run frontend and backend simultaneously.

@@ -9,7 +9,6 @@ import {
   FileText,
   RefreshCw,
   X,
-  ChevronRight,
   Info,
   Phone,
   User,
@@ -17,6 +16,7 @@ import {
   MessageSquare,
 } from "lucide-react";
 import { useThemeStore } from "../store/useThemeStore";
+import { useDashboardStore } from "../store/useDashboardStore";
 import { API_BASE_URL, authFetch } from "../config";
 
 interface InsightData {
@@ -38,11 +38,12 @@ const DailyIntelligence: React.FC<DailyIntelligenceProps> = ({
   onClose,
 }) => {
   const { isDark } = useThemeStore();
-  const [insights, setInsights] = useState<InsightData[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { insights: storeInsights, setInsights } = useDashboardStore();
+  const [isLoading, setIsLoading] = useState(!storeInsights);
   const [selectedInsight, setSelectedInsight] = useState<InsightData | null>(
     null,
   );
+  const insights = storeInsights || [];
 
   const fetchInsights = useCallback(async () => {
     setIsLoading(true);
@@ -59,13 +60,13 @@ const DailyIntelligence: React.FC<DailyIntelligenceProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [setInsights]);
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !storeInsights) {
       fetchInsights();
     }
-  }, [isOpen, fetchInsights]);
+  }, [isOpen, fetchInsights, storeInsights]);
 
   const getIcon = (type: string) => {
     switch (type) {
