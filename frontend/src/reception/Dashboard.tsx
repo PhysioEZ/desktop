@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
 import { API_BASE_URL, authFetch } from "../config";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 
+import ActionFAB from "../components/ActionFAB";
 import {
   Users,
   ClipboardList,
@@ -19,22 +20,22 @@ import {
   X,
   RefreshCw,
   Check,
-  UserPlus,
-  FlaskConical,
-  PhoneCall,
-  Beaker,
   Search,
   Bell,
   Plus,
   ChevronDown,
   ChevronUp,
-  CheckCircle,
+  CheckCircle2,
   Hourglass,
   Phone,
   LayoutGrid,
   Banknote,
   Info,
   StickyNote,
+  UserPlus,
+  FlaskConical,
+  PhoneCall,
+  Beaker,
 } from "lucide-react";
 import { useThemeStore } from "../store/useThemeStore";
 import CustomSelect from "../components/ui/CustomSelect";
@@ -185,6 +186,7 @@ const TimePicker = ({
 
 const ReceptionDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuthStore();
   const {
     data,
@@ -213,13 +215,22 @@ const ReceptionDashboard = () => {
   const [refreshCooldown, setRefreshCooldown] = useState(0);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isFabOpen, setIsFabOpen] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
 
   const [showNotes, setShowNotes] = useState(false);
+
+  // Handle navigation state to open modals
+  useEffect(() => {
+    const state = location.state as { openModal: ModalType };
+    if (state?.openModal) {
+      setActiveModal(state.openModal);
+      // Clear state so it doesn't reopen on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   // Mark animation as complete on mount
   useEffect(() => {
@@ -1942,7 +1953,7 @@ const ReceptionDashboard = () => {
                           )}
                           {user.approval_status === "approved" && (
                             <span className="text-[10px] font-bold uppercase tracking-wide text-[#006e1c] dark:text-[#88d99d] flex items-center gap-1 bg-[#ccebc4]/30 px-1.5 py-0.5 rounded">
-                              <CheckCircle size={10} /> Approved
+                              <CheckCircle2 size={10} /> Approved
                             </span>
                           )}
                         </div>
@@ -2050,93 +2061,7 @@ const ReceptionDashboard = () => {
         </motion.div>
       </main>
 
-      {/* Action FAB */}
-      <div className="fixed bottom-8 right-8 flex flex-col gap-4 items-end z-50">
-        <AnimatePresence>
-          {isFabOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] as any }}
-              className="flex flex-col gap-3 mb-4"
-            >
-              {[
-                {
-                  label: "New Registration",
-                  icon: UserPlus,
-                  id: "registration",
-                  color: "bg-emerald-500",
-                },
-                {
-                  label: "Book Lab Test",
-                  icon: FlaskConical,
-                  id: "test",
-                  color: "bg-blue-500",
-                },
-                {
-                  label: "Quick Inquiry",
-                  icon: PhoneCall,
-                  id: "inquiry",
-                  color: "bg-purple-500",
-                },
-                {
-                  label: "Test Inquiry",
-                  icon: Beaker,
-                  id: "test_inquiry",
-                  color: "bg-amber-500",
-                },
-              ].map((btn, idx) => (
-                <motion.button
-                  key={btn.label}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  onClick={() => {
-                    setActiveModal(btn.id as any);
-                    setIsFabOpen(false);
-                  }}
-                  className={`group flex items-center gap-4 pl-5 pr-7 py-4 rounded-[22px] shadow-2xl transition-all hover:scale-105 active:scale-95 whitespace-nowrap border border-white/10 ${isDark ? "bg-[#1A1C1A] text-white hover:bg-[#252825]" : "bg-white text-slate-900 border-slate-200 hover:bg-slate-50"}`}
-                >
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg ${btn.color}`}
-                  >
-                    <btn.icon size={20} />
-                  </div>
-                  <span className="font-bold text-sm tracking-tight opacity-80 group-hover:opacity-100 italic__not">
-                    {btn.label}
-                  </span>
-                </motion.button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <button
-          onClick={() => setIsFabOpen(!isFabOpen)}
-          className={`w-16 h-16 rounded-[24px] shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-300 z-50 group ${isFabOpen ? "bg-red-500 text-white" : "bg-emerald-500 text-white"}`}
-        >
-          <motion.div
-            animate={{ rotate: isFabOpen ? 135 : 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          >
-            {isFabOpen ? (
-              <X size={32} strokeWidth={2.5} />
-            ) : (
-              <Plus size={32} strokeWidth={2.5} />
-            )}
-          </motion.div>
-
-          {/* Pulse Effect when closed */}
-          {!isFabOpen && (
-            <motion.div
-              animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="absolute inset-0 rounded-[24px] bg-emerald-500 -z-10"
-            />
-          )}
-        </button>
-      </div>
+      <ActionFAB onAction={(action) => setActiveModal(action as any)} />
 
       {/* --- MODALS --- */}
       <AnimatePresence>
@@ -3659,7 +3584,7 @@ const ReceptionDashboard = () => {
               <div className="px-6 pb-8 overflow-y-auto custom-scrollbar flex-1">
                 {pendingList.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 opacity-20">
-                    <CheckCircle size={48} strokeWidth={1} className="mb-3" />
+                    <CheckCircle2 size={48} strokeWidth={1} className="mb-3" />
                     <p className="text-sm font-medium">No pending approvals.</p>
                   </div>
                 ) : (

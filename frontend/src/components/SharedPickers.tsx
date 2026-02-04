@@ -7,6 +7,8 @@ export const InlineDatePicker = ({
   onChange,
   onClose,
   showActions = true,
+  className = "",
+  hideHeader = false,
 }: any) => {
   const [currDate, setCurrDate] = useState(
     value ? new Date(value) : new Date(),
@@ -66,25 +68,29 @@ export const InlineDatePicker = ({
   const weekDays = ["S", "M", "T", "W", "T", "F", "S"];
 
   return (
-    <div className="bg-[#ece6f0] dark:bg-[#1e1e1e] w-[320px] rounded-[28px] overflow-hidden flex flex-col h-full">
+    <div
+      className={`${className ? className : "bg-[#ece6f0] dark:bg-[#1e1e1e] w-[320px] rounded-[28px]"} overflow-hidden flex flex-col h-full`}
+    >
       {/* Header */}
-      <div className="px-6 pt-4 pb-3 border-b border-[#79747e]/10">
-        <p className="text-[#49454f] dark:text-[#cac4d0] text-xs font-medium uppercase tracking-wide">
-          Select date
-        </p>
-        <div className="flex justify-between items-center mt-1">
-          <h2 className="text-3xl font-normal text-[#1d1b20] dark:text-[#e6e1e5]">
-            {selected.toLocaleDateString("en-US", {
-              weekday: "short",
-              month: "short",
-              day: "numeric",
-            })}
-          </h2>
-          <button className="text-[#49454f] dark:text-[#cac4d0] p-1 hover:bg-[#1d1b20]/10 rounded-full transition-colors">
-            <Edit2 size={18} />
-          </button>
+      {!hideHeader && (
+        <div className="px-6 pt-4 pb-3 border-b border-[#79747e]/10">
+          <p className="text-[#49454f] dark:text-[#cac4d0] text-xs font-medium uppercase tracking-wide">
+            Select date
+          </p>
+          <div className="flex justify-between items-center mt-1">
+            <h2 className="text-3xl font-normal text-[#1d1b20] dark:text-[#e6e1e5]">
+              {selected.toLocaleDateString("en-US", {
+                weekday: "short",
+                month: "short",
+                day: "numeric",
+              })}
+            </h2>
+            <button className="text-[#49454f] dark:text-[#cac4d0] p-1 hover:bg-[#1d1b20]/10 rounded-full transition-colors">
+              <Edit2 size={18} />
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Body */}
       <div className="p-3">

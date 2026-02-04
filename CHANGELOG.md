@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.6.2-alpha] - 2026-02-04 - Sumit
+
+### Added
+- **Unified ActionFAB Component**: Created a standalone, reusable `ActionFAB` component to centralize primary actions (Registration, Lab Test, Inquiry) across the application.
+- **Enhanced Schedule Layout**: Completely redesigned the Schedule page's left panel.
+  - Replaced the user greeting with a prominent "Today's Schedule" focal point.
+  - Implemented a "Schedule Flow" visual tree for a clearer overview of daily appointments.
+  - Redesigned appointment summary cards with high-prominence time displays and emerald-themed aesthetics.
+
+### Changed
+- **Schedule Grid Visuals**: Lightened the color palette for empty time slots to improve contrast and reduce visual fatigue in the main calendar view.
+- **Dashboard Component Cleanup**: Refactored `Dashboard.tsx` to use the new `ActionFAB`, removing legacy inline action button logic.
+- **Navigation Integration**: Synchronized the `ActionFAB` between Dashboard and Schedule, allowing users to trigger registrations and inquiries directly from either page.
+
+### Fixed
+- **Runtime Stability**: Resolved a critical `TypeError` in `Schedule.tsx` where `registration_id.slice` was not a function. Implemented robust string conversion and null checks for appointment data.
+- **UI Consistency**: Standardized icon usage by replacing legacy `CheckCircle` with the modern `CheckCircle2` across the Dashboard module.
+- **TypeScript Health**: Cleaned up unused imports and types (like `FABAction`) and resolved linting errors regarding unused icons.
+
 ## [0.6.6.1-alpha] - 2026-02-04 - Sumit
 
 ### Added
