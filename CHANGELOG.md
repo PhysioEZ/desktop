@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.6.3-alpha] - 2026-02-05 - Shiv
+
+### Added
+- **Password Change Request Modal**: Implemented a dedicated modal for users to request password changes directly from their profile.
+  - Features a mandatory "Reason" field for auditing purposes.
+  - **Visual Feedback**: Added a transient "Request Pending" state to the submit button to provide immediate user feedback (currently frontend-only state).
+- **Profile Page Enhancements**: Integrated the new modal into `Profile.tsx` and updated the "Request Password Change" button logic to trigger the modal and reflect the pending status.
+
 ## [0.6.6.2-alpha] - 2026-02-04 - Sumit
 
 ### Added
