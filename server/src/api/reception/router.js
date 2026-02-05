@@ -15,6 +15,7 @@ const tokensController = require('./tokens');
 const attendanceController = require('./attendance');
 const paymentsController = require('./payments');
 const insightsController = require('./insights');
+const profileController = require('./profile');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -37,12 +38,33 @@ const upload = multer({
     limits: { fileSize: 75 * 1024 * 1024 } // 75MB max
 });
 
+const notesStorage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        const notesDir = path.join(__dirname, '../../../uploads/note_attachments');
+        if (!fs.existsSync(notesDir)) fs.mkdirSync(notesDir, { recursive: true });
+        cb(null, notesDir);
+    },
+    filename: (req, file, cb) => {
+        const safeName = file.originalname.replace(/[^a-zA-Z0-9-_\.]/g, "");
+        cb(null, `note-${Date.now()}-${safeName}`);
+    }
+});
+const uploadNotes = multer({
+    storage: notesStorage,
+    limits: { fileSize: 50 * 1024 * 1024 } // 50MB max
+});
+
 // GET /api/reception/dashboard
 router.get('/dashboard', dashboardController.getDashboardData);
+
+// GET /api/reception/check_updates
+const checkUpdatesController = require('./checkUpdates');
+router.get('/check_updates', checkUpdatesController.checkUpdates);
 
 // GET /api/reception/form_options
 router.get('/form_options', formOptionsController.getFormOptions);
 router.get('/daily_intelligence', insightsController.getDailyIntelligence);
+router.get('/profile', profileController.getProfileData);
 
 // GET /api/reception/notifications
 router.get('/notifications', fetchDataController.getNotifications);
@@ -80,6 +102,7 @@ router.get('/chat/users', chatController.getUsers);
 router.get('/chat/fetch', chatController.fetchMessages);
 router.get('/chat/unread', chatController.unreadCount);
 router.post('/chat/send', upload.single('chat_file'), chatController.sendMessage);
+router.post('/chat/delete', chatController.deleteMessage);
 
 // Schedule Routes
 const scheduleController = require('./schedule');
@@ -93,8 +116,13 @@ router.post('/inquiry', inquiryController.handleInquiryRequest);
 router.post('/registration', registrationManager.handleRegistrationRequest);
 
 const billingController = require("./billing");
+const notesController = require('./notes');
 
-// ... (existing routes)
+// Notes Routes
+router.get('/notes', authenticate, notesController.getNotes);
+router.get('/notes/users', authenticate, notesController.getBranchUsers);
+router.post('/notes', authenticate, uploadNotes.single('attachment'), notesController.addNote);
+router.delete('/notes/:id', authenticate, notesController.deleteNote);
 
 router.post("/billing", authenticate, billingController.handleBillingRequest);
 

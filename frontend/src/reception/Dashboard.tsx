@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
 import { API_BASE_URL, authFetch } from "../config";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
+import ActionFAB from "../components/ActionFAB";
 import {
   Users,
   ClipboardList,
@@ -18,31 +20,22 @@ import {
   X,
   RefreshCw,
   Check,
+  Search,
+  Bell,
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
+  Hourglass,
+  Phone,
+  LayoutGrid,
+  Banknote,
+  Info,
+  StickyNote,
   UserPlus,
   FlaskConical,
   PhoneCall,
   Beaker,
-  Search,
-  Bell,
-  Plus,
-  MessageCircle,
-  LogOut,
-  User,
-  Moon,
-  Sun,
-  ChevronDown,
-  ChevronUp,
-  CheckCircle,
-  Hourglass,
-  Phone,
-  LayoutGrid,
-  MessageSquare,
-  LifeBuoy,
-  PieChart,
-  Banknote,
-  FileText,
-  Keyboard,
-  Info,
 } from "lucide-react";
 import { useThemeStore } from "../store/useThemeStore";
 import CustomSelect from "../components/ui/CustomSelect";
@@ -54,61 +47,10 @@ import KeyboardShortcuts, {
 import LogoutConfirmation from "../components/LogoutConfirmation";
 import GlobalSearch from "../components/GlobalSearch";
 import DailyIntelligence from "../components/DailyIntelligence";
-
-// Types
-interface DashboardData {
-  registration: {
-    today_total: number;
-    pending: number;
-    consulted: number;
-    month_total: number;
-    approval_pending: number;
-  };
-  inquiry: { total_today: number; quick: number; test: number };
-  patients: {
-    today_attendance: number;
-    total_ever: number;
-    active: number;
-    inactive: number;
-    paid_today: number;
-    new_month: number;
-  };
-  tests: {
-    today_total: number;
-    pending: number;
-    completed: number;
-    revenue_today: number;
-    total_month: number;
-    approval_pending: number;
-  };
-  collections: {
-    reg_amount: number;
-    treatment_amount: number;
-    test_amount: number;
-    today_total: number;
-    today_dues: number;
-    patient_dues: number;
-    test_dues: number;
-    month_total: number;
-  };
-  schedule: Array<{
-    id: number;
-    patient_name: string;
-    appointment_time: string;
-    status: string;
-    approval_status: string;
-  }>;
-  weekly: Array<{ date: string; day: string; total: number }>;
-}
-
-interface Notification {
-  notification_id: number;
-  message: string;
-  link_url: string | null;
-  is_read: number;
-  created_at: string;
-  time_ago: string;
-}
+import { useUIStore } from "../store/useUIStore";
+import { useDashboardStore } from "../store";
+import Sidebar from "../components/Sidebar";
+import NotesDrawer from "../components/NotesDrawer";
 
 interface UnifiedSearchResult {
   id: number;
@@ -122,36 +64,6 @@ interface UnifiedSearchResult {
   age: string;
 }
 
-interface FormOptions {
-  referrers: string[];
-  paymentMethods: Array<{ method_code: string; method_name: string }>;
-  staffMembers: Array<{
-    staff_id: number;
-    staff_name: string;
-    job_title: string;
-  }>;
-  testTypes: Array<{
-    test_type_id: number;
-    test_name: string;
-    test_code: string;
-    default_cost: string | number;
-    requires_limb_selection: boolean;
-  }>;
-  limbTypes: Array<{
-    limb_type_id: number;
-    limb_name: string;
-    limb_code: string;
-  }>;
-  chiefComplaints: Array<{ complaint_code: string; complaint_name: string }>;
-  referralSources: Array<{ source_code: string; source_name: string }>;
-  consultationTypes: Array<{
-    consultation_code: string;
-    consultation_name: string;
-  }>;
-  inquiryServiceTypes: Array<{ service_code: string; service_name: string }>;
-  timeSlots: Array<{ value: string; label: string; booked: boolean }>;
-}
-
 type ModalType =
   | "registration"
   | "test"
@@ -160,7 +72,17 @@ type ModalType =
   | "approvals"
   | null;
 
-const TimePicker = ({ value, onChange, onClose, slots }: any) => {
+const TimePicker = ({
+  value,
+  onChange,
+  onClose,
+  slots,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onClose: () => void;
+  slots: any[];
+}) => {
   const [selected, setSelected] = useState(value || "");
 
   const confirm = () => {
@@ -264,25 +186,111 @@ const TimePicker = ({ value, onChange, onClose, slots }: any) => {
 
 const ReceptionDashboard = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user, logout } = useAuthStore();
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [formOptions, setFormOptions] = useState<FormOptions | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [serverVersion, setServerVersion] = useState<string | null>(null);
+  const {
+    data,
+    setData,
+    formOptions,
+    setFormOptions,
+    lastSync,
+    setLastSync,
+    pendingApprovals,
+    setPendingApprovals,
+    timeSlots: storeTimeSlots,
+    setTimeSlots,
+    notifications,
+    setNotifications,
+    unreadCount,
+    setUnreadCount,
+    searchCache,
+    setSearchCache,
+  } = useDashboardStore();
+
+  const { hasDashboardAnimated, setHasDashboardAnimated } = useUIStore();
+
+  const [isLoading, setIsLoading] = useState(!data);
+  // ... other state ...
+  const notifList = notifications || [];
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isFabOpen, setIsFabOpen] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<{
     type: "success" | "error";
     text: string;
   } | null>(null);
 
+  const [showNotes, setShowNotes] = useState(false);
+
+  // Handle navigation state to open modals
+  useEffect(() => {
+    const state = location.state as { openModal: ModalType };
+    if (state?.openModal) {
+      setActiveModal(state.openModal);
+      // Clear state so it doesn't reopen on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  // Mark animation as complete on mount
+  useEffect(() => {
+    if (!hasDashboardAnimated) {
+      setHasDashboardAnimated(true);
+    }
+  }, []);
+
+  // Animation Variants
+
+  const leftPanelEntrance = {
+    hidden: { x: -100, opacity: 0 },
+    visible: {
+      x: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.6,
+        ease: [0.22, 1, 0.36, 1],
+        delay: 0.1,
+      },
+    },
+  } as any;
+
+  const mainContentEntrance = {
+    hidden: { y: 100, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.6,
+        ease: [0.22, 1, 0.36, 1],
+        delay: 0.2,
+        staggerChildren: 0.1,
+      },
+    },
+  } as any;
+
+  // Combined Entrance + Hover for Cards
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: {
+      opacity: 1,
+      y: 0,
+      transition: { type: "spring", stiffness: 50, damping: 20 },
+    },
+    hover: {
+      scale: 1.02,
+      y: -5,
+      boxShadow:
+        "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)",
+      transition: { type: "spring", stiffness: 300, damping: 25 },
+    },
+    tap: { scale: 0.98 },
+  } as any;
+
   // Header Logic (Search, Notifications, Profile)
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<UnifiedSearchResult[]>([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [isSearchLoading, setIsSearchLoading] = useState(false);
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
@@ -291,7 +299,6 @@ const ReceptionDashboard = () => {
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLButtonElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Form logic
   const formRef = useRef<HTMLFormElement>(null);
@@ -345,7 +352,6 @@ const ReceptionDashboard = () => {
   );
   const [appointmentTime, setAppointmentTime] = useState("");
   const [showTimePicker, setShowTimePicker] = useState(false);
-  const [timeSlots, setTimeSlots] = useState<any[]>([]);
 
   // Inquiry Dates
   const [inquiryDate, setInquiryDate] = useState(
@@ -375,7 +381,8 @@ const ReceptionDashboard = () => {
 
   // Approval Logic
   const [showApprovals, setShowApprovals] = useState(false);
-  const [pendingList, setPendingList] = useState<any[]>([]);
+  const pendingList = pendingApprovals || [];
+  const currentSlots = storeTimeSlots?.slots || [];
 
   const fetchApprovals = useCallback(async () => {
     if (!user?.branch_id) return;
@@ -385,25 +392,12 @@ const ReceptionDashboard = () => {
       );
       const data = await res.json();
       if (data.success) {
-        setPendingList(data.data || []);
+        setPendingApprovals(data.data || []);
       }
     } catch (e) {
       console.error("Error fetching approvals", e);
     }
   }, [user?.branch_id]);
-
-  const fetchServerStatus = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/system/status`);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (data.status === "success" && data.data?.current_app_version) {
-        setServerVersion(data.data.current_app_version);
-      }
-    } catch (err) {
-      console.warn("Build check failure:", err);
-    }
-  }, []);
 
   // Theme Logic from store
   const { isDark, toggleTheme } = useThemeStore();
@@ -414,8 +408,56 @@ const ReceptionDashboard = () => {
     } else {
       document.documentElement.classList.remove("dark");
     }
-    fetchServerStatus();
-  }, [isDark, fetchServerStatus]);
+  }, [isDark]);
+
+  // --- GRANULAR FETCHERS ---
+
+  const fetchMainDashboard = useCallback(async () => {
+    if (!user?.branch_id) return;
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
+      );
+      const data = await res.json();
+      if (data.status === "success") {
+        setData(data.data);
+        if (data.data.serverTime) setLastSync(data.data.serverTime);
+      }
+    } catch (e) {
+      console.error("Error fetching dashboard stats:", e);
+    }
+  }, [user?.branch_id, setData, setLastSync]);
+
+  const fetchFormOptionsData = useCallback(async () => {
+    if (!user?.branch_id) return;
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/form_options?branch_id=${user.branch_id}&appointment_date=${appointmentDate}&service_type=physio`,
+      );
+      const data = await res.json();
+      if (data.status === "success") {
+        setFormOptions(data.data);
+        if (Object.keys(selectedTests).length === 0) {
+          const initialTests: Record<
+            string,
+            { checked: boolean; amount: string }
+          > = {};
+          data.data.testTypes?.forEach(
+            (t: { test_code: string; default_cost: string | number }) => {
+              const cost = parseFloat(String(t.default_cost)) || 0;
+              initialTests[t.test_code] = {
+                checked: false,
+                amount: cost > 0 ? cost.toFixed(2) : "",
+              };
+            },
+          );
+          setSelectedTests(initialTests);
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching form options:", e);
+    }
+  }, [user?.branch_id, appointmentDate, setFormOptions, selectedTests]);
 
   // --- LOGIC: FETCHING ---
   const fetchNotifs = useCallback(async () => {
@@ -431,71 +473,136 @@ const ReceptionDashboard = () => {
     } catch (err) {
       console.error(err);
     }
-  }, [user?.employee_id]);
+  }, [user?.employee_id, setNotifications, setUnreadCount]);
 
-  const isInitialLoad = useRef(true);
-  const fetchAll = useCallback(async () => {
-    if (!user?.branch_id) return;
-    if (isInitialLoad.current) {
-      setIsLoading(true);
+  const isInitialLoad = useRef(!data);
+  const fetchAll = useCallback(
+    async (showLoading = true) => {
+      if (!user?.branch_id) return;
+      if (showLoading) setIsLoading(true);
+
+      try {
+        window.dispatchEvent(new CustomEvent("trigger-system-status-check"));
+        await Promise.all([
+          fetchMainDashboard(),
+          fetchFormOptionsData(),
+          fetchNotifs(),
+          fetchApprovals(),
+        ]);
+        isInitialLoad.current = false;
+      } catch (e) {
+        console.error("Error fetching data:", e);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [
+      user?.branch_id,
+      appointmentDate,
+      fetchMainDashboard,
+      fetchFormOptionsData,
+      fetchApprovals,
+      fetchNotifs,
+    ],
+  );
+
+  // Cooldown Logic
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(() => {
+        setRefreshCooldown((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(timer);
     }
-    try {
-      // Trigger system status check globally
-      window.dispatchEvent(new CustomEvent("trigger-system-status-check"));
+  }, [refreshCooldown]);
 
-      // Trigger all fetches in parallel
-      await Promise.all([
-        (async () => {
-          const res = await authFetch(
-            `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
+  const handleRefresh = async () => {
+    if (refreshCooldown > 0 || isLoading) return;
+
+    // Trigger system status check manually on refresh
+    window.dispatchEvent(new CustomEvent("trigger-system-status-check"));
+
+    if (!lastSync) {
+      await fetchAll();
+      setRefreshCooldown(20);
+      return;
+    }
+
+    setIsLoading(true);
+    const toastId = toast.loading("Checking for updates...");
+
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/check_updates?branch_id=${user?.branch_id}&last_sync=${lastSync}`,
+      );
+      const updateData = await res.json();
+
+      if (updateData.success) {
+        if (updateData.hasChanges) {
+          toast.loading("Changes found, updating...", { id: toastId });
+
+          const syncTasks = [];
+
+          // Granular Sync Logic
+          const mainDataTables = [
+            "registration",
+            "tests",
+            "patients",
+            "quick_inquiry",
+            "test_inquiry",
+            "attendance",
+            "payments",
+          ];
+          const hasMainChanges = mainDataTables.some(
+            (table) => updateData.changes[table],
           );
-          const data = await res.json();
-          if (data.status === "success") {
-            setData(data.data);
+
+          if (hasMainChanges) syncTasks.push(fetchMainDashboard());
+          if (updateData.changes["notifications"])
+            syncTasks.push(fetchNotifs());
+          if (updateData.changes["registration"] || updateData.changes["tests"])
+            syncTasks.push(fetchApprovals());
+
+          // If registration modal is open, always refresh slots if registration changes detected
+          if (
+            activeModal === "registration" &&
+            appointmentDate &&
+            updateData.changes["registration"]
+          ) {
+            syncTasks.push(fetchTimeSlots(appointmentDate));
           }
-        })(),
-        (async () => {
-          const res = await authFetch(
-            `${API_BASE_URL}/reception/form_options?branch_id=${user.branch_id}&appointment_date=${appointmentDate}&service_type=physio`,
-          );
-          const data = await res.json();
-          if (data.status === "success") {
-            setFormOptions(data.data);
-            if (Object.keys(selectedTests).length === 0) {
-              const initialTests: Record<
-                string,
-                { checked: boolean; amount: string }
-              > = {};
-              data.data.testTypes?.forEach((t: any) => {
-                const cost = parseFloat(String(t.default_cost)) || 0;
-                initialTests[t.test_code] = {
-                  checked: false,
-                  amount: cost > 0 ? cost.toFixed(2) : "",
-                };
-              });
-              setSelectedTests(initialTests);
+
+          if (syncTasks.length > 0) {
+            await Promise.all(syncTasks);
+            // Clear search cache if patients or related records changed
+            if (hasMainChanges) {
+              useDashboardStore.setState({ searchCache: {} });
             }
+            toast.success("System updated with latest records", {
+              id: toastId,
+            });
+          } else {
+            toast.success("System is up to date", { id: toastId });
           }
-        })(),
-        fetchApprovals(),
-        fetchNotifs(),
-        (async () => {
-          if (appointmentDate) {
-            const res = await authFetch(
-              `${API_BASE_URL}/reception/get_slots?date=${appointmentDate}`,
-            );
-            const data = await res.json();
-            if (data.success) setTimeSlots(data.slots);
-          }
-        })(),
-      ]);
-      isInitialLoad.current = false;
-    } catch (e) {
-      console.error("Error fetching data:", e);
+
+          if (updateData.serverTime) setLastSync(updateData.serverTime);
+        } else {
+          toast.success("No new changes found", { id: toastId });
+          if (updateData.serverTime) setLastSync(updateData.serverTime);
+        }
+      } else {
+        await fetchAll();
+        toast.info("Full system sync completed", { id: toastId });
+      }
+    } catch (err) {
+      console.error("Refresh Error:", err);
+      await fetchAll();
+      toast.error("Sync failed, fallback complete", { id: toastId });
     } finally {
       setIsLoading(false);
+      setRefreshCooldown(20);
     }
-  }, [user?.branch_id, appointmentDate, fetchApprovals, fetchNotifs]);
+  };
 
   // Fetch Time Slots
   const fetchTimeSlots = useCallback(
@@ -507,64 +614,67 @@ const ReceptionDashboard = () => {
         );
         const data = await res.json();
         if (data.success) {
-          setTimeSlots(data.slots);
+          setTimeSlots(date, data.slots);
         }
       } catch (e) {
         console.error("Error fetching time slots:", e);
       }
     },
-    [user?.branch_id],
+    [user?.branch_id, setTimeSlots],
   );
 
-  // Fetch time slots when appointment date changes
+  // Fetch time slots when registration modal is opened
   useEffect(() => {
-    if (appointmentDate) {
-      fetchTimeSlots(appointmentDate);
-    }
-  }, [appointmentDate, fetchTimeSlots]);
-
-  // Fetch Notifications
-  useEffect(() => {
-    if (user?.employee_id) {
-      fetchNotifs();
-      const inv = setInterval(fetchNotifs, 30000);
-      return () => clearInterval(inv);
-    }
-  }, [fetchNotifs, user?.employee_id]);
-
-  // Search Logic
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!user?.branch_id) {
-      setSearchResults([]);
-      return;
-    }
-    if (searchQuery.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await authFetch(
-          `${API_BASE_URL}/reception/search_patients?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`,
-        );
-        const data = await res.json();
-        if (data.success) {
-          setSearchResults(data.results || []);
-          setShowSearchResults(true);
-        }
-      } catch (err) {
-        console.error(err);
+    if (activeModal === "registration" && appointmentDate) {
+      if (storeTimeSlots?.date !== appointmentDate) {
+        fetchTimeSlots(appointmentDate);
       }
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [searchQuery, user?.branch_id]);
+    }
+  }, [activeModal, appointmentDate, fetchTimeSlots, storeTimeSlots]);
+
+  // Manual Search Performance
+  const handlePerformSearch = async () => {
+    if (!user?.branch_id) return;
+
+    const query = searchQuery.trim().toLowerCase();
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+
+    // 1. Instant Cache Check
+    if (searchCache[query]) {
+      setSearchResults(searchCache[query]);
+      setShowSearchResults(true);
+      return;
+    }
+
+    // 2. Network Fetch
+    setIsSearchLoading(true);
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/search_patients?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`,
+      );
+      const data = await res.json();
+      if (data.success) {
+        const results = data.results || [];
+        setSearchResults(results);
+        setShowSearchResults(true);
+        // Store in cache for future use
+        setSearchCache(query, results);
+      }
+    } catch (err) {
+      console.error("Search Error:", err);
+    } finally {
+      setIsSearchLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetchAll();
+    // ONLY fetch if we have no data in cache (Zustand)
+    if (!data && user?.branch_id) {
+      fetchAll();
+    }
     // Click outside handler for popups
     const handleClickOutside = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
@@ -585,11 +695,6 @@ const ReceptionDashboard = () => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [fetchAll]);
-
-  // Fetch Approvals on Mount
-  useEffect(() => {
-    fetchApprovals();
-  }, [fetchApprovals]);
 
   // Auto-focus first input when modal opens
   useEffect(() => {
@@ -636,6 +741,19 @@ const ReceptionDashboard = () => {
         e.preventDefault();
         e.stopPropagation();
         setShowSearchResults(true);
+      }
+
+      // 3. Branch Notes Shortcut (Alt + E)
+      if (
+        e.altKey &&
+        e.key.toLowerCase() === "e" &&
+        !e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey
+      ) {
+        e.preventDefault();
+        e.stopPropagation();
+        setShowNotes((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handleKeyDown, true);
@@ -747,7 +865,7 @@ const ReceptionDashboard = () => {
   };
   const stopWebcam = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current.getTracks().forEach((t: MediaStreamTrack) => t.stop());
       streamRef.current = null;
     }
   };
@@ -787,6 +905,7 @@ const ReceptionDashboard = () => {
     setDueAmount("");
     setSubmitMessage(null);
     setPhotoData(null);
+    setAppointmentTime("");
     // Reset Dropdowns
     setRegGender("");
     setRegSource("");
@@ -807,13 +926,15 @@ const ReceptionDashboard = () => {
     if (formOptions?.testTypes) {
       const initialTests: Record<string, { checked: boolean; amount: string }> =
         {};
-      formOptions.testTypes.forEach((t) => {
-        const cost = parseFloat(String(t.default_cost)) || 0;
-        initialTests[t.test_code] = {
-          checked: false,
-          amount: cost > 0 ? cost.toFixed(2) : "",
-        };
-      });
+      formOptions.testTypes.forEach(
+        (t: { test_code: string; default_cost: string | number }) => {
+          const cost = parseFloat(String(t.default_cost)) || 0;
+          initialTests[t.test_code] = {
+            checked: false,
+            amount: cost > 0 ? cost.toFixed(2) : "",
+          };
+        },
+      );
       setSelectedTests(initialTests);
     }
   };
@@ -980,6 +1101,16 @@ const ReceptionDashboard = () => {
         );
         const dashData = await dashRes.json();
         if (dashData.status === "success") setData(dashData.data);
+
+        // Smart refresh: Clear cached slots and trigger update check after successful submit
+        if (activeModal === "registration") {
+          useDashboardStore.setState({ timeSlots: null });
+        }
+
+        // Clear search cache on successful submission
+        useDashboardStore.setState({ searchCache: {} });
+        handleRefresh();
+
         setTimeout(() => closeModal(), 1500);
       } else {
         setSubmitMessage({
@@ -1099,6 +1230,20 @@ const ReceptionDashboard = () => {
       pageSpecific: true,
     },
     {
+      keys: ["Alt", "E"],
+      description: "Branch Notes",
+      group: "Modals",
+      action: () => setShowNotes((prev) => !prev),
+      pageSpecific: true,
+    },
+    {
+      keys: ["Alt", "Shift", "E"],
+      description: "Quick Note",
+      group: "Modals",
+      action: () => setShowNotes(true),
+      pageSpecific: true,
+    },
+    {
       keys: ["Alt", "S"],
       description: "Quick Search",
       group: "General",
@@ -1160,285 +1305,20 @@ const ReceptionDashboard = () => {
     },
   ];
 
-  const navLinks = [
-    {
-      icon: LayoutGrid,
-      label: "Dashboard",
-      desc: "Overview & Stats",
-      path: "/reception/dashboard",
-      active: true,
-    },
-    {
-      icon: Calendar,
-      label: "Schedule",
-      desc: "Appmts & Queue",
-      path: "/reception/schedule",
-    },
-    {
-      icon: Phone,
-      label: "Inquiry",
-      desc: "New Leads",
-      path: "/reception/inquiry",
-    },
-    {
-      icon: Users,
-      label: "Registration",
-      desc: "New Patient",
-      path: "/reception/registration",
-    },
-    {
-      icon: Users,
-      label: "Patients",
-      desc: "All Records",
-      path: "/reception/patients",
-    },
-    {
-      icon: Banknote,
-      label: "Billing",
-      desc: "Invoices & Dues",
-      path: "/reception/billing",
-    },
-    {
-      icon: Users,
-      label: "Attendance",
-      desc: "Daily Track",
-      path: "/reception/attendance",
-    },
-    {
-      icon: TestTube2,
-      label: "Tests",
-      desc: "Lab Orders",
-      path: "/reception/tests",
-    },
-    {
-      icon: MessageSquare,
-      label: "Feedback",
-      desc: "Patient Reviews",
-      path: "/reception/feedback",
-    },
-    {
-      icon: FileText,
-      label: "Reports",
-      desc: "Analytics",
-      path: "/reception/reports",
-    },
-    {
-      icon: PieChart,
-      label: "Expenses",
-      desc: "Clinic Exp",
-      path: "/reception/expenses",
-    },
-    {
-      icon: LifeBuoy,
-      label: "Support",
-      desc: "Help & Docs",
-      path: "/reception/support",
-    },
-  ];
-
   return (
     <div
       className={`flex h-screen overflow-hidden font-sans transition-colors duration-300 ${isDark ? "bg-[#050505] text-[#E2E8F0]" : "bg-[#FAFAFA] text-[#1A1A1A]"}`}
     >
-      {/* === SIDEBAR === */}
-      <div
-        className={`w-20 hidden md:flex flex-col items-center py-8 border-r z-[60] shrink-0 gap-6 transition-colors duration-300 ${isDark ? "bg-[#0A0A0A] border-[#151515]" : "bg-white border-gray-200 shadow-xl"}`}
-      >
-        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#4ADE80] to-[#22c55e] flex items-center justify-center text-black shadow-[0_0_20px_rgba(74,222,128,0.3)]">
-          <span className="font-extrabold text-sm">PE</span>
-        </div>
-
-        <div className="flex-1 w-full flex flex-col items-center gap-4 pt-4">
-          {navLinks.map((link) => (
-            <div
-              key={link.label}
-              className="group relative flex items-center justify-center w-full px-4"
-            >
-              <button
-                onClick={() => navigate(link.path)}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                  link.active
-                    ? isDark
-                      ? "bg-[#1C1C1C] text-[#4ADE80] ring-1 ring-[#4ADE80]/30"
-                      : "bg-gray-100 text-[#16a34a] ring-1 ring-[#16a34a]/30"
-                    : isDark
-                      ? "text-gray-500 hover:text-white hover:bg-[#1C1C1C]"
-                      : "text-gray-400 hover:text-gray-900 hover:bg-gray-50"
-                }`}
-              >
-                <link.icon size={18} strokeWidth={2} />
-              </button>
-
-              {/* Hover Tooltip */}
-              <div
-                className={`absolute left-14 top-1/2 -translate-y-1/2 rounded-lg p-3 w-32 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ml-2 z-[60] border ${isDark ? "bg-[#1A1A1A] border-[#2A2A2A]" : "bg-white border-gray-200"}`}
-              >
-                <div
-                  className={`text-xs font-bold mb-0.5 ${isDark ? "text-white" : "text-gray-900"}`}
-                >
-                  {link.label}
-                </div>
-                <div
-                  className={`text-[10px] font-medium ${isDark ? "text-gray-500" : "text-gray-400"}`}
-                >
-                  {link.desc}
-                </div>
-                <div
-                  className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 border-l border-b rotate-45 ${isDark ? "bg-[#1A1A1A] border-[#2A2A2A]" : "bg-white border-gray-200"}`}
-                ></div>
-              </div>
-
-              {link.active && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-[#4ADE80] rounded-r-full" />
-              )}
-            </div>
-          ))}
-        </div>
-
-        {/* Chat & Profile Actions */}
-        <div className="flex flex-col items-center gap-4">
-          <button
-            onClick={() => setShowChatModal(true)}
-            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isDark ? "text-gray-500 hover:text-white hover:bg-[#1C1C1C]" : "text-gray-400 hover:text-gray-900 hover:bg-gray-50"}`}
-            title="Messenger"
-          >
-            <MessageCircle size={18} strokeWidth={2} />
-          </button>
-
-          <div
-            onClick={() => setShowProfilePopup(!showProfilePopup)}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors cursor-pointer relative ${isDark ? "bg-[#1C1C1C] text-gray-500 hover:text-white" : "bg-gray-100 text-gray-400 hover:text-black"}`}
-          >
-            <Users size={18} />
-            <AnimatePresence>
-              {showProfilePopup && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9, y: 15, x: -10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
-                  exit={{ opacity: 0, scale: 0.9, y: 15, x: -10 }}
-                  className="absolute bottom-0 left-full ml-6 w-80 bg-white/95 dark:bg-[#0A0A0A]/95 backdrop-blur-3xl rounded-[32px] shadow-[0_32px_80px_-20px_rgba(0,0,0,0.3)] border border-gray-100 dark:border-white/5 z-[100] overflow-hidden"
-                >
-                  {/* User Header */}
-                  <div className="p-6 border-b border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-white/[0.01]">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-[22px] bg-emerald-500/10 flex items-center justify-center text-[#16a34a] dark:text-[#4ADE80] font-black text-2xl border border-emerald-500/10 shadow-inner">
-                        {user?.name?.charAt(0).toUpperCase() || "S"}
-                      </div>
-                      <div className="overflow-hidden">
-                        <p
-                          className={`text-lg font-black tracking-tight leading-none mb-1.5 ${isDark ? "text-white" : "text-[#1a1c1e]"}`}
-                        >
-                          {user?.name || "Saniyas Parween"}
-                        </p>
-                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
-                          {user?.role || "RECEPTION"}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Settings & Utilities */}
-                  <div className="p-2 border-b border-gray-100 dark:border-white/5">
-                    <button
-                      onClick={toggleTheme}
-                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        {isDark ? <Sun size={18} /> : <Moon size={18} />}
-                        <span>{isDark ? "Light Mode" : "Dark Mode"}</span>
-                      </div>
-                      <span className="text-[10px] opacity-30 font-black uppercase">
-                        Alt + W
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowShortcuts(true);
-                        setShowProfilePopup(false);
-                      }}
-                      className="w-full flex items-center justify-between px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium mt-1 transition-colors"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Keyboard size={18} />
-                        <span>Shortcuts</span>
-                      </div>
-                      <span className="text-[10px] opacity-30 font-black uppercase">
-                        Alt + /
-                      </span>
-                    </button>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="p-2">
-                    <button
-                      onClick={() => navigate("/reception/profile")}
-                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"
-                    >
-                      <User size={18} /> Profile Settings
-                    </button>
-                    <button
-                      onClick={() => {
-                        logout();
-                        navigate("/login");
-                      }}
-                      className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#ffdad6] dark:hover:bg-[#93000a] text-[#410002] dark:text-[#ffdad6] text-sm font-medium mt-1 transition-colors"
-                    >
-                      <LogOut size={18} /> Logout
-                    </button>
-                  </div>
-
-                  {/* Version Footer */}
-                  <div className="px-6 py-4 bg-gray-50/50 dark:bg-white/[0.01] border-t border-gray-100 dark:border-white/5 flex items-center justify-between">
-                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] opacity-40">
-                      Build System
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {(() => {
-                        const vStr = (
-                          serverVersion || "Checking..."
-                        ).toLowerCase();
-                        const isAlpha = vStr.includes("a");
-                        const isBeta = vStr.includes("b");
-                        const isStable =
-                          vStr.includes("s") ||
-                          (serverVersion && !isAlpha && !isBeta);
-
-                        return (
-                          <>
-                            <span
-                              className={`text-[8px] font-black px-1.5 py-0.5 rounded-[6px] uppercase tracking-widest ${
-                                isAlpha
-                                  ? "bg-amber-500/10 text-amber-500"
-                                  : isBeta
-                                    ? "bg-blue-500/10 text-blue-500"
-                                    : "bg-emerald-500/10 text-emerald-500"
-                              }`}
-                            >
-                              {isAlpha
-                                ? "Alpha"
-                                : isBeta
-                                  ? "Beta"
-                                  : isStable
-                                    ? "Stable"
-                                    : "..."}
-                            </span>
-                            <span className="text-[13px] font-black text-slate-500 dark:text-slate-400 tabular-nums">
-                              {serverVersion ? `v${serverVersion}` : "---"}
-                            </span>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
+      <Sidebar
+        onShowChat={() => setShowChatModal(true)}
+        onShowShortcuts={() => setShowShortcuts(true)}
+      />
 
       {/* === STATS PANEL (Left Column) === */}
-      <div
+      <motion.div
+        variants={leftPanelEntrance}
+        initial={hasDashboardAnimated ? "visible" : "hidden"}
+        animate="visible"
         className={`hidden xl:flex w-[400px] flex-col justify-between p-10 border-r relative shrink-0 transition-colors duration-300 z-50 ${isDark ? "bg-[#0A0A0A] border-[#151515]" : "bg-white border-gray-200"}`}
       >
         {/* Brand & Greeting */}
@@ -1573,52 +1453,60 @@ const ReceptionDashboard = () => {
 
         {/* Decoration */}
         <div className="absolute top-1/2 left-0 w-full h-full bg-gradient-to-t from-green-900/10 to-transparent pointer-events-none" />
-      </div>
+      </motion.div>
 
       {/* === MAIN CONTENT (Right Panel) === */}
       <main className="flex-1 h-screen overflow-y-auto bg-transparent relative">
-        <div className="p-6 lg:p-10 max-w-[1920px] mx-auto space-y-10">
+        <motion.div
+          variants={mainContentEntrance}
+          initial={hasDashboardAnimated ? "visible" : "hidden"}
+          animate="visible"
+          className="p-6 lg:p-10 max-w-[1920px] mx-auto space-y-10"
+        >
           {/* HEADER SECTION (Search, Refresh, Notif) */}
           <div
-            className={`flex justify-between items-center bg-transparent backdrop-blur-sm sticky top-0 py-2 transition-all duration-300 z-[45]`}
+            className={`flex flex-wrap lg:flex-nowrap justify-between items-center gap-4 bg-transparent backdrop-blur-sm sticky top-0 py-3 transition-all duration-300 z-[45]`}
           >
             <div
-              className={`flex items-center gap-2 transition-all duration-300 ${showSearchResults ? "opacity-20 blur-[2px] pointer-events-none scale-98" : "opacity-100"}`}
+              className={`flex flex-nowrap lg:flex-wrap items-center gap-2 transition-all duration-300 ${showSearchResults ? "opacity-20 blur-[2px] pointer-events-none scale-98" : "opacity-100"} overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scrollbar-hide max-w-full`}
             >
               {actionButtons.map((btn) => (
                 <button
                   key={btn.id}
                   onClick={() => setActiveModal(btn.id)}
-                  className={`flex items-center gap-3 px-5 py-3 rounded-full transition-all duration-300 shadow-sm border ${
+                  className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full transition-all duration-300 shadow-sm border shrink-0 ${
                     isDark
                       ? "bg-[#1A1C1A] text-white/70 hover:text-white hover:bg-[#252825] border-white/5"
                       : "bg-white text-gray-600 hover:text-gray-900 border-gray-100 hover:shadow-md"
                   }`}
                 >
                   <btn.icon size={16} strokeWidth={2} />
-                  <span className="text-xs font-bold tracking-tight whitespace-nowrap">
+                  <span className="text-[10px] sm:text-xs font-bold tracking-tight whitespace-nowrap">
                     {btn.label}
                   </span>
                 </button>
               ))}
             </div>
 
-            <div className="flex items-center gap-3">
-              <div ref={searchRef} className="relative z-[160] xl:w-90">
+            <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-end">
+              <div
+                ref={searchRef}
+                className="relative z-[160] flex-1 lg:flex-none lg:w-[320px] xl:w-[400px]"
+              >
                 <div
                   onClick={() => setShowSearchResults(true)}
-                  className={`flex items-center px-5 py-3 rounded-[24px] border transition-all duration-300 cursor-text ${
+                  className={`flex items-center px-4 py-2.5 sm:py-3 rounded-[24px] border transition-all duration-300 cursor-text ${
                     isDark
                       ? "bg-[#121412]/80 border-[#2A2D2A] hover:bg-[#121412] shadow-2xl shadow-black/20"
                       : "bg-white border-gray-100 shadow-xl shadow-black/[0.03] hover:bg-white"
                   } backdrop-blur-md`}
                 >
-                  <Search size={18} className="opacity-30" />
-                  <div className="bg-transparent px-4 text-base w-full opacity-30 font-medium select-none">
-                    Search anything... (Alt + S)
+                  <Search size={18} className="opacity-30 flex-shrink-0" />
+                  <div className="bg-transparent px-3 text-sm sm:text-base w-full opacity-30 font-medium select-none truncate">
+                    Search anything...
                   </div>
                   <div
-                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-black tracking-tight opacity-40 ${isDark ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-200"}`}
+                    className={`hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-black tracking-tight opacity-40 shrink-0 ${isDark ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-200"}`}
                   >
                     <span className="text-[12px] opacity-60">⌥</span>
                     <span>S</span>
@@ -1627,15 +1515,25 @@ const ReceptionDashboard = () => {
               </div>
 
               {/* Utilities Area */}
-              <div className="flex items-center p-1.5 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5">
-                <button
-                  onClick={fetchAll}
-                  disabled={isLoading}
-                  className={`w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 ${isLoading ? "animate-spin" : ""}`}
-                  title="Refresh Dashboard"
-                >
-                  <RefreshCw size={18} strokeWidth={2} className="opacity-40" />
-                </button>
+              <div className="flex items-center p-1 sm:p-1.5 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 shrink-0">
+                <div className="flex flex-col items-end mr-2">
+                  <button
+                    onClick={handleRefresh}
+                    disabled={isLoading || refreshCooldown > 0}
+                    className={`w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 ${isLoading ? "animate-spin" : ""} ${refreshCooldown > 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                    title={
+                      refreshCooldown > 0
+                        ? `Wait ${refreshCooldown}s`
+                        : "Refresh Dashboard"
+                    }
+                  >
+                    <RefreshCw
+                      size={18}
+                      strokeWidth={2}
+                      className="opacity-40"
+                    />
+                  </button>
+                </div>
 
                 <div className="w-px h-6 bg-black/10 dark:bg-white/10 mx-1" />
 
@@ -1675,7 +1573,7 @@ const ReceptionDashboard = () => {
                           )}
                         </div>
                         <div className="max-h-80 overflow-y-auto p-1.5">
-                          {notifications.map((n) => (
+                          {notifList.map((n: any) => (
                             <div
                               key={n.notification_id}
                               className={`p-3 rounded-xl transition-all cursor-pointer group mb-1 ${
@@ -1698,7 +1596,7 @@ const ReceptionDashboard = () => {
                               </p>
                             </div>
                           ))}
-                          {notifications.length === 0 && (
+                          {notifList.length === 0 && (
                             <div className="py-10 text-center opacity-30 flex flex-col items-center gap-2">
                               <Bell size={24} strokeWidth={1.5} />
                               <p className="text-sm font-medium">
@@ -1707,7 +1605,7 @@ const ReceptionDashboard = () => {
                             </div>
                           )}
                         </div>
-                        {notifications.length > 0 && (
+                        {notifList.length > 0 && (
                           <div className="p-3 border-t dark:border-white/5 border-gray-100 text-center">
                             <button className="text-[10px] font-black text-[#4ADE80] uppercase tracking-widest hover:opacity-80">
                               Mark all as read
@@ -1728,6 +1626,23 @@ const ReceptionDashboard = () => {
                 >
                   <Info size={19} strokeWidth={2.5} />
                 </button>
+
+                <div className="relative group/note">
+                  <button
+                    onClick={() => setShowNotes(true)}
+                    className="w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 text-pink-500"
+                    title="Branch Notes"
+                  >
+                    <StickyNote size={19} strokeWidth={2.5} />
+                  </button>
+                  {/* Hint */}
+                  <div
+                    className={`absolute -bottom-1 -right-1 flex items-center gap-0.5 px-1 py-0.5 rounded-md border text-[8px] font-black tracking-tighter opacity-0 group-hover/note:opacity-100 transition-opacity bg-white dark:bg-[#1A1C1A] ${isDark ? "border-white/10 text-white/40" : "border-gray-200 text-slate-400"}`}
+                  >
+                    <span className="opacity-60 text-[10px]">⌥</span>
+                    <span>E</span>
+                  </div>
+                </div>
               </div>
 
               {/* Approvals */}
@@ -1748,7 +1663,10 @@ const ReceptionDashboard = () => {
           {/* --- REDESIGNED STATS GRID - 4 Columns --- */}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
             {/* 1. CENSUS */}
-            <div
+            <motion.div
+              variants={cardVariants}
+              whileHover="hover"
+              whileTap="tap"
               className={`p-6 rounded-[32px] border flex flex-col justify-between gap-4 ${isDark ? "bg-[#121412] border-[#2A2D2A]" : "bg-white border-gray-200 shadow-sm"}`}
             >
               <div className="flex justify-between items-start">
@@ -1791,10 +1709,13 @@ const ReceptionDashboard = () => {
                   </span>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* 2. LAB OPS */}
-            <div
+            <motion.div
+              variants={cardVariants}
+              whileHover="hover"
+              whileTap="tap"
               className={`p-6 rounded-[32px] border flex flex-col justify-between gap-4 ${isDark ? "bg-[#121412] border-[#2A2D2A]" : "bg-white border-gray-200 shadow-sm"}`}
             >
               <div className="flex justify-between items-start">
@@ -1847,10 +1768,13 @@ const ReceptionDashboard = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* 3. REVENUE */}
-            <div
+            <motion.div
+              variants={cardVariants}
+              whileHover="hover"
+              whileTap="tap"
               className={`p-6 rounded-[32px] border flex flex-col justify-between gap-4 ${isDark ? "bg-[#121412] border-[#2A2D2A]" : "bg-white border-gray-200 shadow-sm"}`}
             >
               <div className="flex justify-between items-start">
@@ -1908,10 +1832,13 @@ const ReceptionDashboard = () => {
                   </div>
                 </div>
               </div>
-            </div>
+            </motion.div>
 
             {/* 4. DUES ALERT */}
-            <div
+            <motion.div
+              variants={cardVariants}
+              whileHover="hover"
+              whileTap="tap"
               className={`p-6 rounded-[32px] border flex flex-col justify-between gap-4 relative ${isDark ? "bg-[#121412] border-[#2A2D2A]" : "bg-white border-red-100 shadow-sm"}`}
             >
               <div className="flex justify-between items-start">
@@ -1954,13 +1881,15 @@ const ReceptionDashboard = () => {
                   View All <ArrowUpRight size={12} />
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
 
           {/* BOTTOM ROW: SCHEDULE & ACTIVITY */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 pb-20">
             {/* TODAY'S SCHEDULE - Spans 2 Columns */}
-            <div
+            <motion.div
+              variants={cardVariants}
+              whileHover="hover"
               className={`col-span-1 xl:col-span-2 p-8 rounded-[32px] h-[450px] flex flex-col ${isDark ? "bg-[#121412] border border-[#2A2D2A]" : "bg-white border-gray-200 shadow-sm"}`}
             >
               <div className="flex justify-between items-center mb-6 shrink-0">
@@ -1981,7 +1910,7 @@ const ReceptionDashboard = () => {
                     No appointments scheduled
                   </div>
                 ) : (
-                  data.schedule.map((user) => (
+                  data.schedule.map((user: any) => (
                     <div
                       key={user.id}
                       className={`p-4 rounded-2xl border transition-colors group flex items-start gap-4 ${isDark ? "border-[#2A2D2A] hover:border-[#4ADE80]/50" : "border-gray-100 hover:border-gray-300"}`}
@@ -2024,7 +1953,7 @@ const ReceptionDashboard = () => {
                           )}
                           {user.approval_status === "approved" && (
                             <span className="text-[10px] font-bold uppercase tracking-wide text-[#006e1c] dark:text-[#88d99d] flex items-center gap-1 bg-[#ccebc4]/30 px-1.5 py-0.5 rounded">
-                              <CheckCircle size={10} /> Approved
+                              <CheckCircle2 size={10} /> Approved
                             </span>
                           )}
                         </div>
@@ -2033,10 +1962,12 @@ const ReceptionDashboard = () => {
                   ))
                 )}
               </div>
-            </div>
+            </motion.div>
 
             {/* WEEKLY REVENUE - Spans 1 Column */}
-            <div
+            <motion.div
+              variants={cardVariants}
+              whileHover="hover"
               className={`rounded-[32px] p-8 flex flex-col justify-between relative overflow-hidden min-h-[350px] ${isDark ? "bg-[#1A1C1A] text-white" : "bg-white border border-gray-200 shadow-sm text-gray-900"}`}
             >
               {/* Header */}
@@ -2057,43 +1988,50 @@ const ReceptionDashboard = () => {
 
               {/* Bar Chart Visualization */}
               <div className="flex items-end justify-between h-40 mt-8 px-1 gap-3 w-full">
-                {(data?.weekly || []).map((day, index) => {
-                  const max = Math.max(
-                    ...(data?.weekly || []).map((d) => d.total),
-                    1,
-                  );
-                  const height = `${(day.total / max) * 100}%`;
-                  const isToday =
-                    day.date === new Date().toISOString().split("T")[0];
+                {(data?.weekly || []).map(
+                  (
+                    day: { total: number; date: string; day: string },
+                    index: number,
+                  ) => {
+                    const max = Math.max(
+                      ...(data?.weekly || []).map(
+                        (d: { total: number }) => d.total,
+                      ),
+                      1,
+                    );
+                    const height = `${(day.total / max) * 100}%`;
+                    const isToday =
+                      day.date === new Date().toISOString().split("T")[0];
 
-                  return (
-                    <div
-                      key={index}
-                      className="flex flex-col items-center gap-3 w-full h-full group cursor-pointer relative"
-                    >
-                      {/* Tooltip */}
-                      <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none mb-1">
-                        {fmt(day.total)}
-                        <div className="absolute top-full left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-black rotate-45 -mt-0.5"></div>
-                      </div>
-
+                    return (
                       <div
-                        className={`w-full rounded-t-md h-full relative overflow-hidden ${isDark ? "bg-[#222422]" : "bg-gray-100"}`}
+                        key={index}
+                        className="flex flex-col items-center gap-3 w-full h-full group cursor-pointer relative"
                       >
-                        {/* Fill */}
+                        {/* Tooltip */}
+                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-black text-white text-[10px] font-bold px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50 pointer-events-none mb-1">
+                          {fmt(day.total)}
+                          <div className="absolute top-full left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-black rotate-45 -mt-0.5"></div>
+                        </div>
+
                         <div
-                          className={`absolute bottom-0 w-full transition-all duration-500 ease-out rounded-t-md ${isToday ? (isDark ? "bg-[#4ADE80]" : "bg-[#16a34a]") : isDark ? "bg-[#333633] group-hover:bg-[#4ADE80]/30" : "bg-gray-300 group-hover:bg-gray-400"}`}
-                          style={{ height: height }}
-                        />
+                          className={`w-full rounded-t-md h-full relative overflow-hidden ${isDark ? "bg-[#222422]" : "bg-gray-100"}`}
+                        >
+                          {/* Fill */}
+                          <div
+                            className={`absolute bottom-0 w-full transition-all duration-500 ease-out rounded-t-md ${isToday ? (isDark ? "bg-[#4ADE80]" : "bg-[#16a34a]") : isDark ? "bg-[#333633] group-hover:bg-[#4ADE80]/30" : "bg-gray-300 group-hover:bg-gray-400"}`}
+                            style={{ height: height }}
+                          />
+                        </div>
+                        <span
+                          className={`text-[9px] font-bold uppercase tracking-wider ${isToday ? (isDark ? "text-[#4ADE80]" : "text-[#16a34a]") : isDark ? "text-zinc-600" : "text-gray-400"}`}
+                        >
+                          {day.day}
+                        </span>
                       </div>
-                      <span
-                        className={`text-[9px] font-bold uppercase tracking-wider ${isToday ? (isDark ? "text-[#4ADE80]" : "text-[#16a34a]") : isDark ? "text-zinc-600" : "text-gray-400"}`}
-                      >
-                        {day.day}
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  },
+                )}
               </div>
 
               {/* Footer Stats */}
@@ -2106,105 +2044,24 @@ const ReceptionDashboard = () => {
                   Total this week
                 </div>
                 <div
-                  className={`text-3xl font-bold tracking-tight ${isDark ? "text-zinc-100" : "text-gray-900"}`}
+                  className={`text-1xl font-bold tracking-tight ${isDark ? "text-zinc-100" : "text-gray-900"}`}
                 >
                   {data?.weekly
-                    ? fmt(data.weekly.reduce((a, b) => a + b.total, 0))
+                    ? fmt(
+                        data.weekly.reduce(
+                          (a: number, b: { total: number }) => a + b.total,
+                          0,
+                        ),
+                      )
                     : fmt(0)}
                 </div>
               </div>
-            </div>
+            </motion.div>
           </div>
-        </div>
+        </motion.div>
       </main>
 
-      {/* Action FAB */}
-      <div className="fixed bottom-8 right-8 flex flex-col gap-4 items-end z-50">
-        <AnimatePresence>
-          {isFabOpen && (
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-              className="flex flex-col gap-3 mb-4"
-            >
-              {[
-                {
-                  label: "New Registration",
-                  icon: UserPlus,
-                  id: "registration",
-                  color: "bg-emerald-500",
-                },
-                {
-                  label: "Book Lab Test",
-                  icon: FlaskConical,
-                  id: "test",
-                  color: "bg-blue-500",
-                },
-                {
-                  label: "Quick Inquiry",
-                  icon: PhoneCall,
-                  id: "inquiry",
-                  color: "bg-purple-500",
-                },
-                {
-                  label: "Test Inquiry",
-                  icon: Beaker,
-                  id: "test_inquiry",
-                  color: "bg-amber-500",
-                },
-              ].map((btn, idx) => (
-                <motion.button
-                  key={btn.label}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: idx * 0.05 }}
-                  onClick={() => {
-                    setActiveModal(btn.id as any);
-                    setIsFabOpen(false);
-                  }}
-                  className={`group flex items-center gap-4 pl-5 pr-7 py-4 rounded-[22px] shadow-2xl transition-all hover:scale-105 active:scale-95 whitespace-nowrap border border-white/10 ${isDark ? "bg-[#1A1C1A] text-white hover:bg-[#252825]" : "bg-white text-slate-900 border-slate-200 hover:bg-slate-50"}`}
-                >
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-lg ${btn.color}`}
-                  >
-                    <btn.icon size={20} />
-                  </div>
-                  <span className="font-bold text-sm tracking-tight opacity-80 group-hover:opacity-100 italic__not">
-                    {btn.label}
-                  </span>
-                </motion.button>
-              ))}
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <button
-          onClick={() => setIsFabOpen(!isFabOpen)}
-          className={`w-16 h-16 rounded-[24px] shadow-2xl flex items-center justify-center hover:scale-105 active:scale-95 transition-all duration-300 z-50 group ${isFabOpen ? "bg-red-500 text-white" : "bg-emerald-500 text-white"}`}
-        >
-          <motion.div
-            animate={{ rotate: isFabOpen ? 135 : 0 }}
-            transition={{ type: "spring", stiffness: 300, damping: 20 }}
-          >
-            {isFabOpen ? (
-              <X size={32} strokeWidth={2.5} />
-            ) : (
-              <Plus size={32} strokeWidth={2.5} />
-            )}
-          </motion.div>
-
-          {/* Pulse Effect when closed */}
-          {!isFabOpen && (
-            <motion.div
-              animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
-              transition={{ duration: 2, repeat: Infinity }}
-              className="absolute inset-0 rounded-[24px] bg-emerald-500 -z-10"
-            />
-          )}
-        </button>
-      </div>
+      <ActionFAB onAction={(action) => setActiveModal(action as any)} />
 
       {/* --- MODALS --- */}
       <AnimatePresence>
@@ -2340,10 +2197,15 @@ const ReceptionDashboard = () => {
                           value={regComplaint}
                           onChange={setRegComplaint}
                           options={[
-                            ...(formOptions?.chiefComplaints.map((c) => ({
-                              label: c.complaint_name,
-                              value: c.complaint_code,
-                            })) || []),
+                            ...(formOptions?.chiefComplaints.map(
+                              (c: {
+                                complaint_name: string;
+                                complaint_code: string;
+                              }) => ({
+                                label: c.complaint_name,
+                                value: c.complaint_code,
+                              }),
+                            ) || []),
                             { label: "Other", value: "other" },
                           ]}
                           placeholder="Select Complaint"
@@ -2449,7 +2311,7 @@ const ReceptionDashboard = () => {
                             className={`${inputClass} cursor-pointer flex items-center justify-between`}
                           >
                             <span>
-                              {timeSlots?.find(
+                              {currentSlots.find(
                                 (t: any) => t.time === appointmentTime,
                               )?.label || "Select Time"}
                             </span>
@@ -2472,10 +2334,15 @@ const ReceptionDashboard = () => {
                           value={regConsultType}
                           onChange={setRegConsultType}
                           options={
-                            formOptions?.consultationTypes.map((t) => ({
-                              label: t.consultation_name,
-                              value: t.consultation_code,
-                            })) || []
+                            formOptions?.consultationTypes.map(
+                              (t: {
+                                consultation_name: string;
+                                consultation_code: string;
+                              }) => ({
+                                label: t.consultation_name,
+                                value: t.consultation_code,
+                              }),
+                            ) || []
                           }
                           placeholder="Select"
                         />
@@ -2492,10 +2359,15 @@ const ReceptionDashboard = () => {
                           value={regSource}
                           onChange={setRegSource}
                           options={
-                            formOptions?.referralSources.map((s) => ({
-                              label: s.source_name,
-                              value: s.source_code,
-                            })) || []
+                            formOptions?.referralSources.map(
+                              (s: {
+                                source_name: string;
+                                source_code: string;
+                              }) => ({
+                                label: s.source_name,
+                                value: s.source_code,
+                              }),
+                            ) || []
                           }
                           placeholder="Select source"
                         />
@@ -2556,71 +2428,81 @@ const ReceptionDashboard = () => {
                               className="overflow-hidden"
                             >
                               <div className="bg-white dark:bg-[#111315] rounded-2xl p-2 border border-[#e0e2ec] dark:border-[#43474e] shadow-inner mt-2 space-y-1">
-                                {formOptions?.paymentMethods.map((m: any) => (
-                                  <div
-                                    key={m.method_code}
-                                    className={`flex items-center gap-2 p-1.5 rounded-xl transition-all ${regPaymentSplits[m.method_code] !== undefined ? "bg-[#ccebc4]/20 border border-[#006e1c]" : "bg-[#e0e2ec]/30 border border-transparent hover:bg-[#e0e2ec]/50"}`}
-                                  >
+                                {formOptions?.paymentMethods.map(
+                                  (m: {
+                                    method_code: string;
+                                    method_name: string;
+                                  }) => (
                                     <div
-                                      onClick={() => {
-                                        const newSplits = {
-                                          ...regPaymentSplits,
-                                        };
-                                        if (
-                                          newSplits[m.method_code] !== undefined
-                                        )
-                                          delete newSplits[m.method_code];
-                                        else newSplits[m.method_code] = 0;
-                                        setRegPaymentSplits(newSplits);
-                                      }}
-                                      className="flex items-center gap-3 cursor-pointer flex-1"
+                                      key={m.method_code}
+                                      className={`flex items-center gap-2 p-1.5 rounded-xl transition-all ${regPaymentSplits[m.method_code] !== undefined ? "bg-[#ccebc4]/20 border border-[#006e1c]" : "bg-[#e0e2ec]/30 border border-transparent hover:bg-[#e0e2ec]/50"}`}
                                     >
                                       <div
-                                        className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${regPaymentSplits[m.method_code] !== undefined ? "bg-[#006e1c] border-[#006e1c] shadow-md shadow-green-500/20" : "border-[#74777f]"}`}
+                                        onClick={() => {
+                                          const newSplits = {
+                                            ...regPaymentSplits,
+                                          };
+                                          if (
+                                            newSplits[m.method_code] !==
+                                            undefined
+                                          )
+                                            delete newSplits[m.method_code];
+                                          else newSplits[m.method_code] = 0;
+                                          setRegPaymentSplits(newSplits);
+                                        }}
+                                        className="flex items-center gap-3 cursor-pointer flex-1"
                                       >
-                                        {regPaymentSplits[m.method_code] !==
-                                          undefined && (
-                                          <Check
-                                            size={14}
-                                            className="text-white"
-                                            strokeWidth={4}
-                                          />
-                                        )}
-                                      </div>
-                                      <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">
-                                        {m.method_name}
-                                      </span>
-                                    </div>
-                                    {regPaymentSplits[m.method_code] !==
-                                      undefined &&
-                                      Object.keys(regPaymentSplits).length >
-                                        1 && (
-                                        <div className="flex items-center gap-2 bg-white dark:bg-black/40 px-3 py-2 rounded-xl border border-[#006e1c]/30 min-w-[140px]">
-                                          <span className="text-xs font-black text-[#006e1c]">
-                                            ₹
-                                          </span>
-                                          <input
-                                            type="number"
-                                            value={
-                                              regPaymentSplits[m.method_code] ||
-                                              ""
-                                            }
-                                            onChange={(e) =>
-                                              setRegPaymentSplits({
-                                                ...regPaymentSplits,
-                                                [m.method_code]:
-                                                  parseFloat(e.target.value) ||
-                                                  0,
-                                              })
-                                            }
-                                            className="flex-1 bg-transparent border-none text-sm font-black text-right outline-none appearance-none text-[#1a1c1e] dark:text-[#e3e2e6]"
-                                            placeholder="0.00"
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
+                                        <div
+                                          className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${regPaymentSplits[m.method_code] !== undefined ? "bg-[#006e1c] border-[#006e1c] shadow-md shadow-green-500/20" : "border-[#74777f]"}`}
+                                        >
+                                          {regPaymentSplits[m.method_code] !==
+                                            undefined && (
+                                            <Check
+                                              size={14}
+                                              className="text-white"
+                                              strokeWidth={4}
+                                            />
+                                          )}
                                         </div>
-                                      )}
-                                  </div>
-                                ))}
+                                        <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">
+                                          {m.method_name}
+                                        </span>
+                                      </div>
+                                      {regPaymentSplits[m.method_code] !==
+                                        undefined &&
+                                        Object.keys(regPaymentSplits).length >
+                                          1 && (
+                                          <div className="flex items-center gap-2 bg-white dark:bg-black/40 px-3 py-2 rounded-xl border border-[#006e1c]/30 min-w-[140px]">
+                                            <span className="text-xs font-black text-[#006e1c]">
+                                              ₹
+                                            </span>
+                                            <input
+                                              type="number"
+                                              value={
+                                                regPaymentSplits[
+                                                  m.method_code
+                                                ] || ""
+                                              }
+                                              onChange={(e) =>
+                                                setRegPaymentSplits({
+                                                  ...regPaymentSplits,
+                                                  [m.method_code]:
+                                                    parseFloat(
+                                                      e.target.value,
+                                                    ) || 0,
+                                                })
+                                              }
+                                              className="flex-1 bg-transparent border-none text-sm font-black text-right outline-none appearance-none text-[#1a1c1e] dark:text-[#e3e2e6]"
+                                              placeholder="0.00"
+                                              onClick={(e) =>
+                                                e.stopPropagation()
+                                              }
+                                            />
+                                          </div>
+                                        )}
+                                    </div>
+                                  ),
+                                )}
                                 <div className="mt-2 pt-2 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center px-1">
                                   <span className="text-[10px] font-black uppercase tracking-widest text-[#43474e] dark:text-[#c4c7c5]">
                                     {Object.keys(regPaymentSplits).length === 1
@@ -2769,10 +2651,15 @@ const ReceptionDashboard = () => {
                           value={testLimb}
                           onChange={setTestLimb}
                           options={
-                            formOptions?.limbTypes.map((l: any) => ({
-                              label: l.limb_name,
-                              value: l.limb_code,
-                            })) || []
+                            formOptions?.limbTypes.map(
+                              (l: {
+                                limb_code: string;
+                                limb_name: string;
+                              }) => ({
+                                label: l.limb_name,
+                                value: l.limb_code,
+                              }),
+                            ) || []
                           }
                           placeholder="Select Limb"
                         />
@@ -2784,91 +2671,38 @@ const ReceptionDashboard = () => {
                       <label className={labelClass}>Select Tests *</label>
                       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
                         {formOptions?.testTypes
-                          ?.filter((t: any) => t.test_code !== "other")
-                          .map((test: any) => (
-                            <div
-                              key={test.test_code}
-                              onClick={() =>
-                                handleTestCheckChange(
-                                  test.test_code,
-                                  !selectedTests[test.test_code]?.checked,
-                                )
-                              }
-                              className={`p-3 border rounded-xl cursor-pointer transition-all flex flex-col gap-2 ${selectedTests[test.test_code]?.checked ? "border-[#006e1c] bg-[#ccebc4]/30 dark:bg-[#0c3b10]/30" : "border-transparent bg-[#e0e2ec]/50 dark:bg-[#1a1c1e] hover:bg-[#e0e2ec] dark:hover:bg-[#30333b]"}`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <div
-                                  className={`w-4 h-4 rounded border flex items-center justify-center ${selectedTests[test.test_code]?.checked ? "bg-[#006e1c] border-[#006e1c]" : "border-[#43474e]"}`}
-                                >
-                                  {selectedTests[test.test_code]?.checked && (
-                                    <Check size={10} className="text-white" />
-                                  )}
-                                </div>
-                                <span className="text-sm font-medium text-[#1a1c1e] dark:text-[#e3e2e6]">
-                                  {test.test_name}
-                                </span>
-                              </div>
-                              {selectedTests[test.test_code]?.checked && (
-                                <input
-                                  type="number"
-                                  step="0.01"
-                                  value={
-                                    selectedTests[test.test_code]?.amount || ""
-                                  }
-                                  onClick={(e) => e.stopPropagation()}
-                                  onChange={(e) =>
-                                    handleTestAmountChange(
-                                      test.test_code,
-                                      e.target.value,
-                                    )
-                                  }
-                                  className="w-full bg-white dark:bg-[#111315] border border-[#e0e2ec] dark:border-[#43474e] rounded-lg px-2 py-1 text-sm outline-none"
-                                  placeholder="Amount"
-                                />
-                              )}
-                            </div>
-                          ))}
-                      </div>
-                      {/* Other Test */}
-                      {formOptions?.testTypes
-                        ?.filter((t: any) => t.test_code === "other")
-                        .map((test: any) => (
-                          <div
-                            key={test.test_code}
-                            className={`mt-3 p-3 border rounded-xl transition-all ${selectedTests[test.test_code]?.checked ? "border-[#006e1c] bg-[#ccebc4]/30" : "border-transparent bg-[#e0e2ec]/50 dark:bg-[#1a1c1e]"}`}
-                          >
-                            <div className="flex items-center gap-4">
+                          ?.filter(
+                            (t: { test_code: string }) =>
+                              t.test_code !== "other",
+                          )
+                          .map(
+                            (test: {
+                              test_code: string;
+                              test_name: string;
+                            }) => (
                               <div
+                                key={test.test_code}
                                 onClick={() =>
                                   handleTestCheckChange(
                                     test.test_code,
                                     !selectedTests[test.test_code]?.checked,
                                   )
                                 }
-                                className="flex items-center gap-2 cursor-pointer"
+                                className={`p-3 border rounded-xl cursor-pointer transition-all flex flex-col gap-2 ${selectedTests[test.test_code]?.checked ? "border-[#006e1c] bg-[#ccebc4]/30 dark:bg-[#0c3b10]/30" : "border-transparent bg-[#e0e2ec]/50 dark:bg-[#1a1c1e] hover:bg-[#e0e2ec] dark:hover:bg-[#30333b]"}`}
                               >
-                                <div
-                                  className={`w-4 h-4 rounded border flex items-center justify-center ${selectedTests[test.test_code]?.checked ? "bg-[#006e1c] border-[#006e1c]" : "border-[#43474e]"}`}
-                                >
-                                  {selectedTests[test.test_code]?.checked && (
-                                    <Check size={10} className="text-white" />
-                                  )}
+                                <div className="flex items-center gap-2">
+                                  <div
+                                    className={`w-4 h-4 rounded border flex items-center justify-center ${selectedTests[test.test_code]?.checked ? "bg-[#006e1c] border-[#006e1c]" : "border-[#43474e]"}`}
+                                  >
+                                    {selectedTests[test.test_code]?.checked && (
+                                      <Check size={10} className="text-white" />
+                                    )}
+                                  </div>
+                                  <span className="text-sm font-medium text-[#1a1c1e] dark:text-[#e3e2e6]">
+                                    {test.test_name}
+                                  </span>
                                 </div>
-                                <span className="text-sm font-medium text-[#1a1c1e] dark:text-[#e3e2e6]">
-                                  {test.test_name}
-                                </span>
-                              </div>
-                              {selectedTests[test.test_code]?.checked && (
-                                <>
-                                  <input
-                                    type="text"
-                                    value={otherTestName}
-                                    onChange={(e) =>
-                                      setOtherTestName(e.target.value)
-                                    }
-                                    placeholder="Test Name"
-                                    className="flex-1 bg-white dark:bg-[#111315] border border-[#e0e2ec] dark:border-[#43474e] rounded-lg px-3 py-1.5 text-sm outline-none"
-                                  />
+                                {selectedTests[test.test_code]?.checked && (
                                   <input
                                     type="number"
                                     step="0.01"
@@ -2876,20 +2710,86 @@ const ReceptionDashboard = () => {
                                       selectedTests[test.test_code]?.amount ||
                                       ""
                                     }
+                                    onClick={(e) => e.stopPropagation()}
                                     onChange={(e) =>
                                       handleTestAmountChange(
                                         test.test_code,
                                         e.target.value,
                                       )
                                     }
-                                    className="w-32 bg-white dark:bg-[#111315] border border-[#e0e2ec] dark:border-[#43474e] rounded-lg px-3 py-1.5 text-sm outline-none"
+                                    className="w-full bg-white dark:bg-[#111315] border border-[#e0e2ec] dark:border-[#43474e] rounded-lg px-2 py-1 text-sm outline-none"
                                     placeholder="Amount"
                                   />
-                                </>
-                              )}
+                                )}
+                              </div>
+                            ),
+                          )}
+                      </div>
+                      {/* Other Test */}
+                      {formOptions?.testTypes
+                        ?.filter(
+                          (t: { test_code: string }) => t.test_code === "other",
+                        )
+                        .map(
+                          (test: { test_code: string; test_name: string }) => (
+                            <div
+                              key={test.test_code}
+                              className={`mt-3 p-3 border rounded-xl transition-all ${selectedTests[test.test_code]?.checked ? "border-[#006e1c] bg-[#ccebc4]/30" : "border-transparent bg-[#e0e2ec]/50 dark:bg-[#1a1c1e]"}`}
+                            >
+                              <div className="flex items-center gap-4">
+                                <div
+                                  onClick={() =>
+                                    handleTestCheckChange(
+                                      test.test_code,
+                                      !selectedTests[test.test_code]?.checked,
+                                    )
+                                  }
+                                  className="flex items-center gap-2 cursor-pointer"
+                                >
+                                  <div
+                                    className={`w-4 h-4 rounded border flex items-center justify-center ${selectedTests[test.test_code]?.checked ? "bg-[#006e1c] border-[#006e1c]" : "border-[#43474e]"}`}
+                                  >
+                                    {selectedTests[test.test_code]?.checked && (
+                                      <Check size={10} className="text-white" />
+                                    )}
+                                  </div>
+                                  <span className="text-sm font-medium text-[#1a1c1e] dark:text-[#e3e2e6]">
+                                    {test.test_name}
+                                  </span>
+                                </div>
+                                {selectedTests[test.test_code]?.checked && (
+                                  <>
+                                    <input
+                                      type="text"
+                                      value={otherTestName}
+                                      onChange={(e) =>
+                                        setOtherTestName(e.target.value)
+                                      }
+                                      placeholder="Test Name"
+                                      className="flex-1 bg-white dark:bg-[#111315] border border-[#e0e2ec] dark:border-[#43474e] rounded-lg px-3 py-1.5 text-sm outline-none"
+                                    />
+                                    <input
+                                      type="number"
+                                      step="0.01"
+                                      value={
+                                        selectedTests[test.test_code]?.amount ||
+                                        ""
+                                      }
+                                      onChange={(e) =>
+                                        handleTestAmountChange(
+                                          test.test_code,
+                                          e.target.value,
+                                        )
+                                      }
+                                      className="w-32 bg-white dark:bg-[#111315] border border-[#e0e2ec] dark:border-[#43474e] rounded-lg px-3 py-1.5 text-sm outline-none"
+                                      placeholder="Amount"
+                                    />
+                                  </>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ),
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2959,10 +2859,15 @@ const ReceptionDashboard = () => {
                           value={testDoneBy}
                           onChange={setTestDoneBy}
                           options={
-                            formOptions?.staffMembers?.map((s: any) => ({
-                              label: s.staff_name,
-                              value: s.staff_name,
-                            })) || []
+                            formOptions?.staffMembers?.map(
+                              (s: {
+                                employee_id: number;
+                                staff_name: string;
+                              }) => ({
+                                label: s.staff_name,
+                                value: s.staff_name,
+                              }),
+                            ) || []
                           }
                           placeholder="Select"
                         />
@@ -3084,72 +2989,81 @@ const ReceptionDashboard = () => {
                           >
                             <div className="bg-[#f8f9fa] dark:bg-[#1e1e20] rounded-xl p-3 border border-[#e0e2ec] dark:border-[#43474e]">
                               <div className="grid grid-cols-2 gap-3">
-                                {formOptions?.paymentMethods.map((m) => (
-                                  <div
-                                    key={m.method_code}
-                                    className={`flex items-center gap-2 p-2 rounded-lg transition-all ${testPaymentSplits[m.method_code] !== undefined ? "bg-white dark:bg-[#2c2c2e] shadow-sm border border-[#006e1c]" : "bg-[#e8eaed] dark:bg-[#28282a] border border-transparent hover:border-[#006e1c]/30"}`}
-                                  >
+                                {formOptions?.paymentMethods.map(
+                                  (m: {
+                                    method_code: string;
+                                    method_name: string;
+                                  }) => (
                                     <div
-                                      onClick={() => {
-                                        const newSplits = {
-                                          ...testPaymentSplits,
-                                        };
-                                        if (
-                                          newSplits[m.method_code] !== undefined
-                                        )
-                                          delete newSplits[m.method_code];
-                                        else newSplits[m.method_code] = 0;
-                                        setTestPaymentSplits(newSplits);
-                                      }}
-                                      className="flex items-center gap-2 cursor-pointer flex-1"
+                                      key={m.method_code}
+                                      className={`flex items-center gap-2 p-2 rounded-lg transition-all ${testPaymentSplits[m.method_code] !== undefined ? "bg-white dark:bg-[#2c2c2e] shadow-sm border border-[#006e1c]" : "bg-[#e8eaed] dark:bg-[#28282a] border border-transparent hover:border-[#006e1c]/30"}`}
                                     >
                                       <div
-                                        className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${testPaymentSplits[m.method_code] !== undefined ? "bg-[#006e1c] border-[#006e1c]" : "border-[#74777f]"}`}
+                                        onClick={() => {
+                                          const newSplits = {
+                                            ...testPaymentSplits,
+                                          };
+                                          if (
+                                            newSplits[m.method_code] !==
+                                            undefined
+                                          )
+                                            delete newSplits[m.method_code];
+                                          else newSplits[m.method_code] = 0;
+                                          setTestPaymentSplits(newSplits);
+                                        }}
+                                        className="flex items-center gap-2 cursor-pointer flex-1"
                                       >
-                                        {testPaymentSplits[m.method_code] !==
-                                          undefined && (
-                                          <Check
-                                            size={14}
-                                            className="text-white"
-                                            strokeWidth={3}
-                                          />
-                                        )}
-                                      </div>
-                                      <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">
-                                        {m.method_name}
-                                      </span>
-                                    </div>
-                                    {testPaymentSplits[m.method_code] !==
-                                      undefined &&
-                                      Object.keys(testPaymentSplits).length >
-                                        1 && (
-                                        <div className="flex items-center gap-1.5 bg-[#f0f0f0] dark:bg-[#3a3a3c] px-3 py-1.5 rounded-lg min-w-[120px]">
-                                          <span className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5]">
-                                            ₹
-                                          </span>
-                                          <input
-                                            type="number"
-                                            value={
-                                              testPaymentSplits[
-                                                m.method_code
-                                              ] || ""
-                                            }
-                                            onChange={(e) =>
-                                              setTestPaymentSplits({
-                                                ...testPaymentSplits,
-                                                [m.method_code]:
-                                                  parseFloat(e.target.value) ||
-                                                  0,
-                                              })
-                                            }
-                                            className="flex-1 bg-transparent border-none text-sm font-semibold text-right outline-none appearance-none text-[#1a1c1e] dark:text-[#e3e2e6]"
-                                            placeholder="0.00"
-                                            onClick={(e) => e.stopPropagation()}
-                                          />
+                                        <div
+                                          className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${testPaymentSplits[m.method_code] !== undefined ? "bg-[#006e1c] border-[#006e1c]" : "border-[#74777f]"}`}
+                                        >
+                                          {testPaymentSplits[m.method_code] !==
+                                            undefined && (
+                                            <Check
+                                              size={14}
+                                              className="text-white"
+                                              strokeWidth={3}
+                                            />
+                                          )}
                                         </div>
-                                      )}
-                                  </div>
-                                ))}
+                                        <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">
+                                          {m.method_name}
+                                        </span>
+                                      </div>
+                                      {testPaymentSplits[m.method_code] !==
+                                        undefined &&
+                                        Object.keys(testPaymentSplits).length >
+                                          1 && (
+                                          <div className="flex items-center gap-1.5 bg-[#f0f0f0] dark:bg-[#3a3a3c] px-3 py-1.5 rounded-lg min-w-[120px]">
+                                            <span className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5]">
+                                              ₹
+                                            </span>
+                                            <input
+                                              type="number"
+                                              value={
+                                                testPaymentSplits[
+                                                  m.method_code
+                                                ] || ""
+                                              }
+                                              onChange={(e) =>
+                                                setTestPaymentSplits({
+                                                  ...testPaymentSplits,
+                                                  [m.method_code]:
+                                                    parseFloat(
+                                                      e.target.value,
+                                                    ) || 0,
+                                                })
+                                              }
+                                              className="flex-1 bg-transparent border-none text-sm font-semibold text-right outline-none appearance-none text-[#1a1c1e] dark:text-[#e3e2e6]"
+                                              placeholder="0.00"
+                                              onClick={(e) =>
+                                                e.stopPropagation()
+                                              }
+                                            />
+                                          </div>
+                                        )}
+                                    </div>
+                                  ),
+                                )}
                               </div>
                               <div className="mt-3 pt-2 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center">
                                 <span className="text-[10px] font-black uppercase tracking-wide text-[#43474e] dark:text-[#c4c7c5]">
@@ -3234,10 +3148,15 @@ const ReceptionDashboard = () => {
                               value={inqService}
                               onChange={setInqService}
                               options={
-                                formOptions?.inquiryServiceTypes.map((s) => ({
-                                  label: s.service_name,
-                                  value: s.service_code,
-                                })) || []
+                                formOptions?.inquiryServiceTypes.map(
+                                  (s: {
+                                    service_code: string;
+                                    service_name: string;
+                                  }) => ({
+                                    label: s.service_name,
+                                    value: s.service_code,
+                                  }),
+                                ) || []
                               }
                               placeholder="Select"
                             />
@@ -3254,10 +3173,15 @@ const ReceptionDashboard = () => {
                               value={inqSource}
                               onChange={setInqSource}
                               options={
-                                formOptions?.referralSources.map((s) => ({
-                                  label: s.source_name,
-                                  value: s.source_code,
-                                })) || []
+                                formOptions?.referralSources.map(
+                                  (s: {
+                                    source_code: string;
+                                    source_name: string;
+                                  }) => ({
+                                    label: s.source_name,
+                                    value: s.source_code,
+                                  }),
+                                ) || []
                               }
                               placeholder="Select"
                             />
@@ -3294,10 +3218,15 @@ const ReceptionDashboard = () => {
                               value={inqComplaint}
                               onChange={setInqComplaint}
                               options={
-                                formOptions?.chiefComplaints.map((c) => ({
-                                  label: c.complaint_name,
-                                  value: c.complaint_code,
-                                })) || []
+                                formOptions?.chiefComplaints.map(
+                                  (c: {
+                                    complaint_code: string;
+                                    complaint_name: string;
+                                  }) => ({
+                                    label: c.complaint_name,
+                                    value: c.complaint_code,
+                                  }),
+                                ) || []
                               }
                               placeholder="Select"
                             />
@@ -3393,10 +3322,15 @@ const ReceptionDashboard = () => {
                               value={tiTestName}
                               onChange={setTiTestName}
                               options={
-                                formOptions?.testTypes.map((t) => ({
-                                  label: t.test_name,
-                                  value: t.test_code,
-                                })) || []
+                                formOptions?.testTypes.map(
+                                  (t: {
+                                    test_code: string;
+                                    test_name: string;
+                                  }) => ({
+                                    label: t.test_name,
+                                    value: t.test_code,
+                                  }),
+                                ) || []
                               }
                               placeholder="Select"
                             />
@@ -3417,7 +3351,7 @@ const ReceptionDashboard = () => {
                               placeholder="Type"
                             />
                             <datalist id="ti_referrers">
-                              {formOptions?.referrers.map((r) => (
+                              {formOptions?.referrers.map((r: string) => (
                                 <option key={r} value={r} />
                               ))}
                             </datalist>
@@ -3473,9 +3407,9 @@ const ReceptionDashboard = () => {
               <div className="p-6 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center bg-[#fdfcff] dark:bg-[#111315] sticky bottom-0 z-10 transition-colors">
                 {submitMessage ? (
                   <span
-                    className={`text-sm font-bold px-4 py-2 rounded-lg ${submitMessage.type === "success" ? "bg-[#ccebc4] text-[#0c200e]" : "bg-[#ffdad6] text-[#410002]"}`}
+                    className={`text-sm font-bold px-4 py-2 rounded-lg ${submitMessage?.type === "success" ? "bg-[#ccebc4] text-[#0c200e]" : "bg-[#ffdad6] text-[#410002]"}`}
                   >
-                    {submitMessage.text}
+                    {submitMessage?.text}
                   </span>
                 ) : (
                   <span></span>
@@ -3610,30 +3544,11 @@ const ReceptionDashboard = () => {
             value={appointmentTime}
             onChange={(t: string) => setAppointmentTime(t)}
             onClose={() => setShowTimePicker(false)}
-            slots={timeSlots}
+            slots={currentSlots}
           />
         )}
       </AnimatePresence>
       {/* --- GLOBAL COMPONENTS --- */}
-      {/* Global Shortcut Help */}
-      <KeyboardShortcuts
-        shortcuts={shortcuts}
-        isOpen={showShortcuts}
-        onClose={() => setShowShortcuts(false)}
-        onToggle={() => setShowShortcuts((prev) => !prev)}
-      />
-      <LogoutConfirmation
-        isOpen={showLogoutConfirm}
-        onClose={() => setShowLogoutConfirm(false)}
-        onConfirm={() => {
-          logout();
-          navigate("/login");
-        }}
-      />
-      <ChatModal
-        isOpen={showChatModal}
-        onClose={() => setShowChatModal(false)}
-      />
       {/* --- APPROVALS MODAL --- */}
       <AnimatePresence>
         {showApprovals && (
@@ -3669,12 +3584,12 @@ const ReceptionDashboard = () => {
               <div className="px-6 pb-8 overflow-y-auto custom-scrollbar flex-1">
                 {pendingList.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-16 opacity-20">
-                    <CheckCircle size={48} strokeWidth={1} className="mb-3" />
+                    <CheckCircle2 size={48} strokeWidth={1} className="mb-3" />
                     <p className="text-sm font-medium">No pending approvals.</p>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {pendingList.map((item, idx) => (
+                    {pendingList.map((item: any, idx: number) => (
                       <div
                         key={`${item.type}-${item.id}-${idx}`}
                         className={`p-5 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${isDark ? "bg-white/5 border-white/5" : "bg-white border-gray-100 shadow-sm"}`}
@@ -3767,6 +3682,8 @@ const ReceptionDashboard = () => {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         searchResults={searchResults}
+        onSearch={handlePerformSearch}
+        isLoading={isSearchLoading}
       />
 
       <KeyboardShortcuts
@@ -3789,6 +3706,8 @@ const ReceptionDashboard = () => {
         isOpen={showIntelligence}
         onClose={() => setShowIntelligence(false)}
       />
+
+      <NotesDrawer isOpen={showNotes} onClose={() => setShowNotes(false)} />
     </div>
   );
 };

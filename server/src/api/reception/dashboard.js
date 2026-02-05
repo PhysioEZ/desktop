@@ -239,7 +239,8 @@ exports.getDashboardData = async (req, res) => {
                 collections: collStats,
                 schedule,
                 weekly: weeklyStats,
-                systemStatus
+                systemStatus,
+                serverTime: new Date().toISOString()
             }
         });
 

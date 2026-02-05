@@ -1,7 +1,9 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "../../store/useAuthStore";
 import { useThemeStore } from "../../store/useThemeStore";
+import { useChatStore } from "../../store/useChatStore";
+import type { ChatUser, ChatMessage } from "../../store/useChatStore";
 import { API_BASE_URL, authFetch } from "../../config";
 import {
   X,
@@ -18,26 +20,10 @@ import {
   ShieldCheck,
   MessageSquare,
   Download,
+  RefreshCw,
+  Trash2,
 } from "lucide-react";
 import FileViewer from "../FileViewer/FileViewer";
-
-interface ChatUser {
-  id: number;
-  username: string;
-  full_name: string;
-  role: string;
-  unread_count: number;
-}
-
-interface ChatMessage {
-  message_id: number;
-  sender_employee_id: number;
-  message_type: string;
-  message_text: string;
-  created_at: string;
-  is_read: number;
-  is_sender: boolean;
-}
 
 interface ChatModalProps {
   isOpen: boolean;
@@ -47,6 +33,13 @@ interface ChatModalProps {
 const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
   const { user } = useAuthStore();
   const { isDark } = useThemeStore();
+  const {
+    cachedUsers,
+    usersLastFetched,
+    messagesCache,
+    setCachedUsers,
+    setCachedMessages,
+  } = useChatStore();
 
   const [users, setUsers] = useState<ChatUser[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -63,60 +56,79 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
     fileName: string;
   } | null>(null);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const pollingRef = useRef<any>(null);
 
   useEffect(() => {
     if (isOpen && user) {
       fetchUsers();
     }
     return () => {
-      stopPolling();
       setActivePartner(null);
       setMessages([]);
     };
   }, [isOpen, user]);
 
-  useEffect(() => {
-    if (activePartner && isOpen) {
-      startPolling();
-    } else {
-      stopPolling();
+  const scrollToBottom = () => {
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop =
+        chatContainerRef.current.scrollHeight;
     }
-  }, [activePartner, isOpen]);
+  };
+
+  const setChatContainerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      chatContainerRef.current = node;
+      if (node && messages.length > 0) {
+        scrollToBottom();
+        setTimeout(scrollToBottom, 100);
+        setTimeout(scrollToBottom, 300);
+        setTimeout(scrollToBottom, 500);
+      }
+    },
+    [messages],
+  );
 
   useEffect(() => {
     if (messages.length > 0) {
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+      scrollToBottom();
+      setTimeout(scrollToBottom, 100);
+      setTimeout(scrollToBottom, 300);
     }
-  }, [messages]);
+  }, [messages, activePartner]);
 
-  const startPolling = () => {
-    stopPolling();
-    pollingRef.current = setInterval(() => {
-      if (activePartner) fetchMessages(activePartner.id, true);
-    }, 5000);
-  };
-
-  const stopPolling = () => {
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-      pollingRef.current = null;
+  // Cooldown Timer
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(() => {
+        setRefreshCooldown((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(timer);
     }
-  };
+  }, [refreshCooldown]);
 
   const fetchUsers = async () => {
     if (!user) return;
+
+    // Check Cache (5 minutes)
+    const now = Date.now();
+    if (cachedUsers.length > 0 && now - usersLastFetched < 5 * 60 * 1000) {
+      setUsers(cachedUsers);
+      return;
+    }
+
     setIsLoadingUsers(true);
     try {
       const res = await authFetch(
         `${API_BASE_URL}/reception/chat/users?branch_id=${user.branch_id || ""}&employee_id=${user.employee_id || ""}`,
       );
       const data = await res.json();
-      if (data.success && Array.isArray(data.users)) setUsers(data.users);
+      if (data.success && Array.isArray(data.users)) {
+        setUsers(data.users);
+        setCachedUsers(data.users);
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -124,8 +136,26 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
     }
   };
 
-  const fetchMessages = async (partnerId: number, silent = false) => {
+  const fetchMessages = async (
+    partnerId: number,
+    silent = false,
+    force = false,
+  ) => {
     if (!user) return;
+
+    // Check Cache (5 minutes)
+    const now = Date.now();
+    const cacheEntry = messagesCache[partnerId];
+    if (
+      !force &&
+      cacheEntry &&
+      cacheEntry.data &&
+      now - cacheEntry.lastFetched < 5 * 60 * 1000
+    ) {
+      setMessages(cacheEntry.data);
+      return;
+    }
+
     if (!silent) setIsLoadingMessages(true);
     try {
       const res = await authFetch(
@@ -134,6 +164,7 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
       const data = await res.json();
       if (data.success && Array.isArray(data.messages)) {
         setMessages(data.messages);
+        setCachedMessages(partnerId, data.messages);
         setUsers((prev) =>
           prev.map((u) => (u.id === partnerId ? { ...u, unread_count: 0 } : u)),
         );
@@ -143,6 +174,12 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
     } finally {
       if (!silent) setIsLoadingMessages(false);
     }
+  };
+
+  const handleManualRefresh = () => {
+    if (refreshCooldown > 0 || isLoadingMessages || !activePartner) return;
+    fetchMessages(activePartner.id, false, true);
+    setRefreshCooldown(10);
   };
 
   const selectUser = (selectedUser: ChatUser) => {
@@ -197,12 +234,51 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
       if (result.success) {
         setMessageText("");
         setSelectedFile(null);
-        fetchMessages(activePartner.id, true);
+        fetchMessages(activePartner.id, true, true);
       }
     } catch (e) {
       console.error(e);
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const [deleteConfirmation, setDeleteConfirmation] = useState<number | null>(
+    null,
+  );
+
+  const requestDelete = (messageId: number) => {
+    setDeleteConfirmation(messageId);
+  };
+
+  const confirmDelete = async () => {
+    if (!user || !activePartner || !deleteConfirmation) return;
+
+    const messageId = deleteConfirmation;
+    setDeleteConfirmation(null); // Close modal immediately
+
+    try {
+      const res = await authFetch(`${API_BASE_URL}/reception/chat/delete`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message_id: messageId,
+          employee_id: user.employee_id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setMessages((prev) => prev.filter((m) => m.message_id !== messageId));
+        const currentCache = messagesCache[activePartner.id];
+        if (currentCache) {
+          const updatedMessages = currentCache.data.filter(
+            (m) => m.message_id !== messageId,
+          );
+          setCachedMessages(activePartner.id, updatedMessages);
+        }
+      }
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -362,16 +438,41 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
               </div>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
-              isDark
-                ? "bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-500"
-                : "bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600"
-            }`}
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            {activePartner && (
+              <button
+                onClick={handleManualRefresh}
+                disabled={refreshCooldown > 0 || isLoadingMessages}
+                className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+                  isDark
+                    ? "bg-white/5 hover:bg-white/10 text-white/40"
+                    : "bg-slate-100 hover:bg-slate-200 text-slate-400"
+                } ${refreshCooldown > 0 ? "opacity-30 cursor-not-allowed" : ""}`}
+                title={
+                  refreshCooldown > 0
+                    ? `Refresh available in ${refreshCooldown}s`
+                    : "Refresh chat"
+                }
+              >
+                <RefreshCw
+                  size={18}
+                  className={
+                    isLoadingMessages && !refreshCooldown ? "animate-spin" : ""
+                  }
+                />
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+                isDark
+                  ? "bg-white/5 hover:bg-red-500/20 text-white/40 hover:text-red-500"
+                  : "bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600"
+              }`}
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-hidden relative">
@@ -500,7 +601,10 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                 exit={{ opacity: 0, x: 10 }}
                 className="absolute inset-0 flex flex-col"
               >
-                <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar scroll-smooth">
+                <div
+                  ref={setChatContainerRef}
+                  className="flex-1 overflow-y-auto px-6 py-4 space-y-4 custom-scrollbar"
+                >
                   {isLoadingMessages ? (
                     <div className="h-full flex items-center justify-center opacity-10">
                       <Loader2 size={24} className="animate-spin" />
@@ -554,29 +658,40 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                                   {formatTime(msg.created_at)}
                                 </span>
                                 {msg.is_sender && (
-                                  <div className="flex items-center gap-1">
-                                    {msg.is_read ? (
-                                      <>
-                                        <CheckCheck
-                                          size={10}
-                                          className="text-emerald-500"
-                                        />
-                                        <span className="text-[7px] font-black uppercase text-emerald-500/60 tracking-tighter">
-                                          READ
-                                        </span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Check
-                                          size={10}
-                                          className="opacity-30"
-                                        />
-                                        <span className="text-[7px] font-black uppercase opacity-20 tracking-tighter">
-                                          SENT
-                                        </span>
-                                      </>
-                                    )}
-                                  </div>
+                                  <>
+                                    <div className="flex items-center gap-1">
+                                      {msg.is_read ? (
+                                        <>
+                                          <CheckCheck
+                                            size={10}
+                                            className="text-emerald-500"
+                                          />
+                                          <span className="text-[7px] font-black uppercase text-emerald-500/60 tracking-tighter">
+                                            READ
+                                          </span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Check
+                                            size={10}
+                                            className="opacity-30"
+                                          />
+                                          <span className="text-[7px] font-black uppercase opacity-20 tracking-tighter">
+                                            SENT
+                                          </span>
+                                        </>
+                                      )}
+                                    </div>
+                                    <button
+                                      onClick={() =>
+                                        requestDelete(msg.message_id)
+                                      }
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 text-red-500 hover:bg-red-500/10 rounded-full ml-1"
+                                      title="Delete message"
+                                    >
+                                      <Trash2 size={13} />
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </div>
@@ -585,7 +700,6 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                       );
                     })
                   )}
-                  <div ref={messagesEndRef} />
                 </div>
 
                 <div
@@ -693,6 +807,64 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
           onClose={() => setViewerConfig(null)}
         />
       )}
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirmation && (
+          <div className="absolute inset-0 z-[10020] flex items-center justify-center p-6 pointer-events-auto">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setDeleteConfirmation(null)}
+              className="absolute inset-0 bg-black/20 backdrop-blur-[2px]"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className={`relative w-full max-w-[300px] p-6 rounded-3xl shadow-2xl border ${
+                isDark
+                  ? "bg-[#111] border-white/10"
+                  : "bg-white border-slate-100"
+              }`}
+            >
+              <h3
+                className={`text-sm font-black uppercase tracking-tight mb-2 ${
+                  isDark ? "text-white" : "text-slate-900"
+                }`}
+              >
+                Delete message?
+              </h3>
+              <p
+                className={`text-[11px] font-bold leading-relaxed mb-6 ${
+                  isDark ? "text-white/40" : "text-slate-500"
+                }`}
+              >
+                This action cannot be undone. The message will be removed for
+                both you and the recipient.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setDeleteConfirmation(null)}
+                  className={`flex-1 py-3 rounded-2xl text-[11px] font-black uppercase tracking-wider transition-all ${
+                    isDark
+                      ? "bg-white/5 text-white hover:bg-white/10"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 py-3 rounded-2xl text-[11px] font-black uppercase tracking-wider bg-red-500 text-white hover:bg-red-600 transition-all shadow-lg shadow-red-500/20"
+                >
+                  Delete
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

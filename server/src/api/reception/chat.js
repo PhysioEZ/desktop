@@ -233,3 +233,29 @@ exports.unreadCount = async (req, res) => {
         res.json({ success: false, message: 'Database error' });
     }
 };
+
+// 5. DELETE MESSAGE
+exports.deleteMessage = async (req, res) => {
+    const messageId = req.body.message_id;
+    const employeeId = req.body.employee_id || (req.user ? req.user.employee_id : 0);
+
+    if (!messageId || !employeeId) {
+        return res.json({ success: false, message: 'Missing message_id or employee_id' });
+    }
+
+    try {
+        const [result] = await pool.query(`
+            DELETE FROM chat_messages 
+            WHERE message_id = ? AND sender_employee_id = ?
+        `, [messageId, employeeId]);
+
+        if (result.affectedRows > 0) {
+            res.json({ success: true, message: 'Message deleted' });
+        } else {
+            res.json({ success: false, message: 'Message not found or unauthorized' });
+        }
+    } catch (error) {
+        console.error("Delete Message Error:", error);
+        res.json({ success: false, message: 'Database error' });
+    }
+};
