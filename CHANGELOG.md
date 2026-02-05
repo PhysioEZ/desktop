@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.6.3-alpha] - 2026-02-05 - Sumit
+
+### Added
+- **Global `PageHeader` Component**: Integrated a standardized, premium header across the Schedule and Inquiry pages. Features unified search, synchronized notifications, and adaptive page control.
+- **Enhanced Data Density**: Refined side panels to be more information-dense while remaining aesthetically clean.
+
+### Changed
+- **Redesigned Inquiry Operations Center**:
+  - Expanded the Inquiry left panel to **440px** for a cleaner, split-stats display.
+  - Implemented **High-Fidelity Statistical Cards** matching the core Dashboard design.
+  - Corrected statistical isolation between **Consultation** and **Test** inquiries to ensure accurate operational tracking.
+  - Adopted premium **Serif & Italic typography** (text-5xl) for module headers.
+- **Refined Reception Modules**:
+  - Standardized font weights and color palettes across the entire reception workspace to ensure a seamless "Center of Operations" experience.
+  - Optimized layout by reducing padding and scaling font sizes for a more compact yet premium feel.
+  - Removed localized greeting placeholders in favor of professional module titles.
+- **Desktop UI Polish**:
+  - Implemented **Invisible Scroll functionality** in side panels, preserving scrolling capability while removing visual scrollbar clutter.
+  - Fixed various Lucide icon imports (`Beaker`, `ClipboardList`, etc.) for robust module stability.
+- **Schedule Page Refinement**: Integrated the global header and synchronized the "Daily Activity Tree" typography with the new brand language.
+
 ## [0.6.6.2-alpha] - 2026-02-04 - Sumit
 
 ### Added

@@ -25,28 +25,19 @@ import {
   Loader2,
   GripVertical,
   AlertCircle,
-  RefreshCw,
-  Search,
-  Bell,
-  Moon,
-  Sun,
-  StickyNote,
   Info,
   Calendar,
   Check,
-  Plus,
-  LayoutGrid,
-  ClipboardList,
 } from "lucide-react";
 import { InlineDatePicker } from "../components/SharedPickers";
 import KeyboardShortcuts, {
   type ShortcutItem,
 } from "../components/KeyboardShortcuts";
 import LogoutConfirmation from "../components/LogoutConfirmation";
-import GlobalSearch from "../components/GlobalSearch";
 import Sidebar from "../components/Sidebar";
 import NotesDrawer from "../components/NotesDrawer";
 import DailyIntelligence from "../components/DailyIntelligence";
+import PageHeader from "../components/PageHeader";
 import {
   DndContext,
   useDraggable,
@@ -73,18 +64,6 @@ interface Slot {
   time: string; // HH:MM
   label: string; // hh:mm AM/PM
   isBooked: boolean;
-}
-
-interface UnifiedSearchResult {
-  id: number;
-  name: string;
-  phone: string;
-  uid: string | null;
-  category: "Patient" | "Registration" | "Test" | "Inquiry";
-  status: string;
-  target_id: number;
-  gender: string;
-  age: string;
 }
 
 // --- Animation ---
@@ -240,23 +219,23 @@ const Schedule = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
   const { isDark, toggleTheme } = useThemeStore();
-  const { notifications, unreadCount, searchCache, setSearchCache } =
-    useDashboardStore();
+  const {
+    scheduleAppointments,
+    setScheduleAppointments,
+    scheduleWeekStart,
+    setScheduleWeekStart,
+    showGlobalSearch,
+    setShowGlobalSearch,
+  } = useDashboardStore();
 
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!scheduleAppointments);
   const [activeAppointment, setActiveAppointment] =
     useState<Appointment | null>(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
   // States
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<UnifiedSearchResult[]>([]);
-  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
-  const [isSearchLoading, setIsSearchLoading] = useState(false);
-  const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showIntelligence, setShowIntelligence] = useState(false);
@@ -266,7 +245,6 @@ const Schedule = () => {
 
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLButtonElement>(null);
-  const debounceRef = useRef<any>(null);
 
   // DND Sensors
   const sensors = useSensors(
@@ -285,45 +263,6 @@ const Schedule = () => {
     const label = format(parse(time, "HH:mm", new Date()), "hh:mm a");
     return { time, label };
   });
-
-  // --- Effects ---
-  const handlePerformSearch = async () => {
-    if (!user?.branch_id) return;
-
-    const query = searchQuery.trim().toLowerCase();
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
-    // 1. Instant Cache Check
-    if (searchCache[query]) {
-      setSearchResults(searchCache[query]);
-      setShowGlobalSearch(true);
-      return;
-    }
-
-    // 2. Network Fetch
-    setIsSearchLoading(true);
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/search_patients?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`,
-      );
-      const data = await res.json();
-      if (data.success) {
-        const results = data.results || [];
-        setSearchResults(results);
-        setShowGlobalSearch(true);
-        // Store in cache for future use
-        setSearchCache(query, results);
-      }
-    } catch (err) {
-      console.error("Search Error:", err);
-      toast.error("Search failed. Please try again.");
-    } finally {
-      setIsSearchLoading(false);
-    }
-  };
 
   const handleRefresh = async () => {
     if (refreshCooldown > 0) return;
@@ -359,7 +298,7 @@ const Schedule = () => {
       !notifRef.current.contains(e.target as Node) &&
       !(e.target as Element).closest("#notif-popup")
     ) {
-      setShowNotifPopup(false);
+      // notif state handled by PageHeader
     }
   };
 
@@ -369,50 +308,50 @@ const Schedule = () => {
   }, []);
 
   // Fetch Schedule
-  const fetchSchedule = useCallback(async () => {
-    if (!user?.branch_id) return;
-    setIsLoading(true);
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/schedule?week_start=${weekStartStr}&branch_id=${user.branch_id}&employee_id=${user.employee_id}`,
-      );
-      const data = await res.json();
-      if (data.success) setAppointments(data.appointments);
-    } catch (e) {
-      toast.error("Failed to load schedule");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user?.branch_id, user?.employee_id, weekStartStr]);
+  const fetchSchedule = useCallback(
+    async (force = false) => {
+      if (!user?.branch_id) return;
 
-  useEffect(() => {
-    fetchSchedule();
-  }, [fetchSchedule]);
+      // Check if we already have data for this week in cache
+      if (
+        !force &&
+        scheduleAppointments &&
+        scheduleWeekStart === weekStartStr
+      ) {
+        setIsLoading(false);
+        return;
+      }
 
-  // Search Logic
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!user?.branch_id || searchQuery.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-    debounceRef.current = setTimeout(async () => {
+      setIsLoading(true);
       try {
         const res = await authFetch(
-          `${API_BASE_URL}/reception/search_patients?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`,
+          `${API_BASE_URL}/reception/schedule?week_start=${weekStartStr}&branch_id=${user.branch_id}&employee_id=${user.employee_id}`,
         );
         const data = await res.json();
         if (data.success) {
-          setSearchResults(data.results || []);
+          setScheduleAppointments(data.appointments);
+          setScheduleWeekStart(weekStartStr);
         }
-      } catch (err) {
-        console.error(err);
+      } catch (e) {
+        toast.error("Failed to load schedule");
+      } finally {
+        setIsLoading(false);
       }
-    }, 300);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [searchQuery, user?.branch_id]);
+    },
+    [
+      user?.branch_id,
+      user?.employee_id,
+      weekStartStr,
+      scheduleAppointments,
+      scheduleWeekStart,
+      setScheduleAppointments,
+      setScheduleWeekStart,
+    ],
+  );
+
+  useEffect(() => {
+    fetchSchedule(false);
+  }, [weekStartStr]); // Only re-fetch if week changes or forced
 
   // --- Shortcuts ---
   const shortcuts: ShortcutItem[] = [
@@ -440,7 +379,7 @@ const Schedule = () => {
       description: "Notifications",
       group: "General",
       action: () => {
-        setShowNotifPopup((p) => !p);
+        // Handled by PageHeader
       },
     },
     {
@@ -534,12 +473,11 @@ const Schedule = () => {
       // Modals and Common Actions
       if (e.altKey && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        setShowGlobalSearch((prev) => !prev);
+        setShowGlobalSearch(true);
         return;
       }
       if (e.altKey && e.key.toLowerCase() === "n") {
         e.preventDefault();
-        setShowNotifPopup((prev: any) => !prev);
         return;
       }
       if (e.altKey && e.key.toLowerCase() === "e") {
@@ -676,181 +614,15 @@ const Schedule = () => {
       />
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
-        {/* Header */}
-        <header
-          className={`sticky top-0 z-[150] px-4 sm:px-8 py-3 sm:py-4 flex flex-wrap items-center justify-between gap-4 transition-all duration-500 ${isDark ? "bg-[#0E110E]/80" : "bg-white/80"} backdrop-blur-xl border-b ${isDark ? "border-white/5 shadow-2xl shadow-black/40" : "border-gray-100 shadow-sm"}`}
-        >
-          <div className="flex flex-col">
-            <h1
-              className="text-xl sm:text-2xl font-bold tracking-tight text-emerald-600 dark:text-emerald-500 flex items-center gap-2"
-              style={{ fontFamily: "Outfit, sans-serif" }}
-            >
-              <Calendar className="w-6 h-6" />
-              Schedule
-            </h1>
-            <p className="text-[10px] sm:text-[11px] font-black uppercase tracking-[0.2em] opacity-40 ml-8">
-              Operations Center
-            </p>
-          </div>
-
-          <div className="flex-1 flex items-center justify-center gap-4 min-w-[300px] order-3 lg:order-2">
-            {/* Global Search Pill */}
-            <div
-              ref={searchRef}
-              className="relative z-[160] w-full max-w-[400px] lg:max-w-[450px]"
-            >
-              <div
-                onClick={() => setShowGlobalSearch(true)}
-                className={`flex items-center px-4 py-2.5 sm:py-3 rounded-[24px] border transition-all duration-300 cursor-text ${
-                  isDark
-                    ? "bg-[#121412]/80 border-[#2A2D2A] hover:bg-[#121412] shadow-2xl shadow-black/20"
-                    : "bg-white border-gray-100 shadow-xl shadow-black/[0.03] hover:bg-white"
-                } backdrop-blur-md`}
-              >
-                <Search size={18} className="opacity-30 flex-shrink-0" />
-                <div className="bg-transparent px-3 text-sm sm:text-base w-full opacity-30 font-medium select-none truncate">
-                  Search anything...
-                </div>
-                <div
-                  className={`hidden sm:flex items-center gap-1.5 px-2 py-1 rounded-lg border text-[10px] font-black tracking-tight opacity-40 shrink-0 ${isDark ? "bg-white/5 border-white/10" : "bg-gray-50 border-gray-200"}`}
-                >
-                  <span className="text-[12px] opacity-60">⌥</span>
-                  <span>S</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 order-2 lg:order-3">
-            <button
-              onClick={() =>
-                navigate("/reception/dashboard", {
-                  state: { openModal: "registration" },
-                })
-              }
-              className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
-                isDark
-                  ? "bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20"
-                  : "bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20"
-              }`}
-            >
-              <Plus size={16} strokeWidth={3} />
-              Add Appointment
-            </button>
-
-            <div className="w-px h-6 bg-black/10 dark:bg-white/10 mx-1 hidden sm:block" />
-
-            {/* Utilities Area Capsule */}
-            <div className="flex items-center p-1 sm:p-1.5 rounded-2xl bg-black/5 dark:bg-white/5 border border-black/5 dark:border-white/5 shrink-0">
-              <button
-                onClick={handleRefresh}
-                disabled={isLoading || refreshCooldown > 0}
-                className={`w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 ${isLoading ? "animate-spin" : ""} ${refreshCooldown > 0 ? "opacity-50 cursor-not-allowed" : ""}`}
-                title={
-                  refreshCooldown > 0
-                    ? `Wait ${refreshCooldown}s`
-                    : "Refresh Schedule"
-                }
-              >
-                <RefreshCw size={18} strokeWidth={2} className="opacity-40" />
-              </button>
-
-              <div className="w-px h-6 bg-black/10 dark:bg-white/10 mx-1" />
-
-              {/* Notifications */}
-              <div className="relative flex items-center">
-                <button
-                  ref={notifRef}
-                  onClick={() => setShowNotifPopup(!showNotifPopup)}
-                  className="w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 relative"
-                >
-                  <Bell size={18} strokeWidth={2} className="opacity-40" />
-                  {unreadCount > 0 && (
-                    <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white dark:border-[#0E110E]" />
-                  )}
-                </button>
-
-                <AnimatePresence>
-                  {showNotifPopup && (
-                    <motion.div
-                      id="notif-popup"
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className={`absolute top-full right-0 mt-3 w-80 rounded-3xl border shadow-2xl z-[200] overflow-hidden ${isDark ? "bg-[#121412] border-white/5" : "bg-white border-gray-100"}`}
-                    >
-                      <div className="p-4 border-b dark:border-white/5 border-gray-100 flex items-center justify-between">
-                        <span className="text-xs font-black uppercase tracking-widest opacity-40">
-                          Activity Center
-                        </span>
-                        {unreadCount > 0 && (
-                          <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500 text-[10px] font-black">
-                            {unreadCount} NEW
-                          </span>
-                        )}
-                      </div>
-                      <div className="max-h-80 overflow-y-auto custom-scrollbar p-2">
-                        {notifications && notifications.length > 0 ? (
-                          notifications.map((n: any) => (
-                            <div
-                              key={n.id}
-                              className={`p-3 rounded-2xl mb-1 last:mb-0 transition-all cursor-pointer ${isDark ? "hover:bg-white/5" : "hover:bg-gray-50"}`}
-                            >
-                              <p className="text-xs font-bold leading-relaxed">
-                                {n.message}
-                              </p>
-                              <span className="text-[10px] opacity-40 mt-1 block font-medium">
-                                {format(
-                                  new Date(n.created_at),
-                                  "h:mm a, d MMM",
-                                )}
-                              </span>
-                            </div>
-                          ))
-                        ) : (
-                          <div className="py-12 flex flex-col items-center justify-center opacity-30">
-                            <Bell size={32} className="mb-2" />
-                            <p className="text-xs font-bold">All caught up!</p>
-                          </div>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-
-              <div className="w-px h-6 bg-black/10 dark:bg-white/10 mx-1" />
-
-              <button
-                onClick={() => setShowIntelligence(true)}
-                className="w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 text-indigo-500"
-                title="Daily Intelligence"
-              >
-                <Info size={19} strokeWidth={2.5} />
-              </button>
-
-              <div className="w-px h-6 bg-black/10 dark:bg-white/10 mx-1" />
-
-              <div className="relative group/note">
-                <button
-                  onClick={() => setShowNotes(true)}
-                  className="w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 text-pink-500"
-                  title="Branch Notes"
-                >
-                  <StickyNote size={19} strokeWidth={2.5} />
-                </button>
-              </div>
-            </div>
-
-            <button
-              onClick={toggleTheme}
-              className={`w-10 h-10 flex items-center justify-center rounded-[14px] transition-all ${isDark ? "hover:bg-white/10 text-amber-500" : "hover:bg-gray-100 text-indigo-600"}`}
-              title="Toggle Theme"
-            >
-              {isDark ? <Sun size={19} /> : <Moon size={19} />}
-            </button>
-          </div>
-        </header>
+        <PageHeader
+          title="Schedule"
+          icon={Calendar}
+          onRefresh={handleRefresh}
+          isLoading={isLoading}
+          refreshCooldown={refreshCooldown}
+          onShowIntelligence={() => setShowIntelligence(true)}
+          onShowNotes={() => setShowNotes(true)}
+        />
 
         {/* Action Widgets Removed: Moved to Header Utilities Capsule */}
 
@@ -860,32 +632,21 @@ const Schedule = () => {
           <motion.aside
             initial={{ x: -100, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
-            className={`hidden xl:flex w-[400px] flex-col p-10 border-r relative shrink-0 transition-colors duration-300 z-50 ${isDark ? "bg-[#0A0A0A] border-white/5 shadow-2xl shadow-black/50" : "bg-white border-gray-100"}`}
+            className={`hidden xl:flex w-[440px] flex-col p-6 border-r relative shrink-0 transition-colors duration-300 z-50 ${isDark ? "bg-[#0A0A0A] border-white/5 shadow-2xl shadow-black/50" : "bg-white border-gray-100"}`}
+            style={{ msOverflowStyle: "none", scrollbarWidth: "none" }}
           >
             {/* Brand & Greeting */}
-            <div className="space-y-10 z-10 w-full mb-12">
-              <div className="flex items-center gap-3">
-                <div
-                  className={`w-8 h-8 rounded flex items-center justify-center text-[#10b981] ${isDark ? "bg-[#1C1C1C]" : "bg-emerald-50"}`}
-                >
-                  <LayoutGrid size={18} />
-                </div>
-                <span className="font-extrabold tracking-[0.2em] text-[10px] uppercase text-gray-500">
-                  PhysioEZ Core
-                </span>
-              </div>
-
-              <div className="space-y-4">
-                <h1 className="text-6xl font-serif font-black tracking-tighter leading-[0.9]">
-                  Today's
-                  <br />
+            <div className="space-y-4 z-10 w-full mb-8">
+              <div className="space-y-1">
+                <h1 className="text-5xl font-serif font-light tracking-tight leading-[1.1] text-[#1a1c1e] dark:text-[#e3e2e6]">
+                  Today's{" "}
                   <span
-                    className={`${isDark ? "text-[#10b981]" : "text-[#059669]"}`}
+                    className={`italic font-bold ${isDark ? "text-[#4ADE80]" : "text-[#16a34a]"}`}
                   >
                     Schedule
                   </span>
                 </h1>
-                <p className="text-gray-500 text-lg font-medium opacity-40">
+                <p className="text-gray-500 text-base">
                   {format(new Date(), "EEEE, do MMMM")}
                 </p>
               </div>
@@ -893,43 +654,24 @@ const Schedule = () => {
 
             {/* Daily Activity Tree */}
             <div className="flex-1 flex flex-col min-h-0">
-              <div className="flex items-center gap-3 opacity-30 text-[#1a1c1e] dark:text-[#e3e2e6] mb-8">
-                <ClipboardList size={18} />
-                <span className="text-xs font-black uppercase tracking-[0.3em]">
-                  Schedule Flow
-                </span>
-              </div>
-
-              <div className="flex-1 overflow-y-auto custom-scrollbar pr-4">
-                <div className="relative pl-8 space-y-10">
+              <div
+                className="flex-1 overflow-y-auto pr-4"
+                style={{ msOverflowStyle: "none", scrollbarWidth: "none" }}
+              >
+                <div className="relative pl-8 space-y-8">
                   {/* Vertical Line */}
                   <div
                     className={`absolute left-[11px] top-2 bottom-2 w-0.5 ${isDark ? "bg-white/5" : "bg-gray-100"}`}
                   />
 
-                  {/* Root Node: Today */}
-                  <div className="relative">
-                    <div className="absolute -left-[30px] top-1 w-6 h-6 rounded-full bg-[#10b981] flex items-center justify-center ring-4 ring-[#10b981]/10">
-                      <Calendar size={12} className="text-white" />
-                    </div>
-                    <div className="pl-4">
-                      <h3 className="text-sm font-black uppercase tracking-widest opacity-40 mb-1">
-                        Current Focus
-                      </h3>
-                      <p className="text-xl font-black">
-                        {format(new Date(), "EEEE, d MMM")}
-                      </p>
-                    </div>
-                  </div>
-
                   {/* Appointments Summary Tree Branches */}
-                  {(appointments || []).filter(
+                  {(scheduleAppointments || []).filter(
                     (a) =>
                       a &&
                       a.appointment_date &&
                       isToday(new Date(a.appointment_date)),
                   ).length > 0 ? (
-                    (appointments || [])
+                    (scheduleAppointments || [])
                       .filter(
                         (a) =>
                           a &&
@@ -964,12 +706,12 @@ const Schedule = () => {
                           />
 
                           <div
-                            className={`ml-10 p-5 rounded-[32px] border transition-all duration-300 ${isDark ? "bg-white/[0.04] border-white/5 hover:bg-white/[0.08] hover:border-white/10 shadow-2xl shadow-black/20" : "bg-white border-gray-100 hover:border-gray-200 hover:shadow-2xl hover:shadow-black/[0.04]"}`}
+                            className={`ml-8 p-3 rounded-[28px] border transition-all duration-300 ${isDark ? "bg-white/[0.04] border-white/5 hover:bg-white/[0.08] hover:border-white/10 shadow-2xl shadow-black/20" : "bg-white border-gray-100 hover:border-gray-200 hover:shadow-2xl hover:shadow-black/[0.04]"}`}
                           >
-                            <div className="flex flex-col gap-4">
+                            <div className="flex flex-col gap-2">
                               <div className="flex items-start justify-between gap-3">
                                 <div className="flex flex-col min-w-0">
-                                  <span className="text-sm font-black tracking-[0.2em] text-emerald-500 uppercase mb-1">
+                                  <span className="text-xs font-black tracking-[0.2em] text-emerald-500 uppercase">
                                     {appt.appointment_time
                                       ? format(
                                           parse(
@@ -981,7 +723,7 @@ const Schedule = () => {
                                         )
                                       : "--:--"}
                                   </span>
-                                  <p className="text-2xl font-black tracking-tight truncate">
+                                  <p className="text-lg font-black tracking-tight truncate">
                                     {appt.patient_name || "Unknown Patient"}
                                   </p>
                                 </div>
@@ -1110,12 +852,12 @@ const Schedule = () => {
                       className={`bg-[#fdfcff] dark:bg-[#111315] p-3 flex flex-col items-center justify-center gap-1 sticky top-0 z-30 ${isToday(day) ? "bg-emerald-500/5" : ""}`}
                     >
                       <span
-                        className={`text-[11px] font-bold uppercase tracking-widest ${isToday(day) ? "text-emerald-600 dark:text-emerald-500" : "text-[#43474e] dark:text-[#c4c7c5]"}`}
+                        className={`text-[10px] font-black uppercase tracking-[0.2em] ${isToday(day) ? "text-emerald-500" : "opacity-40 text-[#43474e] dark:text-[#c4c7c5]"}`}
                       >
-                        {format(day, "EEE")}
+                        {format(day, "EEEE")}
                       </span>
                       <div
-                        className={`w-8 h-8 flex items-center justify-center rounded-full text-lg font-bold ${isToday(day) ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20" : "text-[#1a1c1e] dark:text-[#e3e2e6]"}`}
+                        className={`w-10 h-10 flex items-center justify-center rounded-2xl text-xl font-black transition-all ${isToday(day) ? "bg-emerald-500 text-white shadow-xl shadow-emerald-500/30" : "text-[#1a1c1e] dark:text-white"}`}
                       >
                         {format(day, "d")}
                       </div>
@@ -1125,14 +867,14 @@ const Schedule = () => {
                   {/* Time Slots */}
                   {timeSlots.map(({ time, label }) => (
                     <div key={time} className="contents">
-                      <div className="bg-[#fdfcff] dark:bg-[#111315] p-3 flex items-center justify-center border-r-[1px] border-[#e0e2ec] dark:border-[#43474e]">
-                        <span className="text-xs font-medium text-[#43474e] dark:text-[#c4c7c5]">
+                      <div className="bg-[#f0f4f9]/5 dark:bg-white/[0.01] p-4 flex items-center justify-center border-r border-[#e0e2ec] dark:border-white/5">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-[#43474e] dark:text-white/30">
                           {label}
                         </span>
                       </div>
                       {days.map((day: Date) => {
                         const dayStr = format(day, "yyyy-MM-dd");
-                        const slotApps = appointments.filter(
+                        const slotApps = (scheduleAppointments || []).filter(
                           (a: any) =>
                             a.appointment_date === dayStr &&
                             a.appointment_time.startsWith(time),
@@ -1199,17 +941,6 @@ const Schedule = () => {
             navigate("/login");
           }}
         />
-        {showGlobalSearch && (
-          <GlobalSearch
-            isOpen={showGlobalSearch}
-            onClose={() => setShowGlobalSearch(false)}
-            searchQuery={searchQuery}
-            setSearchQuery={setSearchQuery}
-            searchResults={searchResults}
-            onSearch={handlePerformSearch}
-            isLoading={isSearchLoading}
-          />
-        )}
 
         <DailyIntelligence
           isOpen={showIntelligence}
@@ -1228,10 +959,11 @@ const Schedule = () => {
         {showRescheduleModal && activeAppointment && (
           <RescheduleModal
             appointment={activeAppointment}
+            allAppointments={scheduleAppointments || []}
             onClose={() => setShowRescheduleModal(false)}
             onSuccess={() => {
               setShowRescheduleModal(false);
-              fetchSchedule();
+              fetchSchedule(true);
             }}
           />
         )}
@@ -1251,10 +983,12 @@ const Schedule = () => {
 // --- Reschedule Modal Component ---
 const RescheduleModal = ({
   appointment,
+  allAppointments,
   onClose,
   onSuccess,
 }: {
   appointment: Appointment;
+  allAppointments: Appointment[];
   onClose: () => void;
   onSuccess: () => void;
 }) => {
@@ -1267,27 +1001,26 @@ const RescheduleModal = ({
     appointment.appointment_time.slice(0, 5),
   );
   const [slots, setSlots] = useState<Slot[]>([]);
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const fetchSlots = async () => {
-      if (!user?.branch_id) return;
-      setIsLoadingSlots(true);
-      try {
-        const res = await authFetch(
-          `${API_BASE_URL}/reception/schedule/slots?date=${selectedDate}&branch_id=${user.branch_id}`,
-        );
-        const data = await res.json();
-        if (data.success) setSlots(data.slots);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setIsLoadingSlots(false);
-      }
-    };
-    fetchSlots();
-  }, [selectedDate, user?.branch_id]);
+    const generatedSlots = Array.from({ length: 20 }, (_, i) => {
+      const hour = Math.floor(i / 2) + 9;
+      const minute = (i % 2) * 30;
+      const time = `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+      const label = format(parse(time, "HH:mm", new Date()), "hh:mm a");
+
+      const isBooked = allAppointments.some(
+        (appt) =>
+          appt.appointment_date === selectedDate &&
+          appt.appointment_time.startsWith(time) &&
+          String(appt.registration_id) !== String(appointment.registration_id),
+      );
+
+      return { time, label, isBooked };
+    });
+    setSlots(generatedSlots);
+  }, [selectedDate, allAppointments, appointment.registration_id]);
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -1441,14 +1174,7 @@ const RescheduleModal = ({
               </div>
 
               <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                {isLoadingSlots ? (
-                  <div className="h-full flex flex-col items-center justify-center opacity-30">
-                    <Loader2 className="animate-spin mb-3" size={32} />
-                    <p className="text-xs font-bold uppercase tracking-widest">
-                      Loading availability...
-                    </p>
-                  </div>
-                ) : slots.length === 0 ? (
+                {slots.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center opacity-20">
                     <Clock size={48} strokeWidth={1} className="mb-4" />
                     <p className="text-sm font-bold">

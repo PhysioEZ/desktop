@@ -22,7 +22,6 @@ import {
   Check,
   Search,
   Bell,
-  Plus,
   ChevronDown,
   ChevronUp,
   CheckCircle2,
@@ -45,24 +44,11 @@ import KeyboardShortcuts, {
   type ShortcutItem,
 } from "../components/KeyboardShortcuts";
 import LogoutConfirmation from "../components/LogoutConfirmation";
-import GlobalSearch from "../components/GlobalSearch";
 import DailyIntelligence from "../components/DailyIntelligence";
 import { useUIStore } from "../store/useUIStore";
 import { useDashboardStore } from "../store";
 import Sidebar from "../components/Sidebar";
 import NotesDrawer from "../components/NotesDrawer";
-
-interface UnifiedSearchResult {
-  id: number;
-  name: string;
-  phone: string;
-  uid: string | null;
-  category: "Patient" | "Registration" | "Test" | "Inquiry";
-  status: string;
-  target_id: number;
-  gender: string;
-  age: string;
-}
 
 type ModalType =
   | "registration"
@@ -203,8 +189,8 @@ const ReceptionDashboard = () => {
     setNotifications,
     unreadCount,
     setUnreadCount,
-    searchCache,
-    setSearchCache,
+    showGlobalSearch,
+    setShowGlobalSearch,
   } = useDashboardStore();
 
   const { hasDashboardAnimated, setHasDashboardAnimated } = useUIStore();
@@ -287,10 +273,7 @@ const ReceptionDashboard = () => {
   } as any;
 
   // Header Logic (Search, Notifications, Profile)
-  const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<UnifiedSearchResult[]>([]);
-  const [showSearchResults, setShowSearchResults] = useState(false);
-  const [isSearchLoading, setIsSearchLoading] = useState(false);
+
   const [showNotifPopup, setShowNotifPopup] = useState(false);
   const [showProfilePopup, setShowProfilePopup] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
@@ -632,44 +615,6 @@ const ReceptionDashboard = () => {
     }
   }, [activeModal, appointmentDate, fetchTimeSlots, storeTimeSlots]);
 
-  // Manual Search Performance
-  const handlePerformSearch = async () => {
-    if (!user?.branch_id) return;
-
-    const query = searchQuery.trim().toLowerCase();
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
-    // 1. Instant Cache Check
-    if (searchCache[query]) {
-      setSearchResults(searchCache[query]);
-      setShowSearchResults(true);
-      return;
-    }
-
-    // 2. Network Fetch
-    setIsSearchLoading(true);
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/search_patients?branch_id=${user.branch_id}&q=${encodeURIComponent(searchQuery)}`,
-      );
-      const data = await res.json();
-      if (data.success) {
-        const results = data.results || [];
-        setSearchResults(results);
-        setShowSearchResults(true);
-        // Store in cache for future use
-        setSearchCache(query, results);
-      }
-    } catch (err) {
-      console.error("Search Error:", err);
-    } finally {
-      setIsSearchLoading(false);
-    }
-  };
-
   useEffect(() => {
     // ONLY fetch if we have no data in cache (Zustand)
     if (!data && user?.branch_id) {
@@ -680,7 +625,7 @@ const ReceptionDashboard = () => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         // Only close if not clicking the search modal as well
         if (!(e.target as Element).closest("#search-modal-container")) {
-          setShowSearchResults(false);
+          setShowGlobalSearch(false);
         }
       }
       if (
@@ -723,7 +668,7 @@ const ReceptionDashboard = () => {
       // 1. ESC Key Logic
       if (e.key === "Escape") {
         // Priority Order (LIFOish)
-        if (showSearchResults) setShowSearchResults(false);
+        if (showGlobalSearch) setShowGlobalSearch(false);
         else if (showShortcuts) setShowShortcuts(false);
         else if (showLogoutConfirm) setShowLogoutConfirm(false);
         else if (showPhotoModal) closePhotoModal();
@@ -740,7 +685,7 @@ const ReceptionDashboard = () => {
       if (e.altKey && isS && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         e.stopPropagation();
-        setShowSearchResults(true);
+        setShowGlobalSearch(true);
       }
 
       // 3. Branch Notes Shortcut (Alt + E)
@@ -759,7 +704,7 @@ const ReceptionDashboard = () => {
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
   }, [
-    showSearchResults,
+    showGlobalSearch,
     showShortcuts,
     showLogoutConfirm,
     showPhotoModal,
@@ -1248,7 +1193,7 @@ const ReceptionDashboard = () => {
       description: "Quick Search",
       group: "General",
       action: () => {
-        setShowSearchResults(true);
+        setShowGlobalSearch(true);
       },
     },
     {
@@ -1468,7 +1413,7 @@ const ReceptionDashboard = () => {
             className={`flex flex-wrap lg:flex-nowrap justify-between items-center gap-4 bg-transparent backdrop-blur-sm sticky top-0 py-3 transition-all duration-300 z-[45]`}
           >
             <div
-              className={`flex flex-nowrap lg:flex-wrap items-center gap-2 transition-all duration-300 ${showSearchResults ? "opacity-20 blur-[2px] pointer-events-none scale-98" : "opacity-100"} overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scrollbar-hide max-w-full`}
+              className={`flex flex-nowrap lg:flex-wrap items-center gap-2 transition-all duration-300 ${showGlobalSearch ? "opacity-20 blur-[2px] pointer-events-none scale-98" : "opacity-100"} overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scrollbar-hide max-w-full`}
             >
               {actionButtons.map((btn) => (
                 <button
@@ -1494,7 +1439,7 @@ const ReceptionDashboard = () => {
                 className="relative z-[160] flex-1 lg:flex-none lg:w-[320px] xl:w-[400px]"
               >
                 <div
-                  onClick={() => setShowSearchResults(true)}
+                  onClick={() => setShowGlobalSearch(true)}
                   className={`flex items-center px-4 py-2.5 sm:py-3 rounded-[24px] border transition-all duration-300 cursor-text ${
                     isDark
                       ? "bg-[#121412]/80 border-[#2A2D2A] hover:bg-[#121412] shadow-2xl shadow-black/20"
@@ -3674,17 +3619,6 @@ const ReceptionDashboard = () => {
           </div>
         )}
       </AnimatePresence>
-
-      {/* Global Search Component */}
-      <GlobalSearch
-        isOpen={showSearchResults}
-        onClose={() => setShowSearchResults(false)}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        searchResults={searchResults}
-        onSearch={handlePerformSearch}
-        isLoading={isSearchLoading}
-      />
 
       <KeyboardShortcuts
         shortcuts={shortcuts}

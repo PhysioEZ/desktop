@@ -12,6 +12,7 @@ import WelcomeScreen from "./screens/WelcomeScreen";
 import ReceptionDashboard from "./reception/Dashboard";
 import DashboardNew from "./reception/DashboardNew";
 import Schedule from "./reception/Schedule";
+import GlobalSearchOverlay from "./components/GlobalSearchOverlay";
 
 import Inquiry from "./reception/Inquiry";
 import Registration from "./reception/Registration";
@@ -66,6 +67,7 @@ function App() {
   return (
     <Router basename={import.meta.env.BASE_URL}>
       <SystemStatusManager />
+      <GlobalSearchOverlay />
       <Toaster richColors position="top-right" closeButton />
       <Routes>
         <Route path="/login" element={<LoginScreen />} />
