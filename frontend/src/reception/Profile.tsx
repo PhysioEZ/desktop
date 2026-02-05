@@ -19,6 +19,7 @@ import {
 import Sidebar from "../components/Sidebar";
 import ChatModal from "../components/Chat/ChatModal";
 import KeyboardShortcuts from "../components/KeyboardShortcuts";
+import RequestPasswordChangeModal from "../components/RequestPasswordChangeModal";
 
 interface ProfileData {
   employee_id: number;
@@ -48,6 +49,15 @@ export default function Profile() {
   const [loading, setLoading] = useState(!profileData);
   const [showChatModal, setShowChatModal] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showPasswordChangeModal, setShowPasswordChangeModal] = useState(false);
+  const [passwordRequestStatus, setPasswordRequestStatus] = useState<'idle' | 'pending'>('idle');
+
+  const handleSubmitPasswordRequest = (reason: string) => {
+    // In a real app, we would send this to the backend
+    console.log("Password change requested for reason:", reason);
+    setPasswordRequestStatus('pending');
+    setShowPasswordChangeModal(false);
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -129,9 +139,8 @@ export default function Profile() {
         variants={leftPanelEntrance}
         initial="hidden"
         animate="visible"
-        className={`hidden xl:flex w-[400px] flex-col justify-between p-10 border-r relative shrink-0 transition-colors duration-300 z-50 ${
-          isDark ? "bg-[#0A0A0A] border-[#151515]" : "bg-white border-gray-200"
-        }`}
+        className={`hidden xl:flex w-[400px] flex-col justify-between p-10 border-r relative shrink-0 transition-colors duration-300 z-50 ${isDark ? "bg-[#0A0A0A] border-[#151515]" : "bg-white border-gray-200"
+          }`}
       >
         <div className="space-y-10 z-10">
           <div className="flex items-center gap-3">
@@ -161,11 +170,10 @@ export default function Profile() {
 
           {/* Identity Card */}
           <div
-            className={`rounded-[32px] p-8 border ${
-              isDark
+            className={`rounded-[32px] p-8 border ${isDark
                 ? "bg-white/[0.02] border-white/5 shadow-[0_32px_80px_-20px_rgba(0,0,0,0.5)]"
                 : "bg-gray-50/50 border-gray-100 shadow-xl shadow-gray-200/50"
-            }`}
+              }`}
           >
             <div className="flex flex-col items-center text-center">
               <div className="w-24 h-24 rounded-[32px] bg-emerald-500/10 flex items-center justify-center text-[#16a34a] dark:text-[#4ADE80] font-black text-3xl border border-emerald-500/10 shadow-inner overflow-hidden mb-6">
@@ -390,9 +398,22 @@ export default function Profile() {
                     </p>
                     <Shield size={14} className="text-indigo-500/40" />
                   </div>
-                  <button className="w-full py-4 rounded-2xl bg-indigo-500 text-white font-black text-sm shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 hover:bg-indigo-600 transition-colors">
-                    <ExternalLink size={16} />
-                    Request Password Change
+                  <button
+                    onClick={() => passwordRequestStatus === 'idle' && setShowPasswordChangeModal(true)}
+                    disabled={passwordRequestStatus === 'pending'}
+                    className={`w-full py-4 rounded-2xl ${passwordRequestStatus === 'pending' ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-500 hover:bg-indigo-600'} text-white font-black text-sm shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 transition-colors`}
+                  >
+                    {passwordRequestStatus === 'pending' ? (
+                      <>
+                        <Loader2 size={16} className="animate-spin" />
+                        Request Pending
+                      </>
+                    ) : (
+                      <>
+                        <ExternalLink size={16} />
+                        Request Password Change
+                      </>
+                    )}
                   </button>
                 </div>
               </div>
@@ -419,6 +440,11 @@ export default function Profile() {
         onClose={() => setShowShortcuts(false)}
         onToggle={() => setShowShortcuts(!showShortcuts)}
         shortcuts={[]}
+      />
+      <RequestPasswordChangeModal
+        isOpen={showPasswordChangeModal}
+        onClose={() => setShowPasswordChangeModal(false)}
+        onSubmit={handleSubmitPasswordRequest}
       />
     </div>
   );
