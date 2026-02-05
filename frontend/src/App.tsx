@@ -26,6 +26,11 @@ import RegistrationSimulator from "./admin/RegistrationSimulator";
 import AdminDashboard from "./admin/Dashboard";
 import SystemStatusManager from "./components/SystemStatusManager";
 import { useThemeStore } from "./store/useThemeStore";
+import Attendance from "./reception/Attendance";
+import Tests from "./reception/Tests";
+import Feedback from "./reception/Feedback";
+import Expenses from "./reception/Expenses";
+import Support from "./reception/Support";
 
 function App() {
   const { isDark } = useThemeStore();
@@ -77,6 +82,11 @@ function App() {
         <Route path="/reception/schedule" element={<Schedule />} />
         <Route path="/reception/inquiry" element={<Inquiry />} />
         <Route path="/reception/registration" element={<Registration />} />
+        <Route path="/reception/attendance" element={<Attendance />} />
+        <Route path="/reception/tests" element={<Tests />} />
+        <Route path="/reception/feedback" element={<Feedback />} />
+        <Route path="/reception/expenses" element={<Expenses />} />
+        <Route path="/reception/support" element={<Support />} />
         <Route
           path="/reception/registration/cancelled"
           element={<CancelledRegistrations />}
