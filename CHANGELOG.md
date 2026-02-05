@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## [0.6.6.3-alpha] - 2026-02-05 - Sumit
+## [0.6.6.4-alpha] - 2026-02-05 - Sumit
 
 ### Added
 - **Global `PageHeader` Component**: Integrated a standardized, premium header across the Schedule and Inquiry pages. Features unified search, synchronized notifications, and adaptive page control.
@@ -22,6 +22,14 @@ All notable changes to this project will be documented in this file.
   - Implemented **Invisible Scroll functionality** in side panels, preserving scrolling capability while removing visual scrollbar clutter.
   - Fixed various Lucide icon imports (`Beaker`, `ClipboardList`, etc.) for robust module stability.
 - **Schedule Page Refinement**: Integrated the global header and synchronized the "Daily Activity Tree" typography with the new brand language.
+
+## [0.6.6.3-alpha] - 2026-02-05 - Shiv
+
+### Added
+- **Password Change Request Modal**: Implemented a dedicated modal for users to request password changes directly from their profile.
+  - Features a mandatory "Reason" field for auditing purposes.
+  - **Visual Feedback**: Added a transient "Request Pending" state to the submit button to provide immediate user feedback (currently frontend-only state).
+- **Profile Page Enhancements**: Integrated the new modal into `Profile.tsx` and updated the "Request Password Change" button logic to trigger the modal and reflect the pending status.
 
 ## [0.6.6.2-alpha] - 2026-02-04 - Sumit
 
