@@ -46,6 +46,9 @@ import {
   useSensor,
   useSensors,
   PointerSensor,
+  MouseSensor,
+  TouchSensor,
+  closestCenter,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 
@@ -105,7 +108,8 @@ const DraggableAppointment = ({
 
   const style = {
     transform: CSS.Translate.toString(transform),
-    zIndex: isDragging ? 1000 : 1,
+    zIndex: isDragging ? 2000 : 1,
+    touchAction: "none",
   };
 
   const isApprovalPending = appointment.approval_status === "pending";
@@ -201,9 +205,9 @@ const DroppableSlot = ({
   return (
     <div
       ref={setNodeRef}
-      className={`min-h-[110px] p-2 border-b border-r transition-all duration-300 ${
+      className={`min-h-[110px] p-2 border-b border-r transition-all duration-300 relative ${
         isOver
-          ? "bg-emerald-500/5 dark:bg-emerald-500/10 scale-[0.99]"
+          ? "bg-emerald-500/10 dark:bg-emerald-500/20 ring-2 ring-emerald-500/20 ring-inset"
           : isTodaySlot
             ? "bg-slate-50/80 dark:bg-white/[0.02]"
             : "bg-transparent"
@@ -249,6 +253,8 @@ const Schedule = () => {
   // DND Sensors
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { distance: 8 } }),
   );
 
   // Date Logic
@@ -393,6 +399,12 @@ const Schedule = () => {
       description: "Toggle Chat",
       group: "General",
       action: () => setShowChatModal((prev) => !prev),
+    },
+    {
+      keys: ["Alt", "X"],
+      description: "Consultation",
+      group: "Navigation",
+      action: () => navigate("/reception/inquiry"),
     },
     {
       keys: ["Alt", "I"],
@@ -595,7 +607,7 @@ const Schedule = () => {
         toast.success(
           `Rescheduled to ${format(day, "MMM d")} at ${format(parse(time, "HH:mm", new Date()), "hh:mm a")}`,
         );
-        fetchSchedule();
+        fetchSchedule(true); // Force refresh
       } else {
         toast.error(data.message || "Rescheduling failed");
       }
@@ -837,7 +849,11 @@ const Schedule = () => {
                   </p>
                 </div>
               ) : null}
-              <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+              <DndContext
+                sensors={sensors}
+                onDragEnd={handleDragEnd}
+                collisionDetection={closestCenter}
+              >
                 <div className="grid grid-cols-[80px_repeat(7,1fr)] bg-[#f1f5f9] dark:bg-[#252825] gap-[1px]">
                   {/* Header Row */}
                   <div className="bg-[#fdfcff] dark:bg-[#111315] p-4 flex flex-col items-center justify-center sticky top-0 z-30">

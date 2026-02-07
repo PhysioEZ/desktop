@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   ChevronLeft,
@@ -6,7 +6,6 @@ import {
   Edit2,
   ChevronDown,
   Calendar,
-  RefreshCw,
   Phone,
   Stethoscope,
   X,
@@ -17,12 +16,9 @@ import {
   UserPlus,
   AlertCircle,
   Trash2,
+  History as HistoryIcon,
   CheckCircle2,
   Search,
-  Bell,
-  Moon,
-  Sun,
-  LogOut,
   User,
   Lock,
   Zap,
@@ -43,6 +39,8 @@ import {
   Plus,
   Eye,
   CreditCard,
+  Users,
+  MapPin,
 } from "lucide-react";
 import CustomSelect from "../components/ui/CustomSelect";
 import { useNavigate } from "react-router-dom";
@@ -50,12 +48,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "../store/useAuthStore";
 import { API_BASE_URL, authFetch, FILE_BASE_URL } from "../config";
 import { format, parseISO, isValid } from "date-fns";
-import { useDashboardStore } from "../store";
+import { useDashboardStore, useRegistrationStore } from "../store";
+import { useThemeStore } from "../store/useThemeStore";
 import DynamicServiceModal from "../components/reception/DynamicServiceModal";
 import UpdatePaymentModal from "../components/reception/UpdatePaymentModal";
-import GlobalSearch from "../components/GlobalSearch";
+import PageHeader from "../components/PageHeader";
+import Sidebar from "../components/Sidebar";
+import DailyIntelligence from "../components/DailyIntelligence";
+import NotesDrawer from "../components/NotesDrawer";
+import LogoutConfirmation from "../components/LogoutConfirmation";
 import KeyboardShortcuts from "../components/KeyboardShortcuts";
 import type { ShortcutItem } from "../components/KeyboardShortcuts";
+import ChatModal from "../components/Chat/ChatModal";
+import ActionFAB from "../components/ActionFAB";
 
 const AVAILABLE_ICONS = [
   { name: "Activity", icon: Activity },
@@ -206,10 +211,53 @@ const getPhotoUrl = (path: string | null) => {
   return `${FILE_BASE_URL}/${cleanPath}`;
 };
 
+const PatientAvatar = ({
+  photoPath,
+  name,
+}: {
+  photoPath?: string;
+  name: string;
+}) => {
+  const [error, setError] = useState(false);
+
+  if (photoPath && !error && photoPath !== "null" && photoPath !== "") {
+    return (
+      <div className="w-full h-full overflow-hidden">
+        <img
+          src={getPhotoUrl(photoPath) || ""}
+          alt={name}
+          onError={() => setError(true)}
+          className="w-full h-full object-cover"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`w-full h-full overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100 dark:from-white/5 dark:to-white/10 flex items-center justify-center`}
+    >
+      <User size={32} strokeWidth={1.5} className="text-emerald-600/40" />
+    </div>
+  );
+};
+
 const Registration = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const { searchCache, setSearchCache } = useDashboardStore();
+
+  const handleFABAction = (action: any) => {
+    navigate("/reception/dashboard", { state: { openModal: action } });
+  };
+  const { isDark, toggleTheme } = useThemeStore();
+  const { data: dashboardData } = useDashboardStore();
+
+  // Local state for UI only
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showChatModal, setShowChatModal] = useState(false);
+  const [showIntelligence, setShowIntelligence] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // UI State
   const [toast, setToast] = useState<{
@@ -234,149 +282,33 @@ const Registration = () => {
     useState<RegistrationRecord | null>(null);
 
   // Dynamic Service Track State
-  const [serviceTracks, setServiceTracks] = useState<any[]>([]);
-  const [selectedTrack, setSelectedTrack] = useState<any>(null);
-  const [isDynamicModalOpen, setIsDynamicModalOpen] = useState(false);
+
+  // Animation Variants
+  const leftPanelEntrance = {
+    hidden: { x: -100, opacity: 0 },
+    visible: {
+      x: 0,
+      opacity: 1,
+      transition: {
+        duration: 0.6,
+        ease: [0.22, 1, 0.36, 1],
+        delay: 0.1,
+      },
+    },
+  } as any;
 
   // Header State
-  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [showNotifPopup, setShowNotifPopup] = useState(false);
-  const [showProfilePopup, setShowProfilePopup] = useState(false);
-  const [isDark, setIsDark] = useState(false);
-  const [showGlobalModal, setShowGlobalModal] = useState(false);
-  const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const { setShowGlobalSearch, showGlobalSearch } = useDashboardStore();
 
-  const searchRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const notifRef = useRef<HTMLButtonElement>(null);
-  const profileRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Header Effects
-  useEffect(() => {
-    const saved = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    if (saved === "dark" || (!saved && prefersDark)) {
-      document.documentElement.classList.add("dark");
-      setIsDark(true);
-    } else {
-      document.documentElement.classList.remove("dark");
-      setIsDark(false);
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    if (isDark) {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-      setIsDark(false);
-    } else {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-      setIsDark(true);
-    }
-  };
-
-  const handleClickOutside = (e: MouseEvent) => {
-    if (
-      notifRef.current &&
-      !notifRef.current.contains(e.target as Node) &&
-      !(e.target as Element).closest("#notif-popup")
-    )
-      setShowNotifPopup(false);
-    if (profileRef.current && !profileRef.current.contains(e.target as Node))
-      setShowProfilePopup(false);
+  const handleClickOutside = () => {
+    // General click outside handling if needed
   };
   useEffect(() => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  // Notifications
-  useEffect(() => {
-    const fetchNotifs = async () => {
-      try {
-        const res = await authFetch(
-          `${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ""}`,
-        );
-        const data = await res.json();
-        if (data.success || data.status === "success") {
-          setNotifications(data.notifications || []);
-          setUnreadCount(data.unread_count || 0);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    if (user?.employee_id) {
-      fetchNotifs();
-      const inv = setInterval(fetchNotifs, 30000);
-      return () => clearInterval(inv);
-    }
-  }, [user?.employee_id]);
-
-  // Fetch Active Service Tracks
-  useEffect(() => {
-    const fetchTracks = async () => {
-      try {
-        const response = await authFetch(`${API_BASE_URL}/admin/services`);
-        const data = await response.json();
-        if (data.status === "success") {
-          // Only show active tracks
-          setServiceTracks(data.data.filter((t: any) => t.isActive));
-        }
-      } catch (err) {
-        console.error("Fetch tracks failed:", err);
-      }
-    };
-    fetchTracks();
-  }, []);
-
-  // Global Search with Caching
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!user?.branch_id) {
-      setSearchResults([]);
-      return;
-    }
-
-    const query = globalSearchQuery.trim().toLowerCase();
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
-    // Check cache
-    if (searchCache[query]) {
-      setSearchResults(searchCache[query]);
-      return;
-    }
-
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await authFetch(
-          `${API_BASE_URL}/reception/search_patients?branch_id=${user.branch_id}&q=${encodeURIComponent(globalSearchQuery)}`,
-        );
-        const data = await res.json();
-        if (data.success) {
-          const results = data.results || [];
-          setSearchResults(results);
-          setSearchCache(query, results);
-        }
-      } catch (err) {
-        console.error("Search Error:", err);
-      }
-    }, 400);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [globalSearchQuery, user?.branch_id]);
 
   const showToast = (
     message: string,
@@ -386,32 +318,105 @@ const Registration = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const [registrations, setRegistrations] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSearching, setIsSearching] = useState(false);
+  const {
+    registrations: storeRegistrations,
+    options: storeOptions,
+    serviceTracks: storeServiceTracks,
+    pagination: storePagination,
+    lastParams,
+    detailsCache,
+    registrationsCache,
+    setRegistrations,
+    setOptions,
+    setServiceTracks,
+    setPagination,
+    setLastParams,
+    setLastFetched,
+    setDetailsCache,
+    setRegistrationsCache,
+  } = useRegistrationStore();
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [referrerFilter, setReferrerFilter] = useState("");
   const [conditionFilter, setConditionFilter] = useState("");
-
-  // Pagination
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [pagination, setPagination] = useState({
-    total: 0,
-    page: 1,
-    limit: 12,
-    total_pages: 1,
-  });
 
-  const [options, setOptions] = useState<{
-    referred_by: string[];
-    conditions: string[];
-    types: string[];
-    payment_methods: string[];
-  }>({ referred_by: [], conditions: [], types: [], payment_methods: [] });
+  const storeData = storeRegistrations || [];
+
+  // --- CLIENT SIDE FILTERING ---
+  const filteredRegistrations = useMemo(() => {
+    let data = [...storeData];
+    // ... filter logic ...
+    // Search Filter
+    if (searchQuery) {
+      const lower = searchQuery.toLowerCase();
+      data = data.filter(
+        (r) =>
+          r.patient_name?.toLowerCase().includes(lower) ||
+          r.phone_number?.includes(lower) ||
+          r.registration_id?.toString().includes(lower) ||
+          r.patient_uid?.toLowerCase().includes(lower),
+      );
+    }
+
+    // Status Filter
+    if (statusFilter) {
+      data = data.filter(
+        (r) => r.status?.toLowerCase() === statusFilter.toLowerCase(),
+      );
+    }
+
+    // Referrer Filter
+    if (referrerFilter) {
+      data = data.filter((r) => r.reffered_by === referrerFilter);
+    }
+
+    // Condition Filter
+    if (conditionFilter) {
+      data = data.filter((r) => r.chief_complain === conditionFilter);
+    }
+
+    return data;
+  }, [storeData, searchQuery, statusFilter, referrerFilter, conditionFilter]);
+
+  // Pagination Logic
+  const ITEMS_PER_PAGE = 12;
+  const totalPages = Math.ceil(filteredRegistrations.length / ITEMS_PER_PAGE);
+
+  const paginatedRegistrations = useMemo(() => {
+    const start = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredRegistrations.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredRegistrations, currentPage]);
+
+  const registrations = paginatedRegistrations; // Use this for display
+
+  const pagination = {
+    total: filteredRegistrations.length,
+    page: currentPage,
+    limit: ITEMS_PER_PAGE,
+    total_pages: totalPages || 1,
+  };
+
+  const options = storeOptions || {
+    referred_by: [],
+    conditions: [],
+    types: [],
+    payment_methods: [],
+  };
+  const serviceTracks = storeServiceTracks || [];
+
+  // Pagination state is declared above but initialized here in state if needed,
+  // actually I moved it up to be near pagination variable.
+  // removing duplicate declaration if any.
+  // const [currentPage, setCurrentPage] = useState(storePagination?.page || 1); <- REMOVED, declared above
+
+  // Dynamic Service Track State
+  const [selectedTrack, setSelectedTrack] = useState<any>(null);
+  const [isDynamicModalOpen, setIsDynamicModalOpen] = useState(false);
 
   const [selectedRegistration, setSelectedRegistration] = useState<any | null>(
     null,
@@ -425,15 +430,6 @@ const Registration = () => {
   // Initial load ref to prevent multiple spinners
   const isFirstLoad = useRef(true);
 
-  // Debounce search input
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearch(searchQuery);
-      setCurrentPage(1); // Reset to page 1 on new search
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
   // Background scroll lock
   useEffect(() => {
     if (isDetailsModalOpen || isBillModalOpen || confirmModal.isOpen) {
@@ -446,48 +442,107 @@ const Registration = () => {
     };
   }, [isDetailsModalOpen, isBillModalOpen, confirmModal.isOpen]);
 
-  const fetchRegistrations = useCallback(async () => {
-    if (!user?.branch_id) return;
+  const fetchRegistrations = useCallback(
+    async (forceRefresh = false) => {
+      if (!user?.branch_id) return;
 
-    // Show big loader only on first mount or when swapping pages for the first time
-    if (isFirstLoad.current) setIsLoading(true);
-    setIsSearching(true);
+      // FETCH ALL DATA (Limit 1000)
+      const currentParams = {
+        action: "fetch",
+        branch_id: user.branch_id,
+        limit: 1000,
+        page: 1, // Get everything
+        // No search/filter params sent to API
+      };
 
-    try {
-      const res = await authFetch(`${API_BASE_URL}/reception/registration`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "fetch",
-          branch_id: user.branch_id,
-          search: debouncedSearch,
-          status: statusFilter,
-          referred_by: referrerFilter,
-          condition: conditionFilter,
-          page: currentPage,
-          limit: 12,
-        }),
-      });
-      const data = await res.json();
-      if (data.status === "success") {
-        setRegistrations(data.data || []);
-        setPagination(data.pagination);
+      const cacheKey = JSON.stringify(currentParams);
+
+      // Cache logic:
+      if (!forceRefresh) {
+        if (
+          lastParams &&
+          cacheKey === JSON.stringify(lastParams) &&
+          storeRegistrations &&
+          storeRegistrations.length > 0 // Ensure we have data
+        ) {
+          setIsLoading(false);
+          return;
+        }
+
+        if (registrationsCache && registrationsCache[cacheKey]) {
+          const cached = registrationsCache[cacheKey];
+          setRegistrations(cached.data);
+          // setPagination(cached.pagination); // We handle pagination locally now
+          setLastParams(currentParams);
+          setIsLoading(false);
+          return;
+        }
       }
-    } catch (err) {
-      console.error("Failed to fetch registrations:", err);
-    } finally {
-      setIsLoading(false);
-      setIsSearching(false);
-      isFirstLoad.current = false;
+
+      if (isFirstLoad.current || !storeRegistrations || forceRefresh === true)
+        setIsLoading(true);
+
+      try {
+        const res = await authFetch(`${API_BASE_URL}/reception/registration`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(currentParams),
+        });
+        const data = await res.json();
+        if (data.status === "success") {
+          setRegistrations(data.data || []);
+          // setPagination(data.pagination); // Local pagination
+          setLastParams(currentParams);
+          setLastFetched(Date.now());
+          setRegistrationsCache(cacheKey, data.data || [], data.pagination);
+        }
+      } catch (err) {
+        console.error("Failed to fetch registrations:", err);
+      } finally {
+        setIsLoading(false);
+        setIsSearching(false);
+        isFirstLoad.current = false;
+      }
+    },
+    [
+      user?.branch_id,
+      storeRegistrations,
+      registrationsCache,
+      lastParams,
+      setRegistrations,
+      setPagination,
+      setLastParams,
+      setLastFetched,
+      setRegistrationsCache,
+    ],
+  );
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter, referrerFilter, conditionFilter]);
+
+  // NO handleSearch needed for fetching anymore, just for UX (maybe scroll to top?)
+  const handleSearch = () => {
+    // No-op or just ensure page 1
+    setCurrentPage(1);
+  };
+
+  // Fetch dashboard stats if missing
+  useEffect(() => {
+    if (!dashboardData && user?.branch_id) {
+      authFetch(
+        `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
+      )
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.status === "success") {
+            useDashboardStore.setState({ data: data.data });
+          }
+        })
+        .catch(console.error);
     }
-  }, [
-    user?.branch_id,
-    debouncedSearch,
-    statusFilter,
-    referrerFilter,
-    conditionFilter,
-    currentPage,
-  ]);
+  }, [dashboardData, user?.branch_id]);
 
   // --- Shortcuts ---
   const shortcuts: ShortcutItem[] = [
@@ -502,31 +557,13 @@ const Registration = () => {
       keys: ["Alt", "S"],
       description: "Global Search",
       group: "General",
-      action: () => setShowGlobalModal(true),
+      action: () => setShowGlobalSearch(true),
     },
     {
       keys: ["Alt", "W"],
       description: "Toggle Theme",
       group: "General",
       action: toggleTheme,
-    },
-    {
-      keys: ["Alt", "N"],
-      description: "Notifications",
-      group: "General",
-      action: () => {
-        setShowNotifPopup((p) => !p);
-        setShowProfilePopup(false);
-      },
-    },
-    {
-      keys: ["Alt", "P"],
-      description: "Profile",
-      group: "General",
-      action: () => {
-        setShowProfilePopup((p) => !p);
-        setShowNotifPopup(false);
-      },
     },
     {
       keys: ["Alt", "L"],
@@ -574,7 +611,8 @@ const Registration = () => {
       group: "Registration",
       action: () => {
         isFirstLoad.current = true;
-        fetchRegistrations();
+        isFirstLoad.current = true;
+        fetchRegistrations(true);
       },
       pageSpecific: true,
     },
@@ -586,15 +624,24 @@ const Registration = () => {
       pageSpecific: true,
     },
     {
-      keys: ["Alt", "X"],
+      keys: ["Alt", "C"],
+      description: "Toggle Chat",
+      group: "General",
+      action: () => setShowChatModal((prev) => !prev),
+    },
+    {
+      keys: ["Alt", "Shift", "X"],
       description: "Reset Filters",
       group: "Registration",
       action: () => {
         setSearchQuery("");
+        // setActiveSearchQuery(""); // Removed
         setStatusFilter("");
         setReferrerFilter("");
         setConditionFilter("");
         setCurrentPage(1);
+        // Force refresh after reset
+        setTimeout(() => fetchRegistrations(true), 0);
       },
       pageSpecific: true,
     },
@@ -609,7 +656,7 @@ const Registration = () => {
       pageSpecific: true,
     },
     {
-      keys: ["Alt", "E"],
+      keys: ["Alt", "X"],
       description: "Show Consulted",
       group: "Registration",
       action: () => {
@@ -633,7 +680,7 @@ const Registration = () => {
       description: "Previous Page",
       group: "Registration",
       action: () => {
-        if (currentPage > 1) setCurrentPage((p) => p - 1);
+        if (currentPage > 1) setCurrentPage((p: number) => p - 1);
       },
       pageSpecific: true,
     },
@@ -642,7 +689,8 @@ const Registration = () => {
       description: "Next Page",
       group: "Registration",
       action: () => {
-        if (currentPage < pagination.total_pages) setCurrentPage((p) => p + 1);
+        if (currentPage < pagination.total_pages)
+          setCurrentPage((p: number) => p + 1);
       },
       pageSpecific: true,
     },
@@ -659,9 +707,13 @@ const Registration = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Escape Handler
       if (e.key === "Escape") {
-        if (showGlobalModal) setShowGlobalModal(false);
+        if (showGlobalSearch) setShowGlobalSearch(false);
         else if (showShortcuts) setShowShortcuts(false);
-        else if (isDetailsModalOpen) setIsDetailsModalOpen(false);
+        else if (isDetailsModalOpen) {
+          setIsDetailsModalOpen(false);
+          setIsDynamicModalOpen(false);
+          setSelectedTrack(null);
+        }
         return;
       }
 
@@ -682,7 +734,7 @@ const Registration = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [
-    showGlobalModal,
+    setShowGlobalSearch, // Changed from showGlobalModal
     showShortcuts,
     showLogoutConfirm,
     isPaymentModalOpen,
@@ -697,6 +749,16 @@ const Registration = () => {
 
   const fetchOptions = useCallback(async () => {
     if (!user?.branch_id) return;
+
+    // Cache check
+    if (
+      storeOptions &&
+      storeServiceTracks &&
+      Object.keys(storeOptions).length > 0
+    ) {
+      return;
+    }
+
     try {
       const res = await authFetch(`${API_BASE_URL}/reception/registration`, {
         method: "POST",
@@ -705,11 +767,44 @@ const Registration = () => {
       const data = await res.json();
       if (data.status === "success") {
         setOptions(data.data);
+        if (data.data.service_tracks) {
+          const mappedTracks = data.data.service_tracks.map((track: any) => ({
+            id: track.id,
+            name: track.name,
+            buttonLabel: track.button_label,
+            icon: track.icon,
+            themeColor: track.theme_color,
+            fields:
+              typeof track.fields === "string"
+                ? JSON.parse(track.fields)
+                : track.fields,
+            pricing:
+              typeof track.pricing === "string"
+                ? JSON.parse(track.pricing)
+                : track.pricing,
+            scheduling:
+              typeof track.scheduling === "string"
+                ? JSON.parse(track.scheduling)
+                : track.scheduling,
+            permissions:
+              typeof track.permissions === "string"
+                ? JSON.parse(track.permissions)
+                : track.permissions,
+            isActive: !!track.is_active,
+          }));
+          setServiceTracks(mappedTracks);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch options:", err);
     }
-  }, [user?.branch_id]);
+  }, [
+    user?.branch_id,
+    storeOptions,
+    storeServiceTracks,
+    setOptions,
+    setServiceTracks,
+  ]);
 
   useEffect(() => {
     fetchOptions();
@@ -717,11 +812,10 @@ const Registration = () => {
 
   const handleUpdateStatus = async (id: number, newStatus: string) => {
     // Optimistic update
-    setRegistrations((prev) =>
-      prev.map((reg) =>
-        reg.registration_id === id ? { ...reg, status: newStatus } : reg,
-      ),
+    const updatedRegistrations = registrations.map((reg: any) =>
+      reg.registration_id === id ? { ...reg, status: newStatus } : reg,
     );
+    setRegistrations(updatedRegistrations);
 
     try {
       const res = await authFetch(`${API_BASE_URL}/reception/registration`, {
@@ -748,7 +842,15 @@ const Registration = () => {
     }
   };
 
-  const fetchDetails = async (id: number) => {
+  const fetchDetails = async (id: number, forceRefresh = false) => {
+    // Cache check
+    if (!forceRefresh && detailsCache && detailsCache[id]) {
+      setSelectedRegistration(detailsCache[id]);
+      setIsEditing(false);
+      setIsDetailsModalOpen(true);
+      return;
+    }
+
     try {
       const res = await authFetch(
         `${API_BASE_URL}/reception/registration?action=details&id=${id}`,
@@ -756,6 +858,7 @@ const Registration = () => {
       );
       const data = await res.json();
       if (data.status === "success") {
+        setDetailsCache(id, data.data);
         setSelectedRegistration(data.data);
         setIsEditing(false); // Reset edit mode when opening new details
         setIsDetailsModalOpen(true);
@@ -781,8 +884,9 @@ const Registration = () => {
       const data = await res.json();
       if (data.status === "success") {
         setIsEditing(false);
-        fetchDetails(selectedRegistration.registration_id);
-        fetchRegistrations();
+        fetchDetails(selectedRegistration.registration_id, true);
+        fetchRegistrations(true);
+        showToast("Clinical Profile Synchronized Successfully", "success");
       }
     } catch (err) {
       console.error("Failed to save details:", err);
@@ -848,642 +952,683 @@ const Registration = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#fdfcff] dark:bg-[#111315] text-[#1a1c1e] dark:text-[#e3e2e6] font-sans transition-colors duration-300 pb-20">
-      {/* --- HEADER --- */}
-      <header className="fixed top-0 left-0 right-0 z-50 bg-[#fdfcff]/80 dark:bg-[#111315]/80 backdrop-blur-md px-4 md:px-8 py-4 flex items-center justify-between border-b border-[#e0e2ec] dark:border-[#43474e] transition-colors duration-300">
-        <div className="flex items-center gap-4">
-          <div
-            className="flex items-center gap-2 cursor-pointer"
-            onClick={() => navigate("/reception/dashboard")}
-          >
-            <div className="w-10 h-10 rounded-xl bg-[#ccebc4] flex items-center justify-center text-[#0c200e] font-bold">
-              PE
-            </div>
-            <h1
-              className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight hidden md:block"
-              style={{ fontFamily: "serif" }}
-            >
-              PhysioEZ
-            </h1>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 lg:gap-4">
-          {/* Search Bar */}
-          <div
-            ref={searchRef}
-            className="hidden md:flex items-center relative z-50"
-          >
-            <div
-              className="flex items-center bg-[#e0e2ec] dark:bg-[#43474e] rounded-full px-4 py-2 w-64 lg:w-96 transition-colors duration-300 cursor-pointer hover:bg-[#dadae2] dark:hover:bg-[#50545c]"
-              onClick={() => setShowGlobalModal(true)}
-            >
-              <Search
-                size={18}
-                className="text-[#43474e] dark:text-[#c4c7c5] mr-2"
-              />
-              <span className="text-sm text-[#43474e] dark:text-[#8e918f]">
-                {globalSearchQuery || "Search patients... (Alt + S)"}
-              </span>
-            </div>
-          </div>
+    <div className="flex h-screen w-full bg-white dark:bg-[#0A0A0A] overflow-hidden transition-colors duration-500">
+      <Sidebar
+        onShowChat={() => setShowChatModal(true)}
+        onShowShortcuts={() => setShowShortcuts(true)}
+      />
 
-          <button
-            onClick={fetchRegistrations}
-            disabled={isSearching}
-            className={`p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors ${isSearching ? "animate-spin" : ""}`}
+      <div className="flex-1 flex flex-col h-full relative overflow-hidden">
+        <PageHeader
+          title="Registration"
+          subtitle="Operations Center"
+          icon={UserPlus}
+          onRefresh={() => fetchRegistrations(true)}
+          isLoading={isSearching}
+          onShowIntelligence={() => setShowIntelligence(true)}
+          onShowNotes={() => setShowNotes(true)}
+        />
+
+        <div className="flex-1 flex overflow-hidden">
+          {/* === STATS PANEL (Left Column) === */}
+          <motion.div
+            variants={leftPanelEntrance}
+            initial="hidden"
+            animate="visible"
+            className={`hidden xl:flex w-[450px] flex-col justify-between p-10 border-r relative shrink-0 transition-colors duration-300 z-50 ${
+              isDark
+                ? "bg-[#0A0A0A] border-[#151515]"
+                : "bg-white border-gray-200"
+            }`}
           >
-            <RefreshCw size={22} strokeWidth={1.5} />
-          </button>
-
-          {/* Dark Mode Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors"
-          >
-            <Moon size={22} strokeWidth={1.5} className="block dark:hidden" />
-            <Sun size={22} strokeWidth={1.5} className="hidden dark:block" />
-          </button>
-
-          {/* Notifications */}
-          <div className="relative">
-            <button
-              ref={notifRef}
-              onClick={() => {
-                setShowNotifPopup(!showNotifPopup);
-                setShowProfilePopup(false);
-              }}
-              className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors relative"
-            >
-              <Bell size={22} strokeWidth={1.5} />
-              {unreadCount > 0 && (
-                <span className="absolute top-3 right-3 w-2 h-2 bg-[#b3261e] rounded-full"></span>
-              )}
-            </button>
-            <AnimatePresence>
-              {showNotifPopup && (
-                <motion.div
-                  id="notif-popup"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute top-full right-0 mt-2 w-80 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden transition-colors"
-                >
-                  <div className="p-4 border-b border-[#e0e2ec] dark:border-[#43474e] font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">
-                    Notifications
-                  </div>
-                  <div className="space-y-4">
-                    {notifications.map((n, idx) => (
-                      <div
-                        key={n.notification_id || `notification-${idx}`}
-                        className={`p-3 border-b border-[#e0e2ec] dark:border-[#43474e] hover:bg-[#e0e2ec]/50 dark:hover:bg-[#43474e]/50 ${n.is_read === 0 ? "bg-[#ccebc4]/20 dark:bg-[#ccebc4]/10" : ""}`}
-                      >
-                        <p className="text-sm text-[#1a1c1e] dark:text-[#e3e2e6]">
-                          {n.message}
-                        </p>
-                        <p className="text-[10px] text-[#43474e] dark:text-[#c4c7c5] mt-1">
-                          {n.time_ago}
-                        </p>
-                      </div>
-                    ))}
-                    {notifications.length === 0 && (
-                      <div className="p-4 text-center text-sm text-[#43474e] dark:text-[#c4c7c5]">
-                        No notifications
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-
-          <div className="relative" ref={profileRef}>
-            <div
-              onClick={() => {
-                setShowProfilePopup(!showProfilePopup);
-                setShowNotifPopup(false);
-              }}
-              className="w-10 h-10 bg-[#ccebc4] dark:bg-[#0c3b10] rounded-full flex items-center justify-center text-[#0c200e] dark:text-[#ccebc4] font-bold border border-[#74777f] dark:border-[#8e918f] ml-1 overflow-hidden cursor-pointer hover:ring-2 ring-[#ccebc4] transition-colors"
-            >
-              {user?.name?.charAt(0).toUpperCase() || "U"}
-            </div>
-            <AnimatePresence>
-              {showProfilePopup && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="absolute top-full right-0 mt-2 w-56 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden p-2 transition-colors"
-                >
-                  <button
-                    onClick={() => navigate("/reception/profile")}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"
+            {/* Brand & Greeting */}
+            <div className="space-y-10 z-10 text-[#1a1c1e] dark:text-[#e3e2e6]">
+              <div className="space-y-4">
+                <h1 className="text-5xl font-serif font-normal tracking-tight leading-tight">
+                  Registration{" "}
+                  <span
+                    className={`italic ${isDark ? "text-[#4ADE80]" : "text-[#16a34a]"}`}
                   >
-                    <User size={18} /> Profile
-                  </button>
-                  <button
-                    onClick={() => {
-                      logout();
-                      navigate("/login");
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#ffdad6] dark:hover:bg-[#93000a] text-[#410002] dark:text-[#ffdad6] text-sm font-medium mt-1 transition-colors"
-                  >
-                    <LogOut size={18} /> Logout
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </header>
-
-      {/* --- NAVIGATION CHIPS --- */}
-      <div className="fixed top-[72px] left-0 right-0 z-40 bg-[#fdfcff]/80 dark:bg-[#111315]/80 backdrop-blur-md border-b border-[#e0e2ec] dark:border-[#43474e] transition-colors duration-300">
-        <div className="flex gap-3 overflow-x-auto py-3 px-6 scrollbar-hide">
-          {[
-            { label: "Dashboard", path: "/reception/dashboard" },
-            { label: "Schedule", path: "/reception/schedule" },
-            { label: "Inquiry", path: "/reception/inquiry" },
-            { label: "Registration", path: "/reception/registration" },
-            { label: "Patients", path: "/reception/patients" },
-            { label: "Billing", path: "/reception/billing" },
-            { label: "Attendance", path: "/reception/attendance" },
-            { label: "Tests", path: "/reception/tests" },
-            { label: "Feedback", path: "/reception/feedback" },
-            { label: "Reports", path: "/reception/reports" },
-            { label: "Expenses", path: "/reception/expenses" },
-            { label: "Support", path: "/reception/support" },
-          ].map((nav) => (
-            <button
-              key={nav.label}
-              onClick={() => {
-                if (nav.label !== "Registration") navigate(nav.path);
-              }}
-              className={`px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${nav.label === "Registration" ? "bg-[#1a1c1e] text-white dark:bg-[#e3e2e6] dark:text-[#1a1c1e] shadow-md" : "bg-[#f2f6fa] dark:bg-[#1a1c1e] hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] border border-[#74777f] dark:border-[#8e918f] text-[#43474e] dark:text-[#c4c7c5]"}`}
-            >
-              {nav.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* --- MAIN PAGE CONTENT --- */}
-      <div className="max-w-[1600px] mx-auto p-6 pt-36">
-        {/* Page Title & Actions */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1
-              className="text-4xl font-black text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight mb-1"
-              style={{ fontFamily: "serif" }}
-            >
-              Registration
-            </h1>
-            <p className="text-base text-[#43474e] dark:text-[#c4c7c5] font-medium">
-              Manage and monitor patient registrations
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => navigate("/reception/registration/cancelled")}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#ffdad6] text-[#410002] rounded-[16px] text-sm font-bold hover:bg-[#ffb4ab] transition-all"
-            >
-              <Trash2 size={18} /> Cancelled History
-            </button>
-            <button
-              onClick={() => {
-                isFirstLoad.current = true;
-                fetchRegistrations();
-              }}
-              className="flex items-center gap-2 px-5 py-2.5 bg-[#ccebc4] text-[#002105] rounded-[16px] text-sm font-bold hover:bg-[#b0f2a0] transition-all"
-            >
-              <RefreshCw
-                size={18}
-                className={isSearching ? "animate-spin" : ""}
-              />{" "}
-              Refresh
-            </button>
-          </div>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-[#f0f4f9] dark:bg-[#1e2022] rounded-[24px] p-2 mb-8 flex flex-col md:flex-row gap-3 items-center">
-          <div className="relative flex-1 w-full bg-[#fdfcff] dark:bg-[#1a1c1e] rounded-[20px] shadow-sm px-4 py-3 flex items-center gap-3 border border-transparent focus-within:border-[#006e1c] dark:focus-within:border-[#88d99d] transition-all">
-            <Search className="text-[#43474e] dark:text-[#c4c7c5]" size={20} />
-            <input
-              ref={searchInputRef}
-              type="text"
-              placeholder="Search by name, phone or ID... (Alt + F)"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-transparent border-none outline-none text-base w-full text-[#1a1c1e] dark:text-[#e3e2e6] placeholder:text-[#43474e] dark:placeholder:text-[#8e918f] font-medium"
-            />
-          </div>
-          <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
-            <CustomSelect
-              value={statusFilter}
-              onChange={(v) => {
-                setStatusFilter(v);
-                setCurrentPage(1);
-              }}
-              options={[
-                { label: "All Status", value: "" },
-                { label: "Pending", value: "pending" },
-                { label: "Consulted", value: "consulted" },
-                { label: "Closed", value: "closed" },
-              ]}
-              placeholder="Status"
-              className="min-w-[150px] !rounded-[20px] !py-4 !border-none !bg-[#fdfcff] dark:!bg-[#1a1c1e] !shadow-sm !font-bold"
-            />
-            <CustomSelect
-              value={referrerFilter}
-              onChange={(v) => {
-                setReferrerFilter(v);
-                setCurrentPage(1);
-              }}
-              options={[
-                { label: "All Referrers", value: "" },
-                ...options.referred_by.map((r) => ({ label: r, value: r })),
-              ]}
-              placeholder="Referrer"
-              className="min-w-[160px] !rounded-[20px] !py-4 !border-none !bg-[#fdfcff] dark:!bg-[#1a1c1e] !shadow-sm !font-bold"
-            />
-            <CustomSelect
-              value={conditionFilter}
-              onChange={(v) => {
-                setConditionFilter(v);
-                setCurrentPage(1);
-              }}
-              options={[
-                { label: "All Conditions", value: "" },
-                ...options.conditions.map((c) => ({ label: c, value: c })),
-              ]}
-              placeholder="Condition"
-              className="min-w-[160px] !rounded-[20px] !py-4 !border-none !bg-[#fdfcff] dark:!bg-[#1a1c1e] !shadow-sm !font-bold"
-            />
-          </div>
-        </div>
-
-        {/* Cards / List View */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20">
-            <div className="w-12 h-12 border-4 border-[#006e1c] border-t-transparent rounded-full animate-spin mb-4" />
-            <p className="text-base font-bold text-[#43474e] dark:text-[#c4c7c5]">
-              Loading registrations...
-            </p>
-          </div>
-        ) : registrations.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 opacity-60">
-            <div className="w-20 h-20 bg-[#e0e2ec] dark:bg-[#43474e] rounded-full flex items-center justify-center mb-6 text-[#1a1c1e] dark:text-[#e3e2e6]">
-              <Search size={32} />
-            </div>
-            <h3 className="text-xl font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">
-              No registrations found
-            </h3>
-            <p className="text-[#43474e] dark:text-[#c4c7c5] mt-2">
-              Try adjusting your filters or search query
-            </p>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {/* Header Row for Desktop */}
-            <div className="hidden lg:grid grid-cols-12 gap-4 px-6 py-2 text-[10px] font-black uppercase tracking-widest text-[#43474e] dark:text-[#c4c7c5] opacity-70">
-              <div className="col-span-3">Patient</div>
-              <div className="col-span-3">Clinical Details</div>
-              <div className="col-span-2">Referrer & Date</div>
-              <div className="col-span-2 text-right">Amount</div>
-              <div className="col-span-2 text-center">Status</div>
+                    Ops
+                  </span>
+                </h1>
+                <p className="text-gray-500 text-lg font-medium">
+                  Here's your daily registration overview.
+                </p>
+              </div>
             </div>
 
-            {registrations.map((reg, idx) => {
-              const isPendingApproval = reg.approval_status === "pending";
-              const isRejected = reg.approval_status === "rejected";
-
-              return (
-                <motion.div
-                  key={reg.registration_id || idx}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: idx * 0.03, duration: 0.3 }}
-                  onClick={() => fetchDetails(reg.registration_id)}
-                  className={`
-                                    group rounded-[20px] border p-4 lg:px-6 lg:py-4 transition-all relative overflow-hidden flex flex-col lg:grid lg:grid-cols-12 gap-4 items-start lg:items-center
-                                    ${
-                                      isPendingApproval
-                                        ? "bg-[#f6f6f6] dark:bg-[#1f1f1f] border-[#e0e2ec] dark:border-[#43474e] cursor-not-allowed opacity-80"
-                                        : isRejected
-                                          ? "bg-[#fff8f7] dark:bg-[#2a1a1a] border-[#ffb4ab] dark:border-[#93000a] cursor-pointer hover:shadow-lg hover:shadow-red-900/10"
-                                          : "bg-[#fdfcff] dark:bg-[#1a1c1e] border-[#e0e2ec] dark:border-[#43474e] hover:shadow-lg hover:border-[#ccebc4] dark:hover:border-[#005313] cursor-pointer"
-                                    }
-                                `}
-                >
-                  {/* 1. Identity Section */}
-                  <div className="col-span-3 flex items-center gap-4 w-full">
-                    <div className="relative shrink-0">
-                      <div
-                        className={`w-12 h-12 rounded-[14px] flex items-center justify-center font-black text-lg shadow-sm border overflow-hidden ${isPendingApproval ? "bg-[#e0e2ec] text-[#43474e] border-transparent" : "bg-[#ccebc4] dark:bg-[#0c3b10] text-[#002105] dark:text-[#ccebc4] border-[#ccebc4] dark:border-[#0c3b10]"}`}
-                      >
-                        {reg.patient_photo_path ? (
-                          <img
-                            src={getPhotoUrl(reg.patient_photo_path) || ""}
-                            className="w-full h-full object-cover"
-                            alt=""
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).style.display =
-                                "none";
-                              (
-                                e.target as HTMLImageElement
-                              ).parentElement!.innerText =
-                                reg.patient_name?.charAt(0) || "?";
-                            }}
-                          />
-                        ) : (
-                          reg.patient_name?.charAt(0) || "?"
-                        )}
-                      </div>
-                      <div className="absolute -bottom-1 -right-1 bg-[#fdfcff] dark:bg-[#1a1c1e] rounded-md px-1.5 py-0.5 text-[9px] font-bold text-[#43474e] dark:text-[#c4c7c5] shadow-sm border border-[#e0e2ec] dark:border-[#43474e]">
-                        #{reg.registration_id}
-                      </div>
+            {/* --- REDESIGNED STATS PANEL --- */}
+            <div className="space-y-10 w-full flex-1 flex flex-col justify-center py-6 text-[#1a1c1e] dark:text-[#e3e2e6]">
+              {/* SECTION 1: REGISTRATION OVERVIEW */}
+              <div className="space-y-6">
+                {/* Big Numbers */}
+                <div className="flex items-baseline justify-between border-b border-dashed pb-6 dark:border-[#2A2D2A] border-gray-200">
+                  <div>
+                    <div className="text-8xl font-medium tracking-tighter leading-none">
+                      {dashboardData?.registration.today_total || 0}
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="font-bold text-base text-[#1a1c1e] dark:text-[#e3e2e6] leading-tight truncate">
-                        {reg.patient_name}
-                      </h3>
-                      <p className="text-xs text-[#43474e] dark:text-[#c4c7c5] font-medium mt-0.5 flex items-center gap-1.5">
-                        <Phone size={10} /> {reg.phone_number}
-                      </p>
+                    <div className="text-sm font-black opacity-40 mt-2 uppercase tracking-widest">
+                      Today
                     </div>
                   </div>
+                  <div className="text-right">
+                    <div className="text-4xl font-medium">
+                      {dashboardData?.registration.month_total || 0}
+                    </div>
+                    <div className="text-[10px] font-black uppercase tracking-wide opacity-40 mt-1">
+                      Month
+                    </div>
+                  </div>
+                </div>
 
-                  {/* 2. Clinical Section */}
-                  <div className="col-span-3 w-full">
-                    <div className="flex flex-col gap-1">
-                      {reg.chief_complain ? (
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${isPendingApproval ? "bg-[#74777f]" : "bg-[#b3261e]"}`}
-                          ></span>
-                          <span
-                            className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6] truncate"
-                            title={reg.chief_complain}
-                          >
-                            {reg.chief_complain}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-[#43474e] dark:text-[#c4c7c5] italic">
-                          No complaint logged
-                        </span>
-                      )}
-                      <span className="text-[10px] font-bold text-[#43474e] dark:text-[#c4c7c5] uppercase tracking-wide bg-[#f0f4f9] dark:bg-[#30333b] px-2 py-0.5 rounded-md w-fit">
-                        {reg.consultation_type || "Consultation"}
+                {/* Text-based Status List */}
+                <div className="space-y-4 pl-1">
+                  <div className="flex items-center justify-between text-sm group">
+                    <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity">
+                      <span className="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.3)]"></span>{" "}
+                      Pending Case
+                    </span>
+                    <span className="font-bold text-lg">
+                      {dashboardData?.registration.pending || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm group">
+                    <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity">
+                      <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]"></span>{" "}
+                      Consultation Done
+                    </span>
+                    <span className="font-bold text-lg">
+                      {dashboardData?.registration.consulted || 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm group">
+                    <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity">
+                      <span className="w-2 h-2 rounded-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]"></span>{" "}
+                      Verification Required
+                    </span>
+                    <span className="font-bold text-lg">
+                      {dashboardData?.registration.approval_pending || 0}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION 2: LIVE CENSUS */}
+              <div className="space-y-6 pt-4 border-t border-dashed dark:border-[#2A2D2A] border-gray-200">
+                <div className="flex items-center gap-3 opacity-50">
+                  <Users size={22} className="text-[#4ade80]" />
+                  <span className="text-sm font-bold uppercase tracking-[0.2em]">
+                    Client Census
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-5xl font-medium tracking-tight">
+                      {dashboardData?.patients.active || 0}
+                    </div>
+                    <div className="text-xs font-black opacity-40 mt-2 uppercase tracking-wider">
+                      Active Patients in System
+                    </div>
+                  </div>
+                  <div className="w-12 h-12 rounded-full flex items-center justify-center bg-[#CCEBC4]/30 text-[#006e1c] dark:text-[#88d99d] border border-[#CCEBC4]/20">
+                    <Users size={20} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Decoration */}
+            <div className="absolute top-1/2 left-0 w-full h-full bg-gradient-to-t from-green-900/5 to-transparent pointer-events-none" />
+          </motion.div>
+
+          {/* Main Content (Right Panel) */}
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 custom-scrollbar">
+            <div className="max-w-[1600px] mx-auto">
+              {/* Filter Area */}
+              {/* Top Control Bar */}
+              <div className="flex flex-col gap-6 mb-10">
+                {/* Search & Filters Bar */}
+                <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+                  <div className="relative group w-full lg:max-w-md">
+                    <Search
+                      size={18}
+                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors cursor-pointer"
+                      onClick={handleSearch}
+                    />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      placeholder="Search patient, phone or ID (Press Enter)"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          handleSearch();
+                        }
+                      }}
+                      className="w-full pl-11 pr-6 py-3.5 rounded-2xl bg-[#f0f4f9] dark:bg-white/5 border border-transparent focus:border-emerald-500/20 outline-none text-sm font-medium transition-all shadow-sm"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
+                    <div className="min-w-[180px] flex-1 lg:flex-none">
+                      <CustomSelect
+                        value={statusFilter}
+                        onChange={setStatusFilter}
+                        placeholder="Status"
+                        className="!py-3.5 !rounded-2xl !bg-[#f0f4f9] dark:!bg-white/5 !border-[#eef2f6] dark:!border-white/5 shadow-sm"
+                        options={[
+                          { value: "", label: "All Status" },
+                          { value: "pending", label: "Pending" },
+                          { value: "consulted", label: "Consulted" },
+                          { value: "closed", label: "Closed" },
+                        ]}
+                      />
+                    </div>
+                    <div className="min-w-[200px] flex-1 lg:flex-none">
+                      <CustomSelect
+                        value={referrerFilter}
+                        onChange={setReferrerFilter}
+                        placeholder="Referrer"
+                        className="!py-3.5 !rounded-2xl !bg-[#f0f4f9] dark:!bg-white/5 !border-[#eef2f6] dark:!border-white/5 shadow-sm"
+                        options={[
+                          { value: "", label: "All Referrers" },
+                          ...options.referred_by.map((r) => ({
+                            value: r,
+                            label: r,
+                          })),
+                        ]}
+                      />
+                    </div>
+                    <div className="min-w-[200px] flex-1 lg:flex-none">
+                      <CustomSelect
+                        value={conditionFilter}
+                        onChange={setConditionFilter}
+                        placeholder="Condition"
+                        className="!py-3.5 !rounded-2xl !bg-[#f0f4f9] dark:!bg-white/5 !border-[#eef2f6] dark:!border-white/5 shadow-sm"
+                        options={[
+                          { value: "", label: "All Conditions" },
+                          ...options.conditions.map((c) => ({
+                            value: c,
+                            label: c,
+                          })),
+                        ]}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stats & Actions Bar */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                  <div className="flex items-center gap-3">
+                    <div className="px-6 py-2 bg-[#f0f4f9] dark:bg-white/5 border border-black/5 dark:border-white/5 rounded-full text-[11px] font-black uppercase tracking-widest text-[#43474e] dark:text-[#c4c7c5]">
+                      Total:{" "}
+                      <span className="text-[#1a1c1e] dark:text-white ml-1">
+                        {pagination.total} Records
                       </span>
                     </div>
+                    <div className="px-6 py-2 bg-[#e8f5e9] dark:bg-emerald-500/10 border border-emerald-500/10 rounded-full text-[11px] font-black uppercase tracking-widest text-emerald-600">
+                      Showing {registrations.length} in this page
+                    </div>
                   </div>
 
-                  {/* 3. Context Section */}
-                  <div className="col-span-2 w-full">
-                    <p
-                      className="text-xs font-medium text-[#1a1c1e] dark:text-[#e3e2e6] mb-0.5 truncate"
-                      title={reg.reffered_by}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() =>
+                        navigate("/reception/registration/cancelled")
+                      }
+                      className="flex items-center gap-2 px-6 py-3 bg-[#f0f4f9] dark:bg-white/5 text-[#43474e] dark:text-[#c4c7c5] rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-white dark:hover:bg-white/10 transition-all border border-black/5 dark:border-white/5 shadow-sm"
                     >
-                      <span className="text-[#43474e] dark:text-[#c4c7c5]">
-                        By:
-                      </span>{" "}
-                      {reg.reffered_by || "Direct"}
-                    </p>
-                    <p className="text-[10px] text-[#43474e] dark:text-[#c4c7c5] font-medium flex items-center gap-1">
-                      <Clock size={10} />{" "}
-                      {formatDateSafe(reg.created_at, "MMM d, h:mm a")}
-                    </p>
+                      <HistoryIcon size={16} className="opacity-40" />
+                      Cancelled History
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSearchQuery("");
+                        setStatusFilter("");
+                        setReferrerFilter("");
+                        setConditionFilter("");
+                        setCurrentPage(1);
+                      }}
+                      className="flex items-center gap-2 px-6 py-3 bg-[#ffdad6] dark:bg-[#93000a]/30 text-[#410002] dark:text-[#ffdad6] rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-[#ffada4] dark:hover:bg-[#93000a]/50 transition-all shadow-sm"
+                    >
+                      <RotateCcw size={16} />
+                      Reset Filters
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid Layout */}
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-32 space-y-4">
+                  <div className="relative">
+                    <div className="w-16 h-16 border-4 border-[#3b82f6]/20 border-t-[#3b82f6] rounded-full animate-spin"></div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <UserPlus size={24} className="text-[#3b82f6]" />
+                    </div>
+                  </div>
+                  <p className="text-sm font-bold text-[#43474e] dark:text-[#c4c7c5] animate-pulse">
+                    Flipping through records...
+                  </p>
+                </div>
+              ) : registrations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-32 bg-white dark:bg-[#1a1c1e] rounded-[32px] border-2 border-dashed border-[#e0e2ec] dark:border-[#43474e]">
+                  <div className="w-20 h-20 rounded-full bg-[#e0e2ec] dark:bg-[#43474e] flex items-center justify-center text-[#43474e] dark:text-[#c4c7c5] mb-6">
+                    <Search size={40} />
+                  </div>
+                  <h3 className="text-xl font-bold text-[#1a1c1e] dark:text-[#e3e2e6] mb-2 font-serif">
+                    No records found
+                  </h3>
+                  <p className="text-[#43474e] dark:text-[#c4c7c5] max-w-xs text-center text-sm leading-relaxed">
+                    We couldn't find any registrations matching your current
+                    search criteria.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Table Header */}
+                  <div className="hidden lg:grid grid-cols-[1.8fr_1.3fr_1fr_1.3fr_1fr_1fr] gap-6 px-10 py-5 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-black/[0.03] dark:border-white/[0.03] mb-4">
+                    <div className="flex items-center gap-2">
+                      Patient Details
+                    </div>
+                    <div className="flex items-center gap-2">Contact</div>
+                    <div className="flex items-center gap-2">Consultation</div>
+                    <div className="flex items-center gap-2">Created At</div>
+                    <div className="text-center">Status</div>
+                    <div className="text-right pr-4">Control</div>
                   </div>
 
-                  {/* 4. Financial Section */}
-                  <div className="col-span-2 text-left lg:text-right w-full">
-                    <p className="text-base font-black text-[#1a1c1e] dark:text-[#e3e2e6]">
-                      ₹{reg.consultation_amount}
-                    </p>
-                    <p className="text-[10px] font-bold uppercase text-[#43474e] dark:text-[#c4c7c5] tracking-tight">
-                      {reg.payment_method || "Unspecified"}
-                    </p>
-                  </div>
-
-                  {/* 5. Status & Actions */}
-                  <div className="col-span-2 flex items-center justify-between lg:justify-center gap-4 w-full">
-                    {isPendingApproval ? (
-                      <div className="flex items-center gap-2 px-3 py-1.5 bg-[#fff8f7] dark:bg-[#2a2424] text-[#ba1a1a] dark:text-[#ffb4ab] border border-[#ffdad6] dark:border-[#93000a] rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm">
-                        <Lock size={12} />
-                        <span>Waiting Approval</span>
-                      </div>
-                    ) : isRejected ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedForPaymentFix(reg);
-                          setIsPaymentModalOpen(true);
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex flex-col gap-3"
+                  >
+                    {registrations.map((reg, idx) => (
+                      <motion.div
+                        key={reg.registration_id}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{
+                          opacity: 1,
+                          y: 0,
+                          transition: { delay: idx * 0.03 },
                         }}
-                        className="flex items-center gap-2 px-3 py-1.5 bg-[#ba1a1a] text-white rounded-full text-[10px] font-black uppercase tracking-wider shadow-md shadow-red-900/20 hover:bg-[#93000a] transition-colors"
+                        className={`group rounded-[28px] px-8 py-5 border transition-all hover:shadow-2xl hover:scale-[1.01] cursor-pointer relative overflow-hidden grid lg:grid-cols-[1.8fr_1.3fr_1fr_1.3fr_1fr_1fr] gap-6 items-center ${isDark ? "bg-[#1a1c1e] border-white/5 hover:border-emerald-500/30" : "bg-white border-[#f0f0f0] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:border-emerald-500/20"}`}
                       >
-                        <Edit2 size={12} className="text-white" />
-                        <span>Fix Payment?</span>
-                      </button>
-                    ) : (
-                      <>
-                        <StatusDropdown
-                          currentStatus={reg.status}
-                          onUpdate={(val) =>
-                            handleUpdateStatus(reg.registration_id, val)
-                          }
-                          getStatusColors={getStatusColors}
+                        {/* Status Vertical Accent */}
+                        <div
+                          className={`absolute left-0 top-0 w-1 h-full transition-all duration-300 opacity-0 group-hover:opacity-100 ${
+                            reg.status === "consulted"
+                              ? "bg-emerald-500"
+                              : reg.status === "pending"
+                                ? "bg-amber-500"
+                                : "bg-slate-400"
+                          }`}
                         />
 
-                        <button className="w-8 h-8 rounded-full bg-[#f0f4f9] dark:bg-[#30333b] flex items-center justify-center text-[#43474e] dark:text-[#c4c7c5] lg:opacity-0 lg:group-hover:opacity-100 dark:hover:bg-[#43474e] hover:bg-[#e0e2ec] transition-all">
-                          <ChevronRight size={16} />
-                        </button>
-                      </>
-                    )}
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
+                        {/* Patient Details */}
+                        <div
+                          className="flex items-center gap-5 min-w-0"
+                          onClick={() => fetchDetails(reg.registration_id)}
+                        >
+                          <div className="w-14 h-14 rounded-2xl overflow-hidden shadow-inner border border-black/5 dark:border-white/5 flex-shrink-0">
+                            <PatientAvatar
+                              photoPath={reg.patient_photo_path}
+                              name={reg.patient_name}
+                            />
+                          </div>
+                          <div className="flex flex-col min-w-0">
+                            <h3 className="text-base font-black text-[#1a1c1e] dark:text-[#e3e2e6] leading-tight group-hover:text-emerald-600 transition-colors truncate">
+                              {reg.patient_name}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className="text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-white/5 font-black font-mono tracking-tighter text-slate-500">
+                                #{reg.registration_id}
+                              </span>
+                              {reg.consultation_type && (
+                                <span className="px-2 py-0.5 rounded-lg bg-emerald-500/5 text-emerald-600 text-[9px] font-black uppercase tracking-widest border border-emerald-500/10">
+                                  {reg.consultation_type}
+                                </span>
+                              )}
+                              {reg.payment_method && (
+                                <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-white/5 text-slate-500 text-[9px] font-black uppercase tracking-widest border border-black/5">
+                                  {reg.payment_method}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
 
-        {/* Pagination (Floating) */}
-        {!isLoading && registrations.length > 0 && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#1a1c1e] dark:bg-[#e3e2e6] text-white dark:text-[#1a1c1e] px-4 py-2 rounded-full shadow-2xl z-30 flex items-center gap-4">
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1 || isSearching}
-              className="p-1 hover:bg-white/20 rounded-full disabled:opacity-30 transition-colors"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <span className="text-xs font-bold tracking-widest">
-              {currentPage} / {pagination.total_pages}
-            </span>
-            <button
-              onClick={() =>
-                setCurrentPage((p) => Math.min(pagination.total_pages, p + 1))
-              }
-              disabled={currentPage === pagination.total_pages || isSearching}
-              className="p-1 hover:bg-white/20 rounded-full disabled:opacity-30 transition-colors"
-            >
-              <ChevronRight size={20} />
-            </button>
-          </div>
-        )}
+                        {/* Contact */}
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                            Contact Number
+                          </span>
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-white/5 text-slate-400">
+                              <Phone size={14} />
+                            </div>
+                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">
+                              {reg.phone_number}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Consultation */}
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                            Consultation
+                          </span>
+                          <p className="text-base font-black text-[#1a1c1e] dark:text-[#e3e2e6] flex items-baseline gap-0.5">
+                            <span className="text-xs opacity-40">₹</span>
+                            {reg.consultation_amount}
+                          </p>
+                        </div>
+
+                        {/* Created At */}
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                            Registered On
+                          </span>
+                          <div className="flex items-center gap-2.5">
+                            <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-white/5 text-slate-400">
+                              <Calendar size={14} />
+                            </div>
+                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">
+                              {formatDateSafe(reg.created_at, "MMM dd, yyyy")}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Status & Control Override for Pending Approval */}
+                        {reg.approval_status === "pending" ? (
+                          <div className="col-span-2 flex items-center justify-between pl-4 pr-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                              <span className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-600 bg-amber-500/5 px-4 py-2 rounded-full border border-amber-500/10">
+                                Pending Approval
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => fetchDetails(reg.registration_id)}
+                              className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-50 dark:bg-white/5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-500/10 transition-all border border-transparent hover:border-emerald-500/20"
+                              title="View Details"
+                            >
+                              <Eye size={20} />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Status */}
+                            <div className="flex justify-center">
+                              <StatusDropdown
+                                currentStatus={reg.status}
+                                onUpdate={(s) =>
+                                  handleUpdateStatus(reg.registration_id, s)
+                                }
+                                getStatusColors={getStatusColors}
+                              />
+                            </div>
+
+                            {/* Control */}
+                            <div className="flex items-center justify-end gap-2 pr-4">
+                              <button
+                                onClick={() =>
+                                  fetchDetails(reg.registration_id)
+                                }
+                                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-50 dark:bg-white/5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-500/10 transition-all border border-transparent hover:border-emerald-500/20"
+                                title="View Details"
+                              >
+                                <Eye size={20} />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </motion.div>
+                    ))}
+                  </motion.div>
+                </div>
+              )}
+
+              {/* Pagination Area */}
+              {!isLoading && pagination.total_pages > 1 && (
+                <div className="mt-12 flex flex-col md:flex-row items-center justify-between gap-6 p-6 bg-[#f0f4f9]/50 dark:bg-white/[0.02] rounded-[32px] border border-black/[0.03] dark:border-white/[0.03]">
+                  <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                    Showing{" "}
+                    <span className="text-[#3b82f6]">{currentPage}</span> of{" "}
+                    <span className="text-[#3b82f6]">
+                      {pagination.total_pages}
+                    </span>{" "}
+                    pages
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <button
+                      disabled={currentPage === 1}
+                      onClick={() => setCurrentPage((p) => p - 1)}
+                      className="p-3 rounded-full bg-[#fdfcff] dark:bg-[#1a1c1e] border border-[#e0e2ec] dark:border-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] disabled:opacity-30 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] transition-all"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    <div className="flex items-center gap-2">
+                      {[...Array(pagination.total_pages)].map((_, i) => {
+                        const page = i + 1;
+                        if (
+                          page === 1 ||
+                          page === pagination.total_pages ||
+                          (page >= currentPage - 1 && page <= currentPage + 1)
+                        ) {
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => setCurrentPage(page)}
+                              className={`w-10 h-10 rounded-full font-bold text-xs transition-all ${
+                                currentPage === page
+                                  ? "bg-[#3b82f6] text-white shadow-lg shadow-blue-500/20"
+                                  : "bg-[#e0e2ec] dark:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] hover:bg-[#c9cdd6] dark:hover:bg-[#5b5e66]"
+                              }`}
+                            >
+                              {page}
+                            </button>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                    <button
+                      disabled={currentPage === pagination.total_pages}
+                      onClick={() => setCurrentPage((p) => p + 1)}
+                      className="p-3 rounded-full bg-[#fdfcff] dark:bg-[#1a1c1e] border border-[#e0e2ec] dark:border-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] disabled:opacity-30 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] transition-all"
+                    >
+                      <ChevronRight size={20} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </main>
+        </div>
       </div>
 
-      {/* Details Modal */}
+      {/* Global Components */}
+      <ActionFAB onAction={handleFABAction} />
+      <NotesDrawer isOpen={showNotes} onClose={() => setShowNotes(false)} />
+
+      <DailyIntelligence
+        isOpen={showIntelligence}
+        onClose={() => setShowIntelligence(false)}
+      />
+
+      <LogoutConfirmation
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        onConfirm={logout}
+      />
+
+      {/* Registration Specific Modals */}
       <AnimatePresence>
         {isDetailsModalOpen && selectedRegistration && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[1000] flex justify-end p-6 gap-6 pointer-events-none">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setIsDetailsModalOpen(false)}
-              className="absolute inset-0 bg-[#001f25]/50 backdrop-blur-sm"
+              onClick={() => {
+                setIsDetailsModalOpen(false);
+                setIsDynamicModalOpen(false);
+                setSelectedTrack(null);
+              }}
+              className="absolute inset-0 bg-[#001f25]/20 backdrop-blur-[2px] pointer-events-auto"
             />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 30 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 30 }}
-              className="bg-[#fdfcff] dark:bg-[#1a1c1e] w-full max-w-6xl max-h-[95vh] rounded-[32px] shadow-2xl overflow-hidden flex flex-col relative z-10 border border-[#e0e2ec] dark:border-[#43474e]"
-            >
-              {/* Modal Header */}
-              <div className="px-8 py-5 border-b border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center bg-[#fdfcff] dark:bg-[#1a1c1e]">
-                <div>
-                  <h2 className="text-xl font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">
-                    Registration Details
-                  </h2>
-                  <p className="text-xs text-[#43474e] dark:text-[#c4c7c5] mt-1">
-                    View and manage patient registration
-                  </p>
-                </div>
-                <button
-                  onClick={() => setIsDetailsModalOpen(false)}
-                  className="p-2 lg:p-1.5 bg-[#e0e2ec] dark:bg-[#43474e] text-[#43474e] dark:text-[#e3e2e6] rounded-full hover:bg-[#ffdad6] hover:text-[#410002] transition-all"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              {/* Patient Info Bar */}
-              <div className="px-8 py-6 flex flex-wrap items-center justify-between gap-4">
-                <div className="space-y-1">
-                  <h3 className="text-2xl font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">
-                    {selectedRegistration.patient_name}
-                  </h3>
-                  <div className="flex items-center gap-4 text-[#43474e] dark:text-[#c4c7c5] text-xs font-medium">
-                    <span className="bg-[#e0e2ec] dark:bg-[#43474e] px-2 py-0.5 rounded text-[10px] font-bold text-[#43474e] dark:text-[#c4c7c5]">
-                      ID: #{selectedRegistration.registration_id}
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <Clock size={12} />
-                      {formatDateSafe(
-                        selectedRegistration.created_at,
-                        "yyyy-MM-dd HH:mm:ss",
-                      )}
-                    </span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() =>
-                      navigateToBill(selectedRegistration.registration_id)
+            {/* --- SUB-DRAWER: DYNAMIC SERVICE --- */}
+            <AnimatePresence>
+              {isDynamicModalOpen && selectedRegistration && selectedTrack && (
+                <DynamicServiceModal
+                  isOpen={isDynamicModalOpen}
+                  onClose={() => {
+                    setIsDynamicModalOpen(false);
+                    setSelectedTrack(null);
+                  }}
+                  registration={selectedRegistration}
+                  track={selectedTrack}
+                  onSuccess={() => {
+                    showToast(
+                      `Successfully converted to ${selectedTrack.name} patient`,
+                      "success",
+                    );
+                    if (selectedRegistration?.registration_id) {
+                      fetchDetails(selectedRegistration.registration_id, true);
                     }
-                    className="p-2 text-[#43474e] dark:text-[#c4c7c5] hover:text-[#1a1c1e] dark:hover:text-[#e3e2e6] hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-xl transition-all border border-[#e0e2ec] dark:border-[#43474e]"
-                    title="Print Bill"
-                  >
-                    <Printer size={18} />
-                  </button>
-                  {!isEditing ? (
-                    <button
-                      onClick={startEditing}
-                      className="flex items-center gap-2 px-5 py-2 bg-[#006e1c] text-white rounded-full text-xs font-bold hover:bg-[#005313] transition-all shadow-md"
-                    >
-                      <Edit2 size={14} /> Edit
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => setIsEditing(false)}
-                      className="flex items-center gap-2 px-5 py-2 bg-[#e0e2ec] dark:bg-[#43474e] text-[#43474e] dark:text-[#c4c7c5] rounded-xl text-xs font-bold hover:bg-[#c4c7c5] dark:hover:bg-[#5b5e66] transition-all border border-[#74777f] dark:border-[#8e918f]"
-                    >
-                      <RotateCcw size={14} />
-                      Cancel
-                    </button>
-                  )}
-                  <span
-                    className={`px-4 py-2 rounded-full text-[10px] font-bold tracking-wider uppercase border transition-all ${getStatusColors(selectedRegistration.status)}`}
-                  >
-                    {selectedRegistration.status}
-                  </span>
-                  <button
-                    onClick={() => {
-                      setConfirmModal({
-                        isOpen: true,
-                        title: "Cancel Registration?",
-                        message:
-                          "Are you sure you want to cancel this registration? It will be moved to the Cancelled History for refund processing.",
-                        onConfirm: () => {
-                          handleUpdateStatus(
-                            selectedRegistration.registration_id,
-                            "closed",
-                          );
-                          setIsDetailsModalOpen(false);
-                          setConfirmModal((prev) => ({
-                            ...prev,
-                            isOpen: false,
-                          }));
-                        },
-                      });
-                    }}
-                    className="p-2 text-[#b3261e] dark:text-[#ffb4ab] hover:bg-[#ffdad6]/50 rounded-xl transition-all border border-[#e0e2ec] dark:border-[#43474e]"
-                    title="Cancel Registration"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
+                    fetchRegistrations(true);
+                  }}
+                />
+              )}
+            </AnimatePresence>
 
-              {/* Scrollable Content Container */}
-              <div className="flex-1 overflow-auto p-8 pt-0 custom-scrollbar">
-                <div className="space-y-8">
-                  {/* Quick Actions */}
-                  <div
-                    className={`p-8 rounded-[32px] border border-[#d3e3fd] dark:border-[#0842a0] bg-gradient-to-br from-[#ecf3fe] to-[#d3e3fd]/30 dark:from-[#0842a0]/10 dark:to-[#0842a0]/20 relative overflow-hidden ${selectedRegistration.approval_status === "pending" || selectedRegistration.approval_status === "rejected" ? "slashed-bg" : ""}`}
-                  >
-                    <div className="flex items-center justify-between mb-8">
-                      <div>
-                        <h4 className="text-[11px] font-black text-[#041e49] dark:text-[#d3e3fd] uppercase tracking-[0.2em] flex items-center gap-2">
-                          <Zap size={14} className="text-[#006a6a]" /> Bureau
-                          Quick Converter
-                        </h4>
-                        <p className="text-xs text-[#041e49]/70 dark:text-[#d3e3fd]/70 font-medium mt-1">
-                          Initialize treatment track conversion
-                        </p>
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="bg-white dark:bg-[#0F110F] w-full max-w-4xl h-full shadow-[-32px_0_128px_-16px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col relative z-20 border border-black/5 dark:border-white/5 rounded-[40px] pointer-events-auto"
+            >
+              {/* Header: Profile Plate */}
+              <div className="px-10 py-8 flex items-center justify-between relative overflow-hidden shrink-0 border-b border-black/5 dark:border-white/5">
+                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-transparent to-transparent opacity-50 transition-opacity" />
+                <div className="relative z-10 flex items-center gap-6">
+                  <div className="w-20 h-20 rounded-[28px] overflow-hidden border-2 border-white dark:border-white/10 shadow-xl flex-shrink-0 bg-slate-50 dark:bg-white/5">
+                    <PatientAvatar
+                      photoPath={selectedRegistration.patient_photo_path}
+                      name={selectedRegistration.patient_name}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-3xl font-bold text-[#1a1c1e] dark:text-white tracking-tight">
+                        {selectedRegistration.patient_name}
+                      </h2>
+                      <div
+                        className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStatusColors(selectedRegistration.status)} shadow-sm`}
+                      >
+                        {selectedRegistration.status}
                       </div>
                     </div>
+                    <div className="flex items-center gap-4 text-[10px] font-bold text-slate-400">
+                      <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-xl font-mono text-[10px] tracking-tighter text-slate-500 border border-black/5">
+                        <HistoryIcon size={10} />
+                        {selectedRegistration.registration_id}
+                      </span>
+                      <span className="flex items-center gap-2">
+                        <Clock size={12} className="text-emerald-500" />
+                        {formatDateSafe(
+                          selectedRegistration.created_at,
+                          "MMM dd, yyyy • HH:mm",
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
-                    {(selectedRegistration.approval_status === "pending" ||
-                      selectedRegistration.approval_status === "rejected") && (
-                      <div className="absolute inset-0 z-10 bg-white/60 dark:bg-black/60 backdrop-blur-[2px] flex items-center justify-center p-4 text-center">
-                        <div className="bg-[#b3261e] text-white px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-2xl flex items-center gap-2 border border-white/20">
-                          <Lock size={14} />
-                          <span>
-                            {selectedRegistration.approval_status === "pending"
-                              ? "Pending Approval"
-                              : "Registration Rejected"}{" "}
-                            - Actions Locked
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div
-                      className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5 ${selectedRegistration.approval_status === "pending" || selectedRegistration.approval_status === "rejected" ? "opacity-40 pointer-events-none grayscale" : ""}`}
+                <div className="relative z-10 flex items-center gap-4">
+                  <div className="flex items-center bg-slate-100/50 dark:bg-white/5 p-1 rounded-2xl border border-black/5 dark:border-white/5">
+                    <button
+                      onClick={() =>
+                        navigateToBill(selectedRegistration.registration_id)
+                      }
+                      className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-white dark:hover:bg-white/10 transition-all shadow-sm"
+                      title="Print Invoice"
                     >
-                      {/* Dynamic Service Tracks */}
+                      <Printer size={18} />
+                    </button>
+                    <button
+                      onClick={
+                        isEditing ? () => setIsEditing(false) : startEditing
+                      }
+                      className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-sm ${isEditing ? "bg-amber-500 text-white hover:bg-amber-600" : "text-slate-400 hover:text-emerald-600 hover:bg-white dark:hover:bg-white/10"}`}
+                      title={isEditing ? "Discard Changes" : "Modify Record"}
+                    >
+                      {isEditing ? (
+                        <RotateCcw size={18} />
+                      ) : (
+                        <Edit2 size={18} />
+                      )}
+                    </button>
+                    <button
+                      onClick={() =>
+                        setConfirmModal({
+                          isOpen: true,
+                          title: "Delete Sequence?",
+                          message:
+                            "This action will archive the registration permanently.",
+                          onConfirm: () => {
+                            handleUpdateStatus(
+                              selectedRegistration.registration_id,
+                              "closed",
+                            );
+                            setIsDetailsModalOpen(false);
+                            setConfirmModal((p) => ({ ...p, isOpen: false }));
+                          },
+                        })
+                      }
+                      className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-rose-500 hover:bg-white dark:hover:bg-white/10 transition-all"
+                      title="Archive Record"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => setIsDetailsModalOpen(false)}
+                    className="w-12 h-12 flex items-center justify-center bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-black/10"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto custom-scrollbar">
+                <div className="p-10 space-y-12">
+                  {/* 1. Quick Workflow Actions */}
+                  <div className="space-y-6">
+                    <div className="flex items-center justify-between px-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                          <Zap size={16} />
+                        </div>
+                        <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">
+                          Bureau Workflow Tracks
+                        </h4>
+                      </div>
+                      {(selectedRegistration.approval_status === "pending" ||
+                        selectedRegistration.approval_status ===
+                          "rejected") && (
+                        <div className="flex items-center gap-2 px-3 py-1 bg-rose-500 text-white rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
+                          <Lock size={10} />
+                          <span>Operations Locked</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       {serviceTracks.map((track, idx) => {
                         const Icon =
                           AVAILABLE_ICONS.find((i) => i.name === track.icon)
@@ -1491,365 +1636,413 @@ const Registration = () => {
                         return (
                           <button
                             key={track.id || idx}
+                            disabled={
+                              selectedRegistration.approval_status ===
+                                "pending" ||
+                              selectedRegistration.approval_status ===
+                                "rejected"
+                            }
                             onClick={() => {
                               setSelectedTrack(track);
                               setIsDynamicModalOpen(true);
                             }}
-                            className="flex items-center gap-4 p-5 bg-white dark:bg-[#1a1c1e] border-2 border-transparent hover:border-[#006a6a]/30 rounded-[24px] hover:shadow-xl transition-all group relative overflow-hidden shadow-sm"
+                            className={`flex flex-col gap-4 p-5 bg-slate-50 dark:bg-white/5 border border-black/5 dark:border-white/5 rounded-[32px] transition-all group relative overflow-hidden ${
+                              selectedRegistration.approval_status ===
+                                "pending" ||
+                              selectedRegistration.approval_status ===
+                                "rejected"
+                                ? "opacity-40 cursor-not-allowed grayscale-[0.8]"
+                                : "hover:shadow-xl hover:border-emerald-500/20"
+                            }`}
                           >
                             <div
-                              className="w-12 h-12 rounded-xl flex items-center justify-center group-hover:rotate-12 transition-transform shadow-sm"
+                              className="w-12 h-12 rounded-2xl flex items-center justify-center group-hover:scale-110 group-hover:rotate-12 transition-all shadow-sm shrink-0"
                               style={{
                                 backgroundColor: `${track.themeColor}15`,
                                 color: track.themeColor,
                               }}
                             >
-                              <Icon size={22} />
+                              <Icon size={20} strokeWidth={2.5} />
                             </div>
                             <div className="text-left">
-                              <span className="block text-sm font-black text-[#1a1c1e] dark:text-[#e3e2e6] uppercase tracking-tight">
+                              <span className="block text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none mb-1">
                                 {track.buttonLabel || track.name}
                               </span>
-                              <span className="block text-[9px] font-bold text-[#43474e] dark:text-[#c4c7c5] mt-0.5 uppercase opacity-60">
-                                {track.name}
+                              <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-tighter opacity-60">
+                                Init {track.name}
                               </span>
                             </div>
-                            <div className="absolute top-0 right-0 w-8 h-8 bg-[#006a6a]/5 rounded-bl-3xl translate-x-2 -translate-y-2 group-hover:translate-x-0 group-hover:translate-y-0 transition-transform"></div>
+                            <div className="absolute bottom-4 right-4 text-emerald-500/0 group-hover:text-emerald-500/20 transition-all translate-x-4 group-hover:translate-x-0">
+                              <Plus size={20} strokeWidth={3} />
+                            </div>
                           </button>
                         );
                       })}
                     </div>
-
-                    {selectedRegistration.patient_exists_count > 0 ? (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-6 p-4 bg-[#ccebc4]/20 border border-[#ccebc4] rounded-2xl flex items-center gap-3 text-[#006e1c] font-black text-sm shadow-sm ring-1 ring-[#ccebc4]/50"
-                      >
-                        <CheckCircle2 size={18} />
-                        <span>
-                          This patient is already in the clinical registry.
-                          (Patient ID:{" "}
-                          {selectedRegistration.existing_services?.[0]
-                            ?.patient_id || "N/A"}
-                          )
-                        </span>
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-6 p-4 bg-[#ffefc2]/30 border border-[#dec650] rounded-2xl flex items-center gap-3 text-[#675402] font-black text-sm shadow-sm ring-1 ring-[#675402]/20"
-                      >
-                        <AlertCircle size={18} />
-                        <span>
-                          ⚠️ No patient found for this Registration ID. You can
-                          add them.
-                        </span>
-                      </motion.div>
-                    )}
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Personal Info */}
-                    <div className="p-8 rounded-[32px] border border-[#e0e2ec] dark:border-[#43474e] bg-white/40 dark:bg-black/10 space-y-8 relative overflow-hidden shadow-inner">
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-[#006a6a]/5 rounded-bl-full -mr-8 -mt-8 opacity-40"></div>
-                      <div className="flex items-center justify-between relative z-10">
-                        <h4 className="text-[11px] font-black text-[#006a6a] uppercase tracking-[0.2em] flex items-center gap-2">
-                          <User size={14} /> Personal Identity
-                        </h4>
-                      </div>
-                      <div className="grid grid-cols-2 gap-y-8 gap-x-6 relative z-10">
-                        <div>
-                          <label className="text-[10px] font-black text-[#43474e]/60 dark:text-[#c4c7c5]/60 uppercase tracking-widest block mb-2">
-                            Age
-                          </label>
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={editData.age || ""}
-                              onChange={(e) =>
-                                setEditData({
-                                  ...editData,
-                                  age: e.target.value,
-                                })
-                              }
-                              className="w-full px-4 py-2.5 bg-white dark:bg-[#43474e] border border-[#e0e2ec] dark:border-[#43474e] rounded-xl text-sm font-bold shadow-sm outline-none focus:ring-1 ring-[#006a6a]"
-                            />
-                          ) : (
-                            <p className="text-base font-black text-[#1a1c1e] dark:text-[#e3e2e6]">
-                              {selectedRegistration.age || "N/A"}
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-black text-[#43474e]/60 dark:text-[#c4c7c5]/60 uppercase tracking-widest block mb-2">
-                            Gender
-                          </label>
-                          {isEditing ? (
-                            <CustomSelect
-                              value={editData.gender || ""}
-                              onChange={(v) =>
-                                setEditData({ ...editData, gender: v })
-                              }
-                              options={[
-                                { label: "Male", value: "Male" },
-                                { label: "Female", value: "Female" },
-                                { label: "Other", value: "Other" },
-                              ]}
-                              className="bg-white dark:bg-[#43474e] rounded-xl text-sm"
-                            />
-                          ) : (
-                            <p className="text-base font-black text-[#1a1c1e] dark:text-[#e3e2e6]">
-                              {selectedRegistration.gender || "N/A"}
-                            </p>
-                          )}
-                        </div>
-                        <div className="col-span-2">
-                          <label className="text-[10px] font-black text-[#43474e]/60 dark:text-[#c4c7c5]/60 uppercase tracking-widest block mb-2">
-                            Contact Link
-                          </label>
-                          {isEditing ? (
-                            <div className="relative">
-                              <Phone
-                                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                                size={14}
-                              />
-                              <input
-                                type="text"
-                                value={editData.phone_number || ""}
-                                onChange={(e) =>
-                                  setEditData({
-                                    ...editData,
-                                    phone_number: e.target.value,
-                                  })
-                                }
-                                className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-[#43474e] border border-[#e0e2ec] dark:border-[#43474e] rounded-xl text-sm font-bold shadow-sm outline-none focus:ring-1 ring-[#006a6a]"
-                              />
+                  {/* 2. Structured Information Grid */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                    {/* Status Banner */}
+                    <div className="lg:col-span-12">
+                      {selectedRegistration.patient_exists_count > 0 ? (
+                        <div className="p-4 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/10 rounded-2xl flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                              <Check size={14} strokeWidth={3} />
                             </div>
-                          ) : (
-                            <p className="text-base font-black text-[#1a1c1e] dark:text-[#e3e2e6] flex items-center gap-2">
-                              <Phone size={14} className="text-[#006a6a]" />{" "}
-                              {selectedRegistration.phone_number}
-                            </p>
-                          )}
-                        </div>
-                        <div className="col-span-2">
-                          <label className="text-[10px] font-black text-[#43474e]/60 dark:text-[#c4c7c5]/60 uppercase tracking-widest block mb-2">
-                            Secure Email
-                          </label>
-                          {isEditing ? (
-                            <input
-                              type="email"
-                              value={editData.email || ""}
-                              onChange={(e) =>
-                                setEditData({
-                                  ...editData,
-                                  email: e.target.value,
-                                })
+                            <span className="text-[11px] font-black text-emerald-900 dark:text-emerald-400 uppercase tracking-tight">
+                              Linked Clinic Record: Patient ID #
+                              {
+                                selectedRegistration.existing_services?.[0]
+                                  ?.patient_id
                               }
-                              className="w-full px-4 py-2.5 bg-white dark:bg-[#43474e] border border-[#e0e2ec] dark:border-[#43474e] rounded-xl text-sm font-bold shadow-sm outline-none focus:ring-1 ring-[#006a6a]"
-                            />
-                          ) : (
-                            <p className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6] truncate">
-                              {selectedRegistration.email || "N/A"}
-                            </p>
-                          )}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => navigate("/reception/patients")}
+                            className="px-4 py-1.5 bg-emerald-500 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-emerald-500/10"
+                          >
+                            Show Registry
+                          </button>
                         </div>
-                        <div className="col-span-2">
-                          <label className="text-[10px] font-black text-[#43474e]/60 dark:text-[#c4c7c5]/60 uppercase tracking-widest block mb-2">
-                            Residence Address
-                          </label>
-                          {isEditing ? (
-                            <textarea
-                              value={editData.address || ""}
-                              onChange={(e) =>
-                                setEditData({
-                                  ...editData,
-                                  address: e.target.value,
-                                })
-                              }
-                              className="w-full px-4 py-2.5 bg-white dark:bg-[#43474e] border border-[#e0e2ec] dark:border-[#43474e] rounded-xl text-sm font-bold shadow-sm outline-none min-h-[80px] focus:ring-1 ring-[#006a6a]"
-                            />
-                          ) : (
-                            <p className="text-sm font-medium text-[#43474e] dark:text-[#c4c7c5] leading-relaxed">
-                              {selectedRegistration.address || "N/A"}
-                            </p>
-                          )}
+                      ) : (
+                        <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center">
+                            <AlertCircle size={14} strokeWidth={3} />
+                          </div>
+                          <span className="text-[11px] font-black text-amber-900 dark:text-amber-400 uppercase tracking-tight">
+                            Waiting for clinical profiling - No existing records
+                            found
+                          </span>
                         </div>
-                      </div>
+                      )}
                     </div>
-                    {/* Clinical Info */}
-                    <div className="p-8 rounded-[32px] border border-[#e0e2ec] dark:border-[#43474e] bg-white/40 dark:bg-black/10 space-y-8 relative overflow-hidden shadow-inner">
-                      <div className="absolute top-0 right-0 w-24 h-24 bg-[#b3261e]/5 rounded-bl-full -mr-8 -mt-8 opacity-40"></div>
-                      <div className="flex items-center justify-between relative z-10">
-                        <h4 className="text-[11px] font-black text-[#b3261e] uppercase tracking-[0.2em] flex items-center gap-2">
-                          <Activity size={14} /> Clinical Registry
-                        </h4>
-                      </div>
-                      <div className="grid grid-cols-2 gap-y-8 gap-x-6 relative z-10">
-                        <div className="col-span-2">
-                          <label className="text-[10px] font-black text-[#43474e]/60 dark:text-[#c4c7c5]/60 uppercase tracking-widest block mb-2">
-                            Diagnosis / Complaint
-                          </label>
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={editData.chief_complain || ""}
-                              onChange={(e) =>
-                                setEditData({
-                                  ...editData,
-                                  chief_complain: e.target.value,
-                                })
-                              }
-                              className="w-full px-4 py-2.5 bg-white dark:bg-[#43474e] border border-[#e0e2ec] dark:border-[#43474e] rounded-xl text-sm font-bold shadow-sm outline-none focus:ring-1 ring-[#006a6a]"
-                            />
-                          ) : (
-                            <div className="flex items-center gap-3">
-                              <div className="w-2 h-2 rounded-full bg-[#b3261e]"></div>
-                              <p className="text-base font-black text-[#1a1c1e] dark:text-[#e3e2e6]">
-                                {selectedRegistration.chief_complain}
-                              </p>
+
+                    {/* Identity Column */}
+                    <div className="lg:col-span-12 space-y-8">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        {/* Identity Section */}
+                        <div className="bg-white dark:bg-white/[0.02] border border-black/5 dark:border-white/5 rounded-[40px] p-8 space-y-8 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-500">
+                              <User size={16} />
                             </div>
-                          )}
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-black text-[#43474e]/60 dark:text-[#c4c7c5]/60 uppercase tracking-widest block mb-2">
-                            Clinical Service
-                          </label>
-                          {isEditing ? (
-                            <CustomSelect
-                              value={editData.consultation_type || ""}
-                              onChange={(v) =>
-                                setEditData({
-                                  ...editData,
-                                  consultation_type: v,
-                                })
-                              }
-                              options={[
-                                { label: "Select", value: "" },
-                                ...options.types.map((t) => ({
-                                  label: t,
-                                  value: t,
-                                })),
-                              ]}
-                              className="bg-white dark:bg-[#43474e] rounded-xl text-sm"
-                            />
-                          ) : (
-                            <p className="text-sm font-black text-[#1a1c1e] dark:text-[#e3e2e6] uppercase tracking-wider bg-[#e0e2ec] dark:bg-[#43474e] px-3 py-1 rounded-lg w-fit">
-                              {selectedRegistration.consultation_type}
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-black text-[#43474e]/60 dark:text-[#c4c7c5]/60 uppercase tracking-widest block mb-2">
-                            Source / Referrer
-                          </label>
-                          {isEditing ? (
-                            <CustomSelect
-                              value={editData.reffered_by || ""}
-                              onChange={(v) =>
-                                setEditData({ ...editData, reffered_by: v })
-                              }
-                              options={[
-                                { label: "Select", value: "" },
-                                ...options.referred_by.map((r) => ({
-                                  label: r,
-                                  value: r,
-                                })),
-                              ]}
-                              className="bg-white dark:bg-[#43474e] rounded-xl text-sm"
-                            />
-                          ) : (
-                            <p className="text-base font-black text-[#1a1c1e] dark:text-[#e3e2e6]">
-                              {selectedRegistration.reffered_by ||
-                                "Direct Entry"}
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-black text-[#43474e]/60 dark:text-[#c4c7c5]/60 uppercase tracking-widest block mb-2">
-                            Accounting Fee
-                          </label>
-                          {isEditing ? (
-                            <input
-                              type="number"
-                              value={editData.consultation_amount || ""}
-                              onChange={(e) =>
-                                setEditData({
-                                  ...editData,
-                                  consultation_amount: e.target.value,
-                                })
-                              }
-                              className="w-full px-4 py-2.5 bg-white dark:bg-[#43474e] border border-[#e0e2ec] dark:border-[#43474e] rounded-xl text-sm font-bold shadow-sm outline-none focus:ring-1 ring-[#006a6a]"
-                            />
-                          ) : (
-                            <p className="text-xl font-black text-[#1a1c1e] dark:text-[#e3e2e6]">
-                              ₹ {selectedRegistration.consultation_amount}
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                          <label className="text-[10px] font-black text-[#43474e]/60 dark:text-[#c4c7c5]/60 uppercase tracking-widest block mb-2">
-                            Payment Logic
-                          </label>
-                          {isEditing ? (
-                            <CustomSelect
-                              value={editData.payment_method || ""}
-                              onChange={(v) =>
-                                setEditData({ ...editData, payment_method: v })
-                              }
-                              options={[
-                                { label: "Cash", value: "Cash" },
-                                { label: "Online", value: "Online" },
-                                { label: "Card", value: "Card" },
-                              ]}
-                              className="bg-white dark:bg-[#43474e] rounded-xl text-sm"
-                            />
-                          ) : (
-                            <p className="text-sm font-black text-[#1a1c1e] dark:text-[#e3e2e6] uppercase tracking-[0.1em] flex items-center gap-2">
-                              <CreditCard
-                                size={14}
-                                className="text-[#006a6a]"
-                              />{" "}
-                              {selectedRegistration.payment_method}
-                            </p>
-                          )}
-                        </div>
-                        <div className="col-span-2 pt-2">
-                          <label className="text-[10px] font-black text-[#43474e]/60 dark:text-[#c4c7c5]/60 uppercase tracking-widest block mb-2">
-                            Doctor's Observational Notes
-                          </label>
-                          <div className="p-5 bg-white/60 dark:bg-black/20 border border-[#e0e2ec] dark:border-[#43474e] rounded-[24px] text-sm text-[#43474e] dark:text-[#c4c7c5] font-medium leading-relaxed min-h-[80px] shadow-inner font-sans">
-                            {selectedRegistration.doctor_notes ||
-                              "No specialized clinical notes recorded for this patient yet."}
+                            <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">
+                              Identity Plate
+                            </h4>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-6">
+                            <div className="space-y-1.5">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                Age
+                              </label>
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editData.age || ""}
+                                  onChange={(e) =>
+                                    setEditData({
+                                      ...editData,
+                                      age: e.target.value,
+                                    })
+                                  }
+                                  className="w-full px-3 py-1.5 bg-slate-50 dark:bg-white/5 border border-black/10 rounded-lg text-sm font-bold focus:ring-2 ring-emerald-500/20 outline-none"
+                                />
+                              ) : (
+                                <p className="text-lg font-black text-slate-900 dark:text-white">
+                                  {selectedRegistration.age || "N/A"}{" "}
+                                  <span className="text-[10px] text-slate-400">
+                                    Y/O
+                                  </span>
+                                </p>
+                              )}
+                            </div>
+                            <div className="space-y-1.5">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                Gender
+                              </label>
+                              {isEditing ? (
+                                <CustomSelect
+                                  value={editData.gender || ""}
+                                  onChange={(v) =>
+                                    setEditData({ ...editData, gender: v })
+                                  }
+                                  options={[
+                                    { label: "Male", value: "Male" },
+                                    { label: "Female", value: "Female" },
+                                    { label: "Other", value: "Other" },
+                                  ]}
+                                  className="!py-1.5 !rounded-lg !bg-slate-50"
+                                />
+                              ) : (
+                                <p className="text-lg font-black text-slate-900 dark:text-white">
+                                  {selectedRegistration.gender || "N/A"}
+                                </p>
+                              )}
+                            </div>
+                            <div className="col-span-2 space-y-1.5 pt-4 border-t border-black/5">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                Primary Link
+                              </label>
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editData.phone_number || ""}
+                                  onChange={(e) =>
+                                    setEditData({
+                                      ...editData,
+                                      phone_number: e.target.value,
+                                    })
+                                  }
+                                  className="w-full px-4 py-2 bg-slate-50 dark:bg-white/5 border border-emerald-500/20 rounded-xl text-lg font-black focus:ring-4 ring-emerald-500/5 outline-none"
+                                />
+                              ) : (
+                                <div className="flex items-center gap-3 text-slate-900 dark:text-white">
+                                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                                    <Phone size={14} />
+                                  </div>
+                                  <p className="text-xl font-black tracking-tighter">
+                                    {selectedRegistration.phone_number}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                            <div className="col-span-2 space-y-1.5">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                Documented Residence
+                              </label>
+                              {isEditing ? (
+                                <textarea
+                                  value={editData.address || ""}
+                                  onChange={(e) =>
+                                    setEditData({
+                                      ...editData,
+                                      address: e.target.value,
+                                    })
+                                  }
+                                  className="w-full px-4 py-2 bg-slate-50 dark:bg-white/5 border border-black/10 rounded-xl text-xs font-bold min-h-[80px] focus:ring-2 ring-emerald-500/20 outline-none"
+                                />
+                              ) : (
+                                <div className="flex items-start gap-2">
+                                  <MapPin
+                                    size={12}
+                                    className="text-slate-300 mt-1 shrink-0"
+                                  />
+                                  <p className="text-[10px] font-bold text-slate-500 leading-relaxed uppercase tracking-tight line-clamp-2">
+                                    {selectedRegistration.address ||
+                                      "No documented residence"}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         </div>
+
+                        {/* Clinical Section */}
+                        <div className="bg-white dark:bg-white/[0.02] border border-black/5 dark:border-white/5 rounded-[40px] p-8 space-y-8 shadow-sm">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                              <Activity size={16} />
+                            </div>
+                            <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">
+                              Clinical Sequence
+                            </h4>
+                          </div>
+
+                          <div className="grid grid-cols-12 gap-6">
+                            <div className="col-span-12 space-y-1.5 bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-black/5">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                Diagnosis / Concern
+                              </label>
+                              {isEditing ? (
+                                <input
+                                  type="text"
+                                  value={editData.chief_complain || ""}
+                                  onChange={(e) =>
+                                    setEditData({
+                                      ...editData,
+                                      chief_complain: e.target.value,
+                                    })
+                                  }
+                                  className="w-full px-3 py-1 bg-transparent border-b-2 border-emerald-500/20 text-sm font-bold focus:border-emerald-500 outline-none"
+                                />
+                              ) : (
+                                <p className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                                  {selectedRegistration.chief_complain ||
+                                    "General Clinical Inquiry"}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="col-span-6 space-y-1.5">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                Service
+                              </label>
+                              {isEditing ? (
+                                <CustomSelect
+                                  value={editData.consultation_type || ""}
+                                  onChange={(v) =>
+                                    setEditData({
+                                      ...editData,
+                                      consultation_type: v,
+                                    })
+                                  }
+                                  options={options.types.map((t) => ({
+                                    label: t,
+                                    value: t,
+                                  }))}
+                                  className="!py-1.5 !rounded-lg !bg-slate-50"
+                                />
+                              ) : (
+                                <p className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-widest px-3 py-1 bg-slate-100 dark:bg-white/10 rounded-lg inline-block">
+                                  {selectedRegistration.consultation_type ||
+                                    "IN_CLINIC"}
+                                </p>
+                              )}
+                            </div>
+                            <div className="col-span-6 space-y-1.5">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                Referrer
+                              </label>
+                              {isEditing ? (
+                                <CustomSelect
+                                  value={editData.reffered_by || ""}
+                                  onChange={(v) =>
+                                    setEditData({ ...editData, reffered_by: v })
+                                  }
+                                  options={options.referred_by.map((r) => ({
+                                    label: r,
+                                    value: r,
+                                  }))}
+                                  className="!py-1.5 !rounded-lg !bg-slate-50"
+                                />
+                              ) : (
+                                <p className="text-sm font-black text-slate-400 uppercase tracking-tight">
+                                  {selectedRegistration.reffered_by ||
+                                    "Direct Walk-in"}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="col-span-6 space-y-1.5 pt-4 border-t border-black/5">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                Accounting Fee
+                              </label>
+                              {isEditing ? (
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">
+                                    ₹
+                                  </span>
+                                  <input
+                                    type="number"
+                                    value={editData.consultation_amount || ""}
+                                    onChange={(e) =>
+                                      setEditData({
+                                        ...editData,
+                                        consultation_amount: e.target.value,
+                                      })
+                                    }
+                                    className="w-full pl-7 pr-4 py-2 bg-slate-50 dark:bg-white/5 border border-black/10 rounded-xl text-lg font-black focus:ring-4 ring-emerald-500/5 outline-none"
+                                  />
+                                </div>
+                              ) : (
+                                <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
+                                  <span className="text-xs opacity-30 mr-1 font-serif">
+                                    ₹
+                                  </span>
+                                  {selectedRegistration.consultation_amount}
+                                </p>
+                              )}
+                            </div>
+                            <div className="col-span-6 space-y-1.5 pt-4 border-t border-black/5">
+                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                Payment Logic
+                              </label>
+                              {isEditing ? (
+                                <CustomSelect
+                                  value={editData.payment_method || ""}
+                                  onChange={(v) =>
+                                    setEditData({
+                                      ...editData,
+                                      payment_method: v,
+                                    })
+                                  }
+                                  options={[
+                                    { label: "CASH", value: "CASH" },
+                                    { label: "CARD", value: "CARD" },
+                                    { label: "UPI", value: "UPI" },
+                                  ]}
+                                  className="!py-2 !rounded-xl !bg-slate-50"
+                                />
+                              ) : (
+                                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
+                                  <CreditCard
+                                    size={14}
+                                    className="text-emerald-500"
+                                  />
+                                  <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">
+                                    {selectedRegistration.payment_method ||
+                                      "CASH"}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Notes Area */}
+                      <div className="bg-slate-50 dark:bg-white/[0.01] border border-black/5 dark:border-white/5 rounded-[40px] p-8 space-y-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-400">
+                            <HistoryIcon size={14} />
+                          </div>
+                          <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                            Clinical Observations & Notes
+                          </h4>
+                        </div>
+                        <p className="text-[11px] font-bold text-slate-400/60 leading-relaxed italic text-center py-4 border-2 border-dashed border-black/5 rounded-[24px]">
+                          No Documented Clinical Observations for this sequence.
+                        </p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className="px-8 py-5 border-t border-[#e0e2ec] dark:border-[#43474e] bg-[#fdfcff] dark:bg-[#1a1c1e] flex justify-end gap-3">
-                {isEditing ? (
-                  <button
-                    disabled={isSaving}
-                    className="flex items-center gap-2 px-8 py-2.5 bg-[#006e1c] text-white rounded-full text-xs font-black shadow-lg hover:opacity-90 transition-all disabled:opacity-50"
-                    onClick={handleSaveDetails}
-                  >
-                    <Check size={16} />{" "}
-                    {isSaving ? "Saving..." : "Save Changes"}
-                  </button>
-                ) : (
-                  <button
-                    className="px-8 py-2.5 bg-[#e0e2ec] dark:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] rounded-full text-xs font-bold hover:bg-[#c9cdd6] dark:hover:bg-[#5b5e66] transition-all"
-                    onClick={() => setIsDetailsModalOpen(false)}
-                  >
-                    Close
-                  </button>
-                )}
+              {/* Footer Actions */}
+              <div className="shrink-0 px-10 py-6 border-t border-black/5 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01] flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)] animate-pulse" />
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
+                    Active Session Link
+                  </span>
+                </div>
+                <div className="flex items-center gap-3">
+                  {isEditing ? (
+                    <button
+                      onClick={handleSaveDetails}
+                      disabled={isSaving}
+                      className="px-10 py-3.5 bg-emerald-500 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-500/20 flex items-center gap-3 disabled:opacity-50"
+                    >
+                      {isSaving ? (
+                        <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Check size={16} strokeWidth={3} />
+                      )}
+                      Save Changes
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setIsDetailsModalOpen(false)}
+                      className="px-10 py-3.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-black/10"
+                    >
+                      Close
+                    </button>
+                  )}
+                </div>
               </div>
             </motion.div>
           </div>
@@ -1859,7 +2052,7 @@ const Registration = () => {
       {/* --- BILL MODAL --- */}
       <AnimatePresence>
         {isBillModalOpen && selectedRegistration && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2046,7 +2239,7 @@ const Registration = () => {
       {/* --- CONFIRMATION MODAL --- */}
       <AnimatePresence>
         {confirmModal.isOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -2099,55 +2292,23 @@ const Registration = () => {
             initial={{ opacity: 0, y: 20, scale: 0.9 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, scale: 0.9 }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[150]"
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[2000]"
           >
             <div
-              className={`px-4 py-3 rounded-full shadow-lg flex items-center gap-3 ${toast.type === "success" ? "bg-[#006e1c] text-white" : toast.type === "error" ? "bg-[#ba1a1a] text-white" : "bg-[#00639b] text-white"}`}
+              className={`px-4 py-3 rounded-full shadow-lg flex items-center gap-3 ${toast?.type === "success" ? "bg-[#006e1c] text-white" : toast?.type === "error" ? "bg-[#ba1a1a] text-white" : "bg-[#00639b] text-white"}`}
             >
-              {toast.type === "success" ? (
+              {toast?.type === "success" ? (
                 <CheckCircle2 size={16} />
               ) : (
                 <AlertCircle size={16} />
               )}
               <span className="text-xs font-bold tracking-wide">
-                {toast.message}
+                {toast?.message}
               </span>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* --- GLOBAL SEARCH MODAL --- */}
-      <GlobalSearch
-        isOpen={showGlobalModal}
-        onClose={() => setShowGlobalModal(false)}
-        searchQuery={globalSearchQuery}
-        setSearchQuery={setGlobalSearchQuery}
-        searchResults={searchResults}
-      />
-
-      {/* --- DYNAMIC SERVICE MODAL --- */}
-      {selectedRegistration && selectedTrack && (
-        <DynamicServiceModal
-          isOpen={isDynamicModalOpen}
-          onClose={() => {
-            setIsDynamicModalOpen(false);
-            setSelectedTrack(null);
-          }}
-          registration={selectedRegistration}
-          track={selectedTrack}
-          onSuccess={() => {
-            showToast(
-              `Successfully converted to ${selectedTrack.name} patient`,
-              "success",
-            );
-            if (selectedRegistration?.registration_id) {
-              fetchDetails(selectedRegistration.registration_id);
-            }
-            fetchRegistrations();
-          }}
-        />
-      )}
 
       {/* --- PAYMENT FIX MODAL --- */}
       <UpdatePaymentModal
@@ -2167,70 +2328,18 @@ const Registration = () => {
         }}
       />
 
-      {/* --- GLOBAL SEARCH MODAL --- */}
-      <GlobalSearch
-        isOpen={showGlobalModal}
-        onClose={() => setShowGlobalModal(false)}
-        searchQuery={globalSearchQuery}
-        setSearchQuery={setGlobalSearchQuery}
-        searchResults={searchResults}
-      />
-
       {/* --- KEYBOARD SHORTCUTS MODAL & BUTTON --- */}
       <KeyboardShortcuts
         shortcuts={shortcuts}
         isOpen={showShortcuts}
         onClose={() => setShowShortcuts(false)}
-        onToggle={() => setShowShortcuts((p) => !p)}
+        onToggle={() => setShowShortcuts((p: boolean) => !p)}
       />
 
-      {/* --- LOGOUT CONFIRMATION --- */}
-      <AnimatePresence>
-        {showLogoutConfirm && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowLogoutConfirm(false)}
-              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-[#fdfcff] dark:bg-[#1a1c1e] w-full max-w-sm rounded-[28px] shadow-2xl relative z-10 p-8 text-center border border-[#e0e2ec] dark:border-[#43474e]"
-            >
-              <div className="w-16 h-16 rounded-full bg-[#ffdad6] dark:bg-[#93000a] text-[#410002] dark:text-[#ffdad6] mx-auto flex items-center justify-center mb-6">
-                <LogOut size={32} />
-              </div>
-              <h3 className="text-xl font-black text-[#1a1c1e] dark:text-[#e3e2e6] mb-2">
-                Logout
-              </h3>
-              <p className="text-sm font-medium text-[#43474e] dark:text-[#c4c7c5] mb-8">
-                Are you sure you want to log out of your account?
-              </p>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowLogoutConfirm(false)}
-                  className="flex-1 py-2.5 bg-[#e0e2ec] dark:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] rounded-full text-xs font-bold hover:bg-[#c9cdd6] dark:hover:bg-[#5b5e66] transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    logout();
-                    navigate("/login");
-                  }}
-                  className="flex-1 py-2.5 bg-[#ba1a1a] text-white rounded-full text-xs font-bold hover:bg-[#93000a] transition-all shadow-md"
-                >
-                  Logout
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <ChatModal
+        isOpen={showChatModal}
+        onClose={() => setShowChatModal(false)}
+      />
     </div>
   );
 };

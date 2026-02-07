@@ -33,10 +33,10 @@ import { toast } from "sonner";
 import { printPatientStatement } from "../../utils/printToken";
 
 const getPhotoUrl = (path: string | null) => {
-    if (!path) return null;
-    if (path.startsWith('http')) return path;
-    const cleanPath = path.replace('admin/desktop/server/', '');
-    return `${FILE_BASE_URL}/${cleanPath}`;
+  if (!path) return null;
+  if (path.startsWith("http")) return path;
+  const cleanPath = path.replace("admin/desktop/server/", "");
+  return `${FILE_BASE_URL}/${cleanPath}`;
 };
 
 // --- Sub-components (Defined first to avoid ReferenceErrors) ---
@@ -195,10 +195,7 @@ const Section = ({
         <div
           className={`transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
         >
-          <ChevronDown
-            size={20}
-            className="text-[#94a3b8]"
-          />
+          <ChevronDown size={20} className="text-[#94a3b8]" />
         </div>
       </button>
       <AnimatePresence>
@@ -245,24 +242,25 @@ const PatientDetailsModal = () => {
     if (selectedPatient) fetchPatientDetails(selectedPatient.patient_id);
   };
 
-
   const handlePrintBill = async () => {
     if (!selectedPatient?.patient_id) return;
     const loadingToast = toast.loading("Generating bill...");
     try {
-       const res = await authFetch(`${API_BASE_URL}/reception/tokens?action=get_data&patient_id=${selectedPatient.patient_id}`);
-       const json = await res.json();
-       if (json.success || json.status === 'success') {
-          printPatientStatement(json.data);
-          toast.success("Bill sent to printer");
-       } else {
-          toast.error(json.message || "Failed to load bill data");
-       }
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/tokens?action=get_data&patient_id=${selectedPatient.patient_id}`,
+      );
+      const json = await res.json();
+      if (json.success || json.status === "success") {
+        printPatientStatement(json.data);
+        toast.success("Bill sent to printer");
+      } else {
+        toast.error(json.message || "Failed to load bill data");
+      }
     } catch (e) {
-       console.error(e);
-       toast.error("Error generating bill");
+      console.error(e);
+      toast.error("Error generating bill");
     } finally {
-       toast.dismiss(loadingToast);
+      toast.dismiss(loadingToast);
     }
   };
 
@@ -272,7 +270,7 @@ const PatientDetailsModal = () => {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-8">
+      <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-8">
         {/* Backdrop */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -287,7 +285,7 @@ const PatientDetailsModal = () => {
           initial={{ opacity: 0, scale: 0.9, y: 40 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 40 }}
-          className="relative w-full w-[90vw] max-w-[90vw] h-[90vh] bg-[#fffbff] dark:bg-[#1c1b1f] rounded-[32px] shadow-2xl overflow-hidden flex flex-col border border-[#cac4d0] dark:border-[#49454f]"
+          className="relative w-full max-w-5xl max-h-[85vh] bg-[#fffbff] dark:bg-[#1c1b1f] rounded-[32px] shadow-2xl overflow-hidden flex flex-col border border-[#cac4d0] dark:border-[#49454f]"
         >
           {/* Simplified M3 Header */}
           <div className="px-8 pt-8 pb-8 mb-2 flex items-start justify-between bg-[#f8fafc] dark:bg-[#1e293b] border-b border-[#e2e8f0] dark:border-[#334155]">
@@ -301,8 +299,11 @@ const PatientDetailsModal = () => {
                         className="w-full h-full object-cover"
                         alt=""
                         onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                            (e.target as HTMLImageElement).parentElement!.innerText = data.patient_name?.charAt(0) || "?";
+                          (e.target as HTMLImageElement).style.display = "none";
+                          (
+                            e.target as HTMLImageElement
+                          ).parentElement!.innerText =
+                            data.patient_name?.charAt(0) || "?";
                         }}
                       />
                     ) : (
@@ -346,50 +347,56 @@ const PatientDetailsModal = () => {
 
             {/* Actions in Header */}
             <div className="hidden lg:flex flex-wrap gap-2 items-center justify-end flex-1 mx-8">
-                  <ActionChip
-                    label="Print Bill"
-                    icon={Printer}
-                    onClick={handlePrintBill}
-                  />
-                  <ActionChip
-                    label="Profile View"
-                    icon={User}
-                    onClick={() =>
-                      window.open(
-                        `../patients_profile?patient_id=${data.patient_id}`,
-                        "_blank",
-                      )
-                    }
-                  />
-                  <div className="h-6 w-px bg-[#cac4d0] dark:bg-[#49454f] mx-1" />
-                  <ActionChip
-                    label="Pay Dues"
-                    icon={IndianRupee}
-                    onClick={() => toggleModal("payDues", true)}
-                    variant="success"
-                  />
-                  <ActionChip
-                    label="Add Test"
-                    icon={FilePlus}
-                    onClick={() => toggleModal("addTest", true)}
-                  />
-                  <ActionChip
-                    label="Change Plan"
-                    icon={CreditCard}
-                    onClick={() => toggleModal("changePlan", true)}
-                    variant="blue"
-                  />
-                 <ActionChip
-                    label="Edit Plan"
-                    icon={Edit}
-                    onClick={() => toggleModal("editPlan", true)}
-                  />
-                   <ActionChip
-                    label="Status"
-                    icon={Power}
-                    onClick={() => toggleModal("statusChange", true)}
-                    variant={data.patient_status === 'active' ? 'success' : (data.patient_status === 'inactive' ? 'danger' : 'default')}
-                  />
+              <ActionChip
+                label="Print Bill"
+                icon={Printer}
+                onClick={handlePrintBill}
+              />
+              <ActionChip
+                label="Profile View"
+                icon={User}
+                onClick={() =>
+                  window.open(
+                    `../patients_profile?patient_id=${data.patient_id}`,
+                    "_blank",
+                  )
+                }
+              />
+              <div className="h-6 w-px bg-[#cac4d0] dark:bg-[#49454f] mx-1" />
+              <ActionChip
+                label="Pay Dues"
+                icon={IndianRupee}
+                onClick={() => toggleModal("payDues", true)}
+                variant="success"
+              />
+              <ActionChip
+                label="Add Test"
+                icon={FilePlus}
+                onClick={() => toggleModal("addTest", true)}
+              />
+              <ActionChip
+                label="Change Plan"
+                icon={CreditCard}
+                onClick={() => toggleModal("changePlan", true)}
+                variant="blue"
+              />
+              <ActionChip
+                label="Edit Plan"
+                icon={Edit}
+                onClick={() => toggleModal("editPlan", true)}
+              />
+              <ActionChip
+                label="Status"
+                icon={Power}
+                onClick={() => toggleModal("statusChange", true)}
+                variant={
+                  data.patient_status === "active"
+                    ? "success"
+                    : data.patient_status === "inactive"
+                      ? "danger"
+                      : "default"
+                }
+              />
             </div>
 
             <button
@@ -411,7 +418,6 @@ const PatientDetailsModal = () => {
               </div>
             ) : (
               <div className="p-8">
-
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                   {/* Left Content (8 cols) */}
                   <div className="lg:col-span-12 xl:col-span-8 space-y-6">
@@ -428,9 +434,9 @@ const PatientDetailsModal = () => {
                           />
                           <div className="flex justify-between items-center border-b border-[#cac4d0]/20 pb-2">
                             <div>
-                                <p className="text-[10px] font-black text-[#64748b] uppercase tracking-wider mb-1">
-                                  Status
-                                </p>
+                              <p className="text-[10px] font-black text-[#64748b] uppercase tracking-wider mb-1">
+                                Status
+                              </p>
                               <Badge
                                 variant={
                                   data.patient_status === "active"
@@ -548,45 +554,68 @@ const PatientDetailsModal = () => {
                         icon={AlertCircle}
                       >
                         <div className="bg-[#f8fafc] dark:bg-[#111315] border border-[#e2e8f0] dark:border-[#43474e] rounded-[20px] overflow-hidden">
-                           {(() => {
-                               const raw = data.remarks || "";
-                               const parts = raw.split(/\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]/g);
-                               const logs = [];
-                               
-                               if (parts.length < 2) {
-                                   if (!raw.trim()) return <div className="p-6 text-sm text-slate-400 italic text-center">No additional remarks have been added to this patient profile.</div>;
-                                   return <div className="p-5 text-sm text-slate-800 dark:text-slate-200">{raw}</div>;
-                               }
+                          {(() => {
+                            const raw = data.remarks || "";
+                            const parts = raw.split(
+                              /\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]/g,
+                            );
+                            const logs = [];
 
-                               // If there is meaningful text BEFORE the first timestamp, include it.
-                               if (parts[0] && parts[0].trim()) {
-                                    logs.push({ date: null, msg: parts[0].trim() });
-                               }
+                            if (parts.length < 2) {
+                              if (!raw.trim())
+                                return (
+                                  <div className="p-6 text-sm text-slate-400 italic text-center">
+                                    No additional remarks have been added to
+                                    this patient profile.
+                                  </div>
+                                );
+                              return (
+                                <div className="p-5 text-sm text-slate-800 dark:text-slate-200">
+                                  {raw}
+                                </div>
+                              );
+                            }
 
-                               for (let i = 1; i < parts.length; i += 2) {
-                                   logs.push({ date: parts[i], msg: parts[i+1]?.trim() });
-                               }
+                            // If there is meaningful text BEFORE the first timestamp, include it.
+                            if (parts[0] && parts[0].trim()) {
+                              logs.push({ date: null, msg: parts[0].trim() });
+                            }
 
-                               return (
-                                   <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[300px] overflow-y-auto custom-scrollbar">
-                                       {logs.map((log, idx) => (
-                                           <div key={idx} className="p-4 flex gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                               <div className="shrink-0 flex flex-col items-center mt-1.5">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/50"></div>
-                                               </div>
-                                               <div className="flex-1">
-                                                   {log.date && (
-                                                       <p className="text-[10px] font-bold text-slate-400 font-mono mb-0.5 uppercase tracking-wider flex items-center gap-2">
-                                                           {format(new Date(log.date), "MMM dd, yyyy • hh:mm a")}
-                                                       </p>
-                                                   )}
-                                                   <p className="text-sm text-slate-700 dark:text-slate-300 leading-snug">{log.msg}</p>
-                                               </div>
-                                           </div>
-                                       ))}
-                                   </div>
-                               );
-                           })()}
+                            for (let i = 1; i < parts.length; i += 2) {
+                              logs.push({
+                                date: parts[i],
+                                msg: parts[i + 1]?.trim(),
+                              });
+                            }
+
+                            return (
+                              <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[300px] overflow-y-auto custom-scrollbar">
+                                {logs.map((log, idx) => (
+                                  <div
+                                    key={idx}
+                                    className="p-4 flex gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+                                  >
+                                    <div className="shrink-0 flex flex-col items-center mt-1.5">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/50"></div>
+                                    </div>
+                                    <div className="flex-1">
+                                      {log.date && (
+                                        <p className="text-[10px] font-bold text-slate-400 font-mono mb-0.5 uppercase tracking-wider flex items-center gap-2">
+                                          {format(
+                                            new Date(log.date),
+                                            "MMM dd, yyyy • hh:mm a",
+                                          )}
+                                        </p>
+                                      )}
+                                      <p className="text-sm text-slate-700 dark:text-slate-300 leading-snug">
+                                        {log.msg}
+                                      </p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            );
+                          })()}
                         </div>
                       </Section>
                     </div>
@@ -624,7 +653,13 @@ const PatientDetailsModal = () => {
                         />
                         <InfoRow
                           label="Discount"
-                          value={Number(data.discount_percentage || 0) > 0 ? `${data.discount_percentage}%` : (data.discount_amount ? "₹" + data.discount_amount : "0%")}
+                          value={
+                            Number(data.discount_percentage || 0) > 0
+                              ? `${data.discount_percentage}%`
+                              : data.discount_amount
+                                ? "₹" + data.discount_amount
+                                : "0%"
+                          }
                         />
                       </div>
                     </Section>
@@ -849,7 +884,7 @@ const PatientDetailsModal = () => {
         isOpen={modals.statusChange}
         onClose={() => toggleModal("statusChange", false)}
         patientId={data.patient_id || 0}
-        currentStatus={data.patient_status || 'active'}
+        currentStatus={data.patient_status || "active"}
       />
     </AnimatePresence>
   );

@@ -25,5 +25,5 @@
     "noUncheckedSideEffectImports": true,
     "resolveJsonModule": true
   },
-  "include": ["src", "../package.json"]
+  "include": ["src", "package.json", "../package.json"]
 }

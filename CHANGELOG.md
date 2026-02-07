@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.6.5-alpha] - 2026-02-07 - Sumit
+
+### Added
+- **Client-Side Data Caching**: Implemented a robust client-side caching mechanism for the **Registration** and **Cancelled Registrations** modules.
+  - Data is now fetched once on page load (with a limit of 1000 records) and stored in the global Zustand store (`useRegistrationStore`).
+  - Subsequent searches and filter applications are performed instantly on the client-side, eliminating redundant API calls and providing a zero-latency user experience.
+- **Manual Search & Filtering**: Refactored the search functionality to be strictly manual and client-side.
+  - Typing in the search bar no longer triggers API requests.
+  - Filtering logic (Search, Status, Referrer, Condition) is now computed locally using `useMemo`, ensuring immediate UI updates.
+- **Optimized Cancelled Registrations**: Extended the caching and client-side filtering logic to the `CancelledRegistrations.tsx` page, ensuring consistency across the application.
+- **Performance Improvements**: Reduced server load by minimizing backend hits for search and pagination, significantly improving the responsiveness of the reception module.
+
+### Changed
+- **Refactored `Registration.tsx`**: Moved data fetching logic to mount-only, replaced server-side pagination with local `useMemo` based pagination.
+- **Refactored `CancelledRegistrations.tsx`**: Aligned with the main registration data flow, implementing the same caching and local filtering strategies.
+
 ## [0.6.6.4-alpha] - 2026-02-05 - Sumit
 
 ### Added

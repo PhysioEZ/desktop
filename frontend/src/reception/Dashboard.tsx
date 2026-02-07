@@ -1151,7 +1151,12 @@ const ReceptionDashboard = () => {
       description: "Toggle Chat",
       group: "Modals",
       action: () => setShowChatModal((prev) => !prev),
-      pageSpecific: true,
+    },
+    {
+      keys: ["Alt", "X"],
+      description: "Consultation",
+      group: "Navigation",
+      action: () => navigate("/reception/inquiry"),
     },
     {
       keys: ["Alt", "N"],
@@ -2015,7 +2020,7 @@ const ReceptionDashboard = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
             onClick={(e) => e.target === e.currentTarget && closeModal()}
           >
             <motion.div

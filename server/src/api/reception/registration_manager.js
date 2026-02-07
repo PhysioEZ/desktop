@@ -126,6 +126,7 @@ async function fetchFilterOptions(req, res, branch_id) {
     const [conditions] = await pool.query("SELECT DISTINCT chief_complain FROM registration WHERE branch_id = ? AND chief_complain IS NOT NULL AND chief_complain != '' ORDER BY chief_complain", [branch_id]);
     const [types] = await pool.query("SELECT DISTINCT consultation_type FROM registration WHERE branch_id = ? AND consultation_type IS NOT NULL AND consultation_type != '' ORDER BY consultation_type", [branch_id]);
     const [methods] = await pool.query("SELECT method_name FROM payment_methods WHERE branch_id = ? AND is_active = 1 ORDER BY display_order", [branch_id]);
+    const [serviceTracks] = await pool.query("SELECT * FROM service_tracks WHERE is_active = 1 ORDER BY name ASC");
 
     res.json({
         status: 'success',
@@ -133,7 +134,8 @@ async function fetchFilterOptions(req, res, branch_id) {
             referred_by: referred.map(r => r.reffered_by),
             conditions: conditions.map(c => c.chief_complain),
             types: types.map(t => t.consultation_type),
-            payment_methods: methods.map(m => m.method_name)
+            payment_methods: methods.map(m => m.method_name),
+            service_tracks: serviceTracks
         }
     });
 }
