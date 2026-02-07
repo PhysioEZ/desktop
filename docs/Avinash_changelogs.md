@@ -1,0 +1,79 @@
+# Changelog - Avinash's Contributions to PhysioEZ Desktop App
+
+All notable changes contributed by Avinash to this project are documented in this file.
+
+## Changes - 2026-02-07
+
+### Added
+
+- **Enhanced Refresh Functionality**:
+  - **Inquiry Component**: Added `handleRefresh` function with cooldown mechanism to `frontend/src/reception/Inquiry.tsx` for better user experience during data refresh operations
+  - **Registration Component**: Added `handleRefresh` function with cooldown mechanism to `frontend/src/reception/Registration.tsx` for improved data refresh operations
+  - **Toast Notifications**: Integrated `sonnerToast` for promise-based notifications during refresh operations in both Inquiry and Registration components
+  - **Refresh Cooldown**: Implemented refresh cooldown state to prevent excessive API calls with 20-second cooldown period
+
+- **Improved Keyboard Shortcuts**:
+  - **Inquiry Component**: Updated keyboard shortcut handler to properly detect Ctrl+R and Alt+Shift+R combinations for page and list refresh
+  - **Registration Component**: Enhanced keyboard shortcut handler with more robust key detection logic supporting Ctrl, Alt, and Shift combinations
+
+### Changed
+
+- **Inquiry Component**:
+  - Updated refresh action in `PageHeader` to use new `handleRefresh` function instead of direct `fetchInquiries` call
+  - Renamed "Reload Page" to "Refresh Page" in keyboard shortcut descriptions
+  - Added `refreshCooldown` prop to `PageHeader` component for visual feedback during refresh operations
+
+- **Registration Component**:
+  - Updated refresh action in `PageHeader` to use new `handleRefresh` function instead of direct `fetchRegistrations` call
+  - Changed loading state from `isSearching` to `isLoading` for more accurate representation
+  - Added `refreshCooldown` prop to `PageHeader` component for visual feedback during refresh operations
+  - Removed unused `isSearching` state variable
+  - Improved conditional rendering logic for "Operations Locked" status indicator
+
+## [0.2.0] - 2026-02-06
+
+### Added
+
+- **Reception Module Expansion**:
+  - **Attendance Component**: Created `frontend/src/reception/Attendance.tsx` with comprehensive attendance tracking features including patient lists, progress tracking, and status management.
+  - **Tests Component**: Developed `frontend/src/reception/Tests.tsx` for laboratory test management with patient records, payment tracking, and test status monitoring.
+  - **Feedback Component**: Implemented `frontend/src/reception/Feedback.tsx` for managing patient feedback and reviews.
+  - **Expenses Component**: Built `frontend/src/reception/Expenses.tsx` for expense tracking and financial management.
+  - **Support Component**: Created `frontend/src/reception/Support.tsx` for issue tracking and customer support management.
+  - **Cancelled Registrations Component**: Added `frontend/src/reception/CancelledRegistrations.tsx` for managing cancelled patient registrations.
+
+- **Routing Integration**:
+  - Added new route paths to `frontend/src/App.tsx` for all the above components:
+    - `/reception/attendance`
+    - `/reception/tests`
+    - `/reception/feedback`
+    - `/reception/expenses`
+    - `/reception/support`
+    - `/reception/registration/cancelled`
+
+### Changed
+
+- Enhanced the application's navigation structure by integrating the new reception modules into the main routing system.
+
+## [0.1.0] - 2026-02-02
+
+### Added
+
+- **Patient Billing System**:
+  - **Billing Drawer Component**: Created `frontend/src/components/billing/BillingDrawer.tsx` with comprehensive financial overview and patient billing details.
+  - **Billing Page**: Developed `frontend/src/reception/Billing.tsx` for comprehensive billing management with patient records, payment tracking, and financial statistics.
+  - **Store Integration**: Enhanced `usePatientStore` with billing-specific state management for patient details and financial information.
+- **Database Schema Updates**:
+  - Modified `database/prospine.sql` with several important database improvements:
+    - Changed collation from `utf8mb4_uca1400_ai_ci` to `utf8mb4_general_ci` for better compatibility
+    - Added `SET FOREIGN_KEY_CHECKS = 0` and `SET FOREIGN_KEY_CHECKS = 1` statements to safely manage foreign key constraints during migration
+    - Removed named foreign key constraints (e.g., `ADD CONSTRAINT '1'`) to standard foreign key references for better database portability
+
+- **Package Management**:
+  - Updated `frontend/package-lock.json` version from `0.0.0` to `0.6.0`
+  - Enhanced billing drawer functionality with comprehensive patient financial details including treatment plans, payment history, and registration information
+
+### Changed
+
+- Improved the user experience in the billing system with better financial tracking and patient detail presentation.
+- Enhanced database schema for better performance and compatibility.

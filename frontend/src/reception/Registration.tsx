@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { toast as sonnerToast } from "sonner";
 import {
   ChevronLeft,
   ChevronRight,
@@ -258,6 +259,7 @@ const Registration = () => {
   const [showIntelligence, setShowIntelligence] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
 
   // UI State
   const [toast, setToast] = useState<{
@@ -342,7 +344,6 @@ const Registration = () => {
   const [referrerFilter, setReferrerFilter] = useState("");
   const [conditionFilter, setConditionFilter] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isSearching, setIsSearching] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   const storeData = storeRegistrations || [];
@@ -500,7 +501,6 @@ const Registration = () => {
         console.error("Failed to fetch registrations:", err);
       } finally {
         setIsLoading(false);
-        setIsSearching(false);
         isFirstLoad.current = false;
       }
     },
@@ -516,6 +516,29 @@ const Registration = () => {
       setRegistrationsCache,
     ],
   );
+
+  const handleRefresh = async () => {
+    if (refreshCooldown > 0) return;
+
+    const promise = fetchRegistrations(true);
+    sonnerToast.promise(promise, {
+      loading: "Refreshing registrations...",
+      success: "Registrations updated",
+      error: "Failed to refresh",
+    });
+
+    setRefreshCooldown(20);
+  };
+
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(
+        () => setRefreshCooldown((prev) => prev - 1),
+        1000,
+      );
+      return () => clearInterval(timer);
+    }
+  }, [refreshCooldown]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -609,12 +632,14 @@ const Registration = () => {
       keys: ["Alt", "R"],
       description: "Refresh List",
       group: "Registration",
-      action: () => {
-        isFirstLoad.current = true;
-        isFirstLoad.current = true;
-        fetchRegistrations(true);
-      },
+      action: () => handleRefresh(),
       pageSpecific: true,
+    },
+    {
+      keys: ["Ctrl", "R"],
+      description: "Refresh Page",
+      group: "General",
+      action: () => handleRefresh(),
     },
     {
       keys: ["Alt", "F"],
@@ -718,13 +743,24 @@ const Registration = () => {
       }
 
       // Standard Shortcuts (Alt based)
-      let key = e.key.toUpperCase();
-      if (e.key === "ArrowLeft") key = "ARROWLEFT";
-      if (e.key === "ArrowRight") key = "ARROWRIGHT";
-      const altKey = e.altKey;
+      // Removed unused manual key/altKey checks as they are handled in the loop below
 
       shortcuts.forEach((s) => {
-        if (s.keys.includes("Alt") && altKey && s.keys.includes(key)) {
+        const keys = s.keys.map((k) => k.toLowerCase());
+        const altRequired = keys.includes("alt");
+        const ctrlRequired = keys.includes("ctrl");
+        const shiftRequired = keys.includes("shift");
+
+        const targetKey = keys.filter(
+          (k) => k !== "alt" && k !== "ctrl" && k !== "shift",
+        )[0];
+
+        const keyMatch = e.key.toLowerCase() === targetKey.toLowerCase();
+        const altMatch = e.altKey === altRequired;
+        const ctrlMatch = e.ctrlKey === ctrlRequired;
+        const shiftMatch = e.shiftKey === shiftRequired;
+
+        if (keyMatch && altMatch && ctrlMatch && shiftMatch) {
           e.preventDefault();
           if (s.action) s.action();
         }
@@ -963,8 +999,9 @@ const Registration = () => {
           title="Registration"
           subtitle="Operations Center"
           icon={UserPlus}
-          onRefresh={() => fetchRegistrations(true)}
-          isLoading={isSearching}
+          onRefresh={handleRefresh}
+          isLoading={isLoading}
+          refreshCooldown={refreshCooldown}
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}
         />
@@ -1620,12 +1657,12 @@ const Registration = () => {
                       </div>
                       {(selectedRegistration.approval_status === "pending" ||
                         selectedRegistration.approval_status ===
-                          "rejected") && (
-                        <div className="flex items-center gap-2 px-3 py-1 bg-rose-500 text-white rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
-                          <Lock size={10} />
-                          <span>Operations Locked</span>
-                        </div>
-                      )}
+                        "rejected") && (
+                          <div className="flex items-center gap-2 px-3 py-1 bg-rose-500 text-white rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
+                            <Lock size={10} />
+                            <span>Operations Locked</span>
+                          </div>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -1638,9 +1675,9 @@ const Registration = () => {
                             key={track.id || idx}
                             disabled={
                               selectedRegistration.approval_status ===
-                                "pending" ||
+                              "pending" ||
                               selectedRegistration.approval_status ===
-                                "rejected"
+                              "rejected"
                             }
                             onClick={() => {
                               setSelectedTrack(track);
