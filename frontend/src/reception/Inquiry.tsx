@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { toast as sonnerToast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import {
   Search,
@@ -239,6 +240,7 @@ const Inquiry = () => {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
 
   // Stats Data
   const [monthlyStats, setMonthlyStats] = useState({
@@ -361,15 +363,15 @@ const Inquiry = () => {
     },
     {
       keys: ["Ctrl", "R"],
-      description: "Reload Page",
+      description: "Refresh Page",
       group: "Actions",
-      action: () => window.location.reload(),
+      action: () => handleRefresh(),
     },
     {
       keys: ["Alt", "Shift", "R"],
       description: "Refresh List",
       group: "Actions",
-      action: () => fetchInquiries(true),
+      action: () => handleRefresh(),
       pageSpecific: true,
     },
 
@@ -413,6 +415,29 @@ const Inquiry = () => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
+
+  const handleRefresh = async () => {
+    if (refreshCooldown > 0) return;
+
+    const promise = fetchInquiries(true);
+    sonnerToast.promise(promise, {
+      loading: "Refreshing inquiries...",
+      success: "Inquiries updated",
+      error: "Failed to refresh",
+    });
+
+    setRefreshCooldown(20);
+  };
+
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(
+        () => setRefreshCooldown((prev) => prev - 1),
+        1000,
+      );
+      return () => clearInterval(timer);
+    }
+  }, [refreshCooldown]);
 
   const fetchInquiries = useCallback(
     async (force = false) => {
@@ -688,12 +713,13 @@ const Inquiry = () => {
         <PageHeader
           title="Inquiry"
           icon={Phone}
-          onRefresh={() => fetchInquiries(true)}
+          onRefresh={handleRefresh}
           isLoading={isLoading}
+          refreshCooldown={refreshCooldown}
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}
         />
-
+  
         <div className="flex-1 flex overflow-hidden">
           {/* Left Panel */}
           <motion.aside
