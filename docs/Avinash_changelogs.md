@@ -2,6 +2,20 @@
 
 All notable changes contributed by Avinash to this project are documented in this file.
 
+## Changes - 2026-02-09
+
+### Added
+
+- **Enhanced Attendance Data Fetching**:
+  - **Date Selection Functionality**: Implemented date selection capability in the Attendance component (`frontend/src/reception/Attendance.tsx`) allowing users to view attendance data for any specific date
+  - **Backend Date Validation**: Added date validation in the attendance data API endpoint (`server/src/api/reception/getAttendanceData.js`) to ensure proper date format (YYYY-MM-DD)
+  - **Automatic Data Refresh**: Enhanced useEffect hook to automatically fetch attendance data when the selected date changes
+
+### Changed
+
+- **Frontend Implementation**: Modified the Attendance component to properly handle date selection and trigger data refresh when a new date is chosen
+- **Backend Implementation**: Updated the attendance data endpoint to properly accept and validate date parameters from query strings
+
 ## Changes - 2026-02-07
 
 ### Added
