@@ -1,26 +1,23 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
     Search, ChevronLeft, ChevronRight,
-    LayoutGrid, Calendar, Phone, Users, Banknote,
-    MessageSquare, PieChart, LifeBuoy,
-    Moon, Sun, MessageCircle, LogOut, User,
+    Users,
     RefreshCw,
     Bell,
     CheckCircle2,
-    CalendarRange,
-    TestTube2,
-    FileText,
     History,
-    TrendingUp
+    TrendingUp,
+    X, // Add X icon for the close button
+    Calendar
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { format } from 'date-fns';
-import { useNavigate } from "react-router-dom";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
 import { API_BASE_URL, authFetch } from '../config';
 import { toast } from 'sonner';
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 import Sidebar from '../components/Sidebar';
+import DatePicker from '../components/ui/DatePicker';
 
 interface AttendanceRecord {
     id: number;
@@ -30,14 +27,19 @@ interface AttendanceRecord {
     progress_total: number;
     status: 'Present' | 'Absent' | 'Pending';
 }
-
-interface Notification {
-    notification_id: number;
-    message: string;
-    link_url: string | null;
-    is_read: number;
-    created_at: string;
-    time_ago: string;
+interface AttendanceHistory {
+    success: boolean;
+    patient: {
+        id: number;
+        name: string;
+        total_days: number;
+        present_days: number;
+        remaining_days: number;
+    };
+    attendance_history: {
+        date: string; // e.g., "2026-02-01"
+        status: 'present' | 'absent';
+    }[];
 }
 
 const Attendance = () => {
@@ -45,33 +47,133 @@ const Attendance = () => {
     const { isDark } = useThemeStore();
 
     // State
-    const [currentDate] = useState(new Date());
-    const [stats] = useState({
-        total: 99,
-        present: 15,
-        pending: 84
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [showDatePicker, setShowDatePicker] = useState(false);
+    const [attendanceCalendarMonth, setAttendanceCalendarMonth] = useState(new Date()); // State for calendar navigation
+    const [stats, setStats] = useState({
+        total: 0,
+        present: 0,
+        pending: 0
     });
-    const [records] = useState<AttendanceRecord[]>([
-        { id: 455, patient_name: 'Aayat', treatment: 'Daily', progress_current: 2, progress_total: 15, status: 'Absent' },
-        { id: 433, patient_name: 'Abdhes sahu', treatment: 'Daily', progress_current: 8, progress_total: 8, status: 'Absent' },
-        { id: 443, patient_name: 'Abha singh', treatment: 'Daily', progress_current: 15, progress_total: 15, status: 'Absent' },
-        { id: 413, patient_name: 'Abhishek kumar', treatment: 'Daily', progress_current: 13, progress_total: 15, status: 'Absent' },
-        { id: 419, patient_name: 'Abhishek Nathani', treatment: 'Daily', progress_current: 10, progress_total: 10, status: 'Absent' }
-    ]);
+    const [records, setRecords] = useState<AttendanceRecord[]>([]);
     const [loading, setLoading] = useState(false);
     const [search, setSearch] = useState('');
     const [filter, setFilter] = useState<'All' | 'Present'>('All');
     const [treatmentFilter, setTreatmentFilter] = useState('All Treatments');
 
+    // New state for attendance history side panel
+    const [showHistoryPanel, setShowHistoryPanel] = useState(false);
+    const [selectedPatientHistory, setSelectedPatientHistory] = useState<AttendanceHistory | null>(null);
+    const [selectedHistoryDate, setSelectedHistoryDate] = useState<Date | null>(null);
+    const [selectedDateHistory, setSelectedDateHistory] = useState<AttendanceHistory['attendance_history']>([]);
+    const [dateHistoryLoading, setDateHistoryLoading] = useState(false);
+
     // Notifications
-    const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [showNotifPopup, setShowNotifPopup] = useState(false);
     const notifRef = useRef<HTMLButtonElement>(null);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
-        setTimeout(() => setLoading(false), 500);
+        try {
+            const dateStr = format(currentDate, 'yyyy-MM-dd');
+            const response = await authFetch(`${API_BASE_URL}/reception/attendance_data?date=${dateStr}`);
+            const data = await response.json();
+
+            if (data.success) {
+                setStats(data.data.stats);
+
+                // Define the API record type
+                interface ApiAttendanceRecord {
+                    patient_id: number;
+                    patient_name: string;
+                    treatment_type: string;
+                    attendance_count?: number;
+                    treatment_days?: number;
+                    attendance_id?: number;
+                    status: string;
+                }
+
+                // Transform the API data to match our interface
+                const transformedRecords: AttendanceRecord[] = data.data.attendance_records.map((record: ApiAttendanceRecord) => ({
+                    id: record.patient_id,
+                    patient_name: record.patient_name,
+                    treatment: record.treatment_type.charAt(0).toUpperCase() + record.treatment_type.slice(1),
+                    progress_current: record.attendance_count || 0,
+                    progress_total: record.treatment_days || 0,
+                    status: record.attendance_id ? (record.status === 'present' ? 'Present' : record.status.charAt(0).toUpperCase() + record.status.slice(1)) : 'Absent'
+                }));
+
+                setRecords(transformedRecords);
+            } else {
+                console.error('Failed to fetch attendance data:', data.message);
+            }
+        } catch (error) {
+            console.error('Error fetching attendance data:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, [currentDate]);
+
+    const fetchAttendanceHistory = async (patientId: number) => {
+        try {
+            const response = await authFetch(`${API_BASE_URL}/reception/get_attendance_history?patient_id=${patientId}`);
+            const data = await response.json();
+
+            if (data.success) {
+                console.log(`Attendance history for patient ${patientId}:`, data);
+                toast.success(`Fetched attendance history for ${data.patient.name}`);
+                setSelectedPatientHistory(data); // Store the entire response
+                setShowHistoryPanel(true);      // Open the side panel
+                setSelectedHistoryDate(null);
+                setSelectedDateHistory([]);
+            } else {
+                console.error('Failed to fetch attendance history:', data.message);
+                toast.error('Failed to fetch attendance history');
+            }
+        } catch (error) {
+            console.error('Error fetching attendance history:', error);
+            toast.error('Error fetching attendance history');
+        }
+    };
+
+    const fetchAttendanceHistoryForDate = async (patientId: number, date: Date) => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        setDateHistoryLoading(true);
+        try {
+            const response = await authFetch(
+                `${API_BASE_URL}/reception/get_attendance_history?patient_id=${patientId}&date=${dateStr}`
+            );
+            const data = await response.json();
+            if (data.success) {
+                let history = Array.isArray(data.attendance_history) ? data.attendance_history : [];
+                if (history.length > 0) {
+                    history = history.filter((record: AttendanceHistory['attendance_history'][number]) => record.date === dateStr);
+                } else if (selectedPatientHistory?.attendance_history) {
+                    history = selectedPatientHistory.attendance_history.filter((record) => record.date === dateStr);
+                }
+                setSelectedDateHistory(history);
+            } else {
+                console.error('Failed to fetch date attendance history:', data.message);
+                toast.error('Failed to fetch date history');
+                setSelectedDateHistory([]);
+            }
+        } catch (error) {
+            console.error('Error fetching date attendance history:', error);
+            toast.error('Error fetching date history');
+            setSelectedDateHistory([]);
+        } finally {
+            setDateHistoryLoading(false);
+        }
+    };
+
+    const handleDateChange = (newDateString: string) => {
+        const newDate = new Date(newDateString);
+        if (!isNaN(newDate.getTime())) {
+            setCurrentDate(newDate);
+        } else {
+            toast.error("Invalid date format received from DatePicker.");
+        }
     };
 
     const fetchNotifs = useCallback(async () => {
@@ -81,7 +183,6 @@ const Attendance = () => {
             );
             const data = await res.json();
             if (data.success || data.status === "success") {
-                setNotifications(data.notifications || []);
                 setUnreadCount(data.unread_count || 0);
             }
         } catch (err) {
@@ -89,13 +190,36 @@ const Attendance = () => {
         }
     }, [user?.employee_id]);
 
+    const prevMonth = () => {
+        setAttendanceCalendarMonth((prevMonth) => subMonths(prevMonth, 1));
+    };
+
+    const nextMonth = () => {
+        setAttendanceCalendarMonth((prevMonth) => addMonths(prevMonth, 1));
+    };
+
+    const isAttendanceDay = useCallback((day: Date) => {
+        if (!selectedPatientHistory || !selectedPatientHistory.attendance_history) return false;
+        return selectedPatientHistory.attendance_history.some((record) =>
+            isSameDay(new Date(record.date), day) && record.status === 'present'
+        );
+    }, [selectedPatientHistory]);
+
     useEffect(() => {
         if (user?.employee_id) {
+            fetchData(); // Load attendance data when component mounts
             fetchNotifs();
             const inv = setInterval(fetchNotifs, 30000);
             return () => clearInterval(inv);
         }
-    }, [fetchNotifs, user?.employee_id]);
+    }, [fetchData, fetchNotifs, user?.employee_id, currentDate]);
+
+    // Calendar days generation
+    const monthStart = startOfMonth(attendanceCalendarMonth);
+    const monthEnd = endOfMonth(monthStart);
+    const startDate = startOfWeek(monthStart, { weekStartsOn: 0 }); // Sunday as start of week
+    const endDate = endOfWeek(monthEnd, { weekStartsOn: 0 }); // Sunday as start of week
+    const days = eachDayOfInterval({ start: startDate, end: endDate });
 
     return (
         <div className={`flex h-screen overflow-hidden font-sans transition-colors duration-300 ${isDark ? "bg-[#050505] text-slate-200" : "bg-[#FAFAFA] text-slate-900"}`}>
@@ -251,10 +375,12 @@ const Attendance = () => {
                             </select>
 
                             {/* Date Display */}
-                            <div className={`flex items-center gap-3 px-6 py-3 rounded-2xl border ${isDark ? "bg-[#121212] border-white/5" : "bg-white border-slate-100 shadow-sm"}`}>
-                                <Calendar size={16} className="text-emerald-500" />
+                            <div
+                                onClick={() => setShowDatePicker(!showDatePicker)}
+                                className={`flex items-center gap-2 px-6 py-3 rounded-2xl border cursor-pointer transition-all ${isDark ? "bg-[#121212] border-white/5 hover:bg-white/5" : "bg-white border-slate-100 shadow-sm hover:bg-slate-50"}`}
+                            >
                                 <span className="text-xs font-bold uppercase tracking-widest">{format(currentDate, 'dd MMM yyyy')}</span>
-                                <CalendarRange size={16} className="opacity-20 cursor-pointer hover:opacity-100 transition-opacity" />
+                                <Calendar size={16} className="text-emerald-500" />
                             </div>
                         </div>
                     </div>
@@ -278,47 +404,108 @@ const Attendance = () => {
                             </div>
                         ) : (
                             <div className="divide-y dark:divide-white/5 divide-slate-100">
-                                {records.map((row) => {
-                                    const progressPercent = (row.progress_current / row.progress_total) * 100;
-                                    return (
-                                        <div key={row.id} className="flex items-center px-10 py-6 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all group cursor-pointer">
-                                            <div className="w-[10%] font-mono text-xs opacity-40 font-bold uppercase tracking-widest">
-                                                #{row.id.toString().padStart(3, '0')}
-                                            </div>
-                                            <div className="flex-1 font-semibold text-sm text-slate-900 dark:text-slate-100 group-hover:text-emerald-500 transition-colors uppercase tracking-wide">
-                                                {row.patient_name}
-                                            </div>
-                                            <div className="w-[15%] text-xs font-bold uppercase tracking-widest text-blue-500">
-                                                {row.treatment}
-                                            </div>
-                                            <div className="w-[20%] flex items-center gap-4">
-                                                <div className="flex-1 h-1.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
-                                                    <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${progressPercent}%` }} />
+                                {(() => {
+                                    // Apply filters
+                                    let filteredRecords = [...records];
+
+                                    // Apply search filter
+                                    if (search) {
+                                        const searchTerm = search.toLowerCase();
+                                        filteredRecords = filteredRecords.filter(record =>
+                                            record.patient_name.toLowerCase().includes(searchTerm) ||
+                                            record.id.toString().includes(searchTerm)
+                                        );
+                                    }
+
+                                    // Apply status filter
+                                    if (filter === 'Present') {
+                                        filteredRecords = filteredRecords.filter(record =>
+                                            record.status === 'Present'
+                                        );
+                                    }
+
+                                    // Apply treatment filter
+                                    if (treatmentFilter !== 'All Treatments') {
+                                        filteredRecords = filteredRecords.filter(record =>
+                                            record.treatment.toLowerCase().includes(treatmentFilter.toLowerCase())
+                                        );
+                                    }
+
+                                    return filteredRecords.map((row) => {
+                                        const progressPercent = (row.progress_current / row.progress_total) * 100;
+                                        return (
+                                            <div key={row.id} className="flex items-center px-10 py-6 hover:bg-slate-50 dark:hover:bg-white/[0.02] transition-all group cursor-pointer">
+                                                <div className="w-[10%] font-mono text-xs opacity-40 font-bold uppercase tracking-widest">
+                                                    #{row.id.toString().padStart(3, '0')}
                                                 </div>
-                                                <span className="text-[10px] font-bold opacity-40 whitespace-nowrap">{row.progress_current}/{row.progress_total}</span>
+                                                <div className="flex-1 font-semibold text-sm text-slate-900 dark:text-slate-100 group-hover:text-emerald-500 transition-colors uppercase tracking-wide">
+                                                    {row.patient_name}
+                                                </div>
+                                                <div className="w-[15%] text-xs font-bold uppercase tracking-widest text-blue-500">
+                                                    {row.treatment}
+                                                </div>
+                                                <div className="w-[20%] flex items-center gap-4">
+                                                    <div className="flex-1 h-1.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${progressPercent}%` }} />
+                                                    </div>
+                                                    <span className="text-[10px] font-bold opacity-40 whitespace-nowrap">{row.progress_current}/{row.progress_total}</span>
+                                                </div>
+                                                <div className="w-[15%] flex justify-center">
+                                                    <span className={`px-5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest ${row.status === 'Present' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-100 dark:bg-white/5 text-slate-500'}`}>
+                                                        {row.status}
+                                                    </span>
+                                                </div>
+                                                <div className="w-[12%] text-right">
+                                                    <button
+                                                        onClick={() => fetchAttendanceHistory(row.id)}
+                                                        className="px-5 py-2.5 rounded-xl border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all opacity-0 group-hover:opacity-100 active:scale-95 shadow-lg shadow-emerald-500/10"
+                                                    >
+                                                        Check History
+                                                    </button>
+                                                </div>
                                             </div>
-                                            <div className="w-[15%] flex justify-center">
-                                                <span className={`px-5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest ${row.status === 'Present' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-100 dark:bg-white/5 text-slate-500'}`}>
-                                                    {row.status}
-                                                </span>
-                                            </div>
-                                            <div className="w-[12%] text-right">
-                                                <button className="px-5 py-2.5 rounded-xl border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 text-[10px] font-bold uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all opacity-0 group-hover:opacity-100 active:scale-95 shadow-lg shadow-emerald-500/10">
-                                                    Check History
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                                        );
+                                    });
+                                })()}
                             </div>
                         )}
                     </div>
 
                     {/* Table Footer */}
                     <div className={`px-10 py-6 border-t flex items-center justify-between shrink-0 ${isDark ? "border-white/5" : "border-slate-100"}`}>
-                        <div className="text-sm font-medium text-slate-500">
-                            Showing <span className="text-slate-900 dark:text-white font-bold">{records.length}</span> patient entries
-                        </div>
+                        {(() => {
+                            // Apply filters to get count
+                            let filteredRecords = [...records];
+
+                            // Apply search filter
+                            if (search) {
+                                const searchTerm = search.toLowerCase();
+                                filteredRecords = filteredRecords.filter(record =>
+                                    record.patient_name.toLowerCase().includes(searchTerm) ||
+                                    record.id.toString().includes(searchTerm)
+                                );
+                            }
+
+                            // Apply status filter
+                            if (filter === 'Present') {
+                                filteredRecords = filteredRecords.filter(record =>
+                                    record.status === 'Present'
+                                );
+                            }
+
+                            // Apply treatment filter
+                            if (treatmentFilter !== 'All Treatments') {
+                                filteredRecords = filteredRecords.filter(record =>
+                                    record.treatment.toLowerCase().includes(treatmentFilter.toLowerCase())
+                                );
+                            }
+
+                            return (
+                                <div className="text-sm font-medium text-slate-500">
+                                    Showing <span className="text-slate-900 dark:text-white font-bold">{filteredRecords.length}</span> patient entries
+                                </div>
+                            );
+                        })()}
                         <div className="flex items-center gap-3">
                             <button disabled className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all opacity-30 cursor-not-allowed ${isDark ? "border-white/10" : "border-slate-200 shadow-sm"}`}>
                                 <ChevronLeft size={20} />
@@ -330,6 +517,136 @@ const Attendance = () => {
                     </div>
                 </div>
             </main>
+            {showHistoryPanel && selectedPatientHistory && (
+                <AnimatePresence>
+                    <motion.div
+                        initial={{ x: '100%' }}
+                        animate={{ x: 0 }}
+                        exit={{ x: '100%' }}
+                        transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+                        className={`fixed right-0 top-0 h-full w-[400px] shadow-2xl z-[100] p-8 flex flex-col transition-colors duration-300 ${isDark ? "bg-[#0A0A0A] border-l border-[#151515]" : "bg-white border-l border-gray-200"}`}
+                    >
+                        {/* Header */}
+                        <div className="flex justify-between items-center mb-8">
+                            <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Attendance Calendar</h3>
+                            <button
+                                onClick={() => setShowHistoryPanel(false)}
+                                className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-slate-500"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        {/* Patient Info Card */}
+                        <div className={`p-6 rounded-2xl mb-8 transition-colors duration-300 ${isDark ? "bg-[#121212] border border-white/5" : "bg-emerald-50 border border-emerald-100"}`}>
+                            <div className="flex justify-between items-center mb-4">
+                                <h4 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{selectedPatientHistory.patient.name}</h4>
+                                <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium dark:bg-emerald-900/50 dark:text-emerald-300">daily</span>
+                            </div>
+                            <p className="text-sm text-slate-500 mb-4">ID: #{selectedPatientHistory.patient.id.toString().padStart(3, '0')}</p>
+                            <div className="grid grid-cols-3 gap-4 text-center">
+                                <div>
+                                    <div className="text-2xl font-bold text-slate-900 dark:text-slate-100">{selectedPatientHistory.patient.total_days}</div>
+                                    <div className="text-xs text-slate-500">TOTAL</div>
+                                </div>
+                                <div>
+                                    <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{selectedPatientHistory.patient.present_days}</div>
+                                    <div className="text-xs text-slate-500">PRESENT</div>
+                                </div>
+                                <div>
+                                    <div className="text-2xl font-bold text-rose-500">{selectedPatientHistory.patient.remaining_days}</div>
+                                    <div className="text-xs text-slate-500">REMAINING</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-hidden flex flex-col gap-6">
+                            {/* Calendar View */}
+                            <div className={`rounded-2xl p-6 transition-colors duration-300 ${isDark ? "bg-[#121212] border border-white/5" : "bg-slate-50 border border-slate-100"}`}>
+                                <div className="flex justify-between items-center mb-4">
+                                    <button onClick={prevMonth} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-slate-500"><ChevronLeft size={16} /></button>
+                                    <span className="font-semibold text-slate-900 dark:text-slate-100">{format(attendanceCalendarMonth, 'MMMM yyyy')}</span>
+                                    <button onClick={nextMonth} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-white/10 transition-colors text-slate-500"><ChevronRight size={16} /></button>
+                                </div>
+
+                                <div className="grid grid-cols-7 gap-2 text-center text-xs font-medium text-slate-500 uppercase mb-4">
+                                    <span>Sun</span>
+                                    <span>Mon</span>
+                                    <span>Tue</span>
+                                    <span>Wed</span>
+                                    <span>Thu</span>
+                                    <span>Fri</span>
+                                    <span>Sat</span>
+                                </div>
+
+                                <div className="grid grid-cols-7 gap-2">
+                                    {days.map((day, index) => (
+                                        <div
+                                            key={index}
+                                            onClick={() => {
+                                                if (!selectedPatientHistory) return;
+                                                setSelectedHistoryDate(day);
+                                                fetchAttendanceHistoryForDate(selectedPatientHistory.patient.id, day);
+                                            }}
+                                            className={`p-2 rounded-lg flex items-center justify-center transition-all cursor-pointer
+                                                ${!isSameMonth(day, attendanceCalendarMonth) ? 'opacity-30' : ''}
+                                                ${isAttendanceDay(day) ? 'bg-emerald-500/10 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 font-bold' : 'text-slate-500'}
+                                                ${selectedHistoryDate && isSameDay(day, selectedHistoryDate) ? 'ring-2 ring-emerald-400/60' : ''}`
+                                            }
+                                        >
+                                            {format(day, 'd')}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Date History */}
+                            <div className={`rounded-2xl p-6 transition-colors duration-300 flex-1 overflow-y-auto ${isDark ? "bg-[#121212] border border-white/5" : "bg-white border border-slate-100"}`}>
+                                <div className="flex items-center justify-between mb-4">
+                                    <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Date History</h4>
+                                    <span className="text-xs text-slate-500">
+                                        {selectedHistoryDate ? format(selectedHistoryDate, 'dd MMM yyyy') : 'Select a date'}
+                                    </span>
+                                </div>
+
+                                {dateHistoryLoading ? (
+                                    <div className="h-24 flex items-center justify-center text-xs font-semibold uppercase tracking-widest text-slate-400">
+                                        Loading...
+                                    </div>
+                                ) : selectedHistoryDate ? (
+                                    selectedDateHistory.length > 0 ? (
+                                        <div className="space-y-3">
+                                            {selectedDateHistory.map((record, idx) => (
+                                                <div
+                                                    key={`${record.date}-${idx}`}
+                                                    className={`flex items-center justify-between px-4 py-3 rounded-xl text-xs font-semibold uppercase tracking-widest ${record.status === 'present'
+                                                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-300'
+                                                        : 'bg-rose-500/10 text-rose-600 dark:text-rose-300'
+                                                        }`}
+                                                >
+                                                    <span>{format(new Date(record.date), 'dd MMM yyyy')}</span>
+                                                    <span>{record.status}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-xs text-slate-500">No records for this date.</div>
+                                    )
+                                ) : (
+                                    <div className="text-xs text-slate-500">Click a date to view history.</div>
+                                )}
+                            </div>
+                        </div>
+                    </motion.div>
+                </AnimatePresence>
+            )}
+            {showDatePicker && (
+                <DatePicker
+                    value={format(currentDate, 'yyyy-MM-dd')}
+                    onChange={handleDateChange}
+                    onClose={() => setShowDatePicker(false)}
+                />
+            )}
         </div>
     );
 };
