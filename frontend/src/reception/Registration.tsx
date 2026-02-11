@@ -41,7 +41,6 @@ import {
   Eye,
   CreditCard,
   Users,
-  MapPin,
 } from "lucide-react";
 import CustomSelect from "../components/ui/CustomSelect";
 import { useNavigate } from "react-router-dom";
@@ -324,7 +323,6 @@ const Registration = () => {
     registrations: storeRegistrations,
     options: storeOptions,
     serviceTracks: storeServiceTracks,
-    pagination: storePagination,
     lastParams,
     detailsCache,
     registrationsCache,
@@ -1012,16 +1010,16 @@ const Registration = () => {
             variants={leftPanelEntrance}
             initial="hidden"
             animate="visible"
-            className={`hidden xl:flex w-[450px] flex-col justify-between p-10 border-r relative shrink-0 transition-colors duration-300 z-50 ${
+            className={`hidden xl:flex w-[400px] flex-col justify-between p-8 border-r relative shrink-0 transition-colors duration-300 z-50 ${
               isDark
                 ? "bg-[#0A0A0A] border-[#151515]"
-                : "bg-white border-gray-200"
+                : "bg-white border-gray-100"
             }`}
           >
             {/* Brand & Greeting */}
-            <div className="space-y-10 z-10 text-[#1a1c1e] dark:text-[#e3e2e6]">
-              <div className="space-y-4">
-                <h1 className="text-5xl font-serif font-normal tracking-tight leading-tight">
+            <div className="space-y-8 z-10 text-[#1a1c1e] dark:text-[#e3e2e6]">
+              <div className="space-y-3">
+                <h1 className="text-4xl font-serif font-normal tracking-tight leading-tight">
                   Registration{" "}
                   <span
                     className={`italic ${isDark ? "text-[#4ADE80]" : "text-[#16a34a]"}`}
@@ -1029,60 +1027,65 @@ const Registration = () => {
                     Ops
                   </span>
                 </h1>
-                <p className="text-gray-500 text-lg font-medium">
-                  Here's your daily registration overview.
+                <p className="text-gray-500 text-sm font-medium leading-relaxed">
+                  Daily operational overview & patient registry.
                 </p>
               </div>
             </div>
 
             {/* --- REDESIGNED STATS PANEL --- */}
-            <div className="space-y-10 w-full flex-1 flex flex-col justify-center py-6 text-[#1a1c1e] dark:text-[#e3e2e6]">
+            <div className="space-y-8 w-full flex-1 flex flex-col py-6 text-[#1a1c1e] dark:text-[#e3e2e6]">
               {/* SECTION 1: REGISTRATION OVERVIEW */}
               <div className="space-y-6">
                 {/* Big Numbers */}
-                <div className="flex items-baseline justify-between border-b border-dashed pb-6 dark:border-[#2A2D2A] border-gray-200">
-                  <div>
-                    <div className="text-8xl font-medium tracking-tighter leading-none">
+                <div className="flex items-end justify-between p-6 bg-[#F8F9FA] dark:bg-white/5 rounded-3xl border border-dashed border-gray-200 dark:border-white/10 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <Activity size={80} className="text-emerald-500" />
+                  </div>
+
+                  <div className="relative z-10">
+                    <div className="text-7xl font-medium tracking-tighter leading-none text-emerald-950 dark:text-emerald-50">
                       {dashboardData?.registration.today_total || 0}
                     </div>
-                    <div className="text-sm font-black opacity-40 mt-2 uppercase tracking-widest">
-                      Today
+                    <div className="text-[10px] font-black opacity-50 mt-2 uppercase tracking-widest flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      Today's Volume
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-4xl font-medium">
+                  <div className="text-right relative z-10">
+                    <div className="text-3xl font-medium opacity-60">
                       {dashboardData?.registration.month_total || 0}
                     </div>
-                    <div className="text-[10px] font-black uppercase tracking-wide opacity-40 mt-1">
-                      Month
+                    <div className="text-[9px] font-black uppercase tracking-wide opacity-40 mt-1">
+                      This Month
                     </div>
                   </div>
                 </div>
 
                 {/* Text-based Status List */}
-                <div className="space-y-4 pl-1">
-                  <div className="flex items-center justify-between text-sm group">
-                    <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity">
-                      <span className="w-2 h-2 rounded-full bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.3)]"></span>{" "}
-                      Pending Case
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm group p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all cursor-default border border-transparent hover:border-gray-100 dark:hover:border-white/5">
+                    <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity font-medium">
+                      <span className="w-2.5 h-2.5 rounded-full bg-orange-400 ring-4 ring-orange-400/20"></span>
+                      Pending Workflow
                     </span>
                     <span className="font-bold text-lg">
                       {dashboardData?.registration.pending || 0}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-sm group">
-                    <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity">
-                      <span className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]"></span>{" "}
-                      Consultation Done
+                  <div className="flex items-center justify-between text-sm group p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all cursor-default border border-transparent hover:border-gray-100 dark:hover:border-white/5">
+                    <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity font-medium">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20"></span>
+                      Consultations Done
                     </span>
                     <span className="font-bold text-lg">
                       {dashboardData?.registration.consulted || 0}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-sm group">
-                    <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity">
-                      <span className="w-2 h-2 rounded-full bg-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.3)]"></span>{" "}
-                      Verification Required
+                  <div className="flex items-center justify-between text-sm group p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all cursor-default border border-transparent hover:border-gray-100 dark:hover:border-white/5">
+                    <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity font-medium">
+                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 ring-4 ring-amber-400/20"></span>
+                      Verification Queue
                     </span>
                     <span className="font-bold text-lg">
                       {dashboardData?.registration.approval_pending || 0}
@@ -1092,46 +1095,44 @@ const Registration = () => {
               </div>
 
               {/* SECTION 2: LIVE CENSUS */}
-              <div className="space-y-6 pt-4 border-t border-dashed dark:border-[#2A2D2A] border-gray-200">
-                <div className="flex items-center gap-3 opacity-50">
-                  <Users size={22} className="text-[#4ade80]" />
-                  <span className="text-sm font-bold uppercase tracking-[0.2em]">
-                    Client Census
-                  </span>
-                </div>
+              <div className="mt-auto p-5 rounded-3xl bg-[#0F172A] dark:bg-black/40 text-white relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/20 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
 
-                <div className="flex items-center justify-between">
+                <div className="relative z-10 flex items-center justify-between">
                   <div>
-                    <div className="text-5xl font-medium tracking-tight">
+                    <div className="flex items-center gap-2 mb-3 opacity-80">
+                      <Users size={14} className="text-emerald-400" />
+                      <span className="text-[10px] font-black uppercase tracking-widest">
+                        Client Census
+                      </span>
+                    </div>
+                    <div className="text-4xl font-medium tracking-tight">
                       {dashboardData?.patients.active || 0}
                     </div>
-                    <div className="text-xs font-black opacity-40 mt-2 uppercase tracking-wider">
-                      Active Patients in System
-                    </div>
                   </div>
-                  <div className="w-12 h-12 rounded-full flex items-center justify-center bg-[#CCEBC4]/30 text-[#006e1c] dark:text-[#88d99d] border border-[#CCEBC4]/20">
-                    <Users size={20} />
+                  <div className="h-10 w-10 rounded-full bg-white/10 flex items-center justify-center border border-white/10">
+                    <Activity size={18} className="text-emerald-400" />
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Decoration */}
-            <div className="absolute top-1/2 left-0 w-full h-full bg-gradient-to-t from-green-900/5 to-transparent pointer-events-none" />
+            <div className="absolute top-1/2 left-0 w-full h-full bg-gradient-to-t from-emerald-900/5 to-transparent pointer-events-none" />
           </motion.div>
 
           {/* Main Content (Right Panel) */}
-          <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-8 custom-scrollbar">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-6 md:p-10 custom-scrollbar bg-[#FAFAFA] dark:bg-[#0A0A0A]">
             <div className="max-w-[1600px] mx-auto">
               {/* Filter Area */}
               {/* Top Control Bar */}
-              <div className="flex flex-col gap-6 mb-10">
+              <div className="flex flex-col gap-8 mb-10">
                 {/* Search & Filters Bar */}
-                <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
-                  <div className="relative group w-full lg:max-w-md">
+                <div className="flex flex-col xl:flex-row items-center justify-between gap-4 p-2">
+                  <div className="relative group w-full xl:max-w-md">
                     <Search
                       size={18}
-                      className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors cursor-pointer"
+                      className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600 transition-colors cursor-pointer"
                       onClick={handleSearch}
                     />
                     <input
@@ -1145,17 +1146,17 @@ const Registration = () => {
                           handleSearch();
                         }
                       }}
-                      className="w-full pl-11 pr-6 py-3.5 rounded-2xl bg-[#f0f4f9] dark:bg-white/5 border border-transparent focus:border-emerald-500/20 outline-none text-sm font-medium transition-all shadow-sm"
+                      className="w-full pl-12 pr-6 py-4 rounded-[20px] bg-white dark:bg-[#1A1C1E] border border-gray-100 dark:border-white/5 focus:border-emerald-500/30 focus:ring-4 focus:ring-emerald-500/5 outline-none text-sm font-medium transition-all shadow-[0_2px_20px_-4px_rgba(0,0,0,0.02)]"
                     />
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto justify-end">
-                    <div className="min-w-[180px] flex-1 lg:flex-none">
+                  <div className="flex flex-wrap items-center gap-3 w-full xl:w-auto justify-end">
+                    <div className="min-w-[160px] flex-1 xl:flex-none">
                       <CustomSelect
                         value={statusFilter}
                         onChange={setStatusFilter}
                         placeholder="Status"
-                        className="!py-3.5 !rounded-2xl !bg-[#f0f4f9] dark:!bg-white/5 !border-[#eef2f6] dark:!border-white/5 shadow-sm"
+                        className="!py-3.5 !rounded-[20px] !bg-white dark:!bg-[#1A1C1E] !border-gray-100 dark:!border-white/5 !shadow-[0_2px_20px_-4px_rgba(0,0,0,0.02)]"
                         options={[
                           { value: "", label: "All Status" },
                           { value: "pending", label: "Pending" },
@@ -1164,30 +1165,30 @@ const Registration = () => {
                         ]}
                       />
                     </div>
-                    <div className="min-w-[200px] flex-1 lg:flex-none">
+                    <div className="min-w-[180px] flex-1 xl:flex-none">
                       <CustomSelect
                         value={referrerFilter}
                         onChange={setReferrerFilter}
                         placeholder="Referrer"
-                        className="!py-3.5 !rounded-2xl !bg-[#f0f4f9] dark:!bg-white/5 !border-[#eef2f6] dark:!border-white/5 shadow-sm"
+                        className="!py-3.5 !rounded-[20px] !bg-white dark:!bg-[#1A1C1E] !border-gray-100 dark:!border-white/5 !shadow-[0_2px_20px_-4px_rgba(0,0,0,0.02)]"
                         options={[
                           { value: "", label: "All Referrers" },
-                          ...options.referred_by.map((r) => ({
+                          ...options.referred_by.map((r: string) => ({
                             value: r,
                             label: r,
                           })),
                         ]}
                       />
                     </div>
-                    <div className="min-w-[200px] flex-1 lg:flex-none">
+                    <div className="min-w-[180px] flex-1 xl:flex-none">
                       <CustomSelect
                         value={conditionFilter}
                         onChange={setConditionFilter}
                         placeholder="Condition"
-                        className="!py-3.5 !rounded-2xl !bg-[#f0f4f9] dark:!bg-white/5 !border-[#eef2f6] dark:!border-white/5 shadow-sm"
+                        className="!py-3.5 !rounded-[20px] !bg-white dark:!bg-[#1A1C1E] !border-gray-100 dark:!border-white/5 !shadow-[0_2px_20px_-4px_rgba(0,0,0,0.02)]"
                         options={[
                           { value: "", label: "All Conditions" },
-                          ...options.conditions.map((c) => ({
+                          ...options.conditions.map((c: string) => ({
                             value: c,
                             label: c,
                           })),
@@ -1198,16 +1199,16 @@ const Registration = () => {
                 </div>
 
                 {/* Stats & Actions Bar */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 px-2">
                   <div className="flex items-center gap-3">
-                    <div className="px-6 py-2 bg-[#f0f4f9] dark:bg-white/5 border border-black/5 dark:border-white/5 rounded-full text-[11px] font-black uppercase tracking-widest text-[#43474e] dark:text-[#c4c7c5]">
+                    <div className="px-5 py-2 bg-white dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-full text-[10px] font-black uppercase tracking-widest text-[#43474e] dark:text-[#c4c7c5] shadow-sm">
                       Total:{" "}
                       <span className="text-[#1a1c1e] dark:text-white ml-1">
                         {pagination.total} Records
                       </span>
                     </div>
-                    <div className="px-6 py-2 bg-[#e8f5e9] dark:bg-emerald-500/10 border border-emerald-500/10 rounded-full text-[11px] font-black uppercase tracking-widest text-emerald-600">
-                      Showing {registrations.length} in this page
+                    <div className="px-5 py-2 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-500/10 rounded-full text-[10px] font-black uppercase tracking-widest text-emerald-600 shadow-sm">
+                      Page {currentPage} of {pagination.total_pages}
                     </div>
                   </div>
 
@@ -1216,9 +1217,9 @@ const Registration = () => {
                       onClick={() =>
                         navigate("/reception/registration/cancelled")
                       }
-                      className="flex items-center gap-2 px-6 py-3 bg-[#f0f4f9] dark:bg-white/5 text-[#43474e] dark:text-[#c4c7c5] rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-white dark:hover:bg-white/10 transition-all border border-black/5 dark:border-white/5 shadow-sm"
+                      className="flex items-center gap-2 px-5 py-2.5 bg-white dark:bg-white/5 text-slate-500 dark:text-[#c4c7c5] rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-gray-50 dark:hover:bg-white/10 transition-all border border-gray-100 dark:border-white/5 shadow-sm hover:shadow"
                     >
-                      <HistoryIcon size={16} className="opacity-40" />
+                      <HistoryIcon size={14} className="opacity-50" />
                       Cancelled History
                     </button>
                     <button
@@ -1229,10 +1230,10 @@ const Registration = () => {
                         setConditionFilter("");
                         setCurrentPage(1);
                       }}
-                      className="flex items-center gap-2 px-6 py-3 bg-[#ffdad6] dark:bg-[#93000a]/30 text-[#410002] dark:text-[#ffdad6] rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-[#ffada4] dark:hover:bg-[#93000a]/50 transition-all shadow-sm"
+                      className="flex items-center gap-2 px-5 py-2.5 bg-rose-50 dark:bg-[#93000a]/20 text-rose-700 dark:text-[#ffdad6] rounded-full text-[10px] font-black uppercase tracking-widest hover:bg-rose-100 dark:hover:bg-[#93000a]/40 transition-all border border-rose-100 dark:border-transparent shadow-sm hover:shadow"
                     >
-                      <RotateCcw size={16} />
-                      Reset Filters
+                      <RotateCcw size={14} />
+                      Reset
                     </button>
                   </div>
                 </div>
@@ -1240,48 +1241,46 @@ const Registration = () => {
 
               {/* Grid Layout */}
               {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-32 space-y-4">
+                <div className="flex flex-col items-center justify-center py-40 space-y-6">
                   <div className="relative">
-                    <div className="w-16 h-16 border-4 border-[#3b82f6]/20 border-t-[#3b82f6] rounded-full animate-spin"></div>
+                    <div className="w-16 h-16 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
                     <div className="absolute inset-0 flex items-center justify-center">
-                      <UserPlus size={24} className="text-[#3b82f6]" />
+                      <div className="w-2 h-2 bg-emerald-500 rounded-full" />
                     </div>
                   </div>
-                  <p className="text-sm font-bold text-[#43474e] dark:text-[#c4c7c5] animate-pulse">
-                    Flipping through records...
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-400 animate-pulse">
+                    Loading Records...
                   </p>
                 </div>
               ) : registrations.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 bg-white dark:bg-[#1a1c1e] rounded-[32px] border-2 border-dashed border-[#e0e2ec] dark:border-[#43474e]">
-                  <div className="w-20 h-20 rounded-full bg-[#e0e2ec] dark:bg-[#43474e] flex items-center justify-center text-[#43474e] dark:text-[#c4c7c5] mb-6">
-                    <Search size={40} />
+                <div className="flex flex-col items-center justify-center py-32 bg-white dark:bg-[#1a1c1e] rounded-[32px] border border-dashed border-gray-200 dark:border-white/10 shadow-sm">
+                  <div className="w-20 h-20 rounded-full bg-gray-50 dark:bg-[#43474e] flex items-center justify-center text-gray-400 dark:text-[#c4c7c5] mb-6">
+                    <Search size={32} />
                   </div>
                   <h3 className="text-xl font-bold text-[#1a1c1e] dark:text-[#e3e2e6] mb-2 font-serif">
-                    No records found
+                    No results found
                   </h3>
-                  <p className="text-[#43474e] dark:text-[#c4c7c5] max-w-xs text-center text-sm leading-relaxed">
-                    We couldn't find any registrations matching your current
-                    search criteria.
+                  <p className="text-gray-400 dark:text-[#c4c7c5] max-w-xs text-center text-sm leading-relaxed">
+                    Try adjusting your filters or search query to find the
+                    registration you are looking for.
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {/* Table Header */}
-                  <div className="hidden lg:grid grid-cols-[1.8fr_1.3fr_1fr_1.3fr_1fr_1fr] gap-6 px-10 py-5 text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-black/[0.03] dark:border-white/[0.03] mb-4">
-                    <div className="flex items-center gap-2">
-                      Patient Details
-                    </div>
+                  <div className="hidden lg:grid grid-cols-[1.8fr_1.3fr_1fr_1.3fr_1fr_1fr] gap-6 px-10 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-black/[0.03] dark:border-white/[0.03] mb-2 select-none">
+                    <div className="flex items-center gap-2">Patient</div>
                     <div className="flex items-center gap-2">Contact</div>
-                    <div className="flex items-center gap-2">Consultation</div>
-                    <div className="flex items-center gap-2">Created At</div>
-                    <div className="text-center">Status</div>
-                    <div className="text-right pr-4">Control</div>
+                    <div className="flex items-center gap-2">Fees</div>
+                    <div className="flex items-center gap-2">Date</div>
+                    <div className="text-center">State</div>
+                    <div className="text-right pr-4">Action</div>
                   </div>
 
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="flex flex-col gap-3"
+                    className="flex flex-col gap-3 pb-20"
                   >
                     {registrations.map((reg, idx) => (
                       <motion.div
@@ -1292,16 +1291,20 @@ const Registration = () => {
                           y: 0,
                           transition: { delay: idx * 0.03 },
                         }}
-                        className={`group rounded-[28px] px-8 py-5 border transition-all hover:shadow-2xl hover:scale-[1.01] cursor-pointer relative overflow-hidden grid lg:grid-cols-[1.8fr_1.3fr_1fr_1.3fr_1fr_1fr] gap-6 items-center ${isDark ? "bg-[#1a1c1e] border-white/5 hover:border-emerald-500/30" : "bg-white border-[#f0f0f0] shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] hover:border-emerald-500/20"}`}
+                        className={`group rounded-[24px] px-8 py-5 border transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-[1px] cursor-pointer relative overflow-hidden grid lg:grid-cols-[1.8fr_1.3fr_1fr_1.3fr_1fr_1fr] gap-6 items-center ${
+                          isDark
+                            ? "bg-[#141619] border-white/5 hover:border-emerald-500/20"
+                            : "bg-white border-gray-100 hover:border-emerald-500/20 shadow-sm"
+                        }`}
                       >
                         {/* Status Vertical Accent */}
                         <div
-                          className={`absolute left-0 top-0 w-1 h-full transition-all duration-300 opacity-0 group-hover:opacity-100 ${
+                          className={`absolute left-0 top-0 w-1.5 h-full transition-all duration-300 opacity-0 group-hover:opacity-100 ${
                             reg.status === "consulted"
                               ? "bg-emerald-500"
                               : reg.status === "pending"
                                 ? "bg-amber-500"
-                                : "bg-slate-400"
+                                : "bg-slate-300"
                           }`}
                         />
 
@@ -1310,27 +1313,27 @@ const Registration = () => {
                           className="flex items-center gap-5 min-w-0"
                           onClick={() => fetchDetails(reg.registration_id)}
                         >
-                          <div className="w-14 h-14 rounded-2xl overflow-hidden shadow-inner border border-black/5 dark:border-white/5 flex-shrink-0">
+                          <div className="w-14 h-14 rounded-2xl overflow-hidden shadow-inner border border-black/5 dark:border-white/5 flex-shrink-0 relative group-hover:ring-2 ring-offset-2 ring-emerald-500 transition-all">
                             <PatientAvatar
                               photoPath={reg.patient_photo_path}
                               name={reg.patient_name}
                             />
                           </div>
-                          <div className="flex flex-col min-w-0">
-                            <h3 className="text-base font-black text-[#1a1c1e] dark:text-[#e3e2e6] leading-tight group-hover:text-emerald-600 transition-colors truncate">
+                          <div className="flex flex-col min-w-0 gap-1.5">
+                            <h3 className="text-[17px] font-bold text-[#1a1c1e] dark:text-[#e3e2e6] leading-none group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors truncate">
                               {reg.patient_name}
                             </h3>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <span className="text-[11px] px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-white/5 font-black font-mono tracking-tighter text-slate-500">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 font-bold font-mono tracking-tight text-slate-500">
                                 #{reg.registration_id}
                               </span>
                               {reg.consultation_type && (
-                                <span className="px-2 py-0.5 rounded-lg bg-emerald-500/5 text-emerald-600 text-[9px] font-black uppercase tracking-widest border border-emerald-500/10">
+                                <span className="px-2 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[9px] font-black uppercase tracking-wider border border-emerald-100 dark:border-emerald-500/20">
                                   {reg.consultation_type}
                                 </span>
                               )}
                               {reg.payment_method && (
-                                <span className="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-white/5 text-slate-500 text-[9px] font-black uppercase tracking-widest border border-black/5">
+                                <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-white/10 text-slate-500 dark:text-slate-400 text-[9px] font-black uppercase tracking-wider border border-slate-200 dark:border-white/10">
                                   {reg.payment_method}
                                 </span>
                               )}
@@ -1340,14 +1343,14 @@ const Registration = () => {
 
                         {/* Contact */}
                         <div className="flex flex-col gap-1">
-                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                            Contact Number
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 group-hover:text-emerald-500/60 transition-colors lg:hidden">
+                            Contact
                           </span>
-                          <div className="flex items-center gap-2.5">
-                            <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-white/5 text-slate-400">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-white/5 flex items-center justify-center text-slate-400 group-hover:text-emerald-500 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-500/10 transition-colors">
                               <Phone size={14} />
                             </div>
-                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">
+                            <p className="text-sm font-bold text-slate-600 dark:text-slate-300 font-mono tracking-tight">
                               {reg.phone_number}
                             </p>
                           </div>
@@ -1355,25 +1358,25 @@ const Registration = () => {
 
                         {/* Consultation */}
                         <div className="flex flex-col gap-1">
-                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                            Consultation
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 lg:hidden">
+                            Amount
                           </span>
                           <p className="text-base font-black text-[#1a1c1e] dark:text-[#e3e2e6] flex items-baseline gap-0.5">
-                            <span className="text-xs opacity-40">₹</span>
+                            <span className="text-xs opacity-40 font-serif">
+                              ₹
+                            </span>
                             {reg.consultation_amount}
                           </p>
                         </div>
 
                         {/* Created At */}
                         <div className="flex flex-col gap-1">
-                          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                            Registered On
+                          <span className="text-[9px] font-black uppercase tracking-widest text-slate-300 lg:hidden">
+                            Date
                           </span>
                           <div className="flex items-center gap-2.5">
-                            <div className="p-1.5 rounded-lg bg-slate-50 dark:bg-white/5 text-slate-400">
-                              <Calendar size={14} />
-                            </div>
-                            <p className="text-sm font-bold text-slate-600 dark:text-slate-400">
+                            <Calendar size={14} className="text-slate-300" />
+                            <p className="text-xs font-bold text-slate-600 dark:text-slate-400">
                               {formatDateSafe(reg.created_at, "MMM dd, yyyy")}
                             </p>
                           </div>
@@ -1381,19 +1384,19 @@ const Registration = () => {
 
                         {/* Status & Control Override for Pending Approval */}
                         {reg.approval_status === "pending" ? (
-                          <div className="col-span-2 flex items-center justify-between pl-4 pr-4">
-                            <div className="flex items-center gap-3">
-                              <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                              <span className="text-[11px] font-black uppercase tracking-[0.2em] text-amber-600 bg-amber-500/5 px-4 py-2 rounded-full border border-amber-500/10">
+                          <div className="col-span-2 flex items-center justify-between pl-4 pr-1">
+                            <div className="flex items-center gap-3 w-full justify-center">
+                              <span className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-4 py-2 rounded-full border border-amber-200 dark:border-amber-900/30 w-full justify-center shadow-sm">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                                 Pending Approval
                               </span>
                             </div>
                             <button
                               onClick={() => fetchDetails(reg.registration_id)}
-                              className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-50 dark:bg-white/5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-500/10 transition-all border border-transparent hover:border-emerald-500/20"
-                              title="View Details"
+                              className="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-white/10 text-slate-400 hover:text-emerald-500 hover:scale-110 hover:shadow-lg transition-all border border-gray-100 dark:border-white/5 ml-4"
+                              title="Review Request"
                             >
-                              <Eye size={20} />
+                              <Eye size={18} />
                             </button>
                           </div>
                         ) : (
@@ -1410,15 +1413,15 @@ const Registration = () => {
                             </div>
 
                             {/* Control */}
-                            <div className="flex items-center justify-end gap-2 pr-4">
+                            <div className="flex items-center justify-end gap-2 pr-2 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-all translate-x-4 group-hover:translate-x-0 duration-300">
                               <button
                                 onClick={() =>
                                   fetchDetails(reg.registration_id)
                                 }
-                                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-slate-50 dark:bg-white/5 text-slate-400 hover:text-emerald-500 hover:bg-emerald-500/10 transition-all border border-transparent hover:border-emerald-500/20"
+                                className="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-white/10 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/20 hover:scale-110 active:scale-95 transition-all shadow-sm hover:shadow-md border border-gray-100 dark:border-white/5"
                                 title="View Details"
                               >
-                                <Eye size={20} />
+                                <Eye size={18} />
                               </button>
                             </div>
                           </>
@@ -1431,11 +1434,14 @@ const Registration = () => {
 
               {/* Pagination Area */}
               {!isLoading && pagination.total_pages > 1 && (
-                <div className="mt-12 flex flex-col md:flex-row items-center justify-between gap-6 p-6 bg-[#f0f4f9]/50 dark:bg-white/[0.02] rounded-[32px] border border-black/[0.03] dark:border-white/[0.03]">
-                  <p className="text-[11px] font-black uppercase tracking-widest text-slate-500">
+                <div className="mt-12 flex flex-col md:flex-row items-center justify-between gap-6 p-6 bg-white dark:bg-white/[0.02] rounded-[32px] border border-gray-100 dark:border-white/5 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.02)]">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                     Showing{" "}
-                    <span className="text-[#3b82f6]">{currentPage}</span> of{" "}
-                    <span className="text-[#3b82f6]">
+                    <span className="text-[#3b82f6] font-bold">
+                      {currentPage}
+                    </span>{" "}
+                    of{" "}
+                    <span className="text-[#3b82f6] font-bold">
                       {pagination.total_pages}
                     </span>{" "}
                     pages
@@ -1444,9 +1450,9 @@ const Registration = () => {
                     <button
                       disabled={currentPage === 1}
                       onClick={() => setCurrentPage((p) => p - 1)}
-                      className="p-3 rounded-full bg-[#fdfcff] dark:bg-[#1a1c1e] border border-[#e0e2ec] dark:border-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] disabled:opacity-30 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] transition-all"
+                      className="p-3 rounded-full bg-white dark:bg-[#1a1c1e] border border-gray-200 dark:border-[#43474e] text-slate-600 dark:text-[#e3e2e6] disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-[#43474e] transition-all"
                     >
-                      <ChevronLeft size={20} />
+                      <ChevronLeft size={18} />
                     </button>
                     <div className="flex items-center gap-2">
                       {[...Array(pagination.total_pages)].map((_, i) => {
@@ -1462,8 +1468,8 @@ const Registration = () => {
                               onClick={() => setCurrentPage(page)}
                               className={`w-10 h-10 rounded-full font-bold text-xs transition-all ${
                                 currentPage === page
-                                  ? "bg-[#3b82f6] text-white shadow-lg shadow-blue-500/20"
-                                  : "bg-[#e0e2ec] dark:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] hover:bg-[#c9cdd6] dark:hover:bg-[#5b5e66]"
+                                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                                  : "bg-gray-100 dark:bg-[#43474e] text-slate-600 dark:text-[#e3e2e6] hover:bg-gray-200 dark:hover:bg-[#5b5e66]"
                               }`}
                             >
                               {page}
@@ -1476,9 +1482,9 @@ const Registration = () => {
                     <button
                       disabled={currentPage === pagination.total_pages}
                       onClick={() => setCurrentPage((p) => p + 1)}
-                      className="p-3 rounded-full bg-[#fdfcff] dark:bg-[#1a1c1e] border border-[#e0e2ec] dark:border-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] disabled:opacity-30 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] transition-all"
+                      className="p-3 rounded-full bg-white dark:bg-[#1a1c1e] border border-gray-200 dark:border-[#43474e] text-slate-600 dark:text-[#e3e2e6] disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-[#43474e] transition-all"
                     >
-                      <ChevronRight size={20} />
+                      <ChevronRight size={18} />
                     </button>
                   </div>
                 </div>
@@ -1506,166 +1512,93 @@ const Registration = () => {
       {/* Registration Specific Modals */}
       <AnimatePresence>
         {isDetailsModalOpen && selectedRegistration && (
-          <div className="fixed inset-0 z-[1000] flex justify-end p-6 gap-6 pointer-events-none">
+          <>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => {
-                setIsDetailsModalOpen(false);
-                setIsDynamicModalOpen(false);
-                setSelectedTrack(null);
-              }}
-              className="absolute inset-0 bg-[#001f25]/20 backdrop-blur-[2px] pointer-events-auto"
+              onClick={() => setIsDetailsModalOpen(false)}
+              className="fixed inset-0 bg-black/20 backdrop-blur-[2px] z-[1040] transition-opacity"
             />
-            {/* --- SUB-DRAWER: DYNAMIC SERVICE --- */}
-            <AnimatePresence>
-              {isDynamicModalOpen && selectedRegistration && selectedTrack && (
-                <DynamicServiceModal
-                  isOpen={isDynamicModalOpen}
-                  onClose={() => {
-                    setIsDynamicModalOpen(false);
-                    setSelectedTrack(null);
-                  }}
-                  registration={selectedRegistration}
-                  track={selectedTrack}
-                  onSuccess={() => {
-                    showToast(
-                      `Successfully converted to ${selectedTrack.name} patient`,
-                      "success",
-                    );
-                    if (selectedRegistration?.registration_id) {
-                      fetchDetails(selectedRegistration.registration_id, true);
-                    }
-                    fetchRegistrations(true);
-                  }}
-                />
-              )}
-            </AnimatePresence>
 
+            {/* Side Drawer */}
             <motion.div
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
-              className="bg-white dark:bg-[#0F110F] w-full max-w-4xl h-full shadow-[-32px_0_128px_-16px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col relative z-20 border border-black/5 dark:border-white/5 rounded-[40px] pointer-events-auto"
+              className="fixed inset-y-0 right-0 z-[1050] w-full max-w-[680px] bg-white dark:bg-[#0F110F] shadow-[-20px_0_60px_-15px_rgba(0,0,0,0.15)] border-l border-gray-100 dark:border-white/5 flex flex-col h-full"
             >
-              {/* Header: Profile Plate */}
-              <div className="px-10 py-8 flex items-center justify-between relative overflow-hidden shrink-0 border-b border-black/5 dark:border-white/5">
-                <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-transparent to-transparent opacity-50 transition-opacity" />
-                <div className="relative z-10 flex items-center gap-6">
-                  <div className="w-20 h-20 rounded-[28px] overflow-hidden border-2 border-white dark:border-white/10 shadow-xl flex-shrink-0 bg-slate-50 dark:bg-white/5">
+              {/* 1. Header - Compact */}
+              <div className="px-6 py-5 flex items-center justify-between border-b border-gray-100 dark:border-white/5 bg-white/80 dark:bg-[#0F110F]/80 backdrop-blur-md sticky top-0 z-20">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl overflow-hidden border border-gray-100 dark:border-white/10 shadow-sm shrink-0">
                     <PatientAvatar
                       photoPath={selectedRegistration.patient_photo_path}
                       name={selectedRegistration.patient_name}
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <div className="flex items-center gap-3">
-                      <h2 className="text-3xl font-bold text-[#1a1c1e] dark:text-white tracking-tight">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-lg font-bold text-slate-900 dark:text-white leading-tight">
                         {selectedRegistration.patient_name}
                       </h2>
-                      <div
-                        className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest border ${getStatusColors(selectedRegistration.status)} shadow-sm`}
+                      <span
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider ${getStatusColors(selectedRegistration.status)}`}
                       >
                         {selectedRegistration.status}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 text-[10px] font-bold text-slate-400">
-                      <span className="flex items-center gap-1.5 bg-slate-100 dark:bg-white/5 px-2.5 py-1 rounded-xl font-mono text-[10px] tracking-tighter text-slate-500 border border-black/5">
-                        <HistoryIcon size={10} />
-                        {selectedRegistration.registration_id}
                       </span>
-                      <span className="flex items-center gap-2">
-                        <Clock size={12} className="text-emerald-500" />
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px] font-medium text-slate-400 mt-1">
+                      <span className="font-mono tracking-tight text-slate-500">
+                        #{selectedRegistration.registration_id}
+                      </span>
+                      <span>•</span>
+                      <span>
                         {formatDateSafe(
                           selectedRegistration.created_at,
-                          "MMM dd, yyyy • HH:mm",
+                          "MMM dd, HH:mm",
                         )}
                       </span>
                     </div>
                   </div>
                 </div>
-
-                <div className="relative z-10 flex items-center gap-4">
-                  <div className="flex items-center bg-slate-100/50 dark:bg-white/5 p-1 rounded-2xl border border-black/5 dark:border-white/5">
-                    <button
-                      onClick={() =>
-                        navigateToBill(selectedRegistration.registration_id)
-                      }
-                      className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-emerald-600 hover:bg-white dark:hover:bg-white/10 transition-all shadow-sm"
-                      title="Print Invoice"
-                    >
-                      <Printer size={18} />
-                    </button>
-                    <button
-                      onClick={
-                        isEditing ? () => setIsEditing(false) : startEditing
-                      }
-                      className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all shadow-sm ${isEditing ? "bg-amber-500 text-white hover:bg-amber-600" : "text-slate-400 hover:text-emerald-600 hover:bg-white dark:hover:bg-white/10"}`}
-                      title={isEditing ? "Discard Changes" : "Modify Record"}
-                    >
-                      {isEditing ? (
-                        <RotateCcw size={18} />
-                      ) : (
-                        <Edit2 size={18} />
-                      )}
-                    </button>
-                    <button
-                      onClick={() =>
-                        setConfirmModal({
-                          isOpen: true,
-                          title: "Delete Sequence?",
-                          message:
-                            "This action will archive the registration permanently.",
-                          onConfirm: () => {
-                            handleUpdateStatus(
-                              selectedRegistration.registration_id,
-                              "closed",
-                            );
-                            setIsDetailsModalOpen(false);
-                            setConfirmModal((p) => ({ ...p, isOpen: false }));
-                          },
-                        })
-                      }
-                      className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-rose-500 hover:bg-white dark:hover:bg-white/10 transition-all"
-                      title="Archive Record"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                  </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={
+                      isEditing ? () => setIsEditing(false) : startEditing
+                    }
+                    className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${isEditing ? "bg-amber-100 text-amber-600" : "hover:bg-slate-100/80 text-slate-400 hover:text-slate-600"}`}
+                  >
+                    {isEditing ? <X size={16} /> : <Edit2 size={16} />}
+                  </button>
                   <button
                     onClick={() => setIsDetailsModalOpen(false)}
-                    className="w-12 h-12 flex items-center justify-center bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl hover:scale-105 active:scale-95 transition-all shadow-xl shadow-black/10"
+                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100/80 text-slate-400 hover:text-slate-600 transition-colors"
                   >
                     <X size={20} />
                   </button>
                 </div>
               </div>
-              <div className="flex-1 overflow-y-auto custom-scrollbar">
-                <div className="p-10 space-y-12">
-                  {/* 1. Quick Workflow Actions */}
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between px-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                          <Zap size={16} />
-                        </div>
-                        <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">
-                          Bureau Workflow Tracks
-                        </h4>
-                      </div>
+
+              {/* 2. Scrollable Body */}
+              <div className="flex-1 overflow-y-auto custom-scrollbar bg-white dark:bg-[#0F110F]">
+                <div className="p-6 space-y-8">
+                  {/* Workflow Tracks - Horizontal Cards */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3 px-1">
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        Workflow Operations
+                      </h4>
                       {(selectedRegistration.approval_status === "pending" ||
                         selectedRegistration.approval_status ===
-                        "rejected") && (
-                          <div className="flex items-center gap-2 px-3 py-1 bg-rose-500 text-white rounded-full text-[9px] font-black uppercase tracking-wider animate-pulse">
-                            <Lock size={10} />
-                            <span>Operations Locked</span>
-                          </div>
-                        )}
+                          "rejected") && (
+                        <span className="text-[9px] font-bold text-rose-500 uppercase flex items-center gap-1 bg-rose-50 px-2 py-0.5 rounded-full">
+                          <Lock size={8} /> Locked
+                        </span>
+                      )}
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 gap-3">
                       {serviceTracks.map((track, idx) => {
                         const Icon =
                           AVAILABLE_ICONS.find((i) => i.name === track.icon)
@@ -1675,42 +1608,35 @@ const Registration = () => {
                             key={track.id || idx}
                             disabled={
                               selectedRegistration.approval_status ===
-                              "pending" ||
+                                "pending" ||
                               selectedRegistration.approval_status ===
-                              "rejected"
+                                "rejected"
                             }
                             onClick={() => {
                               setSelectedTrack(track);
                               setIsDynamicModalOpen(true);
                             }}
-                            className={`flex flex-col gap-4 p-5 bg-slate-50 dark:bg-white/5 border border-black/5 dark:border-white/5 rounded-[32px] transition-all group relative overflow-hidden ${
+                            className={`group flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${
                               selectedRegistration.approval_status ===
                                 "pending" ||
                               selectedRegistration.approval_status ===
                                 "rejected"
-                                ? "opacity-40 cursor-not-allowed grayscale-[0.8]"
-                                : "hover:shadow-xl hover:border-emerald-500/20"
+                                ? "bg-slate-50 border-slate-100 opacity-50"
+                                : "bg-white border-slate-100 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/5 hover:-translate-y-0.5"
                             }`}
                           >
                             <div
-                              className="w-12 h-12 rounded-2xl flex items-center justify-center group-hover:scale-110 group-hover:rotate-12 transition-all shadow-sm shrink-0"
-                              style={{
-                                backgroundColor: `${track.themeColor}15`,
-                                color: track.themeColor,
-                              }}
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${selectedRegistration.approval_status === "pending" || selectedRegistration.approval_status === "rejected" ? "bg-slate-100 text-slate-400" : "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white"}`}
                             >
-                              <Icon size={20} strokeWidth={2.5} />
+                              <Icon size={18} />
                             </div>
-                            <div className="text-left">
-                              <span className="block text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none mb-1">
+                            <div className="min-w-0 flex-1">
+                              <span className="block text-xs font-bold text-slate-700 dark:text-gray-200 truncate group-hover:text-emerald-700">
                                 {track.buttonLabel || track.name}
                               </span>
-                              <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-tighter opacity-60">
-                                Init {track.name}
+                              <span className="block text-[10px] font-medium text-slate-400 truncate mt-0.5">
+                                Initialize
                               </span>
-                            </div>
-                            <div className="absolute bottom-4 right-4 text-emerald-500/0 group-hover:text-emerald-500/20 transition-all translate-x-4 group-hover:translate-x-0">
-                              <Plus size={20} strokeWidth={3} />
                             </div>
                           </button>
                         );
@@ -1718,286 +1644,273 @@ const Registration = () => {
                     </div>
                   </div>
 
-                  {/* 2. Structured Information Grid */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                    {/* Status Banner */}
-                    <div className="lg:col-span-12">
-                      {selectedRegistration.patient_exists_count > 0 ? (
-                        <div className="p-4 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/10 rounded-2xl flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20">
-                              <Check size={14} strokeWidth={3} />
-                            </div>
-                            <span className="text-[11px] font-black text-emerald-900 dark:text-emerald-400 uppercase tracking-tight">
-                              Linked Clinic Record: Patient ID #
-                              {
-                                selectedRegistration.existing_services?.[0]
-                                  ?.patient_id
+                  {/* Alert Banner */}
+                  {selectedRegistration.patient_exists_count > 0 ? (
+                    <div className="flex items-center justify-between p-4 bg-emerald-50/60 border border-emerald-100 rounded-2xl">
+                      <div className="flex items-center gap-3">
+                        <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                          <Check size={12} strokeWidth={3} />
+                        </div>
+                        <div>
+                          <p className="text-[11px] font-bold text-emerald-900 uppercase tracking-wide">
+                            Linked Patient Record
+                          </p>
+                          <p className="text-[10px] text-emerald-600 font-medium">
+                            ID: #
+                            {
+                              selectedRegistration.existing_services?.[0]
+                                ?.patient_id
+                            }
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => navigate("/reception/patients")}
+                        className="px-3 py-1.5 bg-white rounded-lg text-[10px] font-bold text-emerald-700 shadow-sm border border-emerald-100 hover:bg-emerald-50 transition-colors"
+                      >
+                        View Registry
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3 p-4 bg-amber-50/60 border border-amber-100 rounded-2xl">
+                      <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 shrink-0">
+                        <AlertCircle size={14} />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-bold text-amber-900 uppercase tracking-wide">
+                          New Profile - Incomplete
+                        </p>
+                        <p className="text-[10px] text-amber-600 font-medium">
+                          Please complete full registration.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Details Stack */}
+                  <div className="space-y-8">
+                    {/* Identity Section */}
+                    <div className="relative">
+                      <h4 className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
+                        <User size={12} /> Identity
+                      </h4>
+
+                      <div className="bg-slate-50/50 dark:bg-white/[0.02] rounded-2xl border border-slate-100 dark:border-white/5 p-5 space-y-5">
+                        <div className="grid grid-cols-2 gap-5">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
+                              Age
+                            </label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={editData.age || ""}
+                                onChange={(e) =>
+                                  setEditData({
+                                    ...editData,
+                                    age: e.target.value,
+                                  })
+                                }
+                                className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm font-bold"
+                              />
+                            ) : (
+                              <p className="text-base font-bold text-slate-700">
+                                {selectedRegistration.age || "-"}
+                                <span className="text-[10px] text-slate-400 ml-1 font-black">
+                                  YEARS
+                                </span>
+                              </p>
+                            )}
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
+                              Gender
+                            </label>
+                            {isEditing ? (
+                              <CustomSelect
+                                value={editData.gender || ""}
+                                onChange={(v) =>
+                                  setEditData({ ...editData, gender: v })
+                                }
+                                options={[
+                                  { label: "Male", value: "Male" },
+                                  { label: "Female", value: "Female" },
+                                ]}
+                                className="!py-1 !text-xs"
+                              />
+                            ) : (
+                              <p className="text-base font-bold text-slate-700">
+                                {selectedRegistration.gender || "-"}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
+                            Mobile Number
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editData.phone_number || ""}
+                              onChange={(e) =>
+                                setEditData({
+                                  ...editData,
+                                  phone_number: e.target.value,
+                                })
                               }
-                            </span>
-                          </div>
-                          <button
-                            onClick={() => navigate("/reception/patients")}
-                            className="px-4 py-1.5 bg-emerald-500 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:scale-105 transition-all shadow-lg shadow-emerald-500/10"
-                          >
-                            Show Registry
-                          </button>
+                              className="w-full bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-sm font-bold"
+                            />
+                          ) : (
+                            <div className="flex items-center gap-2 text-slate-700">
+                              <Phone size={14} className="text-emerald-500" />
+                              <span className="text-base font-bold tracking-tight">
+                                {selectedRegistration.phone_number}
+                              </span>
+                            </div>
+                          )}
                         </div>
-                      ) : (
-                        <div className="p-4 bg-amber-500/5 border border-amber-500/10 rounded-2xl flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center">
-                            <AlertCircle size={14} strokeWidth={3} />
-                          </div>
-                          <span className="text-[11px] font-black text-amber-900 dark:text-amber-400 uppercase tracking-tight">
-                            Waiting for clinical profiling - No existing records
-                            found
-                          </span>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
+                            Residential Address
+                          </label>
+                          {isEditing ? (
+                            <textarea
+                              value={editData.address || ""}
+                              onChange={(e) =>
+                                setEditData({
+                                  ...editData,
+                                  address: e.target.value,
+                                })
+                              }
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium resize-none leading-relaxed"
+                              rows={3}
+                            />
+                          ) : (
+                            <p className="text-xs font-medium text-slate-500 leading-normal">
+                              {selectedRegistration.address || "N/A"}
+                            </p>
+                          )}
                         </div>
-                      )}
+                      </div>
                     </div>
 
-                    {/* Identity Column */}
-                    <div className="lg:col-span-12 space-y-8">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        {/* Identity Section */}
-                        <div className="bg-white dark:bg-white/[0.02] border border-black/5 dark:border-white/5 rounded-[40px] p-8 space-y-8 shadow-sm">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-500">
-                              <User size={16} />
-                            </div>
-                            <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">
-                              Identity Plate
-                            </h4>
-                          </div>
+                    {/* Clinical Section */}
+                    <div className="relative">
+                      <h4 className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
+                        <Activity size={12} /> Clinical Sequence
+                      </h4>
 
-                          <div className="grid grid-cols-2 gap-6">
-                            <div className="space-y-1.5">
-                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                Age
-                              </label>
-                              {isEditing ? (
-                                <input
-                                  type="text"
-                                  value={editData.age || ""}
-                                  onChange={(e) =>
-                                    setEditData({
-                                      ...editData,
-                                      age: e.target.value,
-                                    })
-                                  }
-                                  className="w-full px-3 py-1.5 bg-slate-50 dark:bg-white/5 border border-black/10 rounded-lg text-sm font-bold focus:ring-2 ring-emerald-500/20 outline-none"
-                                />
-                              ) : (
-                                <p className="text-lg font-black text-slate-900 dark:text-white">
-                                  {selectedRegistration.age || "N/A"}{" "}
-                                  <span className="text-[10px] text-slate-400">
-                                    Y/O
-                                  </span>
-                                </p>
-                              )}
-                            </div>
-                            <div className="space-y-1.5">
-                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                Gender
-                              </label>
-                              {isEditing ? (
-                                <CustomSelect
-                                  value={editData.gender || ""}
-                                  onChange={(v) =>
-                                    setEditData({ ...editData, gender: v })
-                                  }
-                                  options={[
-                                    { label: "Male", value: "Male" },
-                                    { label: "Female", value: "Female" },
-                                    { label: "Other", value: "Other" },
-                                  ]}
-                                  className="!py-1.5 !rounded-lg !bg-slate-50"
-                                />
-                              ) : (
-                                <p className="text-lg font-black text-slate-900 dark:text-white">
-                                  {selectedRegistration.gender || "N/A"}
-                                </p>
-                              )}
-                            </div>
-                            <div className="col-span-2 space-y-1.5 pt-4 border-t border-black/5">
-                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                Primary Link
-                              </label>
-                              {isEditing ? (
-                                <input
-                                  type="text"
-                                  value={editData.phone_number || ""}
-                                  onChange={(e) =>
-                                    setEditData({
-                                      ...editData,
-                                      phone_number: e.target.value,
-                                    })
-                                  }
-                                  className="w-full px-4 py-2 bg-slate-50 dark:bg-white/5 border border-emerald-500/20 rounded-xl text-lg font-black focus:ring-4 ring-emerald-500/5 outline-none"
-                                />
-                              ) : (
-                                <div className="flex items-center gap-3 text-slate-900 dark:text-white">
-                                  <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                                    <Phone size={14} />
-                                  </div>
-                                  <p className="text-xl font-black tracking-tighter">
-                                    {selectedRegistration.phone_number}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
-                            <div className="col-span-2 space-y-1.5">
-                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                Documented Residence
-                              </label>
-                              {isEditing ? (
-                                <textarea
-                                  value={editData.address || ""}
-                                  onChange={(e) =>
-                                    setEditData({
-                                      ...editData,
-                                      address: e.target.value,
-                                    })
-                                  }
-                                  className="w-full px-4 py-2 bg-slate-50 dark:bg-white/5 border border-black/10 rounded-xl text-xs font-bold min-h-[80px] focus:ring-2 ring-emerald-500/20 outline-none"
-                                />
-                              ) : (
-                                <div className="flex items-start gap-2">
-                                  <MapPin
-                                    size={12}
-                                    className="text-slate-300 mt-1 shrink-0"
-                                  />
-                                  <p className="text-[10px] font-bold text-slate-500 leading-relaxed uppercase tracking-tight line-clamp-2">
-                                    {selectedRegistration.address ||
-                                      "No documented residence"}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
+                      <div className="bg-slate-50/50 dark:bg-white/[0.02] rounded-2xl border border-slate-100 dark:border-white/5 p-5 space-y-6">
+                        <div className="p-4 bg-white dark:bg-white/5 border border-slate-100 dark:border-white/5 rounded-xl shadow-sm">
+                          <label className="text-[10px] font-bold text-slate-400 uppercase block mb-2">
+                            Diagnosis / Complaint
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={editData.chief_complain || ""}
+                              onChange={(e) =>
+                                setEditData({
+                                  ...editData,
+                                  chief_complain: e.target.value,
+                                })
+                              }
+                              className="w-full text-base font-bold border-b-2 border-emerald-500 outline-none pb-1 bg-transparent"
+                            />
+                          ) : (
+                            <p className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">
+                              {selectedRegistration.chief_complain ||
+                                "Routine Checkup"}
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-5">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
+                              Consultation Type
+                            </label>
+                            {isEditing ? (
+                              <CustomSelect
+                                value={editData.consultation_type || ""}
+                                onChange={(v) =>
+                                  setEditData({
+                                    ...editData,
+                                    consultation_type: v,
+                                  })
+                                }
+                                options={options.types.map((t: string) => ({
+                                  label: t,
+                                  value: t,
+                                }))}
+                                className="!py-1 !text-xs"
+                              />
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase bg-slate-100 text-slate-600 border border-slate-200">
+                                {selectedRegistration.consultation_type}
+                              </span>
+                            )}
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1.5">
+                              Referred By
+                            </label>
+                            {isEditing ? (
+                              <CustomSelect
+                                value={editData.reffered_by || ""}
+                                onChange={(v) =>
+                                  setEditData({ ...editData, reffered_by: v })
+                                }
+                                options={options.referred_by.map(
+                                  (r: string) => ({ label: r, value: r }),
+                                )}
+                                className="!py-1 !text-xs"
+                              />
+                            ) : (
+                              <span className="text-xs font-bold text-slate-700 truncate block bg-slate-50 px-2 py-1 rounded-lg border border-slate-100">
+                                {selectedRegistration.reffered_by || "Self"}
+                              </span>
+                            )}
                           </div>
                         </div>
 
-                        {/* Clinical Section */}
-                        <div className="bg-white dark:bg-white/[0.02] border border-black/5 dark:border-white/5 rounded-[40px] p-8 space-y-8 shadow-sm">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center text-emerald-600">
-                              <Activity size={16} />
-                            </div>
-                            <h4 className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">
-                              Clinical Sequence
-                            </h4>
-                          </div>
-
-                          <div className="grid grid-cols-12 gap-6">
-                            <div className="col-span-12 space-y-1.5 bg-slate-50 dark:bg-white/5 p-4 rounded-2xl border border-black/5">
-                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                Diagnosis / Concern
-                              </label>
-                              {isEditing ? (
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-100 dark:border-white/5">
+                          <div>
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                              Consultation Fee
+                            </label>
+                            {isEditing ? (
+                              <div className="flex items-center text-lg font-black text-slate-900 group">
+                                <span className="text-slate-400 mr-1.5 transition-colors group-focus-within:text-emerald-500">
+                                  ₹
+                                </span>
                                 <input
-                                  type="text"
-                                  value={editData.chief_complain || ""}
+                                  type="number"
+                                  value={editData.consultation_amount || ""}
                                   onChange={(e) =>
                                     setEditData({
                                       ...editData,
-                                      chief_complain: e.target.value,
+                                      consultation_amount: e.target.value,
                                     })
                                   }
-                                  className="w-full px-3 py-1 bg-transparent border-b-2 border-emerald-500/20 text-sm font-bold focus:border-emerald-500 outline-none"
+                                  className="w-32 bg-slate-50 border border-slate-200 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 rounded-xl px-3 py-2 outline-none transition-all"
                                 />
-                              ) : (
-                                <p className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                                  {selectedRegistration.chief_complain ||
-                                    "General Clinical Inquiry"}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="col-span-6 space-y-1.5">
-                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                Service
-                              </label>
-                              {isEditing ? (
-                                <CustomSelect
-                                  value={editData.consultation_type || ""}
-                                  onChange={(v) =>
-                                    setEditData({
-                                      ...editData,
-                                      consultation_type: v,
-                                    })
-                                  }
-                                  options={options.types.map((t) => ({
-                                    label: t,
-                                    value: t,
-                                  }))}
-                                  className="!py-1.5 !rounded-lg !bg-slate-50"
-                                />
-                              ) : (
-                                <p className="text-[11px] font-black text-slate-900 dark:text-white uppercase tracking-widest px-3 py-1 bg-slate-100 dark:bg-white/10 rounded-lg inline-block">
-                                  {selectedRegistration.consultation_type ||
-                                    "IN_CLINIC"}
-                                </p>
-                              )}
-                            </div>
-                            <div className="col-span-6 space-y-1.5">
-                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                Referrer
-                              </label>
-                              {isEditing ? (
-                                <CustomSelect
-                                  value={editData.reffered_by || ""}
-                                  onChange={(v) =>
-                                    setEditData({ ...editData, reffered_by: v })
-                                  }
-                                  options={options.referred_by.map((r) => ({
-                                    label: r,
-                                    value: r,
-                                  }))}
-                                  className="!py-1.5 !rounded-lg !bg-slate-50"
-                                />
-                              ) : (
-                                <p className="text-sm font-black text-slate-400 uppercase tracking-tight">
-                                  {selectedRegistration.reffered_by ||
-                                    "Direct Walk-in"}
-                                </p>
-                              )}
-                            </div>
-
-                            <div className="col-span-6 space-y-1.5 pt-4 border-t border-black/5">
-                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                Accounting Fee
-                              </label>
-                              {isEditing ? (
-                                <div className="relative">
-                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">
-                                    ₹
-                                  </span>
-                                  <input
-                                    type="number"
-                                    value={editData.consultation_amount || ""}
-                                    onChange={(e) =>
-                                      setEditData({
-                                        ...editData,
-                                        consultation_amount: e.target.value,
-                                      })
-                                    }
-                                    className="w-full pl-7 pr-4 py-2 bg-slate-50 dark:bg-white/5 border border-black/10 rounded-xl text-lg font-black focus:ring-4 ring-emerald-500/5 outline-none"
-                                  />
-                                </div>
-                              ) : (
-                                <p className="text-2xl font-black text-slate-900 dark:text-white tracking-tighter">
-                                  <span className="text-xs opacity-30 mr-1 font-serif">
-                                    ₹
-                                  </span>
-                                  {selectedRegistration.consultation_amount}
-                                </p>
-                              )}
-                            </div>
-                            <div className="col-span-6 space-y-1.5 pt-4 border-t border-black/5">
-                              <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                Payment Logic
-                              </label>
-                              {isEditing ? (
+                              </div>
+                            ) : (
+                              <p className="text-xl font-black text-slate-900 dark:text-white">
+                                ₹{selectedRegistration.consultation_amount}
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">
+                              Method
+                            </label>
+                            {isEditing ? (
+                              <div className="w-48">
                                 <CustomSelect
                                   value={editData.payment_method || ""}
                                   onChange={(v) =>
@@ -2011,85 +1924,109 @@ const Registration = () => {
                                     { label: "CARD", value: "CARD" },
                                     { label: "UPI", value: "UPI" },
                                   ]}
-                                  className="!py-2 !rounded-xl !bg-slate-50"
+                                  className="!py-2 !text-xs"
                                 />
-                              ) : (
-                                <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
-                                  <CreditCard
-                                    size={14}
-                                    className="text-emerald-500"
-                                  />
-                                  <p className="text-[10px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">
-                                    {selectedRegistration.payment_method ||
-                                      "CASH"}
-                                  </p>
-                                </div>
-                              )}
-                            </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-end gap-1.5 text-emerald-600 bg-emerald-50 px-3 py-1 rounded-lg border border-emerald-100">
+                                <CreditCard size={12} />
+                                <span className="text-[10px] font-black uppercase">
+                                  {selectedRegistration.payment_method ||
+                                    "CASH"}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
-                      </div>
-
-                      {/* Notes Area */}
-                      <div className="bg-slate-50 dark:bg-white/[0.01] border border-black/5 dark:border-white/5 rounded-[40px] p-8 space-y-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center text-slate-400">
-                            <HistoryIcon size={14} />
-                          </div>
-                          <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                            Clinical Observations & Notes
-                          </h4>
-                        </div>
-                        <p className="text-[11px] font-bold text-slate-400/60 leading-relaxed italic text-center py-4 border-2 border-dashed border-black/5 rounded-[24px]">
-                          No Documented Clinical Observations for this sequence.
-                        </p>
                       </div>
                     </div>
+                  </div>
+
+                  <div className="bg-slate-50/50 dark:bg-white/[0.01] border border-gray-100 dark:border-white/5 rounded-xl p-4 text-center">
+                    <span className="text-[10px] font-medium text-slate-400 italic">
+                      No additional observations recorded.
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Footer Actions */}
-              <div className="shrink-0 px-10 py-6 border-t border-black/5 dark:border-white/5 bg-slate-50/50 dark:bg-white/[0.01] flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_12px_rgba(16,185,129,0.5)] animate-pulse" />
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.25em]">
-                    Active Session Link
-                  </span>
-                </div>
+              {/* 3. Footer - Fixed at Bottom */}
+              <div className="px-6 py-4 border-t border-gray-100 dark:border-white/5 bg-slate-50/80 dark:bg-white/[0.02] flex items-center justify-between sticky bottom-0 backdrop-blur-md">
+                <button
+                  onClick={() => {
+                    handleUpdateStatus(
+                      selectedRegistration.registration_id,
+                      "closed",
+                    );
+                    setIsDetailsModalOpen(false);
+                  }}
+                  className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 px-3 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wide flex items-center gap-2 transition-colors"
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
+
                 <div className="flex items-center gap-3">
                   {isEditing ? (
                     <button
                       onClick={handleSaveDetails}
                       disabled={isSaving}
-                      className="px-10 py-3.5 bg-emerald-500 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-emerald-500/20 flex items-center gap-3 disabled:opacity-50"
+                      className="bg-emerald-500 hover:bg-emerald-600 text-white px-6 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition-all hover:-translate-y-0.5"
                     >
                       {isSaving ? (
-                        <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                        "Saving..."
                       ) : (
-                        <Check size={16} strokeWidth={3} />
+                        <>
+                          <Check size={14} strokeWidth={3} /> Save Changes
+                        </>
                       )}
-                      Save Changes
                     </button>
                   ) : (
                     <button
-                      onClick={() => setIsDetailsModalOpen(false)}
-                      className="px-10 py-3.5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl text-[11px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-xl shadow-black/10"
+                      onClick={() =>
+                        navigateToBill(selectedRegistration.registration_id)
+                      }
+                      className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-5 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all shadow-sm"
                     >
-                      Close
+                      <Printer size={14} /> Print Receipt
                     </button>
                   )}
                 </div>
               </div>
             </motion.div>
-          </div>
+
+            {/* Sub-Modal for Dynamic Service */}
+            <AnimatePresence>
+              {isDynamicModalOpen && selectedRegistration && selectedTrack && (
+                <DynamicServiceModal
+                  isOpen={isDynamicModalOpen}
+                  onClose={() => {
+                    setIsDynamicModalOpen(false);
+                    setSelectedTrack(null);
+                  }}
+                  registration={selectedRegistration}
+                  track={selectedTrack}
+                  isStacked={true}
+                  onSuccess={() => {
+                    showToast(
+                      `Successfully converted to ${selectedTrack.name} patient`,
+                      "success",
+                    );
+                    if (selectedRegistration?.registration_id) {
+                      fetchDetails(selectedRegistration.registration_id, true);
+                    }
+                    fetchRegistrations(true);
+                  }}
+                />
+              )}
+            </AnimatePresence>
+          </>
         )}
       </AnimatePresence>
 
       {/* --- BILL MODAL --- */}
       <AnimatePresence>
         {isBillModalOpen && selectedRegistration && (
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[1500] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}

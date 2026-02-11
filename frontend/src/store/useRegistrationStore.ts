@@ -9,7 +9,7 @@ interface RegistrationStore {
   lastFetched: number | null;
   lastParams: any | null;
   detailsCache: Record<number, any>;
-  dynamicModalOptions: { employees: any[]; paymentMethods: any[] } | null;
+  dynamicModalOptions: { branchId?: string | number; employees: any[]; paymentMethods: any[] } | null;
   serviceSlotsCache: Record<string, any[]>;
   registrationsCache: Record<string, { data: any[]; pagination: any }>;
   cancelledRegistrationsCache: any[] | null;
@@ -20,7 +20,7 @@ interface RegistrationStore {
   setLastFetched: (time: number) => void;
   setLastParams: (params: any) => void;
   setDetailsCache: (id: number, data: any) => void;
-  setDynamicModalOptions: (options: { employees: any[]; paymentMethods: any[] }) => void;
+  setDynamicModalOptions: (options: { branchId?: string | number; employees: any[]; paymentMethods: any[] }) => void;
   setServiceSlotsCache: (key: string, data: any[]) => void;
   setRegistrationsCache: (key: string, data: any[], pagination: any) => void;
   setCancelledRegistrationsCache: (data: any[]) => void;
