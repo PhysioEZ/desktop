@@ -912,7 +912,7 @@ const DynamicServiceModal = ({
             disabled={isSaving}
             className="px-8 py-3 bg-slate-900 dark:bg-emerald-500 text-white rounded-xl text-[12px] font-black uppercase tracking-widest shadow-lg shadow-slate-900/10 dark:shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:scale-100"
           >
-            {isSaving ? "Synchronizing..." : "Initialize Session"}
+            {isSaving ? "Saving..." : "Save"}
           </button>
         </div>
       </motion.div>

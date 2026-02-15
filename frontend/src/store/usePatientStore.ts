@@ -46,6 +46,7 @@ export interface Patient {
     gender?: string;
     chief_complain?: string;
     total_consumed?: number;
+    created_at?: string;
 }
 
 export interface MetaData {

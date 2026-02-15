@@ -3,14 +3,17 @@ const pool = require('../../config/db');
 exports.handleAttendanceRequest = async (req, res) => {
     try {
         const input = req.body;
-        const action = input.action || 'mark'; // 'mark' for simple, or 'add' for full logic if needed
+        const action = input.action || 'mark';
         const branchId = req.user.branch_id || input.branch_id;
 
         if (!branchId) return res.status(400).json({ status: 'error', message: 'Branch ID required' });
 
-        // If it's the full addLog (from add_attendance.php)
         if (req.method === 'POST') {
-            await markFullAttendance(req, res, branchId, input);
+            if (action === 'revert') {
+                await revertAttendance(req, res, branchId, input);
+            } else {
+                await markFullAttendance(req, res, branchId, input);
+            }
         } else {
             res.status(400).json({ status: 'error', message: 'Invalid method' });
         }
@@ -19,6 +22,77 @@ exports.handleAttendanceRequest = async (req, res) => {
         res.status(500).json({ status: 'error', message: error.message });
     }
 };
+
+async function revertAttendance(req, res, branchId, input) {
+    const { patient_id } = input;
+    if (!patient_id) return res.status(400).json({ success: false, message: 'Patient ID required' });
+
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Check if attendance exists for today (present or pending)
+        const today = new Date().toISOString().split('T')[0];
+        const [attRows] = await connection.query(
+            "SELECT attendance_id FROM attendance WHERE patient_id = ? AND attendance_date = ? AND status IN ('present', 'pending') LIMIT 1",
+            [patient_id, today]
+        );
+
+        if (attRows.length === 0) {
+            await connection.rollback();
+            return res.status(404).json({ success: false, message: 'No active attendance record found for today to revert.' });
+        }
+
+        // 2. Delete the attendance record
+        await connection.query("DELETE FROM attendance WHERE attendance_id = ?", [attRows[0].attendance_id]);
+
+        // 3. Recalculate Balance and Dues (Same logic as PHP/Fetch)
+        const [ptRows] = await connection.query("SELECT * FROM patients WHERE patient_id = ?", [patient_id]);
+        const patient = ptRows[0];
+        if (!patient) throw new Error("Patient not found");
+
+        const [paidRows] = await connection.query("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE patient_id = ?", [patient_id]);
+        const totalPaid = parseFloat(paidRows[0].total || 0);
+
+        const [histRows] = await connection.query("SELECT COALESCE(SUM(consumed_amount), 0) as total FROM patients_treatment WHERE patient_id = ?", [patient_id]);
+        const historyConsumed = parseFloat(histRows[0].total || 0);
+
+        const curRate = (patient.treatment_type === 'package' && patient.treatment_days > 0)
+            ? (parseFloat(patient.package_cost) / patient.treatment_days)
+            : parseFloat(patient.treatment_cost_per_day || 0);
+
+        const [cAttRows] = await connection.query(
+            "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'",
+            [patient_id, patient.start_date || '2000-01-01']
+        );
+        const currentAttendanceCount = cAttRows[0].count; // This count is now accurate since we deleted the row
+
+        const currentConsumed = currentAttendanceCount * curRate;
+        const effectiveBalance = totalPaid - (historyConsumed + currentConsumed);
+        const recalcDue = parseFloat(patient.total_amount) - totalPaid;
+
+        // 4. Update the patients table (following PHP logic)
+        await connection.query(
+            "UPDATE patients SET advance_payment = ?, due_amount = ? WHERE patient_id = ?",
+            [effectiveBalance, recalcDue, patient_id]
+        );
+
+        await connection.commit();
+        res.json({
+            success: true,
+            status: 'success',
+            message: 'Attendance reverted successfully',
+            new_balance: effectiveBalance.toFixed(2)
+        });
+
+    } catch (error) {
+        await connection.rollback();
+        console.error("Revert Attendance Error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    } finally {
+        connection.release();
+    }
+}
 
 async function markFullAttendance(req, res, branchId, input) {
     const { patient_id, payment_amount = 0, mode = 'Cash', remarks = '', status = 'present' } = input;

@@ -1,363 +1,579 @@
-import { useState, useEffect } from 'react';
-import { 
-    X, Loader2, AlertTriangle, Check, 
-    Activity, Zap, Clock, ShieldCheck, Hash, Calendar, CreditCard, Layout
-} from 'lucide-react';
-import { API_BASE_URL, authFetch } from '../../../config';
-import { type Patient, usePatientStore } from '../../../store/usePatientStore';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect } from "react";
+import {
+  X,
+  Loader2,
+  Check,
+  Activity,
+  Zap,
+  Clock,
+  ShieldCheck,
+  Hash,
+  Calendar,
+  CreditCard,
+  Layout,
+  ArrowRight,
+  History,
+} from "lucide-react";
+import { API_BASE_URL, authFetch } from "../../../config";
+import { type Patient, usePatientStore } from "../../../store/usePatientStore";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface ChangePlanModalProps {
-    isOpen: boolean;
-    onClose: () => void;
-    patient: Patient | null;
-    onSuccess: () => void;
+  isOpen: boolean;
+  onClose: () => void;
+  patient: Patient | null;
+  onSuccess: () => void;
 }
 
 const AVAILABLE_ICONS: any = {
-    Activity, Zap, Clock, Calendar, Check, CreditCard, Layout, ShieldCheck
+  Activity,
+  Zap,
+  Clock,
+  Calendar,
+  Check,
+  CreditCard,
+  Layout,
+  ShieldCheck,
 };
 
-const IconComponent = ({ name, size = 20, className = "" }: { name: string, size?: number, className?: string }) => {
-    const Icon = AVAILABLE_ICONS[name] || Activity;
-    return <Icon size={size} className={className} />;
+const IconComponent = ({
+  name,
+  size = 20,
+  className = "",
+  style = {},
+}: {
+  name: string;
+  size?: number;
+  className?: string;
+  style?: React.CSSProperties;
+}) => {
+  const Icon = AVAILABLE_ICONS[name] || Activity;
+  return <Icon size={size} className={className} style={style} />;
 };
 
-const OutlinedInput = ({ label, value, onChange, type = 'text', icon: Icon, prefix = '', placeholder = '', themeColor = '#006e1c', disabled = false, readOnly = false }: any) => (
-    <div className="relative group w-full">
-        <span className="absolute -top-2 left-3 px-1 text-[10px] font-bold uppercase tracking-wider bg-white dark:bg-[#1a1c1e] transition-colors z-10" style={{ color: themeColor }}>
-            {label}
+const labelClass =
+  "block text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1.5 px-1";
+const inputClass =
+  "w-full px-5 py-3 bg-white/80 backdrop-blur-md border border-slate-200 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 rounded-[18px] outline-none transition-all text-sm font-bold text-slate-800 placeholder:text-slate-300 shadow-sm";
+
+const FormInput = ({
+  label,
+  value,
+  onChange,
+  type = "text",
+  icon: Icon,
+  prefix = "",
+  placeholder = "",
+  themeColor,
+  disabled = false,
+  readOnly = false,
+}: any) => (
+  <div className="space-y-1 w-full group">
+    <label
+      className={labelClass}
+      style={{ color: value ? "#0d9488" : undefined }}
+    >
+      {label}
+    </label>
+    <div className="relative">
+      {Icon && (
+        <Icon
+          size={14}
+          className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none transition-colors group-focus-within:text-teal-600"
+        />
+      )}
+      {prefix && (
+        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-300">
+          {prefix}
         </span>
-        <div className={`relative flex items-center border rounded-xl transition-all ${disabled || readOnly ? 'bg-[#1c1b1f]/5 border-[#79747e]/30' : 'border-[#79747e] dark:border-[#938f99] focus-within:ring-2 shadow-sm'}`}
-             style={{ borderColor: !disabled && !readOnly ? undefined : undefined }}>
-            {Icon && <Icon size={16} className="absolute left-3.5 text-[#49454f] dark:text-[#cac4d0]" />}
-            {prefix && <span className="absolute left-3.5 text-sm font-bold text-[#49454f] dark:text-[#cac4d0]">{prefix}</span>}
-            <input 
-                type={type}
-                value={value ?? ''}
-                onChange={onChange}
-                disabled={disabled}
-                readOnly={readOnly}
-                placeholder={placeholder}
-                className={`w-full bg-transparent px-4 py-3 text-sm font-bold outline-none rounded-xl ${Icon || prefix ? 'pl-9' : ''} ${disabled || readOnly ? 'text-[#49454f]/60' : 'text-[#1c1b1f] dark:text-[#e3e2e6]'}`}
-            />
-        </div>
+      )}
+      <input
+        type={type}
+        value={value ?? ""}
+        onChange={onChange}
+        disabled={disabled}
+        readOnly={readOnly}
+        placeholder={placeholder}
+        className={`${inputClass} ${Icon || prefix ? "pl-12" : "px-5"}`}
+        style={{ borderColor: themeColor && value ? themeColor : undefined }}
+      />
     </div>
+  </div>
 );
 
-const ChangePlanModal = ({ isOpen, onClose, patient, onSuccess }: ChangePlanModalProps) => {
-    const { metaData } = usePatientStore();
-    const [isLoading, setIsLoading] = useState(false);
-    
-    // Form State
-    const [selectedTrack, setSelectedTrack] = useState<any>(null);
-    const [selectedPlanId, setSelectedPlanId] = useState<string>('');
-    const [rateOrCost, setRateOrCost] = useState(''); 
-    const [days, setDays] = useState('');
-    const [discount, setDiscount] = useState('0');
-    const [advance, setAdvance] = useState('');
-    const [paymentMethod, setPaymentMethod] = useState('');
-    const [reason, setReason] = useState('');
+const ChangePlanModal = ({
+  isOpen,
+  onClose,
+  patient,
+  onSuccess,
+}: ChangePlanModalProps) => {
+  const { metaData, patientDetails } = usePatientStore();
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedTrack, setSelectedTrack] = useState<any>(null);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+  const [rateOrCost, setRateOrCost] = useState("");
+  const [days, setDays] = useState("");
+  const [discount, setDiscount] = useState("0");
+  const [advance, setAdvance] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [reason, setReason] = useState("");
+  const [finalDue, setFinalDue] = useState(0);
+  const [carryOverBalance, setCarryOverBalance] = useState(0);
 
-    const [finalDue, setFinalDue] = useState(0);
-    const [carryOverBalance, setCarryOverBalance] = useState(0);
+  const darkTealBase = "#042626";
 
-    const themeColor = selectedTrack?.themeColor || '#006e1c';
-
-    useEffect(() => {
-        if (isOpen && patient) {
-            setCarryOverBalance(parseFloat(patient.effective_balance?.toString() || '0'));
-            
-            const fetchTrack = async () => {
-                try {
-                    let trackId = patient.service_track_id;
-                    if (!trackId) {
-                        if (patient.service_type?.toLowerCase() === 'physio') trackId = 2;
-                        else if (patient.service_type?.toLowerCase() === 'heart') trackId = 3;
-                    }
-                    if (!trackId) throw new Error('No service track ID found');
-                    
-                    const res = await authFetch(`${API_BASE_URL}/admin/services?id=${trackId}`);
-                    const data = await res.json();
-                    if (data.status === 'success') {
-                        setSelectedTrack(data.data);
-                        if (data.data.pricing?.plans?.length > 0) {
-                             const currentPlan = data.data.pricing.plans.find((p: any) => p.id === patient.treatment_type);
-                             const target = currentPlan || data.data.pricing.plans[0];
-                             setSelectedPlanId(target.id);
-                             setRateOrCost(target.rate.toString());
-                             setDays(target.days.toString());
-                        } else if (data.data.pricing?.model === 'fixed-rate') {
-                            setRateOrCost(data.data.pricing.fixedRate.toString());
-                            setDays('1');
-                        }
-                    }
-                } catch (err) { console.error(err); }
-            };
-            fetchTrack();
-
-            setDiscount('0');
-            setAdvance('');
-            setPaymentMethod('');
-            setReason('');
-        }
-    }, [isOpen, patient]);
-
-    useEffect(() => {
-        const rateVal = parseFloat(rateOrCost) || 0;
-        const daysVal = parseInt(days) || 0;
-        const discountVal = parseFloat(discount) || 0;
-        const advanceVal = parseFloat(advance) || 0;
-        
-        const subtotal = rateVal * daysVal;
-        const netBaseCost = subtotal * (1 - (discountVal / 100));
-        setFinalDue(netBaseCost - carryOverBalance - advanceVal);
-    }, [rateOrCost, days, discount, advance, selectedPlanId, carryOverBalance]);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        const selectedPlan = selectedTrack?.pricing?.plans?.find((p: any) => p.id === selectedPlanId);
-        const isPackage = selectedPlan ? (selectedPlan.days > 1) : (parseInt(days) > 1);
-        
-        if (isPackage && parseInt(days) <= 0) return alert('Package plans require valid treatment days');
-        if (parseFloat(advance) > 0 && !paymentMethod) return alert('Please select a payment method');
-
-        setIsLoading(true);
+  useEffect(() => {
+    if (isOpen && patient) {
+      setCarryOverBalance(
+        parseFloat(patient.effective_balance?.toString() || "0"),
+      );
+      const fetchTrack = async () => {
         try {
-            const payload = {
-                old_patient_id: patient?.patient_id,
-                master_patient_id: patient?.master_patient_id || '',
-                registration_id: patient?.registration_id,
-                new_treatment_type: selectedPlanId || 'fixed',
-                new_total_amount: rateOrCost,
-                new_treatment_days: days,
-                new_discount_percentage: discount,
-                new_advance_payment: advance,
-                change_plan_payment_method: paymentMethod,
-                reason_for_change: reason,
-                new_track_id: patient?.service_track_id || selectedTrack?.id,
-                action: 'change_plan'
-            };
-
-            const res = await authFetch(`${API_BASE_URL}/reception/treatment_plans`, {
-                method: 'POST',
-                body: JSON.stringify(payload),
-            });
-            const data = await res.json();
-            if(data.success) {
-                onSuccess();
-                onClose();
-            } else {
-                throw new Error(data.message || 'Failed to change plan');
+          let trackId = patient.service_track_id;
+          if (!trackId) {
+            if (patient.service_type?.toLowerCase() === "physio") trackId = 2;
+            else if (patient.service_type?.toLowerCase() === "heart")
+              trackId = 3;
+          }
+          if (!trackId) throw new Error("No service track ID found");
+          const res = await authFetch(
+            `${API_BASE_URL}/admin/services?id=${trackId}`,
+          );
+          const data = await res.json();
+          if (data.status === "success") {
+            setSelectedTrack(data.data);
+            if (data.data.pricing?.plans?.length > 0) {
+              const target =
+                data.data.pricing.plans.find(
+                  (p: any) => p.id === patient.treatment_type,
+                ) || data.data.pricing.plans[0];
+              setSelectedPlanId(target.id);
+              setRateOrCost(target.rate.toString());
+              setDays(target.days.toString());
+            } else if (data.data.pricing?.model === "fixed-rate") {
+              setRateOrCost(data.data.pricing.fixedRate.toString());
+              setDays("1");
             }
-        } catch (err: any) { alert(err.message); }
-        finally { setIsLoading(false); }
-    };
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      };
+      fetchTrack();
+      setDiscount("0");
+      setAdvance("");
+      setPaymentMethod("");
+      setReason("");
+    }
+  }, [isOpen, patient]);
 
-    if (!isOpen || !patient) return null;
+  useEffect(() => {
+    const subtotal = (parseFloat(rateOrCost) || 0) * (parseInt(days) || 0);
+    const netBaseCost = subtotal * (1 - (parseFloat(discount) || 0) / 100);
+    setFinalDue(netBaseCost - carryOverBalance - (parseFloat(advance) || 0));
+  }, [rateOrCost, days, discount, advance, selectedPlanId, carryOverBalance]);
 
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 bg-[#1c1b1f]/60 backdrop-blur-sm" />
-            
-             <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                className="relative bg-[#fef7ff] dark:bg-[#141218] w-full max-w-4xl rounded-[32px] shadow-2xl border border-[#eaddff] dark:border-[#49454f] overflow-hidden flex flex-col max-h-[92vh]"
-            >
-                {/* Header */}
-                <div className="px-8 py-6 flex justify-between items-center border-b border-[#74777f]/10">
-                    <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-lg" style={{ backgroundColor: themeColor }}>
-                            <IconComponent name={selectedTrack?.icon || 'Layout'} size={24} />
-                        </div>
-                        <div>
-                            <h3 className="text-xl font-bold text-[#1c1b1f] dark:text-[#e3e2e6] tracking-tight">Change Treatment Plan</h3>
-                            <p className="text-sm font-medium text-[#49454f] dark:text-[#cac4d0]">Modifying active services for <span style={{ color: themeColor }}>{patient.patient_name}</span></p>
-                        </div>
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reason.trim())
+      return alert("Audit Remarks are compulsory for system changes.");
+    if (parseFloat(advance) > 0 && !paymentMethod)
+      return alert("Select payment method");
+
+    setIsLoading(true);
+    try {
+      const payload = {
+        old_patient_id: patient?.patient_id,
+        master_patient_id: patient?.master_patient_id || "",
+        registration_id: patient?.registration_id,
+        new_treatment_type: selectedPlanId || "fixed",
+        new_total_amount: rateOrCost,
+        new_treatment_days: days,
+        new_discount_percentage: discount,
+        new_advance_payment: advance,
+        change_plan_payment_method: paymentMethod,
+        reason_for_change: reason,
+        new_track_id: patient?.service_track_id || selectedTrack?.id,
+        action: "change_plan",
+      };
+      const res = await authFetch(`${API_BASE_URL}/reception/treatment_plans`, {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      if ((await res.json()).success) {
+        onSuccess();
+        onClose();
+      }
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const lastUpdate = patientDetails?.history?.[0]; // Assuming history is newest first
+
+  if (!isOpen || !patient) return null;
+
+  return (
+    <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        onClick={onClose}
+        className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm"
+      />
+
+      <motion.div
+        initial={{ opacity: 0, scale: 0.98, y: 15 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.98, y: 15 }}
+        transition={{ type: "spring", damping: 25, stiffness: 400 }}
+        className="relative bg-white w-full max-w-5xl rounded-[32px] shadow-[0_32px_128px_rgba(15,23,42,0.2)] border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
+      >
+        <div className="relative flex-1 flex overflow-hidden">
+          {/* Left Panel */}
+          <div
+            className="w-[300px] flex flex-col pt-10 px-6 relative z-10 shrink-0 overflow-y-auto custom-scrollbar"
+            style={{ backgroundColor: darkTealBase }}
+          >
+            <div className="space-y-6 pb-10">
+              <div className="space-y-5 px-2">
+                <div className="w-16 h-16 rounded-[24px] bg-white shadow-xl flex items-center justify-center">
+                  <IconComponent
+                    name={selectedTrack?.icon || "Layout"}
+                    size={32}
+                    style={{ color: darkTealBase }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <h2 className="text-xl font-black text-white leading-tight tracking-tight uppercase">
+                    {patient.patient_name}
+                  </h2>
+                  <div className="flex gap-2">
+                    <span className="px-2 py-0.5 rounded-lg bg-white/10 text-[9px] font-black text-white/60 border border-white/10 uppercase tracking-widest">
+                      {patient.patient_uid}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <p className="text-[9px] font-black text-white/20 uppercase tracking-[0.4em] px-2">
+                  Operational Check
+                </p>
+                <div className="space-y-3">
+                  {[
+                    {
+                      label: "Plan",
+                      value: patient.treatment_type,
+                      icon: Activity,
+                      color: "text-orange-400",
+                    },
+                    {
+                      label: "Sessions",
+                      value: `${patient.attendance_count || 0} Finished`,
+                      icon: Calendar,
+                      color: "text-teal-400",
+                    },
+                  ].map((s, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center gap-3.5 p-3.5 rounded-[22px] bg-white/5 border border-white/5"
+                    >
+                      <div
+                        className={`w-8 h-8 rounded-xl bg-white/5 flex items-center justify-center ${s.color}`}
+                      >
+                        <s.icon size={14} />
+                      </div>
+                      <div>
+                        <p className="text-[8px] font-bold text-white/30 uppercase mb-0.5">
+                          {s.label}
+                        </p>
+                        <p className="text-xs font-black text-white capitalize">
+                          {s.value}
+                        </p>
+                      </div>
                     </div>
-                    <button onClick={onClose} className="w-10 h-10 flex items-center justify-center hover:bg-[#1c1b1f]/8 dark:hover:bg-[#e6e1e5]/8 rounded-full transition-colors text-[#49454f] dark:text-[#cac4d0]">
-                        <X size={20} />
-                    </button>
+                  ))}
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-                    {/* Snapshot Card */}
-                    <div className="p-6 rounded-[24px] border border-[#dce2f9] bg-[#dce2f9]/20 dark:bg-[#dce2f9]/5">
-                        <div className="flex items-center gap-2 mb-4">
-                            <ShieldCheck size={16} className="text-[#3f51b5]" />
-                            <h4 className="text-[11px] font-bold text-[#3f51b5] uppercase tracking-widest">Active Plan Snapshot</h4>
+                <div className="p-5 rounded-[28px] bg-orange-50 shadow-xl text-center border border-orange-200/50">
+                  <p className="text-[8px] font-black text-orange-400 uppercase tracking-widest mb-1">
+                    Total Balance
+                  </p>
+                  <h3
+                    className={`text-3xl font-black tracking-tighter ${carryOverBalance >= 0 ? "text-teal-600" : "text-rose-500"}`}
+                  >
+                    ₹{Math.abs(carryOverBalance).toLocaleString()}
+                    <span className="text-[9px] ml-1 opacity-40 font-black tracking-widest">
+                      {carryOverBalance < 0 ? "DUE" : "CR"}
+                    </span>
+                  </h3>
+                </div>
+
+                {/* History Card */}
+                <div className="p-5 rounded-[28px] bg-white/5 border border-white/10 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <History size={14} className="text-teal-400" />
+                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest uppercase">
+                      Last Activity
+                    </p>
+                  </div>
+                  {lastUpdate ? (
+                    <div className="space-y-3">
+                      <div>
+                        <p className="text-[8px] font-bold text-white/20 uppercase mb-1">
+                          Updated On
+                        </p>
+                        <p className="text-xs font-black text-white/80">
+                          {new Date(
+                            lastUpdate.created_at || lastUpdate.updated_at,
+                          ).toLocaleDateString()}{" "}
+                          at{" "}
+                          {new Date(
+                            lastUpdate.created_at || lastUpdate.updated_at,
+                          ).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </p>
+                      </div>
+                      <div className="p-3 rounded-xl bg-white/5 border border-white/5">
+                        <p className="text-[8px] font-bold text-teal-400/60 uppercase mb-1.5">
+                          Change Log
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black text-white/40 line-through truncate max-w-[80px]">
+                            {patient.treatment_type}
+                          </span>
+                          <ArrowRight
+                            size={10}
+                            className="text-teal-500 shrink-0"
+                          />
+                          <span className="text-[10px] font-black text-teal-400 truncate">
+                            {lastUpdate.title || "Plan Updated"}
+                          </span>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                             <div>
-                                <p className="text-[10px] uppercase font-bold text-[#49454f] tracking-wider mb-1">Balance</p>
-                                <p className={`text-xl font-black ${carryOverBalance >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
-                                    ₹{Math.abs(carryOverBalance).toLocaleString()}{carryOverBalance < 0 ? ' DR' : ''}
-                                </p>
-                             </div>
-                             <div>
-                                <p className="text-[10px] uppercase font-bold text-[#49454f] tracking-wider mb-1">Consumed</p>
-                                <p className="text-base font-bold text-[#1c1b1f] dark:text-[#e3e2e6]">{patient.attendance_count || 0} Days</p>
-                             </div>
-                             <div>
-                                <p className="text-[10px] uppercase font-bold text-[#49454f] tracking-wider mb-1">Type</p>
-                                <p className="text-base font-bold text-[#1c1b1f] dark:text-[#e3e2e6] capitalize">{patient.treatment_type}</p>
-                             </div>
-                             <div>
-                                <p className="text-[10px] uppercase font-bold text-[#49454f] tracking-wider mb-1">Rate</p>
-                                <p className="text-base font-bold text-[#1c1b1f] dark:text-[#e3e2e6]">
-                                    ₹{parseFloat((patient.treatment_type === 'package' ? patient.package_cost : patient.treatment_cost_per_day)?.toString() || '0').toLocaleString()}
-                                </p>
-                             </div>
-                        </div>
-                         <div className="mt-4 p-3 bg-white/50 dark:bg-black/20 rounded-xl flex items-start gap-3 border border-white/20">
-                            <AlertTriangle size={16} className="text-[#3f51b5] mt-1 shrink-0" />
-                            <p className="text-xs font-medium text-[#49454f] dark:text-[#cac4d0] leading-relaxed">System will automatically reconcile the <span className="font-bold">₹{carryOverBalance.toLocaleString()}</span> carry-over balance into the new plan's accounting.</p>
-                        </div>
+                      </div>
                     </div>
+                  ) : (
+                    <p className="text-[10px] font-bold text-white/20 italic">
+                      No recent modifications found in system logs.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
 
-                    <form onSubmit={handleSubmit} className="space-y-8">
-                        {/* New Plan Selection */}
-                        <div className="space-y-4">
-                             <div className="flex items-center gap-2">
-                                <Zap size={16} style={{ color: themeColor }} />
-                                <label className="text-sm font-bold text-[#1c1b1f] dark:text-[#e3e2e6]">Select New Plan Model</label>
+          {/* Right Panel */}
+          <div className="flex-1 relative overflow-hidden bg-white shrink">
+            <div className="absolute inset-0 z-0 pointer-events-none">
+              <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-teal-50/60 via-white to-orange-50/60" />
+              <div className="absolute top-1/2 -right-40 w-[800px] h-[800px] blur-[180px] opacity-[0.1] rounded-full bg-orange-400" />
+              <div className="absolute -bottom-40 -left-20 w-[600px] h-[600px] blur-[150px] opacity-[0.08] rounded-full bg-teal-400" />
+            </div>
+
+            <div className="relative z-10 flex flex-col h-full overflow-y-auto p-12 custom-scrollbar">
+              <form onSubmit={handleSubmit} className="space-y-12">
+                <div className="flex justify-between items-center mb-6">
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-teal-500 flex items-center justify-center text-white shadow-lg shadow-teal-500/20">
+                        <Zap size={16} fill="currentColor" />
+                      </div>
+                      <h3 className="text-2xl font-black text-slate-800 tracking-tight">
+                        Pick New Plan
+                      </h3>
+                    </div>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] px-1">
+                      Select strategy & update sessions
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-12 h-12 rounded-2xl bg-white shadow-lg border border-slate-100 flex items-center justify-center text-slate-400 hover:text-teal-600 transition-all"
+                  >
+                    <X size={20} strokeWidth={3} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  {selectedTrack?.pricing?.plans?.map(
+                    (plan: any, i: number) => {
+                      const active = selectedPlanId === plan.id;
+                      const isCurrent = patient.treatment_type === plan.id;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            setSelectedPlanId(plan.id);
+                            setRateOrCost(plan.rate.toString());
+                            setDays(plan.days.toString());
+                          }}
+                          className={`relative group p-7 rounded-[36px] border-2 text-left transition-all duration-500 ${active ? "bg-white border-teal-500 shadow-2xl scale-[1.03]" : "bg-white/40 backdrop-blur-sm border-white/50 opacity-60 hover:opacity-100 hover:border-slate-200"}`}
+                        >
+                          {isCurrent && (
+                            <div className="absolute -top-3 left-8 px-3 py-1 rounded-full bg-teal-100 border border-teal-200 text-[8px] font-black text-teal-600 uppercase tracking-widest shadow-sm">
+                              Current Plan
                             </div>
-                            
-                            {selectedTrack?.pricing?.plans && selectedTrack.pricing.plans.length > 0 ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    {selectedTrack.pricing.plans.map((plan: any, idx: number) => {
-                                        const isSelected = selectedPlanId === plan.id;
-                                        return (
-                                            <button 
-                                                type="button"
-                                                key={plan.id || idx} 
-                                                onClick={() => {
-                                                    setSelectedPlanId(plan.id);
-                                                    setRateOrCost(plan.rate.toString());
-                                                    setDays(plan.days.toString());
-                                                }}
-                                                className={`group relative flex items-center p-4 rounded-2xl border-2 transition-all transition-all text-left ${isSelected ? 'ring-2 ring-offset-2' : 'border-[#cac4d0] dark:border-[#49454f] hover:bg-white/40'}`}
-                                                style={{ 
-                                                    borderColor: isSelected ? themeColor : undefined,
-                                                    backgroundColor: isSelected ? `${themeColor}08` : undefined,
-                                                    boxShadow: isSelected ? `0 0 0 2px ${themeColor}10` : undefined
-                                                }}
-                                            >
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mr-4 ${isSelected ? 'bg-white/50' : 'bg-[#74777f]/10'}`} style={{ color: isSelected ? themeColor : '#74777f' }}>
-                                                    <IconComponent name={plan.icon || 'Clock'} size={18} />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className="text-sm font-bold text-[#1c1b1f] dark:text-[#e3e2e6] capitalize">{plan.name}</h4>
-                                                    <p className="text-[11px] font-medium opacity-70">₹{plan.rate.toLocaleString()} / {plan.days} Sessions</p>
-                                                </div>
-                                                {isSelected && (
-                                                    <div className="w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: themeColor }}>
-                                                        <Check size={12} className="text-white" strokeWidth={4} />
-                                                    </div>
-                                                )}
-                                            </button>
-                                        );
-                                    })}
-                                </div>
-                            ) : (
-                                <div className="p-4 bg-[#1c1b1f]/5 rounded-2xl border-2 border-dashed border-[#cac4d0] flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-[#74777f]">
-                                        <ShieldCheck size={18} />
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-bold capitalize text-[#1c1b1f] dark:text-[#e3e2e6]">{selectedTrack?.name || 'Loading Track...'}</p>
-                                        <p className="text-xs font-medium opacity-60">Fixed Rate Pricing Model</p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Plan Metrics */}
-                        <div className="grid grid-cols-2 gap-6">
-                            <OutlinedInput label="Plan Rate / Cost" value={rateOrCost} onChange={(e:any) => setRateOrCost(e.target.value)} type="number" prefix="₹" themeColor={themeColor} />
-                            <OutlinedInput label="Treatment Days" value={days} onChange={(e:any) => setDays(e.target.value)} type="number" icon={Hash} themeColor={themeColor} />
-                        </div>
-
-                        {/* Financial Overrides */}
-                        <div className="space-y-6">
-                            <div className="grid grid-cols-2 gap-6">
-                                <OutlinedInput label="Discount %" value={discount} onChange={(e:any) => setDiscount(e.target.value)} type="number" themeColor={themeColor} placeholder="0" />
-                                <OutlinedInput label="Additional Advance" value={advance} onChange={(e:any) => setAdvance(e.target.value)} type="number" prefix="₹" themeColor={themeColor} placeholder={carryOverBalance < 0 ? `Cover ${-carryOverBalance}` : '0'} />
-                            </div>
-                            
-                            {/* Payment Methods */}
-                            <AnimatePresence>
-                                {parseFloat(advance) > 0 && (
-                                    <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="space-y-3 overflow-hidden">
-                                        <div className="flex items-center gap-2 px-1">
-                                            <CreditCard size={14} style={{ color: themeColor }} />
-                                            <p className="text-[10px] font-black uppercase text-[#49454f] tracking-widest">Payment Method</p>
-                                        </div>
-                                        <div className="flex gap-2 flex-wrap">
-                                            {metaData.payment_methods.map((m, idx) => (
-                                                <button 
-                                                    type="button" 
-                                                    key={m.method_id || idx} 
-                                                    onClick={() => setPaymentMethod(m.method_name)} 
-                                                    className={`px-4 py-2 text-xs font-bold rounded-full border-2 transition-all ${paymentMethod === m.method_name ? 'text-white border-transparent' : 'border-[#cac4d0] text-[#49454f] hover:bg-white/40'}`}
-                                                    style={{ backgroundColor: paymentMethod === m.method_name ? themeColor : undefined }}
-                                                >
-                                                    {m.method_name}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
-
-                            {/* Final Billing Box */}
-                            <div className="p-6 rounded-[24px] bg-[#006a6a]/5 dark:bg-[#006a6a]/10 border-2 border-dashed space-y-4" style={{ borderColor: `${themeColor}30`, backgroundColor: `${themeColor}05` }}>
-                                <div className="flex justify-between items-center px-1">
-                                    <span className="text-xs font-bold text-[#49454f] dark:text-[#cac4d0] uppercase tracking-widest">Carry Over Balance</span>
-                                    <span className={`text-sm font-bold ${carryOverBalance >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>₹{carryOverBalance.toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between items-center py-2 border-t" style={{ borderColor: `${themeColor}15` }}>
-                                    <div className="flex flex-col">
-                                        <span className="text-base font-black text-[#dc2626] dark:text-[#ffb4ab]">Net Payable Now</span>
-                                        <span className="text-[10px] text-[#49454f] dark:text-[#cac4d0] font-medium italic">Pending amount after adjustments</span>
-                                    </div>
-                                    <span className="text-3xl font-black text-[#dc2626] dark:text-[#ffb4ab] tracking-tighter">₹{finalDue.toLocaleString()}</span>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Reason Field */}
-                        <div className="relative group w-full">
-                            <span className="absolute -top-2 left-3 px-1 text-[10px] font-bold uppercase tracking-wider bg-white dark:bg-[#1a1c1e] transition-colors z-10" style={{ color: themeColor }}>
-                                Reason for Change
-                            </span>
-                            <textarea 
-                                value={reason} 
-                                onChange={(e) => setReason(e.target.value)} 
-                                className="w-full bg-transparent border border-[#79747e] dark:border-[#938f99] px-4 py-3 text-sm font-bold outline-none rounded-xl text-[#1c1b1f] dark:text-[#e3e2e6] min-h-[80px]" 
-                                placeholder="Brief explanation for plan switch..."
-                                required 
-                            />
-                        </div>
-
-                        {/* Submit */}
-                        <div className="pt-2">
-                            <button
-                                type="submit"
-                                disabled={isLoading}
-                                className="w-full py-4 text-white rounded-[20px] font-black text-sm uppercase tracking-widest hover:shadow-xl hover:scale-[1.01] active:scale-[0.99] transition-all disabled:opacity-50 flex items-center justify-center gap-3"
-                                style={{ backgroundColor: themeColor, boxShadow: `0 12px 24px -8px ${themeColor}60` }}
+                          )}
+                          <div className="flex justify-between items-center mb-8">
+                            <div
+                              className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${active ? "bg-teal-500 text-white shadow-2xl shadow-teal-500/40" : "bg-white text-slate-300 shadow-inner"}`}
                             >
-                                {isLoading ? <Loader2 className="animate-spin" size={20} /> : <Check size={20} />}
-                                {isLoading ? 'Processing Update...' : 'Confirm & Re-Initialize Plan'}
-                            </button>
-                        </div>
-                    </form>
+                              <IconComponent
+                                name={plan.icon || "Clock"}
+                                size={24}
+                              />
+                            </div>
+                            {active && (
+                              <motion.div
+                                layoutId="check"
+                                className="w-5 h-5 rounded-full bg-orange-500 border-4 border-white shadow-lg shadow-orange-500/40"
+                              />
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <h4
+                              className={`text-base font-black uppercase tracking-tight ${active ? "text-slate-900" : "text-slate-400"}`}
+                            >
+                              {plan.name}
+                            </h4>
+                            <div className="flex items-center gap-2">
+                              <p
+                                className={`text-2xl font-black tracking-tighter ${active ? "text-teal-600" : "text-slate-300"}`}
+                              >
+                                ₹{plan.rate.toLocaleString()}
+                              </p>
+                              <div className="w-1 h-1 rounded-full bg-slate-200" />
+                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                {plan.days} Sessions
+                              </p>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    },
+                  )}
                 </div>
-             </motion.div>
+
+                <div className="space-y-10">
+                  <div className="grid grid-cols-2 gap-8">
+                    <FormInput
+                      label="Price / Session"
+                      value={rateOrCost}
+                      onChange={(e: any) => setRateOrCost(e.target.value)}
+                      type="number"
+                      prefix="₹"
+                    />
+                    <FormInput
+                      label="Total Sessions"
+                      value={days}
+                      onChange={(e: any) => setDays(e.target.value)}
+                      type="number"
+                      icon={Hash}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-8">
+                    <FormInput
+                      label="Reduction (%)"
+                      value={discount}
+                      onChange={(e: any) => setDiscount(e.target.value)}
+                      type="number"
+                    />
+                    <FormInput
+                      label="Advance Paid"
+                      value={advance}
+                      onChange={(e: any) => setAdvance(e.target.value)}
+                      type="number"
+                      prefix="₹"
+                    />
+                  </div>
+
+                  <AnimatePresence>
+                    {parseFloat(advance) > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-8 rounded-[40px] bg-white/60 backdrop-blur-md border border-white shadow-lg space-y-8"
+                      >
+                        <div className="flex items-center gap-3">
+                          <CreditCard size={14} className="text-teal-500" />
+                          <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.3em]">
+                            Mode of Payment
+                          </p>
+                        </div>
+                        <div className="flex gap-4 flex-wrap">
+                          {metaData.payment_methods.map((m, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setPaymentMethod(m.method_name)}
+                              className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all ${paymentMethod === m.method_name ? "bg-teal-600 text-white shadow-xl shadow-teal-500/30 scale-105" : "bg-white text-slate-500 border border-slate-100 hover:border-slate-300"}`}
+                            >
+                              {m.method_name}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <div className="pt-4">
+                    <div className="p-8 rounded-[40px] bg-white/90 backdrop-blur-2xl border border-teal-500/10 flex flex-col md:flex-row gap-8 justify-between items-center shadow-3xl group overflow-hidden transition-all">
+                      <div className="space-y-1 text-center md:text-left">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em] leading-none">
+                          Net Payable
+                        </p>
+                        <h2 className="text-5xl font-black tracking-tighter text-slate-800">
+                          ₹{finalDue.toLocaleString()}
+                        </h2>
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={isLoading || !reason.trim()}
+                        className={`w-full md:w-auto px-8 py-3.5 rounded-[22px] font-black text-[10px] uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 shadow-xl ${!reason.trim() ? "bg-slate-100 text-slate-300 cursor-not-allowed" : "bg-teal-600 text-white hover:scale-105 active:scale-98 shadow-teal-500/40"}`}
+                      >
+                        {isLoading ? (
+                          <Loader2 size={16} className="animate-spin" />
+                        ) : (
+                          <Zap size={16} fill="currentColor" />
+                        )}
+                        <span>{!reason.trim() ? "Locked" :"Save Changes"}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-5">
+                    <div className="flex items-center gap-3 px-2">
+                      <Clock size={12} className="text-teal-500" />
+                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em]">
+                        Audit Remarks{" "}
+                        <span className="text-rose-500 ml-1 text-[10px]">
+                          * Compulsory
+                        </span>
+                      </p>
+                    </div>
+                    <textarea
+                      value={reason}
+                      onChange={(e: any) => setReason(e.target.value)}
+                      placeholder="Audit logic: why is this modification being performed?"
+                      className="w-full px-7 py-5 bg-white/80 backdrop-blur-sm border border-slate-100 rounded-[32px] outline-none text-slate-800 font-bold placeholder:text-slate-300 min-h-[110px] focus:border-teal-500 focus:bg-white shadow-sm transition-all"
+                    />
+                  </div>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
-    );
+      </motion.div>
+    </div>
+  );
 };
 export default ChangePlanModal;

@@ -5,6 +5,7 @@ interface DashboardStore {
   data: any | null;
   formOptions: any | null;
   lastSync: string | null;
+  lastAccessTime: number | null;
   pendingApprovals: any[] | null;
   timeSlots: { date: string; slots: any[] } | null;
   notifications: any[] | null;
@@ -54,6 +55,7 @@ export const useDashboardStore = create<DashboardStore>()(
       data: null,
       formOptions: null,
       lastSync: null,
+      lastAccessTime: null,
       pendingApprovals: null,
       timeSlots: null,
       notifications: null,
@@ -108,6 +110,7 @@ export const useDashboardStore = create<DashboardStore>()(
           data: null,
           formOptions: null,
           lastSync: null,
+          lastAccessTime: null,
           pendingApprovals: null,
           timeSlots: null,
           notifications: null,

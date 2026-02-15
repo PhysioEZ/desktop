@@ -41,6 +41,8 @@ import {
   Eye,
   CreditCard,
   Users,
+  FileText,
+  Ticket,
 } from "lucide-react";
 import CustomSelect from "../components/ui/CustomSelect";
 import { useNavigate } from "react-router-dom";
@@ -142,12 +144,12 @@ const StatusDropdown = ({
       <div
         ref={triggerRef}
         onClick={toggleOpen}
-        className={`relative flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider border bg-opacity-30 hover:opacity-80 transition-opacity cursor-pointer ${getStatusColors(currentStatus)}`}
+        className={`relative flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider border transition-all cursor-pointer hover:scale-[1.02] active:scale-95 ${getStatusColors(currentStatus)}`}
       >
-        <span className="truncate max-w-[80px]">{currentStatus}</span>
+        <span>{currentStatus}</span>
         <ChevronDown
           size={12}
-          className={`transition-transform ${isOpen ? "rotate-180" : ""}`}
+          className={`transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
         />
       </div>
 
@@ -159,7 +161,7 @@ const StatusDropdown = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, y: 5 }}
               onClick={(e) => e.stopPropagation()}
-              className="fixed z-[99999] bg-[#f3edf7] dark:bg-[#2b2930] rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.15)] overflow-hidden flex flex-col p-2 min-w-[140px] border border-[#eaddff] dark:border-[#49454f]"
+              className="fixed z-[99999] bg-white dark:bg-[#1A1C1E] rounded-2xl shadow-2xl overflow-hidden flex flex-col p-2 min-w-[160px] border border-slate-200 dark:border-white/5"
               style={{ top: coords.top, left: coords.left }}
             >
               {options.map((opt) => (
@@ -170,15 +172,20 @@ const StatusDropdown = ({
                     setIsOpen(false);
                   }}
                   className={`
-                                    w-full text-left px-3 py-2 text-xs font-semibold rounded-lg transition-all mb-1 last:mb-0
+                                    w-full text-left px-4 py-2.5 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all mb-1 last:mb-0 flex items-center justify-between group
                                     ${
-                                      currentStatus?.toLowerCase() === opt.value
-                                        ? "bg-[#3b82f6] text-white shadow-sm"
-                                        : "text-[#1d1b20] dark:text-[#e6e1e5] hover:bg-[#e8def8] dark:hover:bg-[#4a4458]"
+                                      currentStatus?.toLowerCase() ===
+                                      opt.value?.toLowerCase()
+                                        ? "bg-slate-900 dark:bg-white text-white dark:text-black shadow-lg shadow-black/20"
+                                        : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-white/5"
                                     }
                                 `}
                 >
                   {opt.label}
+                  {currentStatus?.toLowerCase() ===
+                    opt.value?.toLowerCase() && (
+                    <Check size={12} strokeWidth={3} className="opacity-80" />
+                  )}
                 </button>
               ))}
             </motion.div>
@@ -422,6 +429,9 @@ const Registration = () => {
   );
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [isBillModalOpen, setIsBillModalOpen] = useState(false);
+  const [showPrintOptions, setShowPrintOptions] = useState(false);
+  const [printMenuCoords, setPrintMenuCoords] = useState({ top: 0, right: 0 });
+  const printButtonRef = useRef<HTMLDivElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<any>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -516,12 +526,24 @@ const Registration = () => {
   );
 
   const handleRefresh = async () => {
-    if (refreshCooldown > 0) return;
+    if (refreshCooldown > 0 || !user?.branch_id) return;
 
-    const promise = fetchRegistrations(true);
+    const fetchDash = authFetch(
+      `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.status === "success") {
+          useDashboardStore.setState({ data: data.data });
+        }
+      })
+      .catch(console.error);
+
+    const promise = Promise.all([fetchRegistrations(true), fetchDash]);
+
     sonnerToast.promise(promise, {
-      loading: "Refreshing registrations...",
-      success: "Registrations updated",
+      loading: "Refreshing registrations & stats...",
+      success: "Data updated",
       error: "Failed to refresh",
     });
 
@@ -549,9 +571,9 @@ const Registration = () => {
     setCurrentPage(1);
   };
 
-  // Fetch dashboard stats if missing
-  useEffect(() => {
-    if (!dashboardData && user?.branch_id) {
+  // Fetch dashboard stats
+  const fetchDashboardStats = useCallback(() => {
+    if (user?.branch_id) {
       authFetch(
         `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
       )
@@ -563,7 +585,33 @@ const Registration = () => {
         })
         .catch(console.error);
     }
-  }, [dashboardData, user?.branch_id]);
+  }, [user?.branch_id]);
+
+  useEffect(() => {
+    if (!dashboardData && user?.branch_id) {
+      fetchDashboardStats();
+    }
+  }, [dashboardData, user?.branch_id, fetchDashboardStats]);
+
+  // DERIVED STATS FOR LEFT PANEL (Overall Registry)
+  const registryStats = useMemo(() => {
+    const data = storeRegistrations || [];
+    return {
+      total: data.length,
+      // Strictly separate: Pending only counts items NOT stuck in approval
+      pending: data.filter(
+        (r) =>
+          r.status?.toLowerCase() === "pending" &&
+          r.approval_status?.toLowerCase() !== "pending",
+      ).length,
+      consulted: data.filter((r) =>
+        ["consulted", "closed"].includes(r.status?.toLowerCase()),
+      ).length,
+      approval_pending: data.filter(
+        (r) => r.approval_status?.toLowerCase() === "pending",
+      ).length,
+    };
+  }, [storeRegistrations]);
 
   // --- Shortcuts ---
   const shortcuts: ShortcutItem[] = [
@@ -965,6 +1013,32 @@ const Registration = () => {
     }, 1000);
   };
 
+  const handlePrintThermalBill = () => {
+    const printContent = document.getElementById("thermal-bill-template");
+    if (!printContent) {
+      sonnerToast.error("Thermal template not found");
+      return;
+    }
+
+    const printWindow = window.open("", "", "height=600,width=400");
+    if (!printWindow) return;
+
+    printWindow.document.write("<html><head><title>Thermal Receipt</title>");
+    printWindow.document.write(
+      '<style>@media print { body { margin: 0; padding: 0; } } body { font-family: "Courier New", Courier, monospace; width: 80mm; }</style>',
+    );
+    printWindow.document.write("</head><body>");
+    printWindow.document.write(printContent.innerHTML);
+    printWindow.document.write("</body></html>");
+    printWindow.document.close();
+
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    }, 500);
+  };
+
   const formatDateSafe = (dateStr: string, formatPattern: string) => {
     if (!dateStr) return "N/A";
     const date = parseISO(dateStr.replace(" ", "T"));
@@ -975,13 +1049,13 @@ const Registration = () => {
     const s = status?.toLowerCase()?.trim();
     switch (s) {
       case "consulted":
-        return "bg-[#ccebc4]/30 text-[#006e1c] dark:text-[#88d99d] border-[#ccebc4] dark:border-[#0c3b10]";
+        return "bg-emerald-500/10 text-emerald-600 border-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20";
       case "closed":
-        return "bg-[#ffdad6]/30 text-[#93000a] dark:text-[#ffb4ab] border-[#ffdad6] dark:border-[#93000a]";
+        return "bg-rose-500/10 text-rose-600 border-rose-500/10 dark:text-rose-400 dark:border-rose-500/20";
       case "pending":
-        return "bg-[#ffefc2]/30 text-[#675402] dark:text-[#dec650] border-[#ffefc2] dark:border-[#675402]";
+        return "bg-amber-500/10 text-amber-600 border-amber-500/10 dark:text-amber-400 dark:border-amber-500/20";
       default:
-        return "bg-[#e0e2ec]/30 text-[#43474e] dark:text-[#c4c7c5] border-[#e0e2ec] dark:border-[#43474e]";
+        return "bg-slate-500/10 text-slate-600 border-slate-500/10 dark:text-slate-400 dark:border-slate-500/20";
     }
   };
 
@@ -1062,34 +1136,48 @@ const Registration = () => {
                   </div>
                 </div>
 
-                {/* Text-based Status List */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-sm group p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all cursor-default border border-transparent hover:border-gray-100 dark:hover:border-white/5">
-                    <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity font-medium">
-                      <span className="w-2.5 h-2.5 rounded-full bg-orange-400 ring-4 ring-orange-400/20"></span>
-                      Pending Workflow
-                    </span>
-                    <span className="font-bold text-lg">
-                      {dashboardData?.registration.pending || 0}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm group p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all cursor-default border border-transparent hover:border-gray-100 dark:hover:border-white/5">
-                    <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity font-medium">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-4 ring-emerald-500/20"></span>
-                      Consultations Done
-                    </span>
-                    <span className="font-bold text-lg">
-                      {dashboardData?.registration.consulted || 0}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm group p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all cursor-default border border-transparent hover:border-gray-100 dark:hover:border-white/5">
-                    <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity font-medium">
-                      <span className="w-2.5 h-2.5 rounded-full bg-amber-400 ring-4 ring-amber-400/20"></span>
-                      Verification Queue
-                    </span>
-                    <span className="font-bold text-lg">
-                      {dashboardData?.registration.approval_pending || 0}
-                    </span>
+                {/* Global Registry Totals (Derived from Data) */}
+                <div className="pt-4 border-t border-gray-100 dark:border-white/5 mt-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4 px-4">
+                    Global Registry
+                  </p>
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-sm group p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all cursor-default">
+                      <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity font-medium">
+                        <span className="w-2.5 h-2.5 rounded-full bg-slate-400"></span>
+                        Total Records
+                      </span>
+                      <span className="font-bold text-lg">
+                        {registryStats.total}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm group p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all cursor-default">
+                      <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity font-medium">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.3)]"></span>
+                        Overall Pending
+                      </span>
+                      <span className="font-bold text-lg text-amber-600">
+                        {registryStats.pending}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm group p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all cursor-default">
+                      <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity font-medium">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]"></span>
+                        Total Consulted
+                      </span>
+                      <span className="font-bold text-lg text-emerald-600">
+                        {registryStats.consulted}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm group p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all cursor-default">
+                      <span className="flex items-center gap-3 opacity-70 group-hover:opacity-100 transition-opacity font-medium">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-400 shadow-[0_0_10px_rgba(251,113,113,0.3)]"></span>
+                        Needs Approval
+                      </span>
+                      <span className="font-bold text-lg text-rose-500">
+                        {registryStats.approval_pending}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1102,8 +1190,11 @@ const Registration = () => {
                   <div>
                     <div className="flex items-center gap-2 mb-3 opacity-80">
                       <Users size={14} className="text-emerald-400" />
-                      <span className="text-[10px] font-black uppercase tracking-widest">
-                        Client Census
+                      <span
+                        className="text-[10px] font-black uppercase tracking-widest"
+                        title="Total number of active patients currently in progress/treatment at this branch."
+                      >
+                        Active Patients
                       </span>
                     </div>
                     <div className="text-4xl font-medium tracking-tight">
@@ -1432,59 +1523,36 @@ const Registration = () => {
                 </div>
               )}
 
-              {/* Pagination Area */}
+              {/* Compact Centered Pagination */}
               {!isLoading && pagination.total_pages > 1 && (
-                <div className="mt-12 flex flex-col md:flex-row items-center justify-between gap-6 p-6 bg-white dark:bg-white/[0.02] rounded-[32px] border border-gray-100 dark:border-white/5 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.02)]">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                    Showing{" "}
-                    <span className="text-[#3b82f6] font-bold">
-                      {currentPage}
-                    </span>{" "}
-                    of{" "}
-                    <span className="text-[#3b82f6] font-bold">
-                      {pagination.total_pages}
-                    </span>{" "}
-                    pages
-                  </p>
-                  <div className="flex items-center gap-3">
+                <div className="flex justify-center mt-12 pb-10">
+                  <div
+                    className={`flex items-center gap-6 px-6 py-3 rounded-full border shadow-xl ${isDark ? "bg-[#141619] border-white/5" : "bg-white border-gray-100"}`}
+                  >
                     <button
-                      disabled={currentPage === 1}
                       onClick={() => setCurrentPage((p) => p - 1)}
-                      className="p-3 rounded-full bg-white dark:bg-[#1a1c1e] border border-gray-200 dark:border-[#43474e] text-slate-600 dark:text-[#e3e2e6] disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-[#43474e] transition-all"
+                      disabled={currentPage === 1}
+                      className="w-10 h-10 rounded-full border border-gray-100 dark:border-white/5 flex items-center justify-center transition-all disabled:opacity-20 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-400 hover:text-emerald-500 hover:border-emerald-500/20 shadow-sm disabled:cursor-not-allowed"
                     >
-                      <ChevronLeft size={18} />
+                      <ChevronLeft size={20} />
                     </button>
+
                     <div className="flex items-center gap-2">
-                      {[...Array(pagination.total_pages)].map((_, i) => {
-                        const page = i + 1;
-                        if (
-                          page === 1 ||
-                          page === pagination.total_pages ||
-                          (page >= currentPage - 1 && page <= currentPage + 1)
-                        ) {
-                          return (
-                            <button
-                              key={page}
-                              onClick={() => setCurrentPage(page)}
-                              className={`w-10 h-10 rounded-full font-bold text-xs transition-all ${
-                                currentPage === page
-                                  ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20"
-                                  : "bg-gray-100 dark:bg-[#43474e] text-slate-600 dark:text-[#e3e2e6] hover:bg-gray-200 dark:hover:bg-[#5b5e66]"
-                              }`}
-                            >
-                              {page}
-                            </button>
-                          );
-                        }
-                        return null;
-                      })}
+                      <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 bg-slate-50 dark:bg-white/5 px-5 py-2 rounded-full border border-gray-100 dark:border-white/5">
+                        Page{" "}
+                        <span className="text-slate-900 dark:text-white mx-1">
+                          {currentPage}
+                        </span>{" "}
+                        / {pagination.total_pages}
+                      </div>
                     </div>
+
                     <button
-                      disabled={currentPage === pagination.total_pages}
                       onClick={() => setCurrentPage((p) => p + 1)}
-                      className="p-3 rounded-full bg-white dark:bg-[#1a1c1e] border border-gray-200 dark:border-[#43474e] text-slate-600 dark:text-[#e3e2e6] disabled:opacity-30 hover:bg-gray-50 dark:hover:bg-[#43474e] transition-all"
+                      disabled={currentPage === pagination.total_pages}
+                      className="w-10 h-10 rounded-full border border-gray-100 dark:border-white/5 flex items-center justify-center transition-all disabled:opacity-20 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-400 hover:text-emerald-500 hover:border-emerald-500/20 shadow-sm disabled:cursor-not-allowed"
                     >
-                      <ChevronRight size={18} />
+                      <ChevronRight size={20} />
                     </button>
                   </div>
                 </div>
@@ -2049,12 +2117,89 @@ const Registration = () => {
                   </span>
                 </h3>
                 <div className="flex items-center gap-3">
-                  <button
-                    onClick={handlePrintBill}
-                    className="flex items-center gap-2 px-5 py-2 bg-[#006e1c] text-white rounded-full text-xs font-black shadow-lg hover:opacity-90 transition-all"
-                  >
-                    <Printer size={16} /> Print
-                  </button>
+                  <div className="relative" ref={printButtonRef}>
+                    <button
+                      onClick={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        setPrintMenuCoords({
+                          top: rect.bottom + 8,
+                          right: window.innerWidth - rect.right,
+                        });
+                        setShowPrintOptions(!showPrintOptions);
+                      }}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-[#006e1c] text-white rounded-full text-xs font-black shadow-lg hover:opacity-90 transition-all active:scale-95"
+                    >
+                      <Printer size={16} /> Print Receipt
+                    </button>
+
+                    {showPrintOptions &&
+                      createPortal(
+                        <>
+                          <div
+                            className="fixed inset-0 z-[2000] bg-transparent"
+                            onClick={() => setShowPrintOptions(false)}
+                          />
+                          <AnimatePresence>
+                            <motion.div
+                              initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                              animate={{ opacity: 1, y: 0, scale: 1 }}
+                              exit={{ opacity: 0, y: -10, scale: 0.95 }}
+                              className="fixed z-[2001] w-56 bg-white dark:bg-[#1a1c1e] rounded-[24px] shadow-[0_20px_50px_rgba(0,0,0,0.3)] border border-[#e0e2ec] dark:border-[#43474e] overflow-hidden py-2"
+                              style={{
+                                top: printMenuCoords.top,
+                                right: printMenuCoords.right,
+                              }}
+                            >
+                              <div className="px-5 py-3 border-b border-slate-100 dark:border-white/5 mb-1 bg-slate-50/50 dark:bg-white/[0.02]">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                  Select Format
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => {
+                                  handlePrintBill();
+                                  setShowPrintOptions(false);
+                                }}
+                                className="w-full flex items-center gap-3 px-5 py-4 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors text-left group"
+                              >
+                                <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center group-hover:bg-blue-500 group-hover:text-white transition-all shadow-sm">
+                                  <FileText size={18} />
+                                </div>
+                                <div>
+                                  <p className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-200">
+                                    A4 Desktop
+                                  </p>
+                                  <p className="text-[9px] text-slate-400 font-bold">
+                                    Full Document
+                                  </p>
+                                </div>
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  handlePrintThermalBill();
+                                  setShowPrintOptions(false);
+                                }}
+                                className="w-full flex items-center gap-3 px-5 py-4 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors text-left group"
+                              >
+                                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center group-hover:bg-amber-500 group-hover:text-white transition-all shadow-sm">
+                                  <Ticket size={18} />
+                                </div>
+                                <div>
+                                  <p className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-200">
+                                    Thermal (80mm)
+                                  </p>
+                                  <p className="text-[9px] text-slate-400 font-bold">
+                                    Compact POS
+                                  </p>
+                                </div>
+                              </button>
+                            </motion.div>
+                          </AnimatePresence>
+                        </>,
+                        document.body,
+                      )}
+                  </div>
                   <button
                     onClick={() => setIsBillModalOpen(false)}
                     className="p-2 bg-[#e0e2ec] dark:bg-[#43474e] text-[#43474e] dark:text-[#c4c7c5] hover:bg-[#ffdad6] hover:text-[#93000a] rounded-full transition-all"
@@ -2209,6 +2354,165 @@ const Registration = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* --- THERMAL BILL TEMPLATE --- */}
+      {selectedRegistration && (
+        <div id="thermal-bill-template" className="hidden">
+          <div
+            style={{
+              width: "72mm",
+              padding: "4mm",
+              fontFamily: "monospace",
+              fontSize: "12px",
+              lineHeight: "1.5",
+              color: "black",
+              backgroundColor: "white",
+            }}
+          >
+            <div style={{ textAlign: "center", marginBottom: "16px" }}>
+              <div
+                style={{
+                  fontWeight: "bold",
+                  fontSize: "20px",
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
+                }}
+              >
+                {selectedRegistration.clinic_name || "PROSPINE"}
+              </div>
+              <div style={{ fontSize: "11px", marginTop: "4px", opacity: 0.8 }}>
+                {selectedRegistration.address_line_1}
+              </div>
+              <div style={{ fontSize: "11px", opacity: 0.8 }}>
+                PH: {selectedRegistration.phone_primary}
+              </div>
+            </div>
+
+            <div
+              style={{
+                textAlign: "center",
+                fontWeight: "bold",
+                fontSize: "14px",
+                borderTop: "1px dashed black",
+                borderBottom: "1px dashed black",
+                padding: "8px 0",
+                margin: "12px 0",
+              }}
+            >
+              CONSULTATION BILL
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>PATIENT:</span>
+                <span style={{ fontWeight: "bold" }}>
+                  {selectedRegistration.patient_name}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>CONTACT:</span>
+                <span>{selectedRegistration.phone_number}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>DATE:</span>
+                <span>{format(new Date(), "dd-MM-yyyy")}</span>
+              </div>
+            </div>
+
+            <div
+              style={{ borderTop: "1px dashed black", margin: "12px 0" }}
+            ></div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>RECEIPT NO:</span>
+                <span style={{ fontWeight: "bold" }}>
+                  #REG-{selectedRegistration.registration_id}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>METHOD:</span>
+                <span
+                  style={{ fontWeight: "bold", textTransform: "uppercase" }}
+                >
+                  {selectedRegistration.payment_method}
+                </span>
+              </div>
+            </div>
+
+            <div
+              style={{
+                borderBottom: "1px solid black",
+                fontWeight: "bold",
+                marginBottom: "4px",
+                paddingBottom: "2px",
+              }}
+            >
+              DESCRIPTION
+            </div>
+
+            <div style={{ marginBottom: "8px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>CONSULTATION FEE</span>
+                <span style={{ fontWeight: "bold" }}>
+                  ₹
+                  {parseFloat(
+                    selectedRegistration.consultation_amount,
+                  ).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div style={{ fontSize: "10px", fontStyle: "italic" }}>
+                Type: {selectedRegistration.consultation_type}
+              </div>
+            </div>
+
+            <div
+              style={{ borderTop: "2px solid black", margin: "4px 0" }}
+            ></div>
+
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                fontWeight: "bold",
+                fontSize: "16px",
+                padding: "8px 0",
+              }}
+            >
+              <span>TOTAL PAYABLE:</span>
+              <span>
+                ₹
+                {parseFloat(
+                  selectedRegistration.consultation_amount,
+                ).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            <div
+              style={{
+                borderTop: "1px dashed black",
+                margin: "24px 0 8px 0",
+                paddingTop: "12px",
+                textAlign: "center",
+                fontSize: "11px",
+                fontWeight: "bold",
+              }}
+            >
+              THANK YOU FOR CHOOSING PROSPINE
+            </div>
+            <div
+              style={{
+                textAlign: "center",
+                fontSize: "10px",
+                fontStyle: "italic",
+                opacity: 0.6,
+              }}
+            >
+              System generated document
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- CONFIRMATION MODAL --- */}
       <AnimatePresence>

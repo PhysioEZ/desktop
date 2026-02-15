@@ -181,6 +181,7 @@ const ReceptionDashboard = () => {
     setFormOptions,
     lastSync,
     setLastSync,
+    lastAccessTime,
     pendingApprovals,
     setPendingApprovals,
     timeSlots: storeTimeSlots,
@@ -606,6 +607,93 @@ const ReceptionDashboard = () => {
     [user?.branch_id, setTimeSlots],
   );
 
+  const handleSmartUpdate = useCallback(async () => {
+    if (!user?.branch_id) return;
+
+    const now = Date.now();
+    const prevAccess = lastAccessTime || 0;
+    const diff = (now - prevAccess) / 1000;
+
+    // Update last access time immediately as the "page is opened"
+    useDashboardStore.setState({ lastAccessTime: now });
+
+    // If never synced or no data, do a full fetch
+    if (!data || !lastSync) {
+      await fetchAll();
+      return;
+    }
+
+    // Within 15s window - skip all server hits
+    if (diff < 15) {
+      return;
+    }
+
+    // Over 15s - check if DB actually changed before doing a heavy fetch
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/check_updates?branch_id=${user.branch_id}&last_sync=${lastSync}`,
+      );
+      const updateData = await res.json();
+
+      if (updateData.success && updateData.hasChanges) {
+        const syncTasks = [];
+
+        // Granular Sync Logic
+        const mainDataTables = [
+          "registration",
+          "tests",
+          "patients",
+          "quick_inquiry",
+          "test_inquiry",
+          "attendance",
+          "payments",
+        ];
+        const hasMainChanges = mainDataTables.some(
+          (table) => updateData.changes[table],
+        );
+
+        if (hasMainChanges) syncTasks.push(fetchMainDashboard());
+        if (updateData.changes["notifications"]) syncTasks.push(fetchNotifs());
+        if (updateData.changes["registration"] || updateData.changes["tests"])
+          syncTasks.push(fetchApprovals());
+
+        // If registration modal is open, always refresh slots if registration changes detected
+        if (
+          activeModal === "registration" &&
+          appointmentDate &&
+          updateData.changes["registration"]
+        ) {
+          syncTasks.push(fetchTimeSlots(appointmentDate));
+        }
+
+        if (syncTasks.length > 0) {
+          await Promise.all(syncTasks);
+          // Clear search cache if patients or related records changed
+          if (hasMainChanges) {
+            useDashboardStore.setState({ searchCache: {} });
+          }
+        }
+
+        if (updateData.serverTime) setLastSync(updateData.serverTime);
+      }
+    } catch (err) {
+      console.error("Smart update check failed:", err);
+    }
+  }, [
+    user?.branch_id,
+    lastAccessTime,
+    data,
+    lastSync,
+    fetchAll,
+    fetchMainDashboard,
+    fetchNotifs,
+    fetchApprovals,
+    activeModal,
+    appointmentDate,
+    fetchTimeSlots,
+    setLastSync,
+  ]);
+
   // Fetch time slots when registration modal is opened
   useEffect(() => {
     if (activeModal === "registration" && appointmentDate) {
@@ -616,9 +704,9 @@ const ReceptionDashboard = () => {
   }, [activeModal, appointmentDate, fetchTimeSlots, storeTimeSlots]);
 
   useEffect(() => {
-    // ONLY fetch if we have no data in cache (Zustand)
-    if (!data && user?.branch_id) {
-      fetchAll();
+    // Run smart update check on mount/opening
+    if (user?.branch_id) {
+      handleSmartUpdate();
     }
     // Click outside handler for popups
     const handleClickOutside = (e: MouseEvent) => {

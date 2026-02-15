@@ -3,270 +3,36 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-  Phone,
-  Stethoscope,
-  CheckCircle2,
-  Eye,
+  ChevronDown,
+  RotateCcw,
   Printer,
-  Bell,
-  Moon,
-  Sun,
-  Loader2,
   RefreshCw,
-  User,
-  LogOut,
-  Clock,
+  Users,
+  Activity,
+  Eye,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "../store/useAuthStore";
 import { usePatientStore } from "../store/usePatientStore";
-import { useDashboardStore } from "../store";
-import { API_BASE_URL, authFetch, FILE_BASE_URL } from "../config";
+import { useThemeStore } from "../store/useThemeStore";
+import { API_BASE_URL, authFetch } from "../config";
 import CustomSelect from "../components/ui/CustomSelect";
 import PatientDetailsModal from "../components/patients/PatientDetailsModal";
 import AttendanceModal from "../components/patients/modals/AttendanceModal";
 import TokenPreviewModal from "../components/patients/modals/TokenPreviewModal";
-import GlobalSearch from "../components/GlobalSearch";
+import RevertAttendanceModal from "../components/patients/modals/RevertAttendanceModal";
+import PageHeader from "../components/PageHeader";
+import Sidebar from "../components/Sidebar";
+import ActionFAB from "../components/ActionFAB";
+import DailyIntelligence from "../components/DailyIntelligence";
+import NotesDrawer from "../components/NotesDrawer";
 import { toast } from "sonner";
 
-// --- Extracted Components to avoid re-mounting on parent re-render ---
-
-const Header = ({
-  user,
-  logout,
-  onRefresh,
-  toggleTheme,
-  onOpenSearch,
-}: any) => {
-  const navigate = useNavigate();
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [showNotifPopup, setShowNotifPopup] = useState(false);
-  const [showProfilePopup, setShowProfilePopup] = useState(false);
-
-  const notifRef = useRef<HTMLButtonElement>(null);
-  const profileRef = useRef<HTMLDivElement>(null);
-
-  // Notifications logic localized here
-  useEffect(() => {
-    const fetchNotifs = async () => {
-      try {
-        const res = await authFetch(
-          `${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ""}`,
-        );
-        const data = await res.json();
-        if (data.success || data.status === "success") {
-          setNotifications(data.notifications || []);
-          setUnreadCount(data.unread_count || 0);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    if (user?.employee_id) {
-      fetchNotifs();
-      const inv = setInterval(fetchNotifs, 30000);
-      return () => clearInterval(inv);
-    }
-  }, [user?.employee_id]);
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        notifRef.current &&
-        !notifRef.current.contains(e.target as Node) &&
-        !(e.target as Element).closest("#notif-popup")
-      )
-        setShowNotifPopup(false);
-      if (profileRef.current && !profileRef.current.contains(e.target as Node))
-        setShowProfilePopup(false);
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  return (
-    <header className="fixed top-0 left-0 right-0 z-50 bg-[#fdfcff]/80 dark:bg-[#111315]/80 backdrop-blur-md px-4 md:px-8 py-4 flex items-center justify-between border-b border-[#e0e2ec] dark:border-[#43474e] transition-colors duration-300">
-      <div className="flex items-center gap-4">
-        <div
-          className="flex items-center gap-2 cursor-pointer"
-          onClick={() => navigate("/reception/dashboard")}
-        >
-          <div className="w-10 h-10 rounded-xl bg-[#ccebc4] flex items-center justify-center text-[#0c200e] font-bold">
-            PE
-          </div>
-          <h1
-            className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight hidden md:block"
-            style={{ fontFamily: "serif" }}
-          >
-            PhysioEZ
-          </h1>
-        </div>
-      </div>
-      <div className="flex items-center gap-2 lg:gap-4">
-        {/* Search Bar */}
-        <div className="hidden md:flex items-center relative z-50">
-          <div
-            className="flex items-center bg-[#e0e2ec] dark:bg-[#43474e] rounded-full px-4 py-2 w-64 lg:w-96 transition-colors duration-300 cursor-pointer hover:bg-[#dadae2] dark:hover:bg-[#50545c]"
-            onClick={onOpenSearch}
-          >
-            <Search
-              size={18}
-              className="text-[#43474e] dark:text-[#c4c7c5] mr-2"
-            />
-            <span className="text-sm text-[#43474e] dark:text-[#8e918f]">
-              Search patients... (Alt + S)
-            </span>
-          </div>
-        </div>
-
-        <button
-          onClick={onRefresh}
-          className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors"
-        >
-          <RefreshCw size={22} strokeWidth={1.5} />
-        </button>
-
-        <button
-          onClick={toggleTheme}
-          className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors"
-        >
-          <Moon size={22} strokeWidth={1.5} className="block dark:hidden" />
-          <Sun size={22} strokeWidth={1.5} className="hidden dark:block" />
-        </button>
-
-        <div className="relative">
-          <button
-            ref={notifRef}
-            onClick={() => {
-              setShowNotifPopup(!showNotifPopup);
-              setShowProfilePopup(false);
-            }}
-            className="p-3 hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] rounded-full text-[#43474e] dark:text-[#c4c7c5] transition-colors relative"
-          >
-            <Bell size={22} strokeWidth={1.5} />
-            {unreadCount > 0 && (
-              <span className="absolute top-3 right-3 w-2 h-2 bg-[#b3261e] rounded-full"></span>
-            )}
-          </button>
-          <AnimatePresence>
-            {showNotifPopup && (
-              <motion.div
-                id="notif-popup"
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute top-full right-0 mt-2 w-80 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden transition-colors"
-              >
-                <div className="p-4 border-b border-[#e0e2ec] dark:border-[#43474e] font-bold text-[#1a1c1e] dark:text-[#e3e2e6]">
-                  Notifications
-                </div>
-                <div className="max-h-60 overflow-y-auto">
-                  {notifications.map((n) => (
-                    <div
-                      key={n.notification_id}
-                      className={`p-3 border-b border-[#e0e2ec] dark:border-[#43474e] hover:bg-[#e0e2ec]/50 dark:hover:bg-[#43474e]/50 ${n.is_read === 0 ? "bg-[#ccebc4]/20 dark:bg-[#ccebc4]/10" : ""}`}
-                    >
-                      <p className="text-sm text-[#1a1c1e] dark:text-[#e3e2e6]">
-                        {n.message}
-                      </p>
-                      <p className="text-[10px] text-[#43474e] dark:text-[#c4c7c5] mt-1">
-                        {n.time_ago}
-                      </p>
-                    </div>
-                  ))}
-                  {notifications.length === 0 && (
-                    <div className="p-4 text-center text-sm text-[#43474e] dark:text-[#c4c7c5]">
-                      No notifications
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        <div className="relative" ref={profileRef}>
-          <div
-            onClick={() => {
-              setShowProfilePopup(!showProfilePopup);
-              setShowNotifPopup(false);
-            }}
-            className="w-10 h-10 bg-[#ccebc4] dark:bg-[#0c3b10] rounded-full flex items-center justify-center text-[#0c200e] dark:text-[#ccebc4] font-bold border border-[#74777f] dark:border-[#8e918f] ml-1 overflow-hidden cursor-pointer hover:ring-2 ring-[#ccebc4] transition-colors"
-          >
-            {user?.name?.charAt(0).toUpperCase() || "U"}
-          </div>
-          <AnimatePresence>
-            {showProfilePopup && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0 }}
-                className="absolute top-full right-0 mt-2 w-56 bg-[#fdfcff] dark:bg-[#111315] rounded-[20px] shadow-xl border border-[#e0e2ec] dark:border-[#43474e] z-[60] overflow-hidden p-2 transition-colors"
-              >
-                <button
-                  onClick={() => navigate("/reception/profile")}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] text-[#1a1c1e] dark:text-[#e3e2e6] text-sm font-medium transition-colors"
-                >
-                  <User size={18} /> Profile
-                </button>
-                <button
-                  onClick={() => {
-                    logout();
-                    navigate("/login");
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-[#ffdad6] dark:hover:bg-[#93000a] text-[#410002] dark:text-[#ffdad6] text-sm font-medium mt-1 transition-colors"
-                >
-                  <LogOut size={18} /> Logout
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-    </header>
-  );
-};
-
-const NavChips = ({ currentPath }: { currentPath: string }) => {
-  const navigate = useNavigate();
-  const navItems = [
-    { label: "Dashboard", path: "/reception/dashboard" },
-    { label: "Schedule", path: "/reception/schedule" },
-    { label: "Inquiry", path: "/reception/inquiry" },
-    { label: "Registration", path: "/reception/registration" },
-    { label: "Patients", path: "/reception/patients" },
-    { label: "Billing", path: "/reception/billing" },
-    { label: "Attendance", path: "/reception/attendance" },
-    { label: "Tests", path: "/reception/tests" },
-    { label: "Feedback", path: "/reception/feedback" },
-    { label: "Reports", path: "/reception/reports" },
-    { label: "Expenses", path: "/reception/expenses" },
-    { label: "Support", path: "/reception/support" },
-  ];
-
-  return (
-    <div className="fixed top-[72px] left-0 right-0 z-40 bg-[#fdfcff]/80 dark:bg-[#111315]/80 backdrop-blur-md border-b border-[#e0e2ec] dark:border-[#43474e] transition-colors duration-300">
-      <div className="flex gap-3 overflow-x-auto py-3 px-6 scrollbar-hide">
-        {navItems.map((nav) => (
-          <button
-            key={nav.label}
-            onClick={() => {
-              if (nav.path !== currentPath) navigate(nav.path);
-            }}
-            className={`px-6 py-2.5 rounded-full text-sm font-medium transition-all whitespace-nowrap ${currentPath === nav.path ? "bg-[#1a1c1e] text-white dark:bg-[#e3e2e6] dark:text-[#1a1c1e] shadow-md" : "bg-[#f2f6fa] dark:bg-[#1a1c1e] hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] border border-[#74777f] dark:border-[#8e918f] text-[#43474e] dark:text-[#c4c7c5]"}`}
-          >
-            {nav.label}
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-};
-
 const Patients = () => {
-  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
+  const { user } = useAuthStore();
+  const { isDark } = useThemeStore();
 
   // Store State
   const {
@@ -281,13 +47,9 @@ const Patients = () => {
     fetchMetaData,
     openPatientDetails,
   } = usePatientStore();
-  const { searchCache, setSearchCache } = useDashboardStore();
 
   // Local UI State
-  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isDark, setIsDark] = useState(false);
-  const [showGlobalModal, setShowGlobalModal] = useState(false);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
 
   // Modals State
   const [attendanceModal, setAttendanceModal] = useState<{
@@ -299,7 +61,14 @@ const Patients = () => {
     patientId: number | null;
   }>({ open: false, patientId: null });
 
-  const searchRef = useRef<HTMLDivElement>(null);
+  const [showIntelligence, setShowIntelligence] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
+  const [revertModal, setRevertModal] = useState<{
+    open: boolean;
+    patient: any | null;
+  }>({ open: false, patient: null });
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Initial Data Fetch
@@ -308,15 +77,12 @@ const Patients = () => {
   }, [user?.branch_id]);
 
   // Fetch Patients on Filter/Page Change
-  // Fetch Patients: Immediate on mount if empty, Debounced on filter change
   useEffect(() => {
     if (!user?.branch_id) return;
 
-    const isFirstLoad = patients.length === 0;
-
     const runFetch = () => fetchPatients(user.branch_id);
 
-    if (isFirstLoad) {
+    if (patients.length === 0) {
       runFetch();
     } else {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -328,103 +94,34 @@ const Patients = () => {
     };
   }, [pagination.page, filters, user?.branch_id]);
 
-  // Theme & Click Outside Effects
+  // Refresh Cooldown
   useEffect(() => {
-    const saved = localStorage.getItem("theme");
-    const prefersDark = window.matchMedia(
-      "(prefers-color-scheme: dark)",
-    ).matches;
-    if (saved === "dark" || (!saved && prefersDark)) {
-      document.documentElement.classList.add("dark");
-      setIsDark(true);
-    } else {
-      document.documentElement.classList.remove("dark");
-      setIsDark(false);
+    if (refreshCooldown > 0) {
+      const timer = setInterval(() => setRefreshCooldown((p) => p - 1), 1000);
+      return () => clearInterval(timer);
     }
-  }, []);
+  }, [refreshCooldown]);
 
-  const toggleTheme = () => {
-    const newDark = !isDark;
-    if (newDark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
-    setIsDark(newDark);
-  };
-
-  const handleClickOutside = (e: MouseEvent) => {
-    if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-    }
-  };
-  useEffect(() => {
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Global Search with Caching
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    if (!user?.branch_id) {
-      setSearchResults([]);
-      return;
-    }
-
-    const query = globalSearchQuery.trim().toLowerCase();
-    if (query.length < 2) {
-      setSearchResults([]);
-      return;
-    }
-
-    // Check cache
-    if (searchCache[query]) {
-      setSearchResults(searchCache[query]);
-      return;
-    }
-
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const res = await authFetch(
-          `${API_BASE_URL}/reception/search_patients?branch_id=${user.branch_id}&q=${encodeURIComponent(globalSearchQuery)}`,
-        );
-        const data = await res.json();
-        if (data.success) {
-          const results = data.results || [];
-          setSearchResults(results);
-          setSearchCache(query, results);
-        }
-      } catch (err) {
-        console.error("Search Error:", err);
-      }
-    }, 400);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [globalSearchQuery, user?.branch_id]);
-
-  const getStatusColors = (status: string) => {
-    const s = status?.toLowerCase()?.trim();
-    switch (s) {
-      case "active":
-        return "bg-[#ccebc4]/30 text-[#006e1c] dark:text-[#88d99d] border-[#ccebc4] dark:border-[#0c3b10]";
-      case "completed":
-        return "bg-[#f0f4f9] text-[#43474e] dark:text-[#c4c7c5] border-[#e0e2ec] dark:border-[#43474e]";
-      case "inactive":
-        return "bg-[#ffdad6]/30 text-[#93000a] dark:text-[#ffb4ab] border-[#ffdad6] dark:border-[#93000a]";
-      default:
-        return "bg-[#e0e2ec]/30 text-[#43474e] dark:text-[#c4c7c5] border-[#e0e2ec] dark:border-[#43474e]";
+  const handleRefresh = async () => {
+    if (refreshCooldown > 0 || !user?.branch_id) return;
+    const loadToast = toast.loading("Refreshing patients...");
+    try {
+      await fetchPatients(user.branch_id);
+      await fetchMetaData(user.branch_id);
+      toast.success("Patient list updated", { id: loadToast });
+      setRefreshCooldown(20);
+    } catch (e) {
+      toast.error("Failed to refresh", { id: loadToast });
     }
   };
 
   const handleMarkAttendance = async (e: React.MouseEvent, patient: any) => {
     e.stopPropagation();
+    if (patient.today_attendance === "present") return;
 
     const cost = parseFloat(patient.cost_per_day || "0");
     const balance = parseFloat(patient.effective_balance || "0");
 
-    // Logic: If Balance is sufficient OR cost is 0, Auto Mark.
     if (Math.round(balance * 100) >= Math.round(cost * 100) || cost === 0) {
       const loadingToast = toast.loading("Marking attendance...");
       try {
@@ -451,7 +148,6 @@ const Patients = () => {
         toast.dismiss(loadingToast);
       }
     } else {
-      // Insufficient Balance -> Open Modal
       setAttendanceModal({ open: true, patient });
     }
   };
@@ -461,520 +157,548 @@ const Patients = () => {
     setTokenModal({ open: true, patientId });
   };
 
+  const handleRevertAttendance = async () => {
+    if (!revertModal.patient || !user?.branch_id) return;
+    try {
+      const res = await authFetch(`${API_BASE_URL}/reception/attendance`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "revert",
+          patient_id: revertModal.patient.patient_id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success || data.status === "success") {
+        toast.success("Attendance reverted successfully");
+        await fetchPatients(user.branch_id);
+      } else {
+        toast.error(data.message || "Failed to revert attendance");
+      }
+    } catch (err) {
+      toast.error("Error reverting attendance");
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-[#fdfcff] dark:bg-[#111315] text-[#1a1c1e] dark:text-[#e3e2e6] font-sans transition-colors duration-300 pb-20">
-      <Header
-        user={user}
-        logout={logout}
-        onRefresh={() => fetchPatients(user!.branch_id)}
-        toggleTheme={toggleTheme}
-        onOpenSearch={() => setShowGlobalModal(true)}
-      />
-      <NavChips currentPath="/reception/patients" />
+    <div
+      className={`flex h-screen overflow-hidden font-sans transition-colors duration-300 ${isDark ? "bg-[#050505] text-slate-200" : "bg-[#FAFAFA] text-slate-900"}`}
+    >
+      <Sidebar />
 
-      <div className="max-w-[1600px] mx-auto p-6 pt-44">
-        {/* Header Section */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
-          <div>
-            <h1
-              className="text-3xl font-black text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight mb-1"
-              style={{ fontFamily: "serif" }}
-            >
-              Manage Patients
-            </h1>
-            <p className="text-[#43474e] dark:text-[#c4c7c5] font-medium text-sm">
-              Overview of active cases and treatment tracking
-            </p>
-          </div>
+      <div className="flex-1 flex flex-col h-full relative overflow-hidden">
+        <PageHeader
+          title="Patients"
+          subtitle="Operations Center"
+          icon={Users}
+          onRefresh={handleRefresh}
+          refreshCooldown={refreshCooldown}
+          isLoading={isLoading}
+          onShowIntelligence={() => setShowIntelligence(true)}
+          onShowNotes={() => setShowNotes(true)}
+        />
 
-          <div className="flex flex-wrap items-center gap-4">
-            {/* New Today */}
-            <div className="bg-[#e8def8] dark:bg-[#381e72] rounded-[24px] px-6 py-4 flex flex-col justify-between min-w-[160px] shadow-sm border border-transparent hover:border-[#6750a4]/20 transition-all">
-              <p className="text-[11px] font-bold text-[#1d192b] dark:text-[#eaddff] uppercase tracking-[0.1em] mb-2 opacity-70">
-                New Today
-              </p>
-              <div className="flex items-end justify-between">
-                <p className="text-3xl font-black text-[#1d192b] dark:text-[#eaddff] tracking-tight">
-                  {metaData.counts?.new_today || 0}
-                </p>
-                <div className="w-8 h-8 rounded-full bg-[#1d192b]/5 dark:bg-white/10 flex items-center justify-center">
-                  <User
-                    size={16}
-                    className="text-[#1d192b] dark:text-[#eaddff]"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Active Patients */}
-            <div className="bg-[#ccebc4] dark:bg-[#0c3b10] rounded-[24px] px-6 py-4 flex flex-col justify-between min-w-[160px] shadow-sm border border-transparent hover:border-[#006e1c]/20 transition-all">
-              <p className="text-[11px] font-bold text-[#0c200e] dark:text-[#ccebc4] uppercase tracking-[0.1em] mb-2 opacity-70">
-                Active Cases
-              </p>
-              <div className="flex items-end justify-between">
-                <p className="text-3xl font-black text-[#0c200e] dark:text-[#ccebc4] tracking-tight">
-                  {metaData.counts?.active_count || 0}
-                </p>
-                <div className="w-8 h-8 rounded-full bg-[#0c200e]/5 dark:bg-white/10 flex items-center justify-center">
-                  <Stethoscope
-                    size={16}
-                    className="text-[#0c200e] dark:text-[#ccebc4]"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Inactive Patients */}
-            <div className="bg-[#f2f0f4] dark:bg-[#2b2930] rounded-[24px] px-6 py-4 flex flex-col justify-between min-w-[160px] shadow-sm border border-[#e0e2ec] dark:border-[#43474e] hover:border-[#1a1c1e]/20 transition-all">
-              <p className="text-[11px] font-bold text-[#43474e] dark:text-[#c4c7c5] uppercase tracking-[0.1em] mb-2 opacity-70">
-                Inactive
-              </p>
-              <div className="flex items-end justify-between">
-                <p className="text-3xl font-black text-[#1a1c1e] dark:text-[#e3e2e6] tracking-tight">
-                  {metaData.counts?.inactive_count || 0}
-                </p>
-                <div className="w-8 h-8 rounded-full bg-[#1a1c1e]/5 dark:bg-white/10 flex items-center justify-center">
-                  <RefreshCw
-                    size={16}
-                    className="text-[#1a1c1e] dark:text-[#e3e2e6]"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Terminated/Completed */}
-            <div className="bg-[#ffdad6] dark:bg-[#93000a] rounded-[24px] px-6 py-4 flex flex-col justify-between min-w-[160px] shadow-sm border border-transparent hover:border-[#ba1a1a]/20 transition-all">
-              <p className="text-[11px] font-bold text-[#410002] dark:text-[#ffdad6] uppercase tracking-[0.1em] mb-2 opacity-70">
-                Completed
-              </p>
-              <div className="flex items-end justify-between">
-                <p className="text-3xl font-black text-[#410002] dark:text-[#ffdad6] tracking-tight">
-                  {metaData.counts?.terminated_count || 0}
-                </p>
-                <div className="w-8 h-8 rounded-full bg-[#410002]/5 dark:bg-white/10 flex items-center justify-center">
-                  <CheckCircle2
-                    size={16}
-                    className="text-[#410002] dark:text-[#ffdad6]"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* M3 Search & Filter Controls */}
-        <div className="flex flex-col gap-6 mb-8 bg-white dark:bg-[#111315] p-6 rounded-[32px] border border-[#e0e2ec] dark:border-[#43474e] shadow-sm">
-          {/* Status Toggles (Exact Reference Match) */}
-          <div className="flex items-center gap-4">
-            <span className="text-sm font-black text-[#74777f] dark:text-[#939099] uppercase tracking-[0.15em] shrink-0">
-              Status:
-            </span>
-            <div className="flex flex-wrap items-center gap-3">
-              {[
-                { label: "All Patients", value: "" },
-                { label: "Active", value: "active" },
-                { label: "Inactive", value: "inactive" },
-                { label: "Completed", value: "completed" },
-                { label: "Stopped", value: "stopped" },
-              ].map((chip) => {
-                const isSelected = filters.status === chip.value;
-                return (
-                  <button
-                    key={chip.label}
-                    onClick={() => setFilters({ status: chip.value })}
-                    className={`px-6 py-2.5 rounded-full text-[14px] font-bold transition-all flex items-center gap-2.5 shadow-sm border-none outline-none ${
-                      isSelected
-                        ? "bg-[#6750a4] text-white shadow-[#6750a4]/20"
-                        : "bg-[#eaddff] text-[#21005d] hover:bg-[#d0bcff] transition-colors"
-                    }`}
+        <div className="flex-1 flex overflow-hidden">
+          <div
+            className={`hidden xl:flex w-[400px] flex-col justify-between p-10 border-r relative shrink-0 transition-colors duration-300 z-50 ${isDark ? "bg-[#0A0A0A] border-[#151515]" : "bg-white border-gray-100"}`}
+          >
+            <div className="space-y-10 z-10 transition-all duration-500">
+              <div className="space-y-4">
+                <h1 className="text-5xl font-serif font-normal tracking-tight leading-tight text-slate-900 dark:text-slate-100">
+                  Patients &nbsp;
+                  <span
+                    className={`italic ${isDark ? "text-emerald-400" : "text-emerald-600"}`}
                   >
-                    {isSelected && (
-                      <div className="w-5 h-5 rounded-full border-2 border-white/30 flex items-center justify-center">
-                        <CheckCircle2
-                          size={12}
-                          strokeWidth={3}
-                          className="text-white"
-                        />
-                      </div>
-                    )}
-                    {chip.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
-            {/* Search Input */}
-            <div className="lg:col-span-12 xl:col-span-5 relative group">
-              <Search
-                className="absolute left-5 top-1/2 -translate-y-1/2 text-[#43474e] dark:text-[#c4c7c5]"
-                size={20}
-              />
-              <input
-                type="text"
-                placeholder="Search by name, phone or ID..."
-                value={filters.search}
-                onChange={(e) => setFilters({ search: e.target.value })}
-                className="w-full bg-[#f2f0f4] dark:bg-[#1f1f23] border border-transparent focus:border-[#6750a4] focus:bg-[#fdfcff] dark:focus:bg-[#111315] rounded-[28px] py-4 pl-14 pr-6 outline-none transition-all font-medium text-[#1a1c1e] dark:text-[#e3e2e6] shadow-inner group-hover:shadow-sm"
-              />
+                    Ops
+                  </span>
+                </h1>
+                <p className="text-slate-500 text-sm font-medium leading-relaxed max-w-[280px]">
+                  Daily operational overview & patient registry.
+                </p>
+              </div>
             </div>
 
-            {/* Other Select Filters */}
-            <div className="lg:col-span-4 xl:col-span-3">
-              <CustomSelect
-                value={filters.doctor}
-                onChange={(v) => setFilters({ doctor: v })}
-                options={[
-                  { label: "All Doctors", value: "" },
-                  ...metaData.doctors.map((d) => ({ label: d, value: d })),
-                ]}
-                placeholder="Select Doctor"
-                className="!rounded-[28px] !bg-[#f2f0f4] dark:!bg-[#1f1f23] !border-transparent !py-4"
-              />
-            </div>
+            {/* --- REDESIGNED STATS PANEL --- */}
+            <div className="space-y-8 w-full flex-1 flex flex-col py-6">
+              {/* SECTION 1: VOLUME OVERVIEW */}
+              <div className="space-y-6">
+                {/* Big Numbers */}
+                <div className="flex items-end justify-between p-7 bg-[#F8F9FA] dark:bg-white/5 rounded-[32px] border border-dashed border-gray-200 dark:border-white/10 relative overflow-hidden group transition-all hover:bg-white dark:hover:bg-white/[0.08]">
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <Activity size={80} className="text-emerald-500" />
+                  </div>
 
-            <div className="lg:col-span-4 xl:col-span-2">
-              <CustomSelect
-                value={filters.service_type}
-                onChange={(v) => setFilters({ service_type: v })}
-                options={[
-                  { label: "Services", value: "" },
-                  ...metaData.services.map((s) => ({ label: s, value: s })),
-                ]}
-                placeholder="Service"
-                className="!rounded-[28px] !bg-[#f2f0f4] dark:!bg-[#1f1f23] !border-transparent !py-4"
-              />
-            </div>
-
-            <div className="lg:col-span-4 xl:col-span-2">
-              <CustomSelect
-                value={filters.treatment}
-                onChange={(v) => setFilters({ treatment: v })}
-                options={[
-                  { label: "Treatment", value: "" },
-                  ...metaData.treatments.map((t) =>
-                    typeof t === "string" ? { label: t, value: t } : t,
-                  ),
-                ]}
-                placeholder="Type"
-                className="!rounded-[28px] !bg-[#f2f0f4] dark:!bg-[#1f1f23] !border-transparent !py-4"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Filter info text */}
-        <div className="flex items-center justify-between px-6 mb-6">
-          <div className="flex items-center gap-2 text-sm text-[#43474e] dark:text-[#c4c7c5] font-medium">
-            <span>Showing</span>
-            <span className="text-[#1a1c1e] dark:text-[#e3e2e6] font-bold bg-[#e0e2ec] dark:bg-[#43474e] px-2 py-0.5 rounded-md">
-              {pagination.total_records}
-            </span>
-            <span>patients</span>
-            {(filters.search ||
-              filters.status ||
-              filters.doctor ||
-              filters.service_type ||
-              filters.treatment) && (
-              <div className="flex items-center gap-1 border-l border-[#e0e2ec] dark:border-[#43474e] ml-2 pl-3">
-                <span>filtered by</span>
-                <div className="flex flex-wrap gap-1">
-                  {filters.search && (
-                    <span className="bg-[#ccebc4] dark:bg-[#0c3b10] text-[#0c200e] dark:text-[#ccebc4] px-2 py-0.5 rounded-full text-[11px] font-bold">
-                      "{filters.search}"
-                    </span>
-                  )}
-                  {filters.status && (
-                    <span className="bg-[#e8def8] dark:bg-[#381e72] text-[#1d192b] dark:text-[#eaddff] px-2 py-0.5 rounded-full text-[11px] font-bold">
-                      {filters.status}
-                    </span>
-                  )}
-                  {filters.doctor && (
-                    <span className="bg-[#fdfcff] dark:bg-[#2b2930] border border-[#e0e2ec] dark:border-[#43474e] px-2 py-0.5 rounded-full text-[11px] font-bold">
-                      Dr. {filters.doctor}
-                    </span>
-                  )}
+                  <div className="relative z-10">
+                    <div className="text-7xl font-medium tracking-tighter leading-none text-[#022c22] dark:text-emerald-50">
+                      {metaData.counts?.active_count || 0}
+                    </div>
+                    <div className="text-[10px] font-black opacity-50 mt-3 uppercase tracking-[0.2em] flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Active Patients
+                    </div>
+                  </div>
+                  <div className="text-right relative z-10">
+                    <div className="text-3xl font-medium opacity-60">
+                      {metaData.counts?.new_today || 0}
+                    </div>
+                    <div className="text-[9px] font-black uppercase tracking-widest opacity-40 mt-1">
+                      Today's
+                    </div>
+                  </div>
                 </div>
+
+                {/* Global Registry Totals */}
+                <div className="pt-4 border-t border-gray-100 dark:border-white/5 mt-4">
+                  <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-6 px-4">
+                    Global Registry
+                  </p>
+                  <div className="space-y-1">
+                    {[
+                      {
+                        label: "Total Patients",
+                        value: metaData.counts?.total_count || 0,
+                        dot: "bg-slate-400",
+                      },
+                      {
+                        label: "Active Cases",
+                        value: metaData.counts?.active_count || 0,
+                        dot: "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]",
+                        text: "text-emerald-600",
+                      },
+                      {
+                        label: "Completed",
+                        value: metaData.counts?.terminated_count || 0,
+                        dot: "bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.3)]",
+                        text: "text-blue-600",
+                      },
+                      {
+                        label: "Paused Registry",
+                        value: metaData.counts?.inactive_count || 0,
+                        dot: "bg-rose-400 shadow-[0_0_10px_rgba(251,113,113,0.3)]",
+                        text: "text-rose-500",
+                      },
+                    ].map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="flex items-center justify-between text-sm group p-4 rounded-2xl hover:bg-gray-50 dark:hover:bg-white/5 transition-all cursor-default"
+                      >
+                        <span className="flex items-center gap-4 opacity-70 group-hover:opacity-100 transition-opacity font-medium">
+                          <span
+                            className={`w-2.5 h-2.5 rounded-full ${stat.dot}`}
+                          ></span>
+                          {stat.label}
+                        </span>
+                        <span
+                          className={`font-bold text-lg ${stat.text || ""}`}
+                        >
+                          {stat.value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* <div className="pt-8 border-t border-dashed border-slate-200 dark:border-white/5 mt-auto">
+              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <span>Powered by PhysioEZ</span>
+                <span>OS v4.1.2</span>
+              </div>
+            </div> */}
+          </div>
+
+          <main className="flex-1 overflow-y-auto custom-scrollbar relative flex flex-col p-6 md:p-8 lg:p-10 gap-8 bg-[#FAFAFA] dark:bg-[#0A0A0A] pb-40">
+            {/* Premium Control Bar */}
+            <div className="flex flex-col gap-6 mb-2">
+              <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
+                <div className="relative group w-full lg:max-w-md">
+                  <Search
+                    className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-600 transition-colors"
+                    size={18}
+                  />
+                  <input
+                    type="text"
+                    placeholder="Search by name, ID or phone..."
+                    value={filters.search}
+                    onChange={(e) => setFilters({ search: e.target.value })}
+                    className="w-full pl-12 pr-6 py-4 rounded-[20px] bg-white dark:bg-[#1A1C1E] border border-gray-100 dark:border-white/5 focus:border-emerald-500/30 outline-none text-sm font-medium transition-all shadow-sm"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 justify-end w-full lg:w-auto">
+                  {[
+                    { label: "All", value: "" },
+                    { label: "Active", value: "active" },
+                    { label: "Paused", value: "inactive" },
+                    { label: "Finished", value: "completed" },
+                  ].map((chip) => {
+                    const isSelected = filters.status === chip.value;
+                    return (
+                      <button
+                        key={chip.label}
+                        onClick={() => setFilters({ status: chip.value })}
+                        className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border ${
+                          isSelected
+                            ? "bg-slate-900 border-slate-900 text-white dark:bg-white dark:text-black shadow-md"
+                            : "bg-white border-slate-100 text-slate-500 hover:bg-slate-50 dark:bg-white/5 dark:border-white/5"
+                        }`}
+                      >
+                        {chip.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <CustomSelect
+                  value={filters.doctor}
+                  onChange={(v) => setFilters({ doctor: v })}
+                  options={[
+                    { label: "All Doctors", value: "" },
+                    ...metaData.doctors.map((d) => ({
+                      label: `Dr. ${d}`,
+                      value: d,
+                    })),
+                  ]}
+                  placeholder="Doctor"
+                  className="!rounded-[18px] !py-3 !bg-white dark:!bg-[#1A1C1E] !border-gray-100 dark:!border-white/5 shadow-sm"
+                />
+
+                <CustomSelect
+                  value={filters.service_type}
+                  onChange={(v) => setFilters({ service_type: v })}
+                  options={[
+                    { label: "All Services", value: "" },
+                    ...metaData.services.map((s) => ({ label: s, value: s })),
+                  ]}
+                  placeholder="Service"
+                  className="!rounded-[18px] !py-3 !bg-white dark:!bg-[#1A1C1E] !border-gray-100 dark:!border-white/5 shadow-sm"
+                />
+
+                <CustomSelect
+                  value={filters.treatment}
+                  onChange={(v) => setFilters({ treatment: v })}
+                  options={[
+                    { label: "All Types", value: "" },
+                    ...metaData.treatments.map((t) =>
+                      typeof t === "string" ? { label: t, value: t } : t,
+                    ),
+                  ]}
+                  placeholder="Type"
+                  className="!rounded-[18px] !py-3 !bg-white dark:!bg-[#1A1C1E] !border-gray-100 dark:!border-white/5 shadow-sm"
+                />
+              </div>
+            </div>
+
+            {/* Registry List */}
+            <div className="flex-1">
+              {isLoading ? (
+                <div className="h-40 flex flex-col items-center justify-center opacity-30 gap-4">
+                  <RefreshCw size={24} className="animate-spin" />
+                  <p className="text-[9px] font-black uppercase tracking-widest">
+                    Syncing Registry...
+                  </p>
+                </div>
+              ) : patients.length === 0 ? (
+                <div className="h-40 flex flex-col items-center justify-center opacity-30 gap-4">
+                  <p className="text-xs font-medium">No results found.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {/* Table Header */}
+                  <div className="hidden lg:grid grid-cols-[1.8fr_1.3fr_1.2fr_1.1fr_1fr_1fr] gap-6 px-10 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 border-b border-black/[0.03] dark:border-white/[0.03] select-none">
+                    <div>Patient</div>
+                    <div>Contact</div>
+                    <div>Progress</div>
+                    <div className="text-right">Financials</div>
+                    <div className="text-center">Presence</div>
+                    <div className="text-right pr-4">Action</div>
+                  </div>
+
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex flex-col gap-3 pb-40"
+                  >
+                    {patients.map((patient, idx) => {
+                      const totalDays = patient.treatment_days || 1;
+                      const progress = Math.min(
+                        100,
+                        (patient.attendance_count / totalDays) * 100,
+                      );
+                      const isPresent = patient.today_attendance === "present";
+                      const isPending = patient.today_attendance === "pending";
+                      const dueAmount = isNaN(parseFloat(patient.due_amount))
+                        ? 0
+                        : parseFloat(patient.due_amount);
+                      const effectiveBalance = isNaN(
+                        parseFloat(String(patient.effective_balance)),
+                      )
+                        ? 0
+                        : parseFloat(String(patient.effective_balance));
+
+                      return (
+                        <motion.div
+                          key={patient.patient_id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{
+                            opacity: 1,
+                            y: 0,
+                            transition: { delay: idx * 0.02 },
+                          }}
+                          onClick={() => openPatientDetails(patient)}
+                          className={`group rounded-[24px] px-8 py-4 border transition-all hover:shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:-translate-y-[1px] cursor-pointer relative grid lg:grid-cols-[1.8fr_1.3fr_1.2fr_1.1fr_1fr_1fr] gap-6 items-center ${
+                            isDark
+                              ? "bg-[#141619] border-white/5 hover:border-emerald-500/20"
+                              : "bg-white border-gray-100 hover:border-emerald-500/20 shadow-sm"
+                          } ${activeDropdown === patient.patient_id ? "z-[100]" : "z-0"}`}
+                        >
+                          <div
+                            className={`absolute left-0 top-0 w-1.5 h-full transition-all duration-300 opacity-0 group-hover:opacity-100 rounded-l-[24px] ${
+                              patient.patient_status === "active"
+                                ? "bg-emerald-500"
+                                : "bg-slate-300"
+                            }`}
+                          />
+
+                          <div className="flex items-center gap-4 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-500 font-bold text-sm">
+                              {patient.patient_name.charAt(0)}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-[16px] font-bold text-slate-900 dark:text-[#e3e2e6] truncate group-hover:text-emerald-700 dark:group-hover:text-emerald-400 transition-colors">
+                                {patient.patient_name}
+                              </span>
+                              <span className="text-[10px] font-black opacity-40 uppercase tracking-tighter">
+                                #{patient.patient_id} •{" "}
+                                {patient.patient_gender?.charAt(0) || "O"} •{" "}
+                                {patient.patient_age || "?"}Y
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-sm font-bold text-slate-600 dark:text-slate-300 font-mono tracking-tight">
+                              {patient.patient_phone ||
+                                patient.phone_number ||
+                                "-"}
+                            </span>
+                            <span className="text-[10px] font-medium text-slate-400 truncate opacity-60">
+                              {patient.address || "-"}
+                            </span>
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              <span className="truncate max-w-[80px]">
+                                {patient.treatment_type || "General"}
+                              </span>
+                              <span>
+                                {patient.attendance_count}/{totalDays}
+                              </span>
+                            </div>
+                            <div className="h-1.5 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-emerald-500 rounded-full"
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="text-right flex flex-col gap-0.5 pr-4">
+                            <div className="text-xs font-black text-rose-500">
+                              ₹{dueAmount.toLocaleString()}
+                            </div>
+                            <div className="text-[10px] font-black text-emerald-500/60 uppercase tracking-tighter">
+                              BAL: ₹
+                              {Math.abs(effectiveBalance).toLocaleString()}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-center">
+                            {isPresent ? (
+                              <div className="relative">
+                                <div className="flex items-center bg-emerald-500/10 dark:bg-emerald-500/5 rounded-xl border border-emerald-500/20 overflow-hidden min-w-[124px]">
+                                  <div className="flex-1 py-2.5 px-3 text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 text-center border-r border-emerald-500/20">
+                                    Present
+                                  </div>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setActiveDropdown(
+                                        activeDropdown === patient.patient_id
+                                          ? null
+                                          : patient.patient_id,
+                                      );
+                                    }}
+                                    className={`px-3 py-2.5 hover:bg-emerald-500/10 transition-all flex items-center justify-center ${activeDropdown === patient.patient_id ? "bg-emerald-500/10" : ""}`}
+                                  >
+                                    <ChevronDown
+                                      size={14}
+                                      strokeWidth={3}
+                                      className={`text-orange-500 transition-transform duration-300 ${activeDropdown === patient.patient_id ? "rotate-180" : ""}`}
+                                    />
+                                  </button>
+                                </div>
+
+                                <AnimatePresence>
+                                  {activeDropdown === patient.patient_id && (
+                                    <>
+                                      <div
+                                        className="fixed inset-0 z-[60]"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setActiveDropdown(null);
+                                        }}
+                                      />
+                                      <motion.div
+                                        initial={{
+                                          opacity: 0,
+                                          y: 10,
+                                          scale: 0.95,
+                                        }}
+                                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                                        exit={{
+                                          opacity: 0,
+                                          y: 10,
+                                          scale: 0.95,
+                                        }}
+                                        className="absolute top-full right-0 mt-2 w-48 bg-white dark:bg-[#1A1C1E] border border-gray-200 dark:border-white/10 rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_10px_40px_rgba(0,0,0,0.5)] z-[70] overflow-hidden"
+                                      >
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveDropdown(null);
+                                            setRevertModal({
+                                              open: true,
+                                              patient,
+                                            });
+                                          }}
+                                          className="w-full px-5 py-4 flex items-center gap-3 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors text-xs font-bold uppercase tracking-widest"
+                                        >
+                                          <RotateCcw size={16} />
+                                          Revert Entry
+                                        </button>
+                                      </motion.div>
+                                    </>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!isPending) {
+                                    handleMarkAttendance(e, patient);
+                                  }
+                                }}
+                                className={`w-full max-w-[124px] py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                  isPending
+                                    ? "bg-amber-500 text-white"
+                                    : "bg-slate-900 dark:bg-white text-white dark:text-black hover:scale-105 active:scale-95 shadow-lg"
+                                }`}
+                              >
+                                {isPending ? "Pending" : "Mark Present"}
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 transition-all duration-300">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handlePrintToken(e, patient.patient_id);
+                              }}
+                              disabled={!isPresent || patient.has_token_today}
+                              className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 dark:bg-white/5 text-slate-400 hover:text-emerald-600 border border-transparent hover:border-emerald-500/20 transition-all shadow-sm disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale"
+                            >
+                              <Printer size={15} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openPatientDetails(patient);
+                              }}
+                              className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 dark:bg-white/5 text-slate-400 hover:text-emerald-600 border border-transparent hover:border-emerald-500/20 transition-all shadow-sm"
+                            >
+                              <Eye size={17} />
+                            </button>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </motion.div>
+                </div>
+              )}
+            </div>
+
+            {/* Compact Centered Pagination */}
+            <div className="flex justify-center mt-8">
+              <div
+                className={`flex items-center gap-6 px-6 py-3 rounded-full border shadow-xl ${isDark ? "bg-[#141619] border-white/5" : "bg-white border-gray-100"}`}
+              >
                 <button
-                  onClick={() =>
-                    setFilters({
-                      search: "",
-                      status: "",
-                      doctor: "",
-                      service_type: "",
-                      treatment: "",
-                    })
-                  }
-                  className="text-[#b3261e] hover:underline text-xs font-bold underline-offset-2 transition-all ml-1"
+                  onClick={() => setPage(pagination.page - 1)}
+                  disabled={pagination.page <= 1}
+                  className="w-10 h-10 rounded-full border border-gray-100 dark:border-white/5 flex items-center justify-center transition-all disabled:opacity-20 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-400 hover:text-emerald-500 hover:border-emerald-500/20 shadow-sm disabled:cursor-not-allowed"
                 >
-                  Clear all
+                  <ChevronLeft size={20} />
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <div className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400 bg-slate-50 dark:bg-white/5 px-5 py-2 rounded-full border border-gray-100 dark:border-white/5">
+                    Page{" "}
+                    <span className="text-slate-900 dark:text-white mx-1">
+                      {pagination.page}
+                    </span>{" "}
+                    / {pagination.total_pages}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setPage(pagination.page + 1)}
+                  disabled={pagination.page >= pagination.total_pages}
+                  className="w-10 h-10 rounded-full border border-gray-100 dark:border-white/5 flex items-center justify-center transition-all disabled:opacity-20 hover:bg-slate-50 dark:hover:bg-white/5 text-slate-400 hover:text-emerald-500 hover:border-emerald-500/20 shadow-sm disabled:cursor-not-allowed"
+                >
+                  <ChevronRight size={20} />
                 </button>
               </div>
-            )}
-          </div>
-          <div className="text-[11px] font-black text-[#43474e] dark:text-[#c4c7c5] uppercase tracking-widest opacity-50">
-            PhysioEZ Reception Desk
-          </div>
-        </div>
-
-        {/* Main Content Grid */}
-        {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-32">
-            <Loader2 className="animate-spin text-emerald-500 mb-4" size={48} />
-            <p className="text-slate-500 font-bold animate-pulse">
-              Syncing patient data...
-            </p>
-          </div>
-        ) : patients.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-32 bg-slate-50 dark:bg-[#111315] rounded-[40px] border border-dashed border-slate-200 dark:border-slate-800">
-            <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-3xl shadow-lg flex items-center justify-center mb-6">
-              <Search size={32} className="text-slate-300" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-              No patients found
-            </h3>
-            <p className="text-slate-500 mt-2">
-              Adjust your filters or try a different search
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6">
-            {patients.map((patient, idx) => {
-              const totalDays = patient.treatment_days || 1;
-              const progress = Math.min(
-                100,
-                (patient.attendance_count / totalDays) * 100,
-              );
-              const balance = Number(patient.effective_balance || 0);
-              const isPresent = patient.today_attendance === "present";
-              const isPending = patient.today_attendance === "pending";
-              const hasToken = patient.has_token_today;
-
-              return (
-                <motion.div
-                  key={patient.patient_id}
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: idx * 0.03 }}
-                  onClick={() => openPatientDetails(patient)}
-                  className="group bg-white dark:bg-[#1a1c1e] rounded-[32px] border border-[#e0e2ec] dark:border-[#43474e] p-6 hover:shadow-2xl hover:shadow-[#ccebc4]/20 transition-all cursor-pointer flex flex-col"
-                >
-                  {/* Card Top */}
-                  <div className="flex justify-between items-start mb-6">
-                    <div className="relative">
-                      <div className="w-16 h-16 rounded-2xl bg-[#ccebc4] dark:bg-[#0c3b10] flex items-center justify-center text-[#0c200e] dark:text-[#ccebc4] font-black text-2xl shadow-inner overflow-hidden border border-[#e0e2ec] dark:border-[#43474e]">
-                        {patient.patient_photo_path ? (
-                          <img
-                            src={
-                              patient.patient_photo_path.startsWith("http")
-                                ? patient.patient_photo_path
-                                : `${FILE_BASE_URL}/${patient.patient_photo_path.replace("admin/desktop/server/", "")}`
-                            }
-                            className="w-full h-full object-cover"
-                            alt=""
-                          />
-                        ) : (
-                          patient.patient_name?.charAt(0).toUpperCase() || "P"
-                        )}
-                      </div>
-                      {isPresent && (
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-full border-4 border-white dark:border-[#111315] flex items-center justify-center">
-                          <CheckCircle2 size={12} className="text-white" />
-                        </div>
-                      )}
-                      {isPending && (
-                        <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-amber-500 rounded-full border-4 border-white dark:border-[#111315] flex items-center justify-center">
-                          <Clock size={12} className="text-white" />
-                        </div>
-                      )}
-                    </div>
-                    <div
-                      className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border shadow-sm ${getStatusColors(patient.patient_status)}`}
-                    >
-                      {patient.patient_status}
-                    </div>
-                  </div>
-
-                  {/* Patient Info */}
-                  <div className="mb-6">
-                    <h3 className="font-extrabold text-xl text-slate-900 dark:text-white leading-tight mb-1 line-clamp-1 group-hover:text-emerald-600 transition-colors">
-                      {patient.patient_name}
-                    </h3>
-                    <div className="flex items-center gap-3">
-                      <p className="text-xs font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                        <Phone size={12} /> {patient.patient_phone}
-                      </p>
-                      <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">
-                        ID: {patient.patient_uid}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Treatment Summary */}
-                  <div className="space-y-4 flex-1">
-                    <div className="p-4 bg-slate-50 dark:bg-[#0b0c0d] rounded-2xl border border-slate-100 dark:border-slate-800/50">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                          Current Plan
-                        </span>
-                        <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-0.5 rounded-md uppercase">
-                          {patient.treatment_type}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Stethoscope size={14} className="text-emerald-500" />
-                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300 line-clamp-1">
-                          {patient.service_type || "General Consultation"}
-                        </p>
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1 pl-6">
-                        Dr. {patient.assigned_doctor}
-                      </p>
-                    </div>
-
-                    {/* Progressive Bar */}
-                    <div>
-                      <div className="flex justify-between text-[10px] font-black uppercase tracking-widest mb-2">
-                        <span className="text-slate-400">Progression</span>
-                        <span className="text-slate-900 dark:text-slate-200">
-                          {patient.attendance_count} / {patient.treatment_days}{" "}
-                          sessions
-                        </span>
-                      </div>
-                      <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${progress}%` }}
-                          className="h-full bg-emerald-500 rounded-full"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Quick Actions Footer */}
-                  <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
-                        Balance
-                      </p>
-                      <p
-                        className={`text-lg font-black leading-none ${balance < 0 ? "text-red-500" : "text-emerald-600 dark:text-emerald-400"}`}
-                      >
-                        ₹{Math.abs(balance).toLocaleString()}
-                        <span className="text-[10px] ml-1">
-                          {balance < 0 ? "DUE" : ""}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={(e) => handlePrintToken(e, patient.patient_id)}
-                        disabled={!isPresent || !!hasToken}
-                        className={`p-3 rounded-2xl transition-all ${
-                          hasToken
-                            ? "bg-amber-50 text-amber-600 border border-amber-100 opacity-50 cursor-not-allowed"
-                            : !isPresent
-                              ? "bg-slate-100 dark:bg-slate-800 text-slate-400 cursor-not-allowed opacity-50"
-                              : "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 hover:bg-emerald-600 hover:text-white border border-transparent"
-                        }`}
-                        title={
-                          !isPresent
-                            ? "Mark attendance first"
-                            : hasToken
-                              ? "Token already printed"
-                              : "Print Token"
-                        }
-                      >
-                        <Printer size={18} />
-                      </button>
-                      <button
-                        onClick={(e) => handleMarkAttendance(e, patient)}
-                        disabled={isPresent || isPending}
-                        className={`p-3 rounded-2xl transition-all ${
-                          isPresent
-                            ? "bg-emerald-50 text-emerald-600 border border-emerald-100 opacity-50"
-                            : isPending
-                              ? "bg-amber-50 text-amber-600 border border-amber-200 opacity-100 cursor-not-allowed"
-                              : "bg-slate-50 text-slate-600 dark:bg-slate-800 dark:text-slate-400 hover:bg-emerald-50 hover:text-emerald-600 border border-transparent"
-                        }`}
-                        title={
-                          isPending
-                            ? "Attendance Pending Approval"
-                            : "Mark Attendance"
-                        }
-                      >
-                        {isPending ? (
-                          <Clock size={18} />
-                        ) : (
-                          <CheckCircle2 size={18} />
-                        )}
-                      </button>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openPatientDetails(patient);
-                        }}
-                        className="p-3 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl hover:scale-105 transition-all shadow-lg"
-                        title="View Details"
-                      >
-                        <Eye size={18} />
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Pagination (Floating) */}
-        {!isLoading && patients.length > 0 && pagination.total_pages > 1 && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-[#1a1c1e] dark:bg-[#e3e2e6] text-white dark:text-[#1a1c1e] px-4 py-2 rounded-full shadow-2xl z-30 flex items-center gap-4">
-            <button
-              onClick={() => setPage(Math.max(1, pagination.page - 1))}
-              disabled={pagination.page === 1}
-              className="p-1 hover:bg-white/20 rounded-full disabled:opacity-30 transition-colors"
-            >
-              <ChevronLeft size={20} />
-            </button>
-            <span className="text-xs font-bold tracking-widest">
-              {pagination.page} / {pagination.total_pages}
-            </span>
-            <button
-              onClick={() =>
-                setPage(Math.min(pagination.total_pages, pagination.page + 1))
-              }
-              disabled={pagination.page === pagination.total_pages}
-              className="p-1 hover:bg-white/20 rounded-full disabled:opacity-30 transition-colors"
-            >
-              <ChevronRight size={20} />
-            </button>
-          </div>
-        )}
+          </main>
+        </div>
       </div>
 
-      {/* Modals Bridge */}
+      <ActionFAB
+        onAction={(act) =>
+          navigate("/reception/dashboard", { state: { openModal: act } })
+        }
+      />
+
+      {/* Global Overlays */}
       <PatientDetailsModal />
       <AttendanceModal
         isOpen={attendanceModal.open}
-        onClose={() => setAttendanceModal({ open: false, patient: null })}
         patient={attendanceModal.patient}
+        onClose={() => setAttendanceModal({ open: false, patient: null })}
         onSuccess={() => fetchPatients(user!.branch_id)}
       />
       <TokenPreviewModal
         isOpen={tokenModal.open}
-        onClose={() => setTokenModal({ open: false, patientId: null })}
         patientId={tokenModal.patientId}
+        onClose={() => setTokenModal({ open: false, patientId: null })}
       />
-      <GlobalSearch
-        isOpen={showGlobalModal}
-        onClose={() => setShowGlobalModal(false)}
-        searchQuery={globalSearchQuery}
-        setSearchQuery={setGlobalSearchQuery}
-        searchResults={searchResults}
+      <RevertAttendanceModal
+        isOpen={revertModal.open}
+        patientName={revertModal.patient?.patient_name || ""}
+        onClose={() => setRevertModal({ open: false, patient: null })}
+        onConfirm={handleRevertAttendance}
       />
+      <DailyIntelligence
+        isOpen={showIntelligence}
+        onClose={() => setShowIntelligence(false)}
+      />
+      <NotesDrawer isOpen={showNotes} onClose={() => setShowNotes(false)} />
     </div>
   );
 };
