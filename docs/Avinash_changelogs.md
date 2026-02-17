@@ -2,6 +2,29 @@
 
 All notable changes contributed by Avinash to this project are documented in this file.
 
+## Changes - 2026-02-18
+
+### Added
+
+- **Tests Module Enhancements**:
+  - **Refactored Tests Layout**: Updated `Tests.tsx` to align with the premium glassmorphism aesthetic of the Dashboard, featuring a new 3-column layout (Sidebar, Stats Panel, and Main Content).
+  - **Interactive Filter System**: Implemented custom `FilterDropdown` components for robust filtering by Test Type, Payment Status, and Test Status.
+  - **Search & Stats**: Added a centered search bar in the new glassmorphism header and a dedicated stats panel for real-time overview of test quantities and statuses.
+  - **Animated Transitions**: Integrated `framer-motion` for high-quality entrance animations and interactive hover effects on record rows.
+
+- **Enhanced Test Management**:
+  - **Test Details Modal**: Developed `TestDetailsModal.tsx` for comprehensive viewing of patient demographics, financial summaries, and technical test workflows.
+  - **Payment Integration**: Added dedicated "Add Payment" and "Update Status" controls within the details modal for streamlined administrative tasks.
+
+- **Advanced Billing & Printing**:
+  - **Thermal Receipt System**: Engineered `ThermalReceiptModal.tsx` optimized for 80mm thermal printers, featuring a high-fidelity physical receipt design with boxed statuses and dashed separators.
+  - **Unified Print Workflow**: Connected unified "Print Bill" triggers across the table and details view to the thermal receipt engine.
+
+### Changed
+
+- **Design Standardization**: Refined the overall aesthetic and layout of the laboratory tests registry to ensure parity with the core application design system.
+- **Workflow UX**: Optimized the user journey for auditing test records and generating financial receipts through integrated, non-intrusive modals.
+
 ## Changes - 2026-02-09
 
 ### Added
