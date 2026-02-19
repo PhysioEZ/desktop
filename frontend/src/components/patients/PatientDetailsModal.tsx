@@ -383,24 +383,27 @@ const PatientDetailsModal = () => {
             </div>
 
             {/* Footer Action */}
-            <div className="p-6 border-t border-white/5 bg-[#0a0b0e]">
-              {dueAmount > 0 ? (
+            <div className="p-6 border-t border-white/5 bg-[#0a0b0e] flex flex-col gap-3">
+              {dueAmount > 0 && (
                 <button
                   onClick={() => toggleModal("payDues", true)}
                   className="w-full py-4 rounded-xl bg-gradient-to-r from-rose-500 to-orange-500 text-white font-black uppercase text-xs tracking-widest shadow-lg shadow-rose-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
                   <Wallet size={16} />
-                  Pay Due: ₹{dueAmount.toLocaleString()}
-                </button>
-              ) : (
-                <button
-                  onClick={() => toggleModal("addTest", true)}
-                  className="w-full py-4 rounded-xl bg-white/5 text-emerald-400 border border-emerald-500/20 font-black uppercase text-xs tracking-widest hover:bg-emerald-500/10 transition-all flex items-center justify-center gap-2"
-                >
-                  <FilePlus size={16} />
-                  Add Record
+                  Pay Total: ₹
+                  {(
+                    dueAmount +
+                    (walletBalance < 0 ? Math.abs(walletBalance) : 0)
+                  ).toLocaleString()}
                 </button>
               )}
+              <button
+                onClick={() => toggleModal("addTest", true)}
+                className="w-full py-4 rounded-xl bg-white/5 text-emerald-400 border border-emerald-500/20 font-black uppercase text-xs tracking-widest hover:bg-emerald-500/10 transition-all flex items-center justify-center gap-2"
+              >
+                <FilePlus size={16} />
+                Add Test
+              </button>
             </div>
           </div>
 
@@ -992,7 +995,13 @@ const PatientDetailsModal = () => {
                                 Total Outstanding
                               </span>
                               <h3 className="text-4xl font-black tracking-tighter text-white">
-                                ₹{dueAmount.toLocaleString()}
+                                ₹
+                                {(
+                                  dueAmount +
+                                  (walletBalance < 0
+                                    ? Math.abs(walletBalance)
+                                    : 0)
+                                ).toLocaleString()}
                               </h3>
                             </div>
                           </div>
@@ -1002,8 +1011,11 @@ const PatientDetailsModal = () => {
                               <span className="text-[9px] font-black text-white/30 uppercase tracking-widest mb-1 block">
                                 Available Credit
                               </span>
-                              <span className="text-xl font-black text-emerald-400 tracking-tight">
-                                ₹{walletBalance.toLocaleString()}
+                              <span
+                                className={`text-xl font-black tracking-tight ${walletBalance < 0 ? "text-rose-500" : "text-emerald-400"}`}
+                              >
+                                {walletBalance < 0 ? "-" : ""}₹
+                                {Math.abs(walletBalance).toLocaleString()}
                               </span>
                             </div>
                             <div className="px-6 py-4 rounded-2xl bg-white/[0.03] border border-white/5 flex flex-col justify-center">
@@ -1026,7 +1038,11 @@ const PatientDetailsModal = () => {
                             className="group relative w-full h-14 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-[#00390a] font-black uppercase text-[11px] tracking-[0.2em] transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-500/10 overflow-hidden"
                           >
                             <CreditCard size={16} strokeWidth={3} />
-                            Initiate Payment
+                            Pay Total: ₹
+                            {(
+                              dueAmount +
+                              (walletBalance < 0 ? Math.abs(walletBalance) : 0)
+                            ).toLocaleString()}
                             <ArrowRight
                               size={16}
                               strokeWidth={3}
@@ -1253,7 +1269,9 @@ const PatientDetailsModal = () => {
           isOpen={modals.payDues}
           onClose={() => toggleModal("payDues", false)}
           patientId={selectedPatient.patient_id}
-          currentDue={dueAmount}
+          currentDue={
+            dueAmount + (walletBalance < 0 ? Math.abs(walletBalance) : 0)
+          }
           walletBalance={walletBalance}
           onSuccess={handleRefresh}
         />

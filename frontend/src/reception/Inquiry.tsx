@@ -445,6 +445,7 @@ const Inquiry = () => {
 
       // Check cache first
       if (!force) {
+        const { consultations, diagnostics } = useInquiryStore.getState();
         if (activeTab === "consultation" && consultations) {
           updateMonthlyStats(consultations, "consultation");
           setIsLoading(false);
@@ -480,14 +481,7 @@ const Inquiry = () => {
         setIsLoading(false);
       }
     },
-    [
-      user?.branch_id,
-      activeTab,
-      consultations,
-      diagnostics,
-      setConsultations,
-      setDiagnostics,
-    ],
+    [user?.branch_id, activeTab, setConsultations, setDiagnostics],
   );
 
   const updateMonthlyStats = (data: any[], type: string) => {
@@ -500,7 +494,7 @@ const Inquiry = () => {
   };
 
   useEffect(() => {
-    fetchInquiries();
+    fetchInquiries(true);
   }, [fetchInquiries]);
 
   const inquiries =
@@ -719,7 +713,7 @@ const Inquiry = () => {
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}
         />
-  
+
         <div className="flex-1 flex overflow-hidden">
           {/* Left Panel */}
           <motion.aside

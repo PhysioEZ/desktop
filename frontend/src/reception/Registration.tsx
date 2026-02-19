@@ -469,27 +469,35 @@ const Registration = () => {
 
       // Cache logic:
       if (!forceRefresh) {
+        const {
+          registrations: currentRegistrations,
+          lastParams: currentLastParams,
+          registrationsCache: currentCache,
+        } = useRegistrationStore.getState();
+
         if (
-          lastParams &&
-          cacheKey === JSON.stringify(lastParams) &&
-          storeRegistrations &&
-          storeRegistrations.length > 0 // Ensure we have data
+          currentLastParams &&
+          cacheKey === JSON.stringify(currentLastParams) &&
+          currentRegistrations &&
+          currentRegistrations.length > 0
         ) {
           setIsLoading(false);
           return;
         }
 
-        if (registrationsCache && registrationsCache[cacheKey]) {
-          const cached = registrationsCache[cacheKey];
+        if (currentCache && currentCache[cacheKey]) {
+          const cached = currentCache[cacheKey];
           setRegistrations(cached.data);
-          // setPagination(cached.pagination); // We handle pagination locally now
           setLastParams(currentParams);
           setIsLoading(false);
           return;
         }
       }
 
-      if (isFirstLoad.current || !storeRegistrations || forceRefresh === true)
+      const { registrations: currentRegistrations } =
+        useRegistrationStore.getState();
+
+      if (isFirstLoad.current || !currentRegistrations || forceRefresh === true)
         setIsLoading(true);
 
       try {
@@ -513,17 +521,7 @@ const Registration = () => {
         isFirstLoad.current = false;
       }
     },
-    [
-      user?.branch_id,
-      storeRegistrations,
-      registrationsCache,
-      lastParams,
-      setRegistrations,
-      setPagination,
-      setLastParams,
-      setLastFetched,
-      setRegistrationsCache,
-    ],
+    [user?.branch_id, setLastFetched, setRegistrationsCache],
   );
 
   const handleRefresh = async () => {
@@ -827,7 +825,7 @@ const Registration = () => {
   ]);
 
   useEffect(() => {
-    fetchRegistrations();
+    fetchRegistrations(true);
   }, [fetchRegistrations]);
 
   const fetchOptions = useCallback(async () => {

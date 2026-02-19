@@ -356,7 +356,7 @@ const Schedule = () => {
   );
 
   useEffect(() => {
-    fetchSchedule(false);
+    fetchSchedule(true);
   }, [weekStartStr]); // Only re-fetch if week changes or forced
 
   // --- Shortcuts ---

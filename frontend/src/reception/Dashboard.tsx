@@ -624,9 +624,9 @@ const ReceptionDashboard = () => {
     }
 
     // Within 15s window - skip all server hits
-    if (diff < 15) {
-      return;
-    }
+    // if (diff < 15) {
+    //   return;
+    // }
 
     // Over 15s - check if DB actually changed before doing a heavy fetch
     try {
