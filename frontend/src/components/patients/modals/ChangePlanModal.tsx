@@ -13,10 +13,12 @@ import {
   Layout,
   ArrowRight,
   History,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { API_BASE_URL, authFetch } from "../../../config";
 import { type Patient, usePatientStore } from "../../../store/usePatientStore";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 
 interface ChangePlanModalProps {
   isOpen: boolean;
@@ -115,10 +117,16 @@ const ChangePlanModal = ({
   const [days, setDays] = useState("");
   const [discount, setDiscount] = useState("0");
   const [advance, setAdvance] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState(""); // Primary method for single mode
   const [reason, setReason] = useState("");
   const [finalDue, setFinalDue] = useState(0);
   const [carryOverBalance, setCarryOverBalance] = useState(0);
+
+  // Split Payment State
+  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
+  const [paymentSplits, setPaymentSplits] = useState<Record<string, number>>(
+    {},
+  );
 
   const darkTealBase = "#042626";
 
@@ -168,17 +176,73 @@ const ChangePlanModal = ({
   }, [isOpen, patient]);
 
   useEffect(() => {
-    const subtotal = (parseFloat(rateOrCost) || 0) * (parseInt(days) || 0);
-    const netBaseCost = subtotal * (1 - (parseFloat(discount) || 0) / 100);
-    setFinalDue(netBaseCost - carryOverBalance - (parseFloat(advance) || 0));
+    // New Logic: Discount is Flat Amount Per Session
+    // Total = (Rate - Discount) * Days
+    const r = parseFloat(rateOrCost) || 0;
+    const d = parseFloat(discount) || 0;
+    const n = parseInt(days) || 0;
+
+    // Ensure discount doesn't exceed rate
+    const effectiveRate = Math.max(0, r - d);
+    const totalCost = effectiveRate * n;
+
+    // Net Payable = Total Cost - CarryOver - Advance
+    setFinalDue(totalCost - carryOverBalance - (parseFloat(advance) || 0));
   }, [rateOrCost, days, discount, advance, selectedPlanId, carryOverBalance]);
+
+  // Sync simple payment mode to splits
+  useEffect(() => {
+    if (!showPaymentDetails && paymentMethod) {
+      setPaymentSplits({ [paymentMethod]: parseFloat(advance) || 0 });
+    }
+  }, [advance, paymentMethod, showPaymentDetails]);
+
+  // Sync split total back to advance amount
+  useEffect(() => {
+    if (showPaymentDetails) {
+      const total = Object.values(paymentSplits).reduce(
+        (a, b) => a + (b || 0),
+        0,
+      );
+      setAdvance(total > 0 ? total.toString() : "");
+    }
+  }, [paymentSplits, showPaymentDetails]);
+
+  const toggleSplitMethod = (methodName: string) => {
+    setPaymentSplits((prev) => {
+      const next = { ...prev };
+      if (next[methodName] !== undefined) {
+        delete next[methodName];
+      } else {
+        next[methodName] = 0;
+      }
+      return next;
+    });
+  };
+
+  const updateSplitAmount = (methodName: string, amount: number) => {
+    setPaymentSplits((prev) => ({ ...prev, [methodName]: amount }));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!reason.trim())
       return alert("Audit Remarks are compulsory for system changes.");
-    if (parseFloat(advance) > 0 && !paymentMethod)
-      return alert("Select payment method");
+    if (parseFloat(advance) > 0) {
+      if (!showPaymentDetails && !paymentMethod)
+        return alert("Select payment method");
+      if (showPaymentDetails) {
+        const splitTotal = Object.values(paymentSplits).reduce(
+          (a, b) => a + b,
+          0,
+        );
+        if (Math.abs(splitTotal - parseFloat(advance)) > 1) {
+          return alert(
+            `Split amounts (${splitTotal}) must match Advance Paid (${advance})`,
+          );
+        }
+      }
+    }
 
     setIsLoading(true);
     try {
@@ -187,11 +251,14 @@ const ChangePlanModal = ({
         master_patient_id: patient?.master_patient_id || "",
         registration_id: patient?.registration_id,
         new_treatment_type: selectedPlanId || "fixed",
-        new_total_amount: rateOrCost,
-        new_treatment_days: days,
-        new_discount_percentage: discount,
+        new_total_amount:
+          (parseFloat(rateOrCost) || 0) - (parseFloat(discount) || 0),
+
         new_advance_payment: advance,
-        change_plan_payment_method: paymentMethod,
+        change_plan_payment_method: showPaymentDetails
+          ? "split"
+          : paymentMethod,
+        payment_amounts: paymentSplits, // For backend split logic
         reason_for_change: reason,
         new_track_id: patient?.service_track_id || selectedTrack?.id,
         action: "change_plan",
@@ -416,7 +483,7 @@ const ChangePlanModal = ({
                             setRateOrCost(plan.rate.toString());
                             setDays(plan.days.toString());
                           }}
-                          className={`relative group p-7 rounded-[36px] border-2 text-left transition-all duration-500 ${active ? "bg-white border-teal-500 shadow-2xl scale-[1.03]" : "bg-white/40 backdrop-blur-sm border-white/50 opacity-60 hover:opacity-100 hover:border-slate-200"}`}
+                          className={`relative group p-7 rounded-[36px] border text-left transition-all duration-300 ${active ? "bg-white border-teal-500 ring-4 ring-teal-500/10 shadow-2xl scale-[1.02]" : "bg-white border-slate-100 hover:border-slate-300 shadow-sm opacity-100"}`}
                         >
                           {isCurrent && (
                             <div className="absolute -top-3 left-8 px-3 py-1 rounded-full bg-teal-100 border border-teal-200 text-[8px] font-black text-teal-600 uppercase tracking-widest shadow-sm">
@@ -482,10 +549,12 @@ const ChangePlanModal = ({
                   </div>
                   <div className="grid grid-cols-2 gap-8">
                     <FormInput
-                      label="Reduction (%)"
+                      label="Discount (₹/Session)"
                       value={discount}
                       onChange={(e: any) => setDiscount(e.target.value)}
                       type="number"
+                      prefix="-"
+                      placeholder="Flat deduction"
                     />
                     <FormInput
                       label="Advance Paid"
@@ -496,34 +565,147 @@ const ChangePlanModal = ({
                     />
                   </div>
 
-                  <AnimatePresence>
-                    {parseFloat(advance) > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="p-8 rounded-[40px] bg-white/60 backdrop-blur-md border border-white shadow-lg space-y-8"
+                  {/* Payment Section */}
+                  <div className="space-y-6">
+                    <div className="flex justify-between items-end">
+                      <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1">
+                        Payment Details
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPaymentDetails(!showPaymentDetails);
+                          if (!showPaymentDetails && paymentMethod) {
+                            // Switch to split: init with current
+                            setPaymentSplits({
+                              [paymentMethod]: parseFloat(advance) || 0,
+                            });
+                          } else {
+                            // Switch to single: pick first active or reset
+                            const keys = Object.keys(paymentSplits);
+                            if (keys.length > 0) setPaymentMethod(keys[0]);
+                          }
+                        }}
+                        className="flex items-center gap-1 text-[9px] font-bold text-teal-600 uppercase tracking-wider bg-teal-50 px-3 py-1.5 rounded-lg border border-teal-100 hover:bg-teal-100 transition-colors"
                       >
-                        <div className="flex items-center gap-3">
-                          <CreditCard size={14} className="text-teal-500" />
-                          <p className="text-[9px] font-black uppercase text-slate-400 tracking-[0.3em]">
-                            Mode of Payment
-                          </p>
-                        </div>
-                        <div className="flex gap-4 flex-wrap">
-                          {metaData.payment_methods.map((m, i) => (
-                            <button
-                              key={i}
-                              type="button"
-                              onClick={() => setPaymentMethod(m.method_name)}
-                              className={`px-8 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all ${paymentMethod === m.method_name ? "bg-teal-600 text-white shadow-xl shadow-teal-500/30 scale-105" : "bg-white text-slate-500 border border-slate-100 hover:border-slate-300"}`}
+                        {showPaymentDetails ? "Single Mode" : "Split Mode"}
+                        {showPaymentDetails ? (
+                          <ChevronUp size={12} />
+                        ) : (
+                          <ChevronDown size={12} />
+                        )}
+                      </button>
+                    </div>
+
+                    {!showPaymentDetails ? (
+                      <div className="flex gap-4 flex-wrap">
+                        {metaData.payment_methods.map((m, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => setPaymentMethod(m.method_name)}
+                            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all ${paymentMethod === m.method_name ? "bg-teal-600 text-white shadow-lg shadow-teal-500/30 scale-105" : "bg-white text-slate-500 border border-slate-100 hover:border-slate-300"}`}
+                          >
+                            {m.method_name}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-3 p-5 rounded-[24px] bg-slate-50 border border-slate-100">
+                        {metaData.payment_methods.map((m) => {
+                          const active =
+                            paymentSplits[m.method_name] !== undefined;
+                          return (
+                            <div
+                              key={m.method_name}
+                              className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${active ? "bg-white border-teal-500 shadow-sm" : "bg-white/40 border-slate-100 opacity-60"}`}
                             >
-                              {m.method_name}
-                            </button>
-                          ))}
-                        </div>
-                      </motion.div>
+                              <button
+                                type="button"
+                                onClick={() => toggleSplitMethod(m.method_name)}
+                                className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${active ? "bg-teal-500 border-teal-500 text-white" : "bg-white border-slate-300"}`}
+                              >
+                                {active && <Check size={12} strokeWidth={3} />}
+                              </button>
+                              <span className="flex-1 text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                                {m.method_name}
+                              </span>
+                              {active && (
+                                <input
+                                  type="number"
+                                  value={paymentSplits[m.method_name] || ""}
+                                  onChange={(e) =>
+                                    updateSplitAmount(
+                                      m.method_name,
+                                      parseFloat(e.target.value) || 0,
+                                    )
+                                  }
+                                  className="w-20 bg-slate-50 border-none rounded-lg px-2 py-1 text-xs font-bold text-right outline-none text-slate-800"
+                                  placeholder="0"
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
-                  </AnimatePresence>
+                  </div>
+
+                  <div className="flex justify-between items-center p-4 bg-teal-50/50 rounded-2xl border border-teal-100 mb-6">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-teal-600">
+                      Net Rate / Session
+                    </span>
+                    <span className="text-xl font-black text-teal-700 tracking-tight">
+                      ₹
+                      {(
+                        (parseFloat(rateOrCost) || 0) -
+                        (parseFloat(discount) || 0)
+                      ).toLocaleString()}
+                    </span>
+                  </div>
+
+                  {/* Simplified Financial Breakdown */}
+                  <div className="p-6 rounded-[32px] bg-slate-50 border border-slate-100 space-y-3">
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                      <span>Plan Value</span>
+                      <span>
+                        ₹
+                        {(
+                          ((parseFloat(rateOrCost) || 0) -
+                            (parseFloat(discount) || 0)) *
+                          (parseInt(days) || 0)
+                        ).toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                      <span>Wallet Balance</span>
+                      <span
+                        className={`${carryOverBalance > 0 ? "text-emerald-500" : "text-rose-500"}`}
+                      >
+                        {carryOverBalance > 0 ? "- " : "+ "}₹
+                        {Math.abs(carryOverBalance).toLocaleString()}
+                      </span>
+                    </div>
+                    {(parseFloat(advance) || 0) > 0 && (
+                      <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                        <span>Advance Paid</span>
+                        <span className="text-emerald-500">
+                          - ₹{parseFloat(advance).toLocaleString()}
+                        </span>
+                      </div>
+                    )}
+                    <div className="h-px bg-slate-200 w-full my-2" />
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm font-black uppercase tracking-widest text-slate-400">
+                        Final Due
+                      </span>
+                      <span
+                        className={`text-xl font-black tracking-tighter ${finalDue > 0 ? "text-slate-800" : "text-emerald-500"}`}
+                      >
+                        ₹{finalDue.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
 
                   <div className="pt-4">
                     <div className="p-8 rounded-[40px] bg-white/90 backdrop-blur-2xl border border-teal-500/10 flex flex-col md:flex-row gap-8 justify-between items-center shadow-3xl group overflow-hidden transition-all">
@@ -531,7 +713,7 @@ const ChangePlanModal = ({
                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em] leading-none">
                           Net Payable
                         </p>
-                        <h2 className="text-5xl font-black tracking-tighter text-slate-800">
+                        <h2 className="text-3xl font-black tracking-tighter text-slate-800">
                           ₹{finalDue.toLocaleString()}
                         </h2>
                       </div>
@@ -545,7 +727,9 @@ const ChangePlanModal = ({
                         ) : (
                           <Zap size={16} fill="currentColor" />
                         )}
-                        <span>{!reason.trim() ? "Locked" :"Save Changes"}</span>
+                        <span>
+                          {!reason.trim() ? "Locked" : "Save Changes"}
+                        </span>
                       </button>
                     </div>
                   </div>

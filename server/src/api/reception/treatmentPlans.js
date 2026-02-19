@@ -135,10 +135,11 @@ async function editTreatmentPlan(req, res, input) {
                 costPerDay = basePerDay;
             }
 
-            const discountAmount = (packageCost * newDiscPct) / 100; // Recalculate discount value
+            const discountAmountValue = (packageCost * newDiscPct) / 100; // Recalculate discount value
+            const netRate = newDays > 0 ? (totalAmount / newDays) : 0;
 
-            fields.push("total_amount = ?", "discount_amount = ?", "package_cost = ?"); // Removed due_amount, will rely on helper
-            params.push(totalAmount, discountAmount, packageCost);
+            fields.push("total_amount = ?", "discount_amount = ?", "package_cost = ?", "treatment_cost_per_day = ?");
+            params.push(totalAmount, discountAmountValue, packageCost, netRate);
         }
 
         if (fields.length > 0) {
@@ -290,8 +291,30 @@ async function changeTreatmentPlan(req, res, input) {
             patientId
         ]);
 
-        // 5. Record Initial Payment (if any)
-        if (advance > 0) {
+        // 5. Record Initial Payment (Single or Split)
+        const paymentAmounts = input.payment_amounts; // Expecting object { method: amount }
+
+        if (payMethod === 'split' && paymentAmounts && typeof paymentAmounts === 'object') {
+            for (const [method, amount] of Object.entries(paymentAmounts)) {
+                const amt = parseFloat(amount);
+                if (amt > 0) {
+                    await connection.query(`
+                        INSERT INTO payments (
+                            patient_id, branch_id, amount, mode, payment_date, 
+                            remarks, created_at, processed_by_employee_id
+                        ) VALUES (?, ?, ?, ?, ?, 'Advance for New Plan (Split)', NOW(), ?)
+                    `, [
+                        patientId,
+                        patient.branch_id,
+                        amt,
+                        method,
+                        newStartDate,
+                        req.user.employee_id
+                    ]);
+                }
+            }
+        } else if (advance > 0) {
+            // Fallback to single payment if not split or no split data
             await connection.query(`
                 INSERT INTO payments (
                     patient_id, branch_id, amount, mode, payment_date, 

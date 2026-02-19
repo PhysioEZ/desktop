@@ -25,6 +25,8 @@ import {
   ExternalLink,
   History,
   Clock,
+  Hash,
+  UserPlus,
 } from "lucide-react";
 import { usePatientStore } from "../../store/usePatientStore";
 import { format } from "date-fns";
@@ -91,19 +93,15 @@ const DetailField = ({
   value?: string | null;
   icon: React.ElementType;
 }) => (
-  <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 hover:bg-white hover:shadow-sm transition-all group">
-    <div
-      className={`w-10 h-10 rounded-xl bg-white dark:bg-white/5 flex items-center justify-center text-slate-400 border border-slate-100 dark:border-white/5 shadow-sm group-hover:scale-110 transition-transform`}
-    >
-      <Icon size={18} />
-    </div>
-    <div className="flex flex-col min-w-0">
-      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
+  <div className="group">
+    <div className="flex items-center gap-2 text-slate-400 mb-1.5">
+      <Icon size={14} strokeWidth={2} />
+      <span className="text-[10px] font-bold uppercase tracking-widest">
         {label}
       </span>
-      <span className="text-sm font-bold text-slate-800 dark:text-slate-200 truncate">
-        {value || "Not Specified"}
-      </span>
+    </div>
+    <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 pl-0.5">
+      {value || "—"}
     </div>
   </div>
 );
@@ -113,7 +111,6 @@ const StatCard = ({
   value,
   subtext,
   icon: Icon,
-  trend,
   color = "emerald",
 }: {
   label: string;
@@ -123,39 +120,35 @@ const StatCard = ({
   trend?: "up" | "down" | "neutral";
   color?: "emerald" | "rose" | "blue" | "amber" | "indigo" | "cyan";
 }) => {
-  const colors: Record<string, string> = {
-    emerald: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
-    rose: "text-rose-500 bg-rose-500/10 border-rose-500/20",
-    blue: "text-blue-500 bg-blue-500/10 border-blue-500/20",
-    amber: "text-amber-500 bg-amber-500/10 border-amber-500/20",
-    indigo: "text-indigo-500 bg-indigo-500/10 border-indigo-500/20",
-    cyan: "text-cyan-500 bg-cyan-500/10 border-cyan-500/20",
+  const colorClasses = {
+    emerald: "bg-emerald-500/10 text-emerald-600",
+    rose: "bg-rose-500/10 text-rose-600",
+    blue: "bg-blue-500/10 text-blue-600",
+    amber: "bg-amber-500/10 text-amber-600",
+    indigo: "bg-indigo-500/10 text-indigo-600",
+    cyan: "bg-cyan-500/10 text-cyan-600",
   };
 
   return (
-    <div className="p-6 rounded-[24px] bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 shadow-sm hover:shadow-md transition-all group">
-      <div className="flex items-center justify-between mb-4">
-        <div className={`p-3 rounded-2xl ${colors[color] || colors.emerald}`}>
-          <Icon size={20} strokeWidth={2.5} />
-        </div>
-        {trend && (
-          <div className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest opacity-40">
-            {trend === "up" ? <Activity size={12} /> : <Archive size={12} />}
-            <span>{trend === "up" ? "Active" : "History"}</span>
-          </div>
-        )}
+    <div className="flex items-start gap-4 p-2 transition-all hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl cursor-default">
+      <div
+        className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${colorClasses[color] || colorClasses.emerald}`}
+      >
+        <Icon size={22} strokeWidth={2} />
       </div>
-      <h3 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight leading-none mb-2">
-        {value}
-      </h3>
-      <div className="flex flex-col">
-        <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+      <div>
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
           {label}
-        </span>
+        </p>
+        <h4 className="text-xl font-black text-slate-800 dark:text-white leading-tight">
+          {value}
+        </h4>
         {subtext && (
-          <span className="text-[10px] font-medium text-slate-300 mt-1">
+          <p
+            className={`text-[10px] font-bold mt-1 ${color === "rose" ? "text-rose-500" : "text-emerald-500"}`}
+          >
             {subtext}
-          </span>
+          </p>
         )}
       </div>
     </div>
@@ -328,18 +321,6 @@ const PatientDetailsModal = () => {
               <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] font-mono mb-6">
                 {data.patient_uid}
               </p>
-
-              <div className="flex items-center justify-center gap-2 mb-8">
-                <button className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all border border-white/5">
-                  <Phone size={16} />
-                </button>
-                <button className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all border border-white/5">
-                  <Mail size={16} />
-                </button>
-                <button className="w-9 h-9 rounded-xl bg-white/5 hover:bg-white/10 flex items-center justify-center text-slate-400 hover:text-white transition-all border border-white/5">
-                  <MapPin size={16} />
-                </button>
-              </div>
             </div>
 
             {/* Navigation */}
@@ -427,16 +408,6 @@ const PatientDetailsModal = () => {
                   onClick={handlePrintBill}
                 />
                 <QuickAction
-                  icon={ExternalLink}
-                  label="Profile"
-                  onClick={() =>
-                    window.open(
-                      `../patients_profile?patient_id=${data.patient_id}`,
-                      "_blank",
-                    )
-                  }
-                />
-                <QuickAction
                   icon={CreditCard}
                   label="Change Plan"
                   onClick={() => toggleModal("changePlan", true)}
@@ -480,68 +451,88 @@ const PatientDetailsModal = () => {
                       className="space-y-8"
                     >
                       {/* Stats Row */}
-                      {/* Stats Row */}
-                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6">
-                        <StatCard
-                          label="Total Consumed"
-                          value={`₹${parseFloat(String(data.total_consumed || 0)).toLocaleString()}`}
-                          icon={Activity}
-                          color="blue"
-                        />
-                        <StatCard
-                          label="Total Paid"
-                          value={`₹${parseFloat(String(data.total_paid || 0)).toLocaleString()}`}
-                          icon={Wallet}
-                          color="emerald"
-                        />
-                        <StatCard
-                          label="Effective Balance"
-                          value={`₹${walletBalance.toLocaleString()}`}
-                          icon={Wallet}
-                          color={walletBalance < 0 ? "rose" : "emerald"}
-                          subtext={
-                            walletBalance < 0
-                              ? "Outstanding Dues"
-                              : "Available Credit"
-                          }
-                        />
-                        <StatCard
-                          label="Current Due"
-                          value={`₹${dueAmount.toLocaleString()}`}
-                          icon={AlertCircle}
-                          color={dueAmount > 0 ? "rose" : "emerald"}
-                          subtext={
-                            dueAmount > 0 ? "Payment Required" : "All Clear"
-                          }
-                        />
-                        <StatCard
-                          label="Cost / Day"
-                          value={`₹${parseFloat(String(data.cost_per_day || 0)).toLocaleString()}`}
-                          icon={CreditCard}
-                          color="indigo"
-                        />
-                        <StatCard
-                          label="Treatment Days"
-                          value={`${data.attendance_count || 0}/${data.treatment_days || 0}`}
-                          icon={Calendar}
-                          color="amber"
-                          subtext={`${Math.round(((data.attendance_count || 0) / (data.treatment_days || 1)) * 100)}% Complete`}
-                        />
-                        <StatCard
-                          label="Session Time"
-                          value={
-                            data.treatment_time_slot
-                              ? format(
-                                  new Date(
-                                    `2000-01-01T${data.treatment_time_slot}`,
-                                  ),
-                                  "hh:mm a",
-                                )
-                              : "Not Set"
-                          }
-                          icon={Clock}
-                          color="cyan"
-                        />
+                      {/* Panel 1: Financials */}
+                      <div className="bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-[32px] p-8 shadow-sm">
+                        <div className="flex items-center gap-2 mb-6 opacity-50">
+                          <Wallet size={16} />
+                          <span className="text-xs font-black uppercase tracking-widest">
+                            Financial Overview
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                          <StatCard
+                            label="Total Consumed"
+                            value={`₹${parseFloat(String(data.total_consumed || 0)).toLocaleString()}`}
+                            icon={Activity}
+                            color="blue"
+                          />
+                          <StatCard
+                            label="Total Paid"
+                            value={`₹${parseFloat(String(data.total_paid || 0)).toLocaleString()}`}
+                            icon={Wallet}
+                            color="emerald"
+                          />
+                          <StatCard
+                            label="Effective Balance"
+                            value={`₹${walletBalance.toLocaleString()}`}
+                            icon={Wallet}
+                            color={walletBalance < 0 ? "rose" : "emerald"}
+                            subtext={
+                              walletBalance < 0
+                                ? "Outstanding Dues"
+                                : "Available Credit"
+                            }
+                          />
+                          <StatCard
+                            label="Current Due"
+                            value={`₹${dueAmount.toLocaleString()}`}
+                            icon={AlertCircle}
+                            color={dueAmount > 0 ? "rose" : "emerald"}
+                            subtext={
+                              dueAmount > 0 ? "Payment Required" : "All Clear"
+                            }
+                          />
+                        </div>
+                      </div>
+
+                      {/* Panel 2: Treatment & Session */}
+                      <div className="bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-[32px] p-8 shadow-sm">
+                        <div className="flex items-center gap-2 mb-6 opacity-50">
+                          <Activity size={16} />
+                          <span className="text-xs font-black uppercase tracking-widest">
+                            Session Details
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                          <StatCard
+                            label="Cost / Day"
+                            value={`₹${parseFloat(String(data.cost_per_day || 0)).toLocaleString()}`}
+                            icon={CreditCard}
+                            color="indigo"
+                          />
+                          <StatCard
+                            label="Treatment Days"
+                            value={`${data.attendance_count || 0}/${data.treatment_days || 0}`}
+                            icon={Calendar}
+                            color="amber"
+                            subtext={`${Math.round(((data.attendance_count || 0) / (data.treatment_days || 1)) * 100)}% Complete`}
+                          />
+                          <StatCard
+                            label="Session Time"
+                            value={
+                              data.treatment_time_slot
+                                ? format(
+                                    new Date(
+                                      `2000-01-01T${data.treatment_time_slot}`,
+                                    ),
+                                    "hh:mm a",
+                                  )
+                                : "Not Set"
+                            }
+                            icon={Clock}
+                            color="cyan"
+                          />
+                        </div>
                       </div>
 
                       {/* Plan Progress & Quick Actions */}
@@ -553,10 +544,10 @@ const PatientDetailsModal = () => {
                             </h3>
                             <p className="text-sm text-slate-500 max-w-md">
                               Patient is currently engaging with the{" "}
-                              <strong className="text-emerald-500">
+                              <strong className="text-emerald-500 font-bold text-lg">
                                 {data.treatment_type}
                               </strong>{" "}
-                              plan. Attendance consistency is tracked for
+                              plan. <br /> Attendance consistency is tracked for
                               optimal recovery.
                             </p>
                             <div className="mt-8 flex gap-8">
@@ -589,7 +580,7 @@ const PatientDetailsModal = () => {
                             </div>
                           </div>
 
-                          <div className="relative w-40 h-40 mr-8 flex-shrink-0">
+                          <div className="relative w-40 h-40 mr-2 flex-shrink-0">
                             <svg className="w-full h-full transform -rotate-90">
                               <circle
                                 cx="80"
@@ -739,17 +730,49 @@ const PatientDetailsModal = () => {
                       animate={{ opacity: 1, y: 0 }}
                       className="space-y-8"
                     >
-                      {/* Identity & Contact */}
-                      <div className="bg-white dark:bg-white/[0.02] rounded-[32px] p-8 shadow-sm border border-slate-100 dark:border-white/5">
-                        <SectionHeader title="Patient Identity" icon={User} />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Identity Panel */}
+                      <div className="bg-white dark:bg-white/[0.02] rounded-[32px] p-6 shadow-sm border border-slate-100 dark:border-white/5">
+                        <div className="flex items-center gap-2 mb-8 opacity-50">
+                          <User size={16} />
+                          <span className="text-xs font-black uppercase tracking-widest">
+                            Personal Identity
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
                           <DetailField
                             label="Legal Name"
                             value={data.patient_name}
                             icon={User}
                           />
                           <DetailField
-                            label="Primary Contact"
+                            label="Date of Birth / Age"
+                            value={`${data.patient_age} Years • ${data.patient_gender}`}
+                            icon={Calendar}
+                          />
+                          <DetailField
+                            label="Occupation"
+                            value={data.occupation}
+                            icon={Briefcase}
+                          />
+                          <DetailField
+                            label="Registration ID"
+                            value={`#${data.patient_id}`}
+                            icon={Hash}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Contact Panel */}
+                      <div className="bg-white dark:bg-white/[0.02] rounded-[32px] p-8 shadow-sm border border-slate-100 dark:border-white/5">
+                        <div className="flex items-center gap-2 mb-8 opacity-50">
+                          <MapPin size={16} />
+                          <span className="text-xs font-black uppercase tracking-widest">
+                            Contact Details
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-y-8 gap-x-12">
+                          <DetailField
+                            label="Phone Number"
                             value={data.patient_phone || data.phone_number}
                             icon={Phone}
                           />
@@ -758,68 +781,71 @@ const PatientDetailsModal = () => {
                             value={data.email}
                             icon={Mail}
                           />
-                          <DetailField
-                            label="Demographics"
-                            value={`${data.patient_age} Years • ${data.patient_gender}`}
-                            icon={Calendar}
-                          />
-                          <DetailField
-                            label="Profession"
-                            value={data.occupation}
-                            icon={Briefcase}
-                          />
-                          <DetailField
-                            label="Primary Address"
-                            value={data.address}
-                            icon={MapPin}
-                          />
+                          <div className="md:col-span-2">
+                            <DetailField
+                              label="Residential Address"
+                              value={data.address}
+                              icon={MapPin}
+                            />
+                          </div>
                         </div>
                       </div>
 
+                      {/* Clinical Panel */}
                       <div className="bg-white dark:bg-white/[0.02] rounded-[32px] p-8 shadow-sm border border-slate-100 dark:border-white/5">
-                        <SectionHeader
-                          title="Clinical Profile"
-                          icon={Activity}
-                        />
+                        <div className="flex items-center gap-2 mb-8 opacity-50">
+                          <Activity size={16} />
+                          <span className="text-xs font-black uppercase tracking-widest">
+                            Clinical Snapshot
+                          </span>
+                        </div>
 
-                        <div className="space-y-6">
+                        <div className="space-y-8">
                           <div>
-                            <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest block mb-2">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-3">
                               Chief Complaint
                             </span>
-                            <div className="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 text-sm font-medium italic text-slate-700 dark:text-slate-300">
-                              "{data.chief_complain || "No Record"}"
+                            <div className="p-6 rounded-3xl bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+                              <p className="text-lg font-medium text-slate-700 dark:text-slate-200 leading-relaxed italic">
+                                "
+                                {data.chief_complain ||
+                                  "No specific complaint recorded."}
+                                "
+                              </p>
                             </div>
                           </div>
-                          <div className="grid grid-cols-2 gap-4">
-                            <div>
-                              <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">
-                                Lead Clinician
-                              </span>
-                              <span className="text-xs font-bold text-slate-800 dark:text-white">
-                                {data.assigned_doctor?.replace(
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <DetailField
+                              label="Lead Clinician"
+                              value={
+                                data.assigned_doctor?.replace(
                                   /^Dr\.\s*/i,
                                   "",
-                                ) || "Unassigned"}
-                              </span>
+                                ) || "Unassigned"
+                              }
+                              icon={Stethoscope}
+                            />
+                            <DetailField
+                              label="Referred By"
+                              value={data.reffered_by || "Direct Walk-in"}
+                              icon={UserPlus}
+                            />
+                            <div className="md:col-span-2 pt-6 border-t border-slate-100 dark:border-white/5">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Activity
+                                  size={12}
+                                  className="text-emerald-500"
+                                />
+                                <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">
+                                  Current Status
+                                </span>
+                              </div>
+                              <p className="text-xs font-medium text-slate-500 leading-relaxed">
+                                {data.patient_condition ||
+                                  "Patient is under active recovery observation."}
+                              </p>
                             </div>
-                            <div>
-                              <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">
-                                Referral Path
-                              </span>
-                              <span className="text-xs font-bold text-slate-800 dark:text-white capitalize">
-                                {data.referralSource || "Walk-in"}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="pt-4 border-t border-slate-100 dark:border-white/5">
-                            <span className="text-[9px] font-black text-emerald-500 uppercase block mb-1">
-                              Medical Status Summary
-                            </span>
-                            <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                              {data.patient_condition ||
-                                "Patient under active observation."}
-                            </span>
                           </div>
                         </div>
                       </div>
@@ -908,6 +934,25 @@ const PatientDetailsModal = () => {
                       {/* Plan History */}
                       <div className="space-y-4">
                         <SectionHeader title="Plan History" icon={History} />
+
+                        {/* Archive Notice */}
+                        <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-600 mb-6">
+                          <AlertTriangle
+                            size={18}
+                            className="shrink-0 mt-0.5"
+                          />
+                          <div>
+                            <p className="text-sm font-bold leading-tight mb-1">
+                              Archived Plan Records
+                            </p>
+                            <p className="text-[11px] font-medium opacity-80 leading-relaxed">
+                              This section contains previous treatment plans
+                              that have been completed or modified. These
+                              records are for historical reference only.
+                            </p>
+                          </div>
+                        </div>
+
                         {data.history?.map(
                           (
                             h: {
@@ -994,7 +1039,17 @@ const PatientDetailsModal = () => {
                               <span className="text-[10px] font-black text-white/30 uppercase tracking-widest block mb-1">
                                 Total Outstanding
                               </span>
-                              <h3 className="text-4xl font-black tracking-tighter text-white">
+                              <h3
+                                className={`text-4xl font-black tracking-tighter ${
+                                  dueAmount +
+                                    (walletBalance < 0
+                                      ? Math.abs(walletBalance)
+                                      : 0) >
+                                  0
+                                    ? "text-rose-500"
+                                    : "text-white"
+                                }`}
+                              >
                                 ₹
                                 {(
                                   dueAmount +
