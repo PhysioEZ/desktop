@@ -273,7 +273,7 @@ const Schedule = () => {
   const handleRefresh = async () => {
     if (refreshCooldown > 0) return;
 
-    const promise = fetchSchedule();
+    const promise = fetchSchedule(true);
     toast.promise(promise, {
       loading: "Refreshing schedule...",
       success: "Schedule up to date",

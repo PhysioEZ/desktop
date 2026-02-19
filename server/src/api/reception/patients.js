@@ -268,8 +268,30 @@ async function fetchPatients(req, res, branchId, input) {
 
     patients.map(p => {
         const curConsumed = p.attendance_count * (parseFloat(p.cost_per_day) || 0);
-        p.effective_balance = parseFloat(p.total_paid) - (parseFloat(p.total_history_consumed) + curConsumed);
+        // Ensure total_paid is a number
+        p.total_paid = parseFloat(p.total_paid) || 0;
+        p.total_history_consumed = parseFloat(p.total_history_consumed) || 0;
+
+        p.effective_balance = p.total_paid - (p.total_history_consumed + curConsumed);
         p.cost_per_day = parseFloat(p.cost_per_day);
+
+        // Calculate Due Amount dynamically
+        const moneyAvailableForCurrentPlan = p.total_paid - (p.total_history_consumed + curConsumed); // This is effective_balance!
+        // Wait, money available for CURRENT plan is Total Paid - History Consumed.
+        // Effective Balance = (Total Paid - History Consumed) - Current Consumed.
+
+        const netAvailable = p.total_paid - p.total_history_consumed;
+
+        // Logic Update: Show 'Plan Remaining' for Packages, 'Arrears' for Daily.
+        if (parseFloat(p.total_amount) > 0) {
+            // For Packages: Due = Total Plan Cost - Total Paid (Ignoring history consumption for simple "Remaining" view)
+            p.due_amount = parseFloat(p.total_amount) - p.total_paid;
+        } else {
+            // For Daily: DueAmount is only non-zero if they are in debt (negative balance)
+            p.due_amount = p.effective_balance < 0 ? Math.abs(p.effective_balance) : 0;
+        }
+
+        if (p.due_amount < 0) p.due_amount = 0;
 
         // Resolve plan name
         if (p.service_track_id && tracksMap.has(p.service_track_id)) {
@@ -321,20 +343,24 @@ async function fetchDetails(req, res, patientId) {
 
     let totalConsumed = 0;
     const [history] = await pool.query(
-        "SELECT treatment_type, treatment_days, package_cost, treatment_cost_per_day, start_date, end_date FROM patients_treatment WHERE patient_id = ?",
+        "SELECT treatment_type, treatment_days, package_cost, treatment_cost_per_day, start_date, end_date, consumed_amount FROM patients_treatment WHERE patient_id = ?",
         [patientId],
     );
     for (let h of history) {
-        const [hAttRows] = await pool.query(
-            "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < ? AND status = 'present'",
-            [patientId, h.start_date, h.end_date],
-        );
-        const hCount = hAttRows[0].count;
-        const hRate =
-            h.treatment_type === "package" && h.treatment_days > 0
-                ? parseFloat(h.package_cost) / h.treatment_days
-                : parseFloat(h.treatment_cost_per_day);
-        totalConsumed += hCount * hRate;
+        if (h.consumed_amount != null && h.consumed_amount > 0) {
+            totalConsumed += parseFloat(h.consumed_amount);
+        } else {
+            const [hAttRows] = await pool.query(
+                "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < ? AND status = 'present'",
+                [patientId, h.start_date, h.end_date],
+            );
+            const hCount = hAttRows[0].count;
+            const hRate =
+                h.treatment_type === "package" && h.treatment_days > 0
+                    ? parseFloat(h.package_cost) / h.treatment_days
+                    : parseFloat(h.treatment_cost_per_day);
+            totalConsumed += hCount * hRate;
+        }
     }
 
     const curRate =
@@ -351,8 +377,20 @@ async function fetchDetails(req, res, patientId) {
     p.effective_balance = totalPaid - totalConsumed;
     p.attendance_count = cCount;
     p.cost_per_day = curRate;
-    p.due_amount = p.effective_balance < 0 ? Math.abs(p.effective_balance) : 0;
+
+    // Calculate Due Amount
+    // If Package (total_amount > 0): Due = Total Amount - Total Paid (Simple Remaining)
+    // If Daily: Due = Arrears (if any)
+    const planCost = parseFloat(p.total_amount || 0);
+    if (planCost > 0) {
+        p.due_amount = planCost - totalPaid;
+    } else {
+        p.due_amount = p.effective_balance < 0 ? Math.abs(p.effective_balance) : 0;
+    }
+    if (p.due_amount < 0) p.due_amount = 0;
+
     p.total_consumed = totalConsumed;
+    p.total_paid = totalPaid;
 
     // Resolve plan name for current plan
     if (p.service_track_id) {

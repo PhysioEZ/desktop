@@ -428,7 +428,11 @@ const DynamicServiceModal = ({
             serviceTrackId: track.id,
             serviceType: track.name.toLowerCase().replace(/\s+/g, "_"),
             treatmentType:
-              track.pricing.model === "multi-plan" ? selectedPlanId : "fixed",
+              track.pricing?.plans && track.pricing.plans.length > 0
+                ? track.pricing.plans
+                    .find((p: any) => p.id === selectedPlanId)
+                    ?.name?.toLowerCase() || "daily"
+                : track.name?.toLowerCase() || "fixed",
             treatmentDays: parseInt(days.toString()) || 0,
             totalCost: billing.effectiveAmount,
             advancePayment: billing.numAdvance,
@@ -599,14 +603,14 @@ const DynamicServiceModal = ({
 
                 <div className="grid grid-cols-2 gap-4 bg-slate-50/30 dark:bg-white/[0.01] p-6 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-inner">
                   <PremiumInput
-                    label="Rate / Unit"
+                    label="Cost Per Day"
                     value={rate}
                     onChange={(e: any) => setRate(e.target.value)}
                     type="number"
                     prefix="₹"
                   />
                   <PremiumInput
-                    label="Quantity"
+                    label="No of days"
                     value={days}
                     onChange={(e: any) => setDays(e.target.value)}
                     type="number"
@@ -754,7 +758,7 @@ const DynamicServiceModal = ({
                 <div className="grid grid-cols-1 gap-4 bg-slate-50/20 dark:bg-white/[0.01] p-6 rounded-[24px] border border-slate-100 dark:border-white/5 shadow-inner">
                   <div className="space-y-4">
                     <PremiumInput
-                      label="Deduction (₹/Day)"
+                      label="Discount (₹/Day)"
                       value={discount}
                       onChange={(e: any) => setDiscount(e.target.value)}
                       type="number"
@@ -855,7 +859,7 @@ const DynamicServiceModal = ({
                                 {method.method_name}
                               </span>
                               {isSelected && (
-                                <div className="w-24 relative">
+                                <div className="w-48 relative">
                                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">
                                     ₹
                                   </span>

@@ -18,6 +18,7 @@ import {
   AlertCircle,
   Trash2,
   History as HistoryIcon,
+  RefreshCw,
   CheckCircle2,
   Search,
   User,
@@ -944,6 +945,9 @@ const Registration = () => {
         setSelectedRegistration(data.data);
         setIsEditing(false); // Reset edit mode when opening new details
         setIsDetailsModalOpen(true);
+        if (forceRefresh) {
+          showToast("Registration Profile Updated", "success");
+        }
       }
     } catch (err) {
       console.error("Failed to fetch details:", err);
@@ -1633,6 +1637,15 @@ const Registration = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() =>
+                      fetchDetails(selectedRegistration.registration_id, true)
+                    }
+                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100/80 text-slate-400 hover:text-emerald-500 transition-all active:rotate-180 duration-500"
+                    title="Refresh Details"
+                  >
+                    <RefreshCw size={16} />
+                  </button>
+                  <button
                     onClick={
                       isEditing ? () => setIsEditing(false) : startEditing
                     }
@@ -1658,8 +1671,9 @@ const Registration = () => {
                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                         Workflow Operations
                       </h4>
-                      {(selectedRegistration.approval_status === "pending" ||
-                        selectedRegistration.approval_status ===
+                      {(selectedRegistration.approval_status?.toLowerCase() ===
+                        "pending" ||
+                        selectedRegistration.approval_status?.toLowerCase() ===
                           "rejected") && (
                         <span className="text-[9px] font-bold text-rose-500 uppercase flex items-center gap-1 bg-rose-50 px-2 py-0.5 rounded-full">
                           <Lock size={8} /> Locked
@@ -1675,9 +1689,9 @@ const Registration = () => {
                           <button
                             key={track.id || idx}
                             disabled={
-                              selectedRegistration.approval_status ===
+                              selectedRegistration.approval_status?.toLowerCase() ===
                                 "pending" ||
-                              selectedRegistration.approval_status ===
+                              selectedRegistration.approval_status?.toLowerCase() ===
                                 "rejected"
                             }
                             onClick={() => {
@@ -1685,16 +1699,16 @@ const Registration = () => {
                               setIsDynamicModalOpen(true);
                             }}
                             className={`group flex items-center gap-3 p-3 rounded-2xl border transition-all text-left ${
-                              selectedRegistration.approval_status ===
+                              selectedRegistration.approval_status?.toLowerCase() ===
                                 "pending" ||
-                              selectedRegistration.approval_status ===
+                              selectedRegistration.approval_status?.toLowerCase() ===
                                 "rejected"
                                 ? "bg-slate-50 border-slate-100 opacity-50"
                                 : "bg-white border-slate-100 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/5 hover:-translate-y-0.5"
                             }`}
                           >
                             <div
-                              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${selectedRegistration.approval_status === "pending" || selectedRegistration.approval_status === "rejected" ? "bg-slate-100 text-slate-400" : "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white"}`}
+                              className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${selectedRegistration.approval_status?.toLowerCase() === "pending" || selectedRegistration.approval_status?.toLowerCase() === "rejected" ? "bg-slate-100 text-slate-400" : "bg-emerald-50 text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white"}`}
                             >
                               <Icon size={18} />
                             </div>

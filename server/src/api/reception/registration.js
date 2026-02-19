@@ -210,7 +210,7 @@ exports.quickAddPatient = async (req, res) => {
         const treatmentDays = parseInt(input.treatmentDays) || 0;
         const totalAmount = parseFloat(input.totalCost || 0);
         const advancePayment = parseFloat(input.advancePayment || 0);
-        const discountPercentage = parseFloat(input.discount || 0);
+        const discountInput = parseFloat(input.discount || 0);
         const dueAmount = parseFloat(input.dueAmount || 0);
         const startDate = input.startDate || null;
         const paymentMethodString = input.paymentMethod || 'Cash';
@@ -220,6 +220,11 @@ exports.quickAddPatient = async (req, res) => {
 
         if (!registrationId || !treatmentType || !startDate || !timeSlot) {
             throw new Error('Missing required fields: registrationId, treatmentType, startDate, and timeSlot are mandatory.');
+        }
+
+        // Fallback for generic 'fixed' or 'package' strings to be more descriptive
+        if (treatmentType === 'fixed' || treatmentType === 'package') {
+            treatmentType = serviceType.toLowerCase();
         }
 
         // Get master_patient_id
@@ -245,7 +250,25 @@ exports.quickAddPatient = async (req, res) => {
 
         const treatmentCostPerDay = treatmentDays > 0 ? totalAmount / treatmentDays : null;
         const packageCost = treatmentDays === 0 ? totalAmount : null;
-        const discountAmount = (totalAmount * discountPercentage) / 100;
+
+        // Calculate total discount amount correctly based on source form type
+        let discountAmount = 0;
+        if (input.isDynamic) {
+            // In DynamicServiceModal, discount is ₹/Day
+            discountAmount = treatmentDays > 0 ? (discountInput * treatmentDays) : discountInput;
+        } else {
+            // In legacy QuickAddModal, discount is percentage (e.g. 10 for 10%)
+            if (discountInput > 0 && discountInput < 100) {
+                // net = gross * (1 - p/100) => gross = net / (1 - p/100)
+                const gross = totalAmount / (1 - (discountInput / 100));
+                discountAmount = gross - totalAmount;
+            } else if (discountInput >= 100) {
+                // If 100% discount, then it's a bit tricky since totalAmount is 0
+                // We just record it as 0 for now as we don't have subtotal here,
+                // but this case is rare.
+                discountAmount = 0;
+            }
+        }
 
         // Insert Patient
         const [ptResult] = await connection.query(`

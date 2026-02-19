@@ -1,4 +1,6 @@
 const pool = require('../../config/db');
+const { recalculatePatientFinancials } = require('../../utils/financials');
+
 
 exports.handleTreatmentPlanRequest = async (req, res) => {
     const input = { ...req.query, ...req.body };
@@ -85,35 +87,58 @@ async function editTreatmentPlan(req, res, input) {
             params.push(`\n[Edit: ${input.edit_remarks}]`);
         }
 
-        // 2. Financial Recalculation (if needed)
-        // If days or discount changed, we must update total_amount and due_amount
-        if (input.edit_treatment_days !== undefined || input.edit_discount_percentage !== undefined) {
+
+        // 2. Financial Recalculation
+        // If days, discount, or amount changed, we must update total_amount
+        const needsTotalRecalc = input.edit_treatment_days !== undefined || input.edit_discount_percentage !== undefined || input.edit_total_amount !== undefined;
+
+        if (needsTotalRecalc) {
             const newDays = parseInt(input.edit_treatment_days !== undefined ? input.edit_treatment_days : patient.treatment_days) || 0;
             const newDiscPct = parseFloat(input.edit_discount_percentage !== undefined ? input.edit_discount_percentage : patient.discount_percentage) || 0;
 
-            // Rate logic: Use existing cost per day
-            const costPerDay = (patient.treatment_type === 'package' && patient.treatment_days > 0)
-                ? (parseFloat(patient.package_cost) / patient.treatment_days)
-                : parseFloat(patient.treatment_cost_per_day || 0);
+            // Logic:
+            // If user provides a specific Total Amount, we rely on that (and reverse calc rate).
+            // If not, we calc Total from Rate * Days.
 
-            const subtotal = costPerDay * newDays;
-            const discountAmount = (subtotal * newDiscPct) / 100;
-            const totalAmount = subtotal - discountAmount;
+            let totalAmount = 0;
+            let packageCost = 0;
+            let costPerDay = 0;
 
-            // Recalculate Due Amount
-            // Dues = (Consumed from History) + (Consumed in Current Plan) - (Total Paid)
-            // But usually we just update the total and subtract payments.
-            // Simplified for Edit: total_amount - advance_payment (incremental edits)
-            // Actually, we should fetch Total Paid
-            const [paidRows] = await connection.query("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE patient_id = ?", [patientId]);
-            const totalPaid = parseFloat(paidRows[0].total || 0);
+            // Scenario A: User manually edited total (overrides rate logic)
+            if (input.edit_total_amount !== undefined) {
+                totalAmount = parseFloat(input.edit_total_amount);
+                // If days > 0, rate is total / days
+                if (newDays > 0) {
+                    costPerDay = totalAmount / newDays;
+                }
+                packageCost = totalAmount; // For package, cost is total
+            }
+            // Scenario B: User edited Days/Discount, preserving existing Rate structure
+            else {
+                // Get base rate (undiscounted)
+                // If it was package, implicit rate was package_cost/days
+                // If it was daily, it's treatment_cost_per_day
+                // We typically want to maintain the "Daily Rate" if we are extending days.
 
-            // Optimized History Consumption
-            const [histRows] = await connection.query("SELECT COALESCE(SUM(consumed_amount), 0) as total FROM patients_treatment WHERE patient_id = ?", [patientId]);
-            const historyConsumed = parseFloat(histRows[0].total || 0);
+                let basePerDay = parseFloat(patient.treatment_cost_per_day || 0);
+                if (patient.treatment_type === 'package' && patient.treatment_days > 0) {
+                    basePerDay = parseFloat(patient.package_cost) / patient.treatment_days;
+                }
 
-            fields.push("total_amount = ?", "discount_amount = ?", "due_amount = ?");
-            params.push(totalAmount, discountAmount, totalAmount - (totalPaid - historyConsumed));
+                const subtotal = basePerDay * newDays;
+                const discountAmount = (subtotal * newDiscPct) / 100;
+                totalAmount = subtotal - discountAmount;
+                packageCost = (newDays > 1) ? subtotal : 0; // package cost usually implies gross amount before discount? Checking registration.js... 
+                // In registration.js: packageCost = treatmentDays === 0 ? totalAmount : null; Wait, logic varies.
+                // Let's stick to: package_cost is the GROSS amount for the package.
+                packageCost = subtotal;
+                costPerDay = basePerDay;
+            }
+
+            const discountAmount = (packageCost * newDiscPct) / 100; // Recalculate discount value
+
+            fields.push("total_amount = ?", "discount_amount = ?", "package_cost = ?"); // Removed due_amount, will rely on helper
+            params.push(totalAmount, discountAmount, packageCost);
         }
 
         if (fields.length > 0) {
@@ -121,6 +146,9 @@ async function editTreatmentPlan(req, res, input) {
             const sql = `UPDATE patients SET ${fields.join(", ")} WHERE patient_id = ?`;
             await connection.query(sql, params);
         }
+
+        // 3. Centralized Recalculation (Fixes unit cost & dues)
+        await recalculatePatientFinancials(connection, patientId);
 
         await connection.commit();
         res.json({ success: true, message: 'Plan updated successfully' });
@@ -278,6 +306,9 @@ async function changeTreatmentPlan(req, res, input) {
                 req.user.employee_id
             ]);
         }
+
+        // 6. Centralized Recalculation to ensure integrity
+        await recalculatePatientFinancials(connection, patientId);
 
         await connection.commit();
         res.json({

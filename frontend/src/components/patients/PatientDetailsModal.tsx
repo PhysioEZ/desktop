@@ -23,8 +23,8 @@ import {
   AlertTriangle,
   ArrowRight,
   ExternalLink,
-  Zap,
   History,
+  Clock,
 } from "lucide-react";
 import { usePatientStore } from "../../store/usePatientStore";
 import { format } from "date-fns";
@@ -86,13 +86,10 @@ const DetailField = ({
   label,
   value,
   icon: Icon,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  color = "emerald",
 }: {
   label: string;
   value?: string | null;
   icon: React.ElementType;
-  color?: string;
 }) => (
   <div className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 hover:bg-white hover:shadow-sm transition-all group">
     <div
@@ -124,13 +121,15 @@ const StatCard = ({
   subtext?: string;
   icon: React.ElementType;
   trend?: "up" | "down" | "neutral";
-  color?: "emerald" | "rose" | "blue" | "amber";
+  color?: "emerald" | "rose" | "blue" | "amber" | "indigo" | "cyan";
 }) => {
   const colors: Record<string, string> = {
     emerald: "text-emerald-500 bg-emerald-500/10 border-emerald-500/20",
     rose: "text-rose-500 bg-rose-500/10 border-rose-500/20",
     blue: "text-blue-500 bg-blue-500/10 border-blue-500/20",
     amber: "text-amber-500 bg-amber-500/10 border-amber-500/20",
+    indigo: "text-indigo-500 bg-indigo-500/10 border-indigo-500/20",
+    cyan: "text-cyan-500 bg-cyan-500/10 border-cyan-500/20",
   };
 
   return (
@@ -478,34 +477,46 @@ const PatientDetailsModal = () => {
                       className="space-y-8"
                     >
                       {/* Stats Row */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {/* Stats Row */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-6">
                         <StatCard
                           label="Total Consumed"
                           value={`₹${parseFloat(String(data.total_consumed || 0)).toLocaleString()}`}
                           icon={Activity}
                           color="blue"
                         />
-                        {dueAmount > 0 ? (
-                          <StatCard
-                            label="Current Due"
-                            value={`₹${dueAmount.toLocaleString()}`}
-                            icon={AlertCircle}
-                            color="rose"
-                            subtext="Immediate Payment Required"
-                          />
-                        ) : (
-                          <StatCard
-                            label="Wallet Balance"
-                            value={`₹${walletBalance.toLocaleString()}`}
-                            icon={Wallet}
-                            color={walletBalance < 0 ? "rose" : "emerald"}
-                            subtext={
-                              walletBalance < 0
-                                ? "Outstanding Dues"
-                                : "Available Credit"
-                            }
-                          />
-                        )}
+                        <StatCard
+                          label="Total Paid"
+                          value={`₹${parseFloat(String(data.total_paid || 0)).toLocaleString()}`}
+                          icon={Wallet}
+                          color="emerald"
+                        />
+                        <StatCard
+                          label="Effective Balance"
+                          value={`₹${walletBalance.toLocaleString()}`}
+                          icon={Wallet}
+                          color={walletBalance < 0 ? "rose" : "emerald"}
+                          subtext={
+                            walletBalance < 0
+                              ? "Outstanding Dues"
+                              : "Available Credit"
+                          }
+                        />
+                        <StatCard
+                          label="Current Due"
+                          value={`₹${dueAmount.toLocaleString()}`}
+                          icon={AlertCircle}
+                          color={dueAmount > 0 ? "rose" : "emerald"}
+                          subtext={
+                            dueAmount > 0 ? "Payment Required" : "All Clear"
+                          }
+                        />
+                        <StatCard
+                          label="Cost / Day"
+                          value={`₹${parseFloat(String(data.cost_per_day || 0)).toLocaleString()}`}
+                          icon={CreditCard}
+                          color="indigo"
+                        />
                         <StatCard
                           label="Treatment Days"
                           value={`${data.attendance_count || 0}/${data.treatment_days || 0}`}
@@ -514,15 +525,19 @@ const PatientDetailsModal = () => {
                           subtext={`${Math.round(((data.attendance_count || 0) / (data.treatment_days || 1)) * 100)}% Complete`}
                         />
                         <StatCard
-                          label="Current Plan"
-                          value={data.treatment_type || "No Plan"}
-                          icon={Zap}
-                          color="emerald"
-                          subtext={
-                            data.end_date
-                              ? `Exp: ${format(new Date(data.end_date), "dd MMM")}`
-                              : "No Expiry"
+                          label="Session Time"
+                          value={
+                            data.treatment_time_slot
+                              ? format(
+                                  new Date(
+                                    `2000-01-01T${data.treatment_time_slot}`,
+                                  ),
+                                  "hh:mm a",
+                                )
+                              : "Not Set"
                           }
+                          icon={Clock}
+                          color="cyan"
                         />
                       </div>
 

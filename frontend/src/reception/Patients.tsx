@@ -429,9 +429,6 @@ const Patients = () => {
                       );
                       const isPresent = patient.today_attendance === "present";
                       const isPending = patient.today_attendance === "pending";
-                      const dueAmount = isNaN(parseFloat(patient.due_amount))
-                        ? 0
-                        : parseFloat(patient.due_amount);
                       const effectiveBalance = isNaN(
                         parseFloat(String(patient.effective_balance)),
                       )
@@ -506,12 +503,17 @@ const Patients = () => {
                             </div>
                           </div>
 
-                          <div className="text-right flex flex-col gap-0.5 pr-4">
-                            <div className="text-xs font-black text-rose-500">
-                              ₹{dueAmount.toLocaleString()}
-                            </div>
-                            <div className="text-[10px] font-black text-emerald-500/60 uppercase tracking-tighter">
-                              BAL: ₹
+                          <div className="text-right pr-4">
+                            <div
+                              className={`text-sm ${
+                                effectiveBalance > 0
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : effectiveBalance < 0
+                                    ? "text-rose-600 dark:text-rose-400"
+                                    : "text-orange-500"
+                              }`}
+                            >
+                              {effectiveBalance < 0 ? "-" : ""}₹
                               {Math.abs(effectiveBalance).toLocaleString()}
                             </div>
                           </div>

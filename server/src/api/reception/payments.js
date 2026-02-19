@@ -1,4 +1,6 @@
 const pool = require('../../config/db');
+const { recalculatePatientFinancials } = require('../../utils/financials');
+
 
 exports.handleAddPayment = async (req, res) => {
     try {
@@ -12,12 +14,26 @@ exports.handleAddPayment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Valid patient ID and amount required' });
         }
 
-        await pool.query(`
-            INSERT INTO payments (patient_id, branch_id, amount, mode, payment_date, remarks, created_at, processed_by_employee_id)
-            VALUES (?, ?, ?, ?, CURDATE(), ?, NOW(), ?)
-        `, [patientId, req.user.branch_id, amount, method, remarks, req.user.employee_id]);
+        const connection = await pool.getConnection();
+        try {
+            await connection.beginTransaction();
 
-        res.json({ success: true, message: 'Payment added successfully' });
+            await connection.query(`
+                INSERT INTO payments (patient_id, branch_id, amount, mode, payment_date, remarks, created_at, processed_by_employee_id)
+                VALUES (?, ?, ?, ?, CURDATE(), ?, NOW(), ?)
+            `, [patientId, req.user.branch_id, amount, method, remarks, req.user.employee_id]);
+
+            // Recalculate Financials
+            await recalculatePatientFinancials(connection, patientId);
+
+            await connection.commit();
+            res.json({ success: true, message: 'Payment added successfully' });
+        } catch (err) {
+            await connection.rollback();
+            throw err;
+        } finally {
+            connection.release();
+        }
 
     } catch (error) {
         console.error("Add Payment Error:", error);

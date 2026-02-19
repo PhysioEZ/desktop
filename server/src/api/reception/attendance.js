@@ -1,4 +1,6 @@
 const pool = require('../../config/db');
+const { recalculatePatientFinancials } = require('../../utils/financials');
+
 
 exports.handleAttendanceRequest = async (req, res) => {
     try {
@@ -46,36 +48,10 @@ async function revertAttendance(req, res, branchId, input) {
         // 2. Delete the attendance record
         await connection.query("DELETE FROM attendance WHERE attendance_id = ?", [attRows[0].attendance_id]);
 
-        // 3. Recalculate Balance and Dues (Same logic as PHP/Fetch)
-        const [ptRows] = await connection.query("SELECT * FROM patients WHERE patient_id = ?", [patient_id]);
-        const patient = ptRows[0];
-        if (!patient) throw new Error("Patient not found");
-
-        const [paidRows] = await connection.query("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE patient_id = ?", [patient_id]);
-        const totalPaid = parseFloat(paidRows[0].total || 0);
-
-        const [histRows] = await connection.query("SELECT COALESCE(SUM(consumed_amount), 0) as total FROM patients_treatment WHERE patient_id = ?", [patient_id]);
-        const historyConsumed = parseFloat(histRows[0].total || 0);
-
-        const curRate = (patient.treatment_type === 'package' && patient.treatment_days > 0)
-            ? (parseFloat(patient.package_cost) / patient.treatment_days)
-            : parseFloat(patient.treatment_cost_per_day || 0);
-
-        const [cAttRows] = await connection.query(
-            "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'",
-            [patient_id, patient.start_date || '2000-01-01']
-        );
-        const currentAttendanceCount = cAttRows[0].count; // This count is now accurate since we deleted the row
-
-        const currentConsumed = currentAttendanceCount * curRate;
-        const effectiveBalance = totalPaid - (historyConsumed + currentConsumed);
-        const recalcDue = parseFloat(patient.total_amount) - totalPaid;
-
-        // 4. Update the patients table (following PHP logic)
-        await connection.query(
-            "UPDATE patients SET advance_payment = ?, due_amount = ? WHERE patient_id = ?",
-            [effectiveBalance, recalcDue, patient_id]
-        );
+        // 3. Recalculate Balance and Dues (Centralized)
+        // We deleted the attendance, so recalculating will automatically reflect the refund
+        const financials = await recalculatePatientFinancials(connection, patient_id);
+        const effectiveBalance = financials.effective_balance;
 
         await connection.commit();
         res.json({
@@ -133,17 +109,26 @@ async function markFullAttendance(req, res, branchId, input) {
             const today = new Date().toISOString().split('T')[0];
             const [alreadyMarked] = await connection.query("SELECT attendance_id FROM attendance WHERE patient_id = ? AND attendance_date = ? AND status = 'present'", [patient_id, today]);
 
-            // If they weren't already marked present today, this visit will cost 'curRate'
+            // Check if effectiveBalance covers this session
+            // Note: effectiveBalance calculated above INCLUDES the payment made in this request (totalPaidWithNew)
+            // But it DEDUCTS current consumption. 
+            // If they are NOT already marked, the 'currentConsumed' calc above did NOT include this session yet.
+            // So effectiveBalance is the funds available for THIS session.
+
             // Relaxed check: Compare values in paisa/cents to avoid floating point issues
-            if (alreadyMarked.length === 0 && Math.round(effectiveBalance * 100) < Math.round(curRate * 100)) {
-                // If it's a package and they still have days left, we might allow it? 
-                // No, in this system, the balance must be sufficient regardless of package/daily if it's strictly wallet based.
-                // However, usually packages are paid upfront. If effectiveBalance < curRate, they are essentially in debt.
-                return res.status(403).json({
-                    success: false,
-                    message: `Insufficient Balance. Current: ${effectiveBalance.toFixed(2)}, Session Cost: ${curRate.toFixed(2)}. Please collect payment first.`,
-                    balance: effectiveBalance
-                });
+            if (alreadyMarked.length === 0) {
+                // effectiveBalance must be >= curRate 
+                // However, we must ensure we aren't double counting.
+                // logic: available = (Total Paid) - (History Consumed) - (Current Consumed * Rate)
+                // This available amount must cover 'curRate'
+
+                if (Math.round(effectiveBalance * 100) < Math.round(curRate * 100)) {
+                    return res.status(403).json({
+                        success: false,
+                        message: `Insufficient Balance. Current: ${effectiveBalance.toFixed(2)}, Session Cost: ${curRate.toFixed(2)}. Please collect payment first.`,
+                        balance: effectiveBalance
+                    });
+                }
             }
         }
 
@@ -198,11 +183,15 @@ async function markFullAttendance(req, res, branchId, input) {
             await connection.query("UPDATE patients SET status = 'active' WHERE patient_id = ?", [patient_id]);
         }
 
+        // 6. Centralized Financial Update
+        const financials = await recalculatePatientFinancials(connection, patient_id);
+
+
         await connection.commit();
         res.json({
             success: true,
             message: status === 'pending' ? 'Attendance request sent for approval' : 'Attendance marked successfully',
-            new_balance: (effectiveBalance - (status === 'present' ? curRate : 0)).toFixed(2)
+            new_balance: financials.effective_balance.toFixed(2)
         });
 
     } catch (error) {

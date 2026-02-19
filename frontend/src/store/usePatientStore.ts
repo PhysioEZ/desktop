@@ -46,6 +46,7 @@ export interface Patient {
     gender?: string;
     chief_complain?: string;
     total_consumed?: number;
+    total_paid?: number;
     created_at?: string;
 }
 
