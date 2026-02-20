@@ -490,7 +490,7 @@ async function updateTestItem(req, res, branchId, input) {
 
         let parentStatus = 'pending';
         if (allItemRows.every(i => i.test_status === 'completed')) parentStatus = 'completed';
-        else if (allItemRows.some(i => i.test_status === 'completed' || i.test_status === 'in-progress')) parentStatus = 'in-progress';
+        else if (allItemRows.some(i => i.test_status === 'completed' || i.test_status === 'in-progress')) parentStatus = 'pending';
 
         let parentPayStatus = 'pending';
         if (allItemRows.every(i => i.payment_status === 'paid')) parentPayStatus = 'paid';

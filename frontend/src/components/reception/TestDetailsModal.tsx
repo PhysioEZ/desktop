@@ -1,18 +1,21 @@
 import { useState, useEffect } from "react";
 import {
   X,
-  Printer,
   User,
   Phone,
-  Users,
   Info,
-  AlertCircle,
+  Users,
   FlaskConical,
-  Activity,
   Wallet,
-  CreditCard,
-  TrendingDown,
+  AlertCircle,
+  FileText,
+  MapPin,
+  Calendar,
+  Check,
   Edit,
+  TrendingDown,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL, authFetch } from "../../config";
@@ -44,6 +47,7 @@ interface TestItem {
   referred_by?: string | null;
   test_done_by?: string | null;
   assigned_test_date?: string | null;
+  payment_method?: string | null;
 }
 
 interface FullTestDetails {
@@ -53,12 +57,12 @@ interface FullTestDetails {
   assigned_test_date: string;
   patient_name: string;
   phone_number: string;
+  alternate_phone_no?: string | null;
   gender: string;
   age: string;
   dob?: string | null;
   parents?: string | null;
   relation?: string | null;
-  alternate_phone_no?: string | null;
   address?: string | null;
   limb?: string | null;
   test_name: string;
@@ -78,21 +82,17 @@ interface TestDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   test: TestRecord | null;
-  onPrint?: (test: TestRecord) => void;
 }
 
-const TestDetailsModal = ({
-  isOpen,
-  onClose,
-  test,
-  onPrint,
-}: TestDetailsModalProps) => {
-  const [activeTab, setActiveTab] = useState("overview");
+const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
   const [fullDetails, setFullDetails] = useState<FullTestDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editedData, setEditedData] = useState<Partial<FullTestDetails>>({});
+  const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>(
+    {},
+  );
 
   useEffect(() => {
     if (isOpen && test?.uid) {
@@ -100,8 +100,19 @@ const TestDetailsModal = ({
     } else if (!isOpen) {
       setFullDetails(null);
       setIsEditing(false);
+      setExpandedItems({});
     }
   }, [isOpen, test]);
+
+  // Expand first item on load
+  useEffect(() => {
+    if (fullDetails?.test_items?.length) {
+      setExpandedItems((prev) => ({
+        ...prev,
+        [fullDetails.test_items[0].item_id]: true,
+      }));
+    }
+  }, [fullDetails]);
 
   const fetchDetails = async () => {
     if (!test?.uid) return;
@@ -121,11 +132,14 @@ const TestDetailsModal = ({
         toast.error(res.message || "Failed to fetch details");
       }
     } catch (err) {
-      console.error(err);
       toast.error("An error occurred while fetching details");
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const toggleItem = (itemId: number) => {
+    setExpandedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
   };
 
   const handleUpdateStatus = async (
@@ -137,7 +151,7 @@ const TestDetailsModal = ({
     const toastId = toast.loading(`Updating ${type} status...`);
     try {
       const body: any = {
-        action: type === "test" ? "update_item" : "update_item", // The backend handler handles both
+        action: "update_item",
         item_id: itemId,
         test_id: fullDetails.test_id,
       };
@@ -147,16 +161,14 @@ const TestDetailsModal = ({
 
       const response = await authFetch(`${API_BASE_URL}/reception/tests`, {
         method: "POST",
-        body: JSON.stringify({ ...body, action: "update_item" }),
+        body: JSON.stringify(body),
       });
 
       const res = await response.json();
       if (res.success) {
         toast.success(
-          `${type.charAt(0).toUpperCase() + type.slice(1)} updated`,
-          {
-            id: toastId,
-          },
+          `${type === "test" ? "Test Status" : "Payment Status"} updated`,
+          { id: toastId },
         );
         fetchDetails();
       } else {
@@ -167,9 +179,14 @@ const TestDetailsModal = ({
     }
   };
 
-  const handleAddPayment = async (itemId: number | null, amount: number) => {
+  const handleAddPayment = async (
+    itemId: number | null,
+    amount: number,
+    method: string = "cash",
+  ) => {
     if (!fullDetails) return;
-    if (amount <= 0) return toast.error("Enter a valid amount");
+    if (amount <= 0 || isNaN(amount))
+      return toast.error("Enter a valid amount");
 
     const toastId = toast.loading("Recording payment...");
     try {
@@ -180,7 +197,7 @@ const TestDetailsModal = ({
           test_id: fullDetails.test_id,
           item_id: itemId,
           amount,
-          method: "cash",
+          method,
         }),
       });
 
@@ -227,776 +244,637 @@ const TestDetailsModal = ({
   };
 
   if (!test) return null;
+  const data = fullDetails || ({} as Partial<FullTestDetails>);
 
-  const data =
-    fullDetails ||
-    ({
-      patient_name: test?.patient_name || "Unknown",
-      test_uid: test?.test_uid || "UNKNOWN-UID",
-      phone_number: test?.uid || "N/A", // dummy
-      age: "N/A",
-      gender: "N/A",
-      referred_by: "N/A",
-      due_amount: test?.due_amount || 0,
-      total_amount: test?.total_amount || 0,
-      advance_amount: test?.paid_amount || 0,
-      discount: 0,
-      test_items: [],
-    } as any);
-
-  const walletBalance =
-    parseFloat(String(data.advance_amount || 0)) -
-    parseFloat(String(data.total_amount || 0)) +
-    parseFloat(String(data.discount || 0));
-
-  const patientData = {
-    age:
-      fullDetails?.age || (test?.uid ? String(test.uid).split("-")[0] : "N/A"), // Just a fallback
-    gender: fullDetails?.gender || "N/A",
-    phone: fullDetails?.phone_number || "N/A",
-    address: fullDetails?.address || "N/A",
-    dob: fullDetails?.dob || "N/A",
-    guardian: fullDetails?.parents || "N/A",
-    relation: fullDetails?.relation || "N/A",
+  const getStatusColor = (status: string) => {
+    if (status === "pending" || status === "Pending")
+      return "bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800";
+    if (
+      status === "completed" ||
+      status === "Completed" ||
+      status === "paid" ||
+      status === "Paid"
+    )
+      return "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800";
+    if (
+      status === "cancelled" ||
+      status === "Cancelled" ||
+      status === "unpaid" ||
+      status === "Unpaid"
+    )
+      return "bg-rose-100 text-rose-800 border-rose-200 dark:bg-rose-900/30 dark:text-rose-400 dark:border-rose-800";
+    return "bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700";
   };
 
-  const TabButton = ({
-    icon: Icon,
-    label,
-    active,
-    onClick,
-  }: {
-    icon: React.ElementType;
-    label: string;
-    active: boolean;
-    onClick: () => void;
-  }) => (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-4 px-6 py-4 transition-all duration-300 border-l-4 group ${
-        active
-          ? "bg-white/5 border-emerald-400 text-white"
-          : "border-transparent text-slate-400 hover:bg-white/[0.02] hover:text-slate-200"
-      }`}
-    >
-      <Icon
-        className={`w-5 h-5 transition-colors ${
-          active
-            ? "text-emerald-400"
-            : "text-slate-500 group-hover:text-slate-300"
-        }`}
-      />
-      <span className="font-bold tracking-wide text-sm">{label}</span>
-      {active && (
-        <motion.div
-          layoutId="tabconfig"
-          className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]"
-        />
-      )}
-    </button>
-  );
+  const renderInfoItem = (
+    icon: any,
+    label: string,
+    value: string | undefined | null,
+    fieldKey: keyof FullTestDetails,
+  ) => {
+    const Icon = icon;
+    if (isEditing) {
+      return (
+        <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
+          <div className="flex items-center gap-2">
+            <Icon size={14} className="text-slate-400" />
+            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              {label}
+            </span>
+          </div>
+          <input
+            type="text"
+            className="w-1/2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-sm font-medium text-slate-900 dark:text-white text-right focus:outline-none focus:ring-1 focus:ring-teal-500"
+            value={
+              (editedData[fieldKey] as string) ??
+              (data[fieldKey] as string) ??
+              ""
+            }
+            onChange={(e) =>
+              setEditedData((prev) => ({ ...prev, [fieldKey]: e.target.value }))
+            }
+          />
+        </div>
+      );
+    }
 
-  const DetailField = ({
-    label,
-    value,
-    icon: Icon,
-  }: {
-    label: string;
-    value?: string | null;
-    icon: React.ElementType;
-  }) => (
-    <div className="group">
-      <div className="flex items-center gap-2 text-slate-400 mb-1.5">
-        <Icon size={14} strokeWidth={2} />
-        <span className="text-[10px] font-bold uppercase tracking-widest">
-          {label}
+    return (
+      <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800 group">
+        <div className="flex items-center gap-2">
+          <Icon size={14} className="text-slate-400" />
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider group-hover:text-teal-600 transition-colors">
+            {label}
+          </span>
+        </div>
+        <span className="text-sm font-semibold text-slate-900 dark:text-white">
+          {value || "N/A"}
         </span>
       </div>
-      <div className="text-sm font-semibold text-slate-700 dark:text-slate-200 pl-0.5">
-        {value || "—"}
-      </div>
-    </div>
-  );
-
-  const StatCard = ({
-    label,
-    value,
-    subtext,
-    icon: Icon,
-    color = "emerald",
-  }: {
-    label: string;
-    value: string;
-    subtext?: string;
-    icon: React.ElementType;
-    trend?: "up" | "down" | "neutral";
-    color?: "emerald" | "rose" | "blue" | "amber" | "indigo" | "cyan";
-  }) => {
-    const colorClasses = {
-      emerald: "bg-emerald-500/10 text-emerald-600",
-      rose: "bg-rose-500/10 text-rose-600",
-      blue: "bg-blue-500/10 text-blue-600",
-      amber: "bg-amber-500/10 text-amber-600",
-      indigo: "bg-indigo-500/10 text-indigo-600",
-      cyan: "bg-cyan-500/10 text-cyan-600",
-    };
-
-    return (
-      <div className="flex items-start gap-4 p-2 transition-all hover:bg-slate-50 dark:hover:bg-white/5 rounded-2xl cursor-default">
-        <div
-          className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${colorClasses[color] || colorClasses.emerald}`}
-        >
-          <Icon size={22} strokeWidth={2} />
-        </div>
-        <div>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
-            {label}
-          </p>
-          <h4 className="text-xl font-black text-slate-800 dark:text-white leading-tight">
-            {value}
-          </h4>
-          {subtext && (
-            <p
-              className={`text-[10px] font-bold mt-1 ${color === "rose" ? "text-rose-500" : "text-emerald-500"}`}
-            >
-              {subtext}
-            </p>
-          )}
-        </div>
-      </div>
     );
   };
-
-  const QuickAction = ({
-    icon: Icon,
-    label,
-    onClick,
-    variant = "default",
-  }: {
-    icon: React.ElementType;
-    label: string;
-    onClick: () => void;
-    variant?: "default" | "primary" | "danger";
-  }) => {
-    const styles = {
-      default:
-        "bg-white dark:bg-white/5 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-white/10 hover:border-emerald-500/50 hover:text-emerald-600 dark:hover:bg-white/10",
-      primary:
-        "bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600 shadow-emerald-500/20 shadow-lg",
-      danger:
-        "bg-white dark:bg-white/5 text-rose-500 border-slate-200 dark:border-rose-500/20 hover:bg-rose-50 dark:hover:bg-rose-500/10",
-    };
-
-    return (
-      <button
-        onClick={onClick}
-        className={`group flex items-center justify-center gap-2 px-4 py-3 rounded-xl border font-bold text-[11px] uppercase tracking-wider transition-all active:scale-95 ${styles[variant]}`}
-      >
-        <Icon size={14} strokeWidth={2.5} />
-        <span>{label}</span>
-      </button>
-    );
-  };
-
-  const SectionHeader = ({
-    title,
-    icon: Icon,
-  }: {
-    title: string;
-    icon: React.ElementType;
-  }) => (
-    <div className="flex items-center gap-3 mb-6">
-      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-        <Icon size={16} strokeWidth={2.5} />
-      </div>
-      <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest">
-        {title}
-      </h3>
-    </div>
-  );
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-end overflow-hidden">
+        <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-end overflow-hidden">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-slate-900/40 dark:bg-black/60 backdrop-blur-sm"
+            className="absolute inset-0 bg-slate-900/50 dark:bg-black/70 backdrop-blur-sm"
           />
 
           {/* Drawer Container */}
           <motion.div
             initial={{ x: "100%", opacity: 0.5 }}
             animate={{ x: 0, opacity: 1 }}
-            exit={{
-              x: "100%",
-              opacity: 0,
-              transition: { duration: 0.3, ease: "anticipate" },
-            }}
+            exit={{ x: "100%", opacity: 0, transition: { duration: 0.3 } }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="relative w-full sm:w-[95%] md:w-[85%] lg:w-[75%] max-w-7xl h-[100dvh] sm:h-[95vh] sm:mr-4 sm:rounded-3xl bg-[#f8fafc] dark:bg-[#0b1120] shadow-2xl flex flex-col overflow-hidden border border-black/5 dark:border-white/5"
+            className="relative w-full sm:w-[95%] md:w-[85%] lg:w-[80%] max-w-7xl h-[100dvh] sm:h-[95vh] sm:mr-4 sm:rounded-3xl bg-slate-50 dark:bg-slate-900 shadow-2xl flex flex-col overflow-hidden border border-black/5 dark:border-white/10"
           >
-            {/* Header Area */}
-            <div className="px-8 py-6 flex items-center justify-between border-b border-black/5 dark:border-white/5 bg-white dark:bg-[#0b1120] z-20">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-xl bg-teal-500/10 text-teal-600 flex items-center justify-center">
-                  <FlaskConical size={24} strokeWidth={2} />
-                </div>
-                <div>
+            {/* Header */}
+            <div className="px-6 py-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-10 shrink-0">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-2">
                   <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tight">
-                    {test.test_name}
+                    {data.patient_name || test.patient_name || "Unknown"}
                   </h2>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                      ID: {test.test_uid}
-                    </span>
-                    <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-700 block" />
-                    <span
-                      className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                        test.test_status === "Completed"
-                          ? "bg-emerald-100/50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
-                          : test.test_status === "Pending"
-                            ? "bg-amber-100/50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400"
-                            : "bg-rose-100/50 text-rose-600 dark:bg-rose-500/10 dark:text-rose-400"
-                      }`}
-                    >
-                      {test.test_status}
-                    </span>
-                  </div>
+                  <span
+                    className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${getStatusColor(test.test_status)}`}
+                  >
+                    {test.test_status}
+                  </span>
                 </div>
+                <span className="text-xs font-bold text-slate-500 uppercase tracking-wider mt-1">
+                  ID: {test.test_uid} • {test.test_name}
+                </span>
               </div>
 
               <div className="flex items-center gap-3">
-                <QuickAction
-                  icon={Printer}
-                  label="Print Bill"
-                  onClick={() => test && onPrint?.(test)}
-                  variant="primary"
-                />
+                {isEditing ? (
+                  <>
+                    <button
+                      onClick={() => {
+                        setIsEditing(false);
+                        setEditedData({});
+                      }}
+                      className="px-4 py-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold transition flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-700"
+                    >
+                      <X size={14} /> Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveMetadata}
+                      disabled={isSaving}
+                      className="px-4 py-2 rounded-lg bg-teal-600 text-white shadow-md text-xs font-bold hover:bg-teal-700 transition flex items-center gap-2"
+                    >
+                      <Check size={14} /> {isSaving ? "Saving..." : "Save"}
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="px-4 py-2 rounded-lg bg-teal-50 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-400 text-xs font-bold transition flex items-center gap-2 hover:bg-teal-100 dark:hover:bg-teal-900/50"
+                  >
+                    <Edit size={14} /> Edit
+                  </button>
+                )}
                 <button
                   onClick={onClose}
-                  className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-500 hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-500/10 transition-colors flex items-center justify-center"
+                  className="w-9 h-9 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
                 >
-                  <X size={20} className="w-5 h-5" />
+                  <X size={18} />
                 </button>
               </div>
             </div>
 
-            {/* Main Content Split Layout */}
-            <div className="flex-1 flex overflow-hidden">
-              {/* Left Sidebar - Navigation & Summary */}
-              <div className="w-64 lg:w-80 border-r border-black/5 dark:border-white/5 bg-slate-50 dark:bg-[#0f172a] hidden md:flex flex-col z-10">
-                {/* Patient Mini Profile */}
-                <div className="p-6 border-b border-black/5 dark:border-white/5">
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-lg shadow-inner ring-4 ring-indigo-500/20 shrink-0">
-                      {patientData.gender.charAt(0)}
-                    </div>
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight mb-1 truncate">
-                        {patientData.gender}
-                      </h3>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">
-                        Referred By: {patientData.guardian}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 mt-4">
-                    <div className="bg-white dark:bg-white/[0.02] rounded-lg p-2.5 border border-black/5 dark:border-white/5">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
-                        Age/Gender
-                      </p>
-                      <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">
-                        {patientData.age} • {patientData.gender}
-                      </p>
-                    </div>
-                    <div className="bg-white dark:bg-white/[0.02] rounded-lg p-2.5 border border-black/5 dark:border-white/5">
-                      <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
-                        Contact
-                      </p>
-                      <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 truncate">
-                        {patientData.phone}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Navigation Menu */}
-                <div className="flex-1 py-4 flex flex-col gap-1">
-                  <TabButton
-                    icon={Activity}
-                    label="Overview"
-                    active={activeTab === "overview"}
-                    onClick={() => setActiveTab("overview")}
-                  />
-                  <TabButton
-                    icon={FlaskConical}
-                    label="Test Items"
-                    active={activeTab === "test_items"}
-                    onClick={() => setActiveTab("test_items")}
-                  />
-                  <TabButton
-                    icon={CreditCard}
-                    label="Financials"
-                    active={activeTab === "financials"}
-                    onClick={() => setActiveTab("financials")}
-                  />
-                </div>
+            {/* Split Content */}
+            {isLoading ? (
+              <div className="flex-1 flex items-center justify-center min-h-0">
+                <div className="w-10 h-10 border-4 border-slate-200 border-t-teal-500 rounded-full animate-spin"></div>
               </div>
-
-              {/* Main Scrolling Content Area */}
-              <div className="flex-1 overflow-y-auto bg-[#f8fafc] dark:bg-[#0b1120] scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-white/10 scrollbar-track-transparent relative">
-                {isLoading ? (
-                  <div className="h-full flex flex-col items-center justify-center animate-pulse">
-                    <div className="w-12 h-12 rounded-full border-4 border-slate-200 border-t-emerald-500 animate-spin mb-4" />
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                      Accessing Records...
-                    </p>
+            ) : (
+              <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
+                {/* Left Panel: Patient & Financials */}
+                <div className="w-full lg:w-1/3 p-6 flex flex-col gap-6 overflow-y-auto no-scrollbar shrink-0 bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
+                  {/* Patient Info Card */}
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-700 pb-4 mb-4">
+                      <div className="w-12 h-12 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-teal-600 dark:text-teal-400">
+                        <User size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-bold text-slate-900 dark:text-white">
+                          Patient Information
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          Personal details & contact
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      {renderInfoItem(
+                        User,
+                        "Patient Name",
+                        data.patient_name,
+                        "patient_name",
+                      )}
+                      {renderInfoItem(Info, "Age", data.age, "age")}
+                      {renderInfoItem(User, "Gender", data.gender, "gender")}
+                      {renderInfoItem(
+                        Phone,
+                        "Phone Number",
+                        data.phone_number,
+                        "phone_number",
+                      )}
+                      {renderInfoItem(
+                        Phone,
+                        "Alt Phone",
+                        data.alternate_phone_no,
+                        "alternate_phone_no",
+                      )}
+                      {renderInfoItem(
+                        MapPin,
+                        "Address",
+                        data.address,
+                        "address",
+                      )}
+                      {renderInfoItem(
+                        Calendar,
+                        "Date of Birth",
+                        data.dob,
+                        "dob",
+                      )}
+                      {renderInfoItem(
+                        Users,
+                        "Parent/Guardian",
+                        data.parents,
+                        "parents",
+                      )}
+                      {renderInfoItem(
+                        Users,
+                        "Relation",
+                        data.relation,
+                        "relation",
+                      )}
+                    </div>
                   </div>
-                ) : (
-                  <AnimatePresence mode="wait">
-                    {activeTab === "overview" && (
-                      <motion.div
-                        key="overview"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="p-6 lg:p-10 space-y-8"
-                      >
-                        {/* Panel 1: Financials */}
-                        <div className="bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-[32px] p-8 shadow-sm">
-                          <div className="flex items-center gap-2 mb-6 opacity-50">
-                            <Wallet size={16} />
-                            <span className="text-xs font-black uppercase tracking-widest">
-                              Financial Overview
-                            </span>
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                            <StatCard
-                              label="Total Amount"
-                              value={`₹${parseFloat(String(data.total_amount || 0)).toLocaleString()}`}
-                              icon={Activity}
-                              color="blue"
-                            />
-                            <StatCard
-                              label="Total Paid"
-                              value={`₹${parseFloat(String(data.advance_amount || 0)).toLocaleString()}`}
-                              icon={Wallet}
-                              color="emerald"
-                            />
-                            <StatCard
-                              label="Effective Balance"
-                              value={`₹${walletBalance.toLocaleString()}`}
-                              icon={TrendingDown}
-                              color={walletBalance < 0 ? "rose" : "emerald"}
-                              subtext={
-                                walletBalance < 0
-                                  ? "Outstanding Dues"
-                                  : "Available Credit"
-                              }
-                            />
-                            <StatCard
-                              label="Current Due"
-                              value={`₹${parseFloat(String(data.due_amount || 0)).toLocaleString()}`}
-                              icon={AlertCircle}
-                              color={data.due_amount > 0 ? "rose" : "emerald"}
-                              subtext={
-                                data.due_amount > 0
-                                  ? "Payment Required"
-                                  : "All Clear"
-                              }
-                            />
-                          </div>
-                        </div>
 
-                        {/* Quick Identification */}
-                        <div className="p-8 rounded-[32px] bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 shadow-sm">
-                          <div className="flex items-center justify-between mb-6">
-                            <SectionHeader
-                              title="Quick Identification"
-                              icon={User}
-                            />
-                            <button
-                              onClick={() => setIsEditing(!isEditing)}
-                              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 dark:bg-white/5 text-slate-600 dark:text-slate-300 hover:bg-emerald-500 hover:text-white transition-all text-xs font-bold uppercase tracking-widest"
-                            >
-                              <Edit size={14} />
-                              {isEditing ? "Viewing" : "Edit Details"}
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                            {isEditing ? (
-                              <>
-                                <div className="space-y-2">
-                                  <label className="text-[10px] font-bold text-slate-400 uppercase">
-                                    Name
-                                  </label>
-                                  <input
-                                    type="text"
-                                    className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm font-semibold"
-                                    value={
-                                      editedData.patient_name ??
-                                      data.patient_name
-                                    }
-                                    onChange={(e) =>
-                                      setEditedData((prev) => ({
-                                        ...prev,
-                                        patient_name: e.target.value,
-                                      }))
-                                    }
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <label className="text-[10px] font-bold text-slate-400 uppercase">
-                                    Phone
-                                  </label>
-                                  <input
-                                    type="text"
-                                    className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm font-semibold"
-                                    value={
-                                      editedData.phone_number ??
-                                      data.phone_number
-                                    }
-                                    onChange={(e) =>
-                                      setEditedData((prev) => ({
-                                        ...prev,
-                                        phone_number: e.target.value,
-                                      }))
-                                    }
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <label className="text-[10px] font-bold text-slate-400 uppercase">
-                                    Age
-                                  </label>
-                                  <input
-                                    type="text"
-                                    className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm font-semibold"
-                                    value={editedData.age ?? data.age}
-                                    onChange={(e) =>
-                                      setEditedData((prev) => ({
-                                        ...prev,
-                                        age: e.target.value,
-                                      }))
-                                    }
-                                  />
-                                </div>
-                                <div className="space-y-2">
-                                  <label className="text-[10px] font-bold text-slate-400 uppercase">
-                                    Referred By
-                                  </label>
-                                  <input
-                                    type="text"
-                                    className="w-full bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-2 text-sm font-semibold"
-                                    value={
-                                      editedData.referred_by ?? data.referred_by
-                                    }
-                                    onChange={(e) =>
-                                      setEditedData((prev) => ({
-                                        ...prev,
-                                        referred_by: e.target.value,
-                                      }))
-                                    }
-                                  />
-                                </div>
-                              </>
-                            ) : (
-                              <>
-                                <DetailField
-                                  label="Full Name"
-                                  value={data.patient_name}
-                                  icon={User}
-                                />
-                                <DetailField
-                                  label="Contact"
-                                  value={data.phone_number || data.phone}
-                                  icon={Phone}
-                                />
-                                <DetailField
-                                  label="Age / Gender"
-                                  value={`${data.age} • ${data.gender}`}
-                                  icon={Info}
-                                />
-                                <DetailField
-                                  label="Referred By"
-                                  value={data.referred_by}
-                                  icon={Users}
-                                />
-                              </>
-                            )}
-                          </div>
-                          {isEditing && (
-                            <div className="mt-8 flex justify-end gap-3">
-                              <button
-                                onClick={() => {
-                                  setIsEditing(false);
-                                  setEditedData({});
-                                }}
-                                className="px-6 py-2 rounded-xl border border-slate-200 text-slate-500 font-bold text-xs uppercase"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                onClick={handleSaveMetadata}
-                                disabled={isSaving}
-                                className="px-6 py-2 rounded-xl bg-emerald-500 text-white font-bold text-xs uppercase shadow-lg shadow-emerald-500/20"
-                              >
-                                {isSaving ? "Saving..." : "Save Changes"}
-                              </button>
-                            </div>
+                  {/* Financial Summary Card */}
+                  <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
+                    <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-700 pb-4 mb-4">
+                      <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                        <Wallet size={20} />
+                      </div>
+                      <div>
+                        <h4 className="text-lg font-bold text-slate-900 dark:text-white">
+                          Financial Summary
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          Total payable details
+                        </p>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                        <span className="text-xs font-bold text-slate-500 uppercase">
+                          Total Amount
+                        </span>
+                        <span className="text-sm font-black text-slate-800 dark:text-white">
+                          ₹
+                          {parseFloat(String(data.total_amount || 0)).toFixed(
+                            2,
                           )}
-                        </div>
-                      </motion.div>
-                    )}
-                    {activeTab === "test_items" && (
-                      <motion.div
-                        key="test_items"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="p-6 lg:p-10 space-y-6"
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                        <span className="text-xs font-bold text-slate-500 uppercase">
+                          Discount
+                        </span>
+                        <span className="text-sm font-black text-slate-800 dark:text-white">
+                          ₹{parseFloat(String(data.discount || 0)).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center bg-emerald-50 dark:bg-emerald-900/10 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
+                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase">
+                          Total Paid
+                        </span>
+                        <span className="text-sm font-black text-emerald-700 dark:text-emerald-400">
+                          ₹
+                          {parseFloat(String(data.advance_amount || 0)).toFixed(
+                            2,
+                          )}
+                        </span>
+                      </div>
+                      <div
+                        className={`flex justify-between items-center p-3 rounded-xl border ${parseFloat(String(data.due_amount || 0)) > 0 ? "bg-rose-50 border-rose-100 text-rose-700 dark:bg-rose-900/10 dark:border-rose-900/30 dark:text-rose-400" : "bg-slate-50 border-slate-100 text-slate-800 dark:bg-slate-900 dark:border-slate-800 dark:text-white"}`}
                       >
-                        <SectionHeader
-                          title="Recorded Test Items"
-                          icon={FlaskConical}
-                        />
+                        <span className="text-xs font-bold uppercase">
+                          Balance Due
+                        </span>
+                        <span className="text-sm font-black">
+                          ₹
+                          {Math.max(
+                            0,
+                            parseFloat(String(data.due_amount || 0)),
+                          ).toFixed(2)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
 
-                        <div className="grid grid-cols-1 gap-4">
-                          {data.test_items?.length > 0 ? (
-                            data.test_items.map((item: TestItem) => (
-                              <div
-                                key={item.item_id}
-                                className="bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-2xl p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-6"
+                {/* Right Panel: Test Items List */}
+                <div className="w-full lg:w-2/3 p-6 flex flex-col gap-4 overflow-y-auto no-scrollbar bg-slate-50 dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-slate-800 h-full">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FlaskConical size={18} className="text-slate-400" />
+                    <h3 className="text-sm font-black uppercase text-slate-700 dark:text-slate-300">
+                      Recorded Test Items
+                    </h3>
+                  </div>
+
+                  {data.test_items && data.test_items.length > 0 ? (
+                    data.test_items.map((item, idx) => {
+                      const expanded = expandedItems[item.item_id];
+                      return (
+                        <div
+                          key={item.item_id}
+                          className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden transition-all duration-300"
+                        >
+                          {/* Accordion Header */}
+                          <div
+                            onClick={() => toggleItem(item.item_id)}
+                            className="p-5 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-transparent dark:border-transparent transition-colors hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">
+                                <FlaskConical size={18} />
+                              </div>
+                              <div>
+                                <h4 className="text-base font-bold text-slate-900 dark:text-white uppercase">
+                                  {item.test_name}
+                                </h4>
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                  {idx === 0 && data.test_items.length === 1
+                                    ? "Original Test Details"
+                                    : `Item #${item.item_id}`}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <span
+                                className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border ${getStatusColor(item.test_status)}`}
                               >
-                                <div className="flex items-center gap-4">
-                                  <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-500 flex items-center justify-center shrink-0">
-                                    <FlaskConical size={20} />
-                                  </div>
-                                  <div>
-                                    <h4 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">
-                                      {item.test_name}
-                                    </h4>
-                                    <div className="flex items-center gap-3 mt-1">
-                                      <span className="text-[10px] font-bold text-slate-400 uppercase">
-                                        Amount: ₹
-                                        {parseFloat(
-                                          String(item.total_amount),
-                                        ).toLocaleString()}
+                                {item.test_status}
+                              </span>
+                              <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-400 transition-transform">
+                                {expanded ? (
+                                  <ChevronUp size={16} />
+                                ) : (
+                                  <ChevronDown size={16} />
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Accordion Body */}
+                          <AnimatePresence>
+                            {expanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="p-6 border-t border-slate-100 dark:border-slate-700">
+                                  {/* Item Metadata */}
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 mb-6">
+                                    <div className="flex justify-between items-center">
+                                      <div className="flex items-center gap-2">
+                                        <FlaskConical
+                                          size={14}
+                                          className="text-slate-400"
+                                        />
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                          Test Name
+                                        </span>
+                                      </div>
+                                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                        {item.test_name}
                                       </span>
-                                      <span className="w-1 h-1 rounded-full bg-slate-300 block" />
-                                      <span
-                                        className={`text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md ${
-                                          item.test_status === "completed"
-                                            ? "bg-emerald-100 text-emerald-600"
-                                            : "bg-amber-100 text-amber-600"
-                                        }`}
-                                      >
-                                        {item.test_status}
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <div className="flex items-center gap-2">
+                                        <MapPin
+                                          size={14}
+                                          className="text-slate-400"
+                                        />
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                          Limb
+                                        </span>
+                                      </div>
+                                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                        {item.limb || "N/A"}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <div className="flex items-center gap-2">
+                                        <Calendar
+                                          size={14}
+                                          className="text-slate-400"
+                                        />
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                          Assigned Date
+                                        </span>
+                                      </div>
+                                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                        {item.assigned_test_date ||
+                                          data.assigned_test_date ||
+                                          "N/A"}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <div className="flex items-center gap-2">
+                                        <User
+                                          size={14}
+                                          className="text-slate-400"
+                                        />
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                          Performed By
+                                        </span>
+                                      </div>
+                                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                        {item.test_done_by ||
+                                          data.test_done_by ||
+                                          "N/A"}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between items-center">
+                                      <div className="flex items-center gap-2">
+                                        <Users
+                                          size={14}
+                                          className="text-slate-400"
+                                        />
+                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                          Referred By
+                                        </span>
+                                      </div>
+                                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                        {item.referred_by ||
+                                          data.referred_by ||
+                                          "N/A"}
                                       </span>
                                     </div>
                                   </div>
-                                </div>
 
-                                <div className="flex items-center gap-4 flex-wrap">
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase">
-                                      Update Status
-                                    </span>
-                                    <select
-                                      className="bg-slate-50 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg px-3 py-1.5 text-xs font-bold"
-                                      value={item.test_status}
-                                      onChange={(e) =>
-                                        handleUpdateStatus(
-                                          item.item_id,
-                                          e.target.value,
-                                          "test",
-                                        )
-                                      }
-                                    >
-                                      <option value="pending">Pending</option>
-                                      <option value="in-progress">
-                                        In Progress
-                                      </option>
-                                      <option value="completed">
-                                        Completed
-                                      </option>
-                                      <option value="cancelled">
-                                        Cancelled
-                                      </option>
-                                    </select>
+                                  {/* Item Financials */}
+                                  <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 mb-6 border border-slate-100 dark:border-slate-700">
+                                    <h5 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-4">
+                                      <FileText
+                                        size={16}
+                                        className="text-teal-500"
+                                      />{" "}
+                                      Financial Details
+                                    </h5>
+                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                                      <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                          Total
+                                        </p>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                          ₹
+                                          {parseFloat(
+                                            String(item.total_amount || 0),
+                                          ).toFixed(2)}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                          Discount
+                                        </p>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                          ₹
+                                          {parseFloat(
+                                            String(item.discount || 0),
+                                          ).toFixed(2)}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                          Paid
+                                        </p>
+                                        <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                                          ₹
+                                          {parseFloat(
+                                            String(item.advance_amount || 0),
+                                          ).toFixed(2)}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                          Due
+                                        </p>
+                                        <p
+                                          className={`text-sm font-bold ${item.due_amount > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}`}
+                                        >
+                                          ₹
+                                          {Math.max(
+                                            0,
+                                            parseFloat(
+                                              String(item.due_amount || 0),
+                                            ),
+                                          ).toFixed(2)}
+                                        </p>
+                                      </div>
+                                      <div>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                                          Method
+                                        </p>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white capitalize">
+                                          {item.payment_method || "N/A"}
+                                        </p>
+                                      </div>
+                                    </div>
                                   </div>
 
-                                  <div className="flex flex-col gap-1">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase">
-                                      Payment
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                      <span
-                                        className={`text-xs font-black uppercase ${item.payment_status === "paid" ? "text-emerald-500" : "text-rose-500"}`}
-                                      >
-                                        {item.payment_status}
-                                      </span>
-                                      {item.payment_status !== "paid" && (
+                                  {/* Controls (Status / Payment) */}
+                                  <div className="pt-6 border-t border-slate-100 dark:border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Status Controls */}
+                                    <div className="space-y-4">
+                                      <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
+                                          Test Status
+                                        </label>
+                                        <select
+                                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-teal-500 outline-none"
+                                          value={item.test_status}
+                                          onChange={(e) =>
+                                            handleUpdateStatus(
+                                              item.item_id,
+                                              e.target.value,
+                                              "test",
+                                            )
+                                          }
+                                        >
+                                          <option value="pending">
+                                            Pending
+                                          </option>
+                                          <option value="completed">
+                                            Completed
+                                          </option>
+                                          <option value="cancelled">
+                                            Cancelled
+                                          </option>
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
+                                          Payment Status
+                                        </label>
+                                        <select
+                                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-teal-500 outline-none"
+                                          value={item.payment_status}
+                                          onChange={(e) =>
+                                            handleUpdateStatus(
+                                              item.item_id,
+                                              e.target.value,
+                                              "payment",
+                                            )
+                                          }
+                                        >
+                                          <option value="pending">
+                                            Pending
+                                          </option>
+                                          <option value="partial">
+                                            Partial
+                                          </option>
+                                          <option value="paid">Paid</option>
+                                        </select>
+                                      </div>
+                                    </div>
+
+                                    {/* Add Payment Control */}
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
+                                        Add Payment
+                                      </label>
+                                      <div className="flex gap-2">
+                                        <div className="relative flex-1">
+                                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                                            ₹
+                                          </span>
+                                          <input
+                                            type="number"
+                                            id={`pay-input-${item.item_id}`}
+                                            min="0"
+                                            step="0.01"
+                                            placeholder="Amount"
+                                            className="w-full pl-7 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-teal-500 outline-none"
+                                          />
+                                        </div>
+                                        <select
+                                          id={`pay-method-${item.item_id}`}
+                                          className="w-24 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-2 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-teal-500 outline-none"
+                                        >
+                                          <option value="cash">Cash</option>
+                                          <option value="online">Online</option>
+                                          <option value="card">Card</option>
+                                        </select>
                                         <button
                                           onClick={() => {
-                                            const amt = prompt(
-                                              `Enter payment amount for ${item.test_name} (Max: ₹${item.due_amount})`,
+                                            const val = parseFloat(
+                                              (
+                                                document.getElementById(
+                                                  `pay-input-${item.item_id}`,
+                                                ) as HTMLInputElement
+                                              )?.value,
                                             );
-                                            if (amt)
+                                            const meth =
+                                              (
+                                                document.getElementById(
+                                                  `pay-method-${item.item_id}`,
+                                                ) as HTMLSelectElement
+                                              )?.value || "cash";
+                                            if (!isNaN(val) && val > 0)
                                               handleAddPayment(
                                                 item.item_id,
-                                                parseFloat(amt),
+                                                val,
+                                                meth,
                                               );
                                           }}
-                                          className="p-1.5 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors"
+                                          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold transition"
                                         >
-                                          <Wallet size={12} />
+                                          Add
                                         </button>
-                                      )}
+                                      </div>
+                                      <p className="mt-2 text-[10px] text-slate-400 flex items-center gap-1">
+                                        <Info size={10} /> Updates 'Paid' and
+                                        'Due' amounts instantly.
+                                      </p>
                                     </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))
-                          ) : (
-                            <div className="bg-white dark:bg-white/[0.02] border border-dashed border-slate-200 dark:border-white/10 rounded-2xl p-12 text-center text-slate-400">
-                              <FlaskConical
-                                size={32}
-                                className="mx-auto mb-4 opacity-20"
-                              />
-                              <p className="text-sm font-bold uppercase tracking-widest">
-                                No detailed items found
-                              </p>
-                            </div>
-                          )}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </div>
-                      </motion.div>
-                    )}
-
-                    {activeTab === "financials" && (
-                      <motion.div
-                        key="financials"
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -10 }}
-                        className="p-6 lg:p-10 space-y-8"
-                      >
-                        <SectionHeader
-                          title="Financial Summary"
-                          icon={CreditCard}
-                        />
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                          <div className="bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-[32px] p-8 shadow-sm">
-                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6">
-                              Split Details
-                            </h4>
-                            <div className="space-y-4">
-                              <div className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-white/5">
-                                <span className="text-sm font-semibold text-slate-500">
-                                  Gross Total
-                                </span>
-                                <span className="text-sm font-black text-slate-800 dark:text-white">
-                                  ₹
-                                  {parseFloat(
-                                    String(data.total_amount),
-                                  ).toLocaleString()}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-white/5">
-                                <span className="text-sm font-semibold text-slate-500">
-                                  Advance Paid
-                                </span>
-                                <span className="text-sm font-black text-emerald-500">
-                                  ₹
-                                  {parseFloat(
-                                    String(data.advance_amount),
-                                  ).toLocaleString()}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center py-2 border-b border-slate-50 dark:border-white/5">
-                                <span className="text-sm font-semibold text-slate-500">
-                                  Discount Applied
-                                </span>
-                                <span className="text-sm font-black text-indigo-500">
-                                  ₹
-                                  {parseFloat(
-                                    String(data.discount || 0),
-                                  ).toLocaleString()}
-                                </span>
-                              </div>
-                              <div className="flex justify-between items-center pt-4">
-                                <span className="text-base font-black text-slate-800 dark:text-white uppercase tracking-widest">
-                                  Balance Due
-                                </span>
-                                <span
-                                  className={`text-xl font-black ${data.due_amount > 0 ? "text-rose-500" : "text-emerald-500"}`}
-                                >
-                                  ₹
-                                  {parseFloat(
-                                    String(data.due_amount),
-                                  ).toLocaleString()}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="bg-[#0f172a] rounded-[32px] p-8 text-white relative overflow-hidden flex flex-col justify-between">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl" />
-                            <div>
-                              <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mb-6">
-                                <CreditCard
-                                  size={24}
-                                  className="text-emerald-400"
-                                />
-                              </div>
-                              <h3 className="text-lg font-black uppercase tracking-tight mb-2">
-                                Quick Payment
-                              </h3>
-                              <p className="text-xs text-slate-400 leading-relaxed">
-                                Record a direct payment against this test order.
-                                This will be automatically distributed across
-                                pending items.
-                              </p>
-                            </div>
-
-                            <div className="mt-8 space-y-4">
-                              <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 font-black text-emerald-500">
-                                  ₹
-                                </span>
-                                <input
-                                  id="quick-pay-input"
-                                  type="number"
-                                  placeholder="0.00"
-                                  className="w-full bg-white/5 border border-white/10 rounded-2xl pl-8 pr-4 py-4 text-xl font-black outline-none focus:border-emerald-500/50 transition-all"
-                                />
-                              </div>
-                              <button
-                                onClick={() => {
-                                  const input = document.getElementById(
-                                    "quick-pay-input",
-                                  ) as HTMLInputElement;
-                                  const val = parseFloat(input.value);
-                                  if (val > 0) handleAddPayment(null, val);
-                                }}
-                                className="w-full py-4 rounded-2xl bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-emerald-500/20 active:scale-95"
-                              >
-                                Record Payment
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                )}
+                      );
+                    })
+                  ) : (
+                    <div className="p-8 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                      <FlaskConical
+                        size={24}
+                        className="mx-auto mb-2 opacity-50"
+                      />
+                      <p className="text-sm font-semibold uppercase tracking-widest">
+                        No detailed items found
+                      </p>
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </motion.div>
         </div>
       )}
