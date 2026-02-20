@@ -14,3 +14,9 @@ ALTER TABLE reception_notes ADD COLUMN type ENUM('public', 'private') DEFAULT 'p
 ALTER TABLE reception_notes ADD COLUMN attachment_path VARCHAR(255) DEFAULT NULL;
 ALTER TABLE reception_notes ADD COLUMN attachment_type VARCHAR(50) DEFAULT NULL;
 ALTER TABLE reception_notes ADD COLUMN mentions TEXT DEFAULT NULL;
+
+-- 2026-02-21: Add Resolution Tracking columns to patient_feedback
+ALTER TABLE patient_feedback ADD COLUMN is_resolved TINYINT(1) DEFAULT 0;
+ALTER TABLE patient_feedback ADD COLUMN resolution_note TEXT DEFAULT NULL;
+ALTER TABLE patient_feedback ADD COLUMN resolved_by INT DEFAULT NULL;
+ALTER TABLE patient_feedback ADD COLUMN resolved_at TIMESTAMP NULL DEFAULT NULL;

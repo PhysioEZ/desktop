@@ -14,6 +14,7 @@ const treatmentPlansController = require("./treatmentPlans");
 const tokensController = require("./tokens");
 const attendanceController = require("./attendance");
 const paymentsController = require("./payments");
+const feedbackController = require("./feedback");
 const insightsController = require("./insights");
 const profileController = require("./profile");
 const multer = require("multer");
@@ -96,6 +97,9 @@ router.post("/attendance", attendanceController.handleAttendanceRequest);
 
 // Payments
 router.post("/add_payment", paymentsController.handleAddPayment);
+
+// Feedback
+router.all("/feedback", feedbackController.handleFeedbackRequest);
 
 // Chat Routes
 router.get("/chat/users", chatController.getUsers);
