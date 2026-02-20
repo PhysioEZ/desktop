@@ -327,3 +327,230 @@ exports.addTestForPatient = async (req, res) => {
     }
 };
 
+
+exports.handleTestsRequest = async (req, res) => {
+    const input = { ...req.query, ...req.body };
+    const action = input.action || 'fetch';
+    const branchId = req.user.branch_id || input.branch_id;
+
+    if (!branchId) return res.status(400).json({ success: false, message: 'Branch ID required' });
+
+    try {
+        switch (action) {
+            case 'fetch':
+                await fetchTests(req, res, branchId, input);
+                break;
+            case 'fetch_details':
+                await fetchTestDetails(req, res, branchId, input.test_id);
+                break;
+            case 'update_metadata':
+                await updateTestMetadata(req, res, branchId, input);
+                break;
+            case 'update_item':
+                await updateTestItem(req, res, branchId, input);
+                break;
+            case 'add_payment':
+                await addTestPayment(req, res, branchId, input);
+                break;
+            default:
+                res.status(400).json({ success: false, message: 'Invalid action' });
+        }
+    } catch (error) {
+        console.error("Tests Controller Error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+async function fetchTests(req, res, branchId, input) {
+    const search = input.search || "";
+    const status = input.status || "";
+    const payment_status = input.payment_status || "";
+    const test_name = input.test_name || "";
+    const page = parseInt(input.page) || 1;
+    const limit = parseInt(input.limit) || 15;
+    const offset = (page - 1) * limit;
+
+    let whereClauses = ["branch_id = ?", "test_status != 'cancelled'"];
+    let params = [branchId];
+
+    if (search) {
+        whereClauses.push("(patient_name LIKE ? OR phone_number LIKE ? OR test_uid LIKE ?)");
+        const p = `%${search}%`;
+        params.push(p, p, p);
+    }
+    if (status) {
+        whereClauses.push("test_status = ?");
+        params.push(status);
+    }
+    if (payment_status) {
+        whereClauses.push("payment_status = ?");
+        params.push(payment_status);
+    }
+    if (test_name) {
+        whereClauses.push("test_name LIKE ?");
+        params.push(`%${test_name}%`);
+    }
+
+    const [tests] = await pool.query(`
+        SELECT 
+            test_id as uid, patient_name, test_name, total_amount, 
+            advance_amount as paid_amount, due_amount, payment_status, 
+            test_status, created_at, test_uid
+        FROM tests
+        WHERE ${whereClauses.join(" AND ")}
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+    `, [...params, limit, offset]);
+
+    const [[stats]] = await pool.query(`
+        SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN test_status = 'completed' THEN 1 ELSE 0 END) as completed,
+            SUM(CASE WHEN test_status = 'pending' THEN 1 ELSE 0 END) as pending
+        FROM tests
+        WHERE branch_id = ? AND test_status != 'cancelled'
+    `, [branchId]);
+
+    res.json({
+        success: true,
+        data: tests,
+        stats: {
+            total: stats.total || 0,
+            completed: stats.completed || 0,
+            pending: stats.pending || 0
+        }
+    });
+}
+
+async function fetchTestDetails(req, res, branchId, testId) {
+    if (!testId) throw new Error("Test ID required");
+
+    const [mainRows] = await pool.query("SELECT * FROM tests WHERE test_id = ? AND branch_id = ?", [testId, branchId]);
+    const mainTest = mainRows[0];
+    if (!mainTest) throw new Error("Test not found");
+
+    const [items] = await pool.query("SELECT * FROM test_items WHERE test_id = ? ORDER BY item_id ASC", [testId]);
+    mainTest.test_items = items;
+
+    res.json({ success: true, data: mainTest });
+}
+
+async function updateTestMetadata(req, res, branchId, input) {
+    const { test_id } = input;
+    if (!test_id) throw new Error("Test ID required");
+
+    const allowedFields = [
+        'patient_name', 'phone_number', 'gender', 'age', 'dob', 'parents',
+        'relation', 'alternate_phone_no', 'address', 'referred_by', 'test_done_by',
+        'assigned_test_date'
+    ];
+
+    let updates = [];
+    let params = [];
+
+    allowedFields.forEach(field => {
+        if (input[field] !== undefined) {
+            updates.push(`${field} = ?`);
+            params.push(input[field]);
+        }
+    });
+
+    if (updates.length > 0) {
+        params.push(test_id, branchId);
+        await pool.query(`UPDATE tests SET ${updates.join(", ")} WHERE test_id = ? AND branch_id = ?`, params);
+    }
+
+    res.json({ success: true, message: "Metadata updated" });
+}
+
+async function updateTestItem(req, res, branchId, input) {
+    const { item_id, test_status, payment_status } = input;
+    if (!item_id) throw new Error("Item ID required");
+
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        let updates = [];
+        let params = [];
+
+        if (test_status) { updates.push("test_status = ?"); params.push(test_status); }
+        if (payment_status) { updates.push("payment_status = ?"); params.push(payment_status); }
+
+        if (updates.length > 0) {
+            params.push(item_id);
+            await connection.query(`UPDATE test_items SET ${updates.join(", ")} WHERE item_id = ?`, params);
+        }
+
+        // Sync Parent Status
+        const [itemRows] = await connection.query("SELECT test_id FROM test_items WHERE item_id = ?", [item_id]);
+        const testId = itemRows[0].test_id;
+
+        const [allItemRows] = await connection.query("SELECT test_status, payment_status FROM test_items WHERE test_id = ?", [testId]);
+
+        let parentStatus = 'pending';
+        if (allItemRows.every(i => i.test_status === 'completed')) parentStatus = 'completed';
+        else if (allItemRows.some(i => i.test_status === 'completed' || i.test_status === 'in-progress')) parentStatus = 'in-progress';
+
+        let parentPayStatus = 'pending';
+        if (allItemRows.every(i => i.payment_status === 'paid')) parentPayStatus = 'paid';
+        else if (allItemRows.some(i => i.payment_status === 'paid' || i.payment_status === 'partial')) parentPayStatus = 'partial';
+
+        await connection.query("UPDATE tests SET test_status = ?, payment_status = ? WHERE test_id = ?", [parentStatus, parentPayStatus, testId]);
+
+        await connection.commit();
+        res.json({ success: true, message: "Item updated" });
+    } catch (e) {
+        await connection.rollback();
+        throw e;
+    } finally {
+        connection.release();
+    }
+}
+
+async function addTestPayment(req, res, branchId, input) {
+    const { test_id, item_id, amount, method } = input; // item_id is optional, if provided adds to specific item
+    if (!test_id || !amount) throw new Error("Test ID and amount required");
+
+    const connection = await pool.getConnection();
+    try {
+        await connection.beginTransaction();
+
+        // 1. Record Payment
+        await connection.query("INSERT INTO test_payments (test_id, payment_method, amount) VALUES (?, ?, ?)", [test_id, method || 'cash', amount]);
+
+        // 2. Update Parent Totals
+        const [mainRows] = await connection.query("SELECT total_amount, advance_amount, discount FROM tests WHERE test_id = ?", [test_id]);
+        const main = mainRows[0];
+        const newAdvance = parseFloat(main.advance_amount) + parseFloat(amount);
+        const newDue = Math.max(0, parseFloat(main.total_amount) - newAdvance - parseFloat(main.discount));
+
+        let newPayStatus = 'pending';
+        if (newDue <= 0) newPayStatus = 'paid';
+        else if (newAdvance > 0) newPayStatus = 'partial';
+
+        await connection.query("UPDATE tests SET advance_amount = ?, due_amount = ?, payment_status = ? WHERE test_id = ?", [newAdvance, newDue, newPayStatus, test_id]);
+
+        // 3. Update Item (simple distribution for now, matching legacy logic)
+        if (item_id) {
+            const [itemRows] = await connection.query("SELECT total_amount, advance_amount, discount FROM test_items WHERE item_id = ?", [item_id]);
+            const item = itemRows[0];
+            const iAdvance = parseFloat(item.advance_amount) + parseFloat(amount);
+            const iDue = Math.max(0, parseFloat(item.total_amount) - iAdvance - parseFloat(item.discount));
+
+            let iPayStatus = 'pending';
+            if (iDue <= 0) iPayStatus = 'paid';
+            else if (iAdvance > 0) iPayStatus = 'partial';
+
+            await connection.query("UPDATE test_items SET advance_amount = ?, due_amount = ?, payment_status = ? WHERE item_id = ?", [iAdvance, iDue, iPayStatus, item_id]);
+        }
+
+        await connection.commit();
+        res.json({ success: true, message: "Payment recorded" });
+    } catch (e) {
+        await connection.rollback();
+        throw e;
+    } finally {
+        connection.release();
+    }
+}

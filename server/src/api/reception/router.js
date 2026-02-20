@@ -128,6 +128,9 @@ router.delete("/notes/:id", authenticate, notesController.deleteNote);
 
 router.get("/attendance_data", authenticate, getAttendanceDataController.getAttendanceData);
 router.get("/get_attendance_history", authenticate, getAttendanceHistoryController.getAttendanceHistory);
+
 router.post("/billing", authenticate, billingController.handleBillingRequest);
+router.post("/tests", authenticate, testsController.handleTestsRequest);
+
 
 module.exports = router;
