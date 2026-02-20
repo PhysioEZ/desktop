@@ -54,9 +54,9 @@ const IconComponent = ({
 };
 
 const labelClass =
-  "block text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] mb-1.5 px-1";
+  "block text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-1.5 px-1";
 const inputClass =
-  "w-full px-5 py-3 bg-white/80 backdrop-blur-md border border-slate-200 focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10 rounded-[18px] outline-none transition-all text-sm font-bold text-slate-800 placeholder:text-slate-300 shadow-sm";
+  "w-full px-5 py-3 bg-white/80 dark:bg-white/[0.03] backdrop-blur-md border border-slate-200 dark:border-white/5 focus:border-teal-500 dark:focus:border-teal-400 focus:ring-4 focus:ring-teal-500/10 rounded-[18px] outline-none transition-all text-sm font-bold text-slate-800 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600 shadow-sm";
 
 const FormInput = ({
   label,
@@ -81,11 +81,11 @@ const FormInput = ({
       {Icon && (
         <Icon
           size={14}
-          className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none transition-colors group-focus-within:text-teal-600"
+          className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 pointer-events-none transition-colors group-focus-within:text-teal-600 dark:group-focus-within:text-teal-400"
         />
       )}
       {prefix && (
-        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-300">
+        <span className="absolute left-5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-300 dark:text-slate-600">
           {prefix}
         </span>
       )}
@@ -298,12 +298,12 @@ const ChangePlanModal = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: 15 }}
         transition={{ type: "spring", damping: 25, stiffness: 400 }}
-        className="relative bg-white w-full max-w-5xl rounded-[32px] shadow-[0_32px_128px_rgba(15,23,42,0.2)] border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
+        className="relative bg-white dark:bg-[#0c0d0f] w-full max-w-6xl rounded-[32px] shadow-[0_32px_128px_rgba(15,23,42,0.2)] border border-slate-200 dark:border-white/5 overflow-hidden flex flex-col max-h-[90vh]"
       >
         <div className="relative flex-1 flex overflow-hidden">
           {/* Left Panel */}
           <div
-            className="w-[300px] flex flex-col pt-10 px-6 relative z-10 shrink-0 overflow-y-auto custom-scrollbar"
+            className="w-[350px] flex flex-col pt-10 px-6 relative z-10 shrink-0 overflow-y-auto custom-scrollbar"
             style={{ backgroundColor: darkTealBase }}
           >
             <div className="space-y-6 pb-10">
@@ -367,15 +367,15 @@ const ChangePlanModal = ({
                   ))}
                 </div>
 
-                <div className="p-5 rounded-[28px] bg-orange-50 shadow-xl text-center border border-orange-200/50">
-                  <p className="text-[8px] font-black text-orange-400 uppercase tracking-widest mb-1">
+                <div className="p-5 rounded-[28px] bg-orange-50 dark:bg-orange-500/10 shadow-xl text-center border border-orange-200/50 dark:border-orange-500/20">
+                  <p className="text-[8px] font-black text-orange-400 dark:text-orange-300 uppercase tracking-widest mb-1">
                     Total Balance
                   </p>
                   <h3
-                    className={`text-3xl font-black tracking-tighter ${carryOverBalance >= 0 ? "text-teal-600" : "text-rose-500"}`}
+                    className={`text-3xl font-black tracking-tighter ${carryOverBalance >= 0 ? "text-teal-600 dark:text-teal-400" : "text-rose-500"}`}
                   >
                     ₹{Math.abs(carryOverBalance).toLocaleString()}
-                    <span className="text-[9px] ml-1 opacity-40 font-black tracking-widest">
+                    <span className="text-[9px] ml-1 opacity-40 font-black tracking-widest text-orange-400 dark:text-orange-300">
                       {carryOverBalance < 0 ? "DUE" : "CR"}
                     </span>
                   </h3>
@@ -437,11 +437,11 @@ const ChangePlanModal = ({
           </div>
 
           {/* Right Panel */}
-          <div className="flex-1 relative overflow-hidden bg-white shrink">
+          <div className="flex-1 relative overflow-hidden bg-white dark:bg-[#0c0d0f] shrink">
             <div className="absolute inset-0 z-0 pointer-events-none">
-              <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-teal-50/60 via-white to-orange-50/60" />
-              <div className="absolute top-1/2 -right-40 w-[800px] h-[800px] blur-[180px] opacity-[0.1] rounded-full bg-orange-400" />
-              <div className="absolute -bottom-40 -left-20 w-[600px] h-[600px] blur-[150px] opacity-[0.08] rounded-full bg-teal-400" />
+              <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-teal-50/60 via-white dark:via-[#0c0d0f] to-orange-50/60 dark:opacity-20" />
+              <div className="absolute top-1/2 -right-40 w-[800px] h-[800px] blur-[180px] opacity-[0.1] dark:opacity-[0.05] rounded-full bg-orange-400" />
+              <div className="absolute -bottom-40 -left-20 w-[600px] h-[600px] blur-[150px] opacity-[0.08] dark:opacity-[0.04] rounded-full bg-teal-400" />
             </div>
 
             <div className="relative z-10 flex flex-col h-full overflow-y-auto p-12 custom-scrollbar">
@@ -452,18 +452,18 @@ const ChangePlanModal = ({
                       <div className="w-8 h-8 rounded-lg bg-teal-500 flex items-center justify-center text-white shadow-lg shadow-teal-500/20">
                         <Zap size={16} fill="currentColor" />
                       </div>
-                      <h3 className="text-2xl font-black text-slate-800 tracking-tight">
+                      <h3 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">
                         Pick New Plan
                       </h3>
                     </div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] px-1">
+                    <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.4em] px-1">
                       Select strategy & update sessions
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={onClose}
-                    className="w-12 h-12 rounded-2xl bg-white shadow-lg border border-slate-100 flex items-center justify-center text-slate-400 hover:text-teal-600 transition-all"
+                    className="w-12 h-12 rounded-2xl bg-white dark:bg-white/5 shadow-lg border border-slate-100 dark:border-white/5 flex items-center justify-center text-slate-400 hover:text-teal-600 transition-all"
                   >
                     <X size={20} strokeWidth={3} />
                   </button>
@@ -483,10 +483,10 @@ const ChangePlanModal = ({
                             setRateOrCost(plan.rate.toString());
                             setDays(plan.days.toString());
                           }}
-                          className={`relative group p-7 rounded-[36px] border text-left transition-all duration-300 ${active ? "bg-white border-teal-500 ring-4 ring-teal-500/10 shadow-2xl scale-[1.02]" : "bg-white border-slate-100 hover:border-slate-300 shadow-sm opacity-100"}`}
+                          className={`relative group p-7 rounded-[36px] border text-left transition-all duration-300 ${active ? "bg-white dark:bg-white/5 border-teal-500 dark:border-teal-400 ring-4 ring-teal-500/10 shadow-2xl scale-[1.02]" : "bg-white dark:bg-white/[0.02] border-slate-100 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10 shadow-sm opacity-100"}`}
                         >
                           {isCurrent && (
-                            <div className="absolute -top-3 left-8 px-3 py-1 rounded-full bg-teal-100 border border-teal-200 text-[8px] font-black text-teal-600 uppercase tracking-widest shadow-sm">
+                            <div className="absolute -top-3 left-8 px-3 py-1 rounded-full bg-teal-100 dark:bg-teal-500/20 border border-teal-200 dark:border-teal-500/30 text-[8px] font-black text-teal-600 dark:text-teal-400 uppercase tracking-widest shadow-sm">
                               Current Plan
                             </div>
                           )}
@@ -508,18 +508,18 @@ const ChangePlanModal = ({
                           </div>
                           <div className="space-y-1">
                             <h4
-                              className={`text-base font-black uppercase tracking-tight ${active ? "text-slate-900" : "text-slate-400"}`}
+                              className={`text-base font-black uppercase tracking-tight ${active ? "text-slate-900 dark:text-white" : "text-slate-400 dark:text-slate-500"}`}
                             >
                               {plan.name}
                             </h4>
                             <div className="flex items-center gap-2">
                               <p
-                                className={`text-2xl font-black tracking-tighter ${active ? "text-teal-600" : "text-slate-300"}`}
+                                className={`text-2xl font-black tracking-tighter ${active ? "text-teal-600 dark:text-teal-400" : "text-slate-300 dark:text-slate-800"}`}
                               >
                                 ₹{plan.rate.toLocaleString()}
                               </p>
-                              <div className="w-1 h-1 rounded-full bg-slate-200" />
-                              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                              <div className="w-1 h-1 rounded-full bg-slate-200 dark:bg-white/10" />
+                              <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">
                                 {plan.days} Sessions
                               </p>
                             </div>
@@ -586,7 +586,7 @@ const ChangePlanModal = ({
                             if (keys.length > 0) setPaymentMethod(keys[0]);
                           }
                         }}
-                        className="flex items-center gap-1 text-[9px] font-bold text-teal-600 uppercase tracking-wider bg-teal-50 px-3 py-1.5 rounded-lg border border-teal-100 hover:bg-teal-100 transition-colors"
+                        className="flex items-center gap-1 text-[9px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider bg-teal-50 dark:bg-teal-500/10 px-3 py-1.5 rounded-lg border border-teal-100 dark:border-teal-500/20 hover:bg-teal-100 dark:hover:bg-teal-500/20 transition-colors"
                       >
                         {showPaymentDetails ? "Single Mode" : "Split Mode"}
                         {showPaymentDetails ? (
@@ -604,21 +604,21 @@ const ChangePlanModal = ({
                             key={i}
                             type="button"
                             onClick={() => setPaymentMethod(m.method_name)}
-                            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all ${paymentMethod === m.method_name ? "bg-teal-600 text-white shadow-lg shadow-teal-500/30 scale-105" : "bg-white text-slate-500 border border-slate-100 hover:border-slate-300"}`}
+                            className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-[0.15em] transition-all ${paymentMethod === m.method_name ? "bg-teal-600 dark:bg-teal-500 text-white shadow-lg shadow-teal-500/30 scale-105" : "bg-white dark:bg-white/5 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-white/5 hover:border-slate-300 dark:hover:border-white/10"}`}
                           >
                             {m.method_name}
                           </button>
                         ))}
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 gap-3 p-5 rounded-[24px] bg-slate-50 border border-slate-100">
+                      <div className="grid grid-cols-2 gap-3 p-5 rounded-[24px] bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5">
                         {metaData.payment_methods.map((m) => {
                           const active =
                             paymentSplits[m.method_name] !== undefined;
                           return (
                             <div
                               key={m.method_name}
-                              className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${active ? "bg-white border-teal-500 shadow-sm" : "bg-white/40 border-slate-100 opacity-60"}`}
+                              className={`flex items-center gap-3 p-3 rounded-xl border transition-all ${active ? "bg-white dark:bg-white/5 border-teal-500 dark:border-teal-400 shadow-sm" : "bg-white/40 dark:bg-white/[0.01] border-slate-100 dark:border-white/5 opacity-60"}`}
                             >
                               <button
                                 type="button"
@@ -641,7 +641,6 @@ const ChangePlanModal = ({
                                     )
                                   }
                                   className="w-20 bg-slate-50 border-none rounded-lg px-2 py-1 text-xs font-bold text-right outline-none text-slate-800"
-                                  placeholder="0"
                                 />
                               )}
                             </div>
@@ -651,11 +650,11 @@ const ChangePlanModal = ({
                     )}
                   </div>
 
-                  <div className="flex justify-between items-center p-4 bg-teal-50/50 rounded-2xl border border-teal-100 mb-6">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-teal-600">
+                  <div className="flex justify-between items-center p-4 bg-teal-50/50 dark:bg-teal-500/5 rounded-2xl border border-teal-100 dark:border-teal-500/20 mb-6">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-teal-600 dark:text-teal-400">
                       Net Rate / Session
                     </span>
-                    <span className="text-xl font-black text-teal-700 tracking-tight">
+                    <span className="text-xl font-black text-teal-700 dark:text-teal-400 tracking-tight">
                       ₹
                       {(
                         (parseFloat(rateOrCost) || 0) -
@@ -665,8 +664,8 @@ const ChangePlanModal = ({
                   </div>
 
                   {/* Simplified Financial Breakdown */}
-                  <div className="p-6 rounded-[32px] bg-slate-50 border border-slate-100 space-y-3">
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                  <div className="p-6 rounded-[32px] bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 space-y-3">
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
                       <span>Plan Value</span>
                       <span>
                         ₹
@@ -677,30 +676,30 @@ const ChangePlanModal = ({
                         ).toLocaleString()}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
                       <span>Wallet Balance</span>
                       <span
-                        className={`${carryOverBalance > 0 ? "text-emerald-500" : "text-rose-500"}`}
+                        className={`${carryOverBalance > 0 ? "text-emerald-500 dark:text-emerald-400" : "text-rose-500"}`}
                       >
                         {carryOverBalance > 0 ? "- " : "+ "}₹
                         {Math.abs(carryOverBalance).toLocaleString()}
                       </span>
                     </div>
                     {(parseFloat(advance) || 0) > 0 && (
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-500">
+                      <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
                         <span>Advance Paid</span>
-                        <span className="text-emerald-500">
+                        <span className="text-emerald-500 dark:text-emerald-400">
                           - ₹{parseFloat(advance).toLocaleString()}
                         </span>
                       </div>
                     )}
-                    <div className="h-px bg-slate-200 w-full my-2" />
+                    <div className="h-px bg-slate-200 dark:bg-white/5 w-full my-2" />
                     <div className="flex justify-between items-center">
-                      <span className="text-sm font-black uppercase tracking-widest text-slate-400">
+                      <span className="text-sm font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
                         Final Due
                       </span>
                       <span
-                        className={`text-xl font-black tracking-tighter ${finalDue > 0 ? "text-slate-800" : "text-emerald-500"}`}
+                        className={`text-xl font-black tracking-tighter ${finalDue > 0 ? "text-slate-800 dark:text-white" : "text-emerald-500 dark:text-emerald-400"}`}
                       >
                         ₹{finalDue.toLocaleString()}
                       </span>
@@ -708,19 +707,19 @@ const ChangePlanModal = ({
                   </div>
 
                   <div className="pt-4">
-                    <div className="p-8 rounded-[40px] bg-white/90 backdrop-blur-2xl border border-teal-500/10 flex flex-col md:flex-row gap-8 justify-between items-center shadow-3xl group overflow-hidden transition-all">
+                    <div className="p-8 rounded-[40px] bg-white/90 dark:bg-white/[0.03] backdrop-blur-2xl border border-teal-500/10 dark:border-white/5 flex flex-col md:flex-row gap-8 justify-between items-center shadow-3xl group overflow-hidden transition-all">
                       <div className="space-y-1 text-center md:text-left">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.5em] leading-none">
+                        <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.5em] leading-none">
                           Net Payable
                         </p>
-                        <h2 className="text-3xl font-black tracking-tighter text-slate-800">
+                        <h2 className="text-3xl font-black tracking-tighter text-slate-800 dark:text-white">
                           ₹{finalDue.toLocaleString()}
                         </h2>
                       </div>
                       <button
                         type="submit"
                         disabled={isLoading || !reason.trim()}
-                        className={`w-full md:w-auto px-8 py-3.5 rounded-[22px] font-black text-[10px] uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 shadow-xl ${!reason.trim() ? "bg-slate-100 text-slate-300 cursor-not-allowed" : "bg-teal-600 text-white hover:scale-105 active:scale-98 shadow-teal-500/40"}`}
+                        className={`w-full md:w-auto px-8 py-3.5 rounded-[22px] font-black text-[10px] uppercase tracking-[0.3em] transition-all flex items-center justify-center gap-3 shadow-xl ${!reason.trim() ? "bg-slate-100 dark:bg-white/5 text-slate-300 dark:text-slate-600 cursor-not-allowed" : "bg-teal-600 text-white hover:scale-105 active:scale-98 shadow-teal-500/40"}`}
                       >
                         {isLoading ? (
                           <Loader2 size={16} className="animate-spin" />
@@ -748,7 +747,7 @@ const ChangePlanModal = ({
                       value={reason}
                       onChange={(e: any) => setReason(e.target.value)}
                       placeholder="Audit logic: why is this modification being performed?"
-                      className="w-full px-7 py-5 bg-white/80 backdrop-blur-sm border border-slate-100 rounded-[32px] outline-none text-slate-800 font-bold placeholder:text-slate-300 min-h-[110px] focus:border-teal-500 focus:bg-white shadow-sm transition-all"
+                      className="w-full px-7 py-5 bg-white/80 dark:bg-white/[0.03] backdrop-blur-sm border border-slate-100 dark:border-white/5 rounded-[32px] outline-none text-slate-800 dark:text-white font-bold placeholder:text-slate-300 dark:placeholder:text-slate-600 min-h-[110px] focus:border-teal-500 dark:focus:border-teal-400 focus:bg-white dark:focus:bg-white/5 shadow-sm transition-all"
                     />
                   </div>
                 </div>

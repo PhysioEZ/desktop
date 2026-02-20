@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { useThemeStore } from "../../store/useThemeStore";
 
-export type FileType = "image" | "pdf" | "text" | "office" | "unknown";
+export type FileType = "image" | "pdf" | "text" | "office" | "unknown" | "html";
 
 interface FileViewerProps {
   isOpen: boolean;
@@ -25,6 +25,8 @@ interface FileViewerProps {
   url: string;
   fileName: string;
   fileType?: FileType;
+  downloadUrl?: string;
+  downloadFileName?: string;
 }
 
 const FileViewer: React.FC<FileViewerProps> = ({
@@ -33,6 +35,8 @@ const FileViewer: React.FC<FileViewerProps> = ({
   url,
   fileName,
   fileType: providedType,
+  downloadUrl,
+  downloadFileName,
 }) => {
   const { isDark } = useThemeStore();
   const [zoom, setZoom] = useState(1);
@@ -51,20 +55,12 @@ const FileViewer: React.FC<FileViewerProps> = ({
       return "image";
     if (ext === "pdf") return "pdf";
     if (
-      [
-        "txt",
-        "json",
-        "log",
-        "md",
-        "csv",
-        "xml",
-        "js",
-        "ts",
-        "html",
-        "css",
-      ].includes(ext)
+      ["txt", "json", "log", "md", "csv", "xml", "js", "ts", "css"].includes(
+        ext,
+      )
     )
       return "text";
+    if (ext === "html") return "html";
     if (["doc", "docx", "xls", "xlsx", "ppt", "pptx"].includes(ext))
       return "office";
     return "unknown";
@@ -101,8 +97,8 @@ const FileViewer: React.FC<FileViewerProps> = ({
 
   const handleDownload = () => {
     const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName;
+    link.href = downloadUrl || url;
+    link.download = downloadFileName || fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -164,6 +160,9 @@ const FileViewer: React.FC<FileViewerProps> = ({
                 )}
                 {detectedType === "text" && (
                   <FileCode size={20} className="text-blue-500" />
+                )}
+                {detectedType === "html" && (
+                  <FileCode size={20} className="text-emerald-500" />
                 )}
                 {detectedType === "office" && (
                   <FileIcon size={20} className="text-amber-500" />
@@ -284,6 +283,14 @@ const FileViewer: React.FC<FileViewerProps> = ({
                   <iframe
                     src={`${url}#toolbar=0&navpanes=0`}
                     className="w-full h-full border-none rounded-2xl bg-white"
+                    onLoad={() => setIsLoading(false)}
+                  />
+                )}
+
+                {detectedType === "html" && (
+                  <iframe
+                    src={url}
+                    className="w-full h-full border-none rounded-2xl bg-white shadow-2xl"
                     onLoad={() => setIsLoading(false)}
                   />
                 )}

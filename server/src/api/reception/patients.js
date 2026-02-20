@@ -402,6 +402,12 @@ async function fetchDetails(req, res, patientId) {
         }
     }
 
+    const [todayPaidRows] = await pool.query(
+        "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE patient_id = ? AND DATE(payment_date) = CURDATE()",
+        [patientId],
+    );
+    p.has_payment_today = parseFloat(todayPaidRows[0].total || 0);
+
     const [payments] = await pool.query(
         "SELECT payment_id, amount, payment_date, mode as payment_method, remarks, created_at FROM payments WHERE patient_id = ? ORDER BY payment_date DESC, created_at DESC",
         [patientId],
