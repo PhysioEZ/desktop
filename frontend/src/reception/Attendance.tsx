@@ -57,7 +57,8 @@ interface AttendanceHistory {
   };
   attendance_history: {
     date: string; // "yyyy-MM-dd"
-    status: "present" | "absent";
+    status: "present" | "pending" | "rejected" | "absent";
+    remarks?: string;
   }[];
 }
 
@@ -185,7 +186,8 @@ const Attendance = () => {
                 date: item.attendance_date
                   ? format(new Date(item.attendance_date), "yyyy-MM-dd")
                   : "",
-                status: item.status,
+                status: item.status || "present",
+                remarks: item.remarks || "",
               }))
             : [],
         };
@@ -218,7 +220,8 @@ const Attendance = () => {
               date: item.attendance_date
                 ? format(new Date(item.attendance_date), "yyyy-MM-dd")
                 : "",
-              status: item.status,
+              status: item.status || "present",
+              remarks: item.remarks || "",
             }))
           : [];
         setSelectedDateHistory(history);
@@ -264,18 +267,6 @@ const Attendance = () => {
     return res;
   }, [records, search, statusFilter]);
 
-  // Helpers
-  const isAttendanceDay = useCallback(
-    (day: Date) => {
-      if (!selectedPatientHistory?.attendance_history) return false;
-      const s = format(day, "yyyy-MM-dd");
-      return selectedPatientHistory.attendance_history.some(
-        (r) => r.date === s && r.status === "present",
-      );
-    },
-    [selectedPatientHistory],
-  );
-
   const calendarDays = useMemo(() => {
     const start = startOfWeek(startOfMonth(attendanceCalendarMonth));
     const end = endOfWeek(endOfMonth(attendanceCalendarMonth));
@@ -299,6 +290,244 @@ const Attendance = () => {
         />
 
         <div className="flex-1 flex overflow-hidden">
+          {/* === LEFT PANEL (INTEGRATED INSIGHT) === */}
+          <div
+            className={`w-[580px] flex flex-col shrink-0 z-40 transition-all border-r ${isDark ? "bg-[#0D0D0E] border-white/5" : "bg-white border-slate-200/60 shadow-[10px_0_30px_rgba(0,0,0,0.02)]"}`}
+          >
+            <AnimatePresence mode="wait">
+              {selectedPatientHistory ? (
+                <motion.div
+                  key={selectedPatientHistory.patient.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="flex flex-col h-full overflow-hidden"
+                >
+                  {/* Seamless Header */}
+                  <div className="p-8 pt-10 border-b relative">
+                    <div className="flex items-center justify-between mb-8">
+                      <h3 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.2em]">
+                        Attendance Insight
+                      </h3>
+                      <div className="flex gap-2">
+                        <button
+                          className={`p-2 rounded-xl border ${isDark ? "border-white/10 hover:bg-white/5" : "border-slate-200 hover:bg-slate-50"}`}
+                        >
+                          <Filter size={16} className="text-slate-400" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* 2x2 Integrated Stat Grid (Moved to top as Overview) */}
+                    <div className="grid grid-cols-2 gap-px bg-slate-200 dark:bg-white/5 border rounded-2xl overflow-hidden border-slate-200 dark:border-white/5 mb-8">
+                      {[
+                        {
+                          label: "Attendance",
+                          value: `${Math.round((selectedPatientHistory.patient.present_days / (selectedPatientHistory.patient.present_days + selectedPatientHistory.patient.remaining_days)) * 100)}%`,
+                          color: "text-emerald-500",
+                        },
+                        {
+                          label: "Completed",
+                          value: selectedPatientHistory.patient.present_days,
+                          color: "text-slate-900 dark:text-white",
+                        },
+                        {
+                          label: "Remaining",
+                          value: selectedPatientHistory.patient.remaining_days,
+                          color: "text-amber-500",
+                        },
+                        {
+                          label: "Total Days",
+                          value: selectedPatientHistory.patient.total_days,
+                          color: "text-slate-400",
+                        },
+                      ].map((stat, idx) => (
+                        <div
+                          key={idx}
+                          className={`p-4 ${isDark ? "bg-[#0D0D0E]" : "bg-white"}`}
+                        >
+                          <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-1">
+                            {stat.label}
+                          </p>
+                          <p
+                            className={`text-xl font-semibold tracking-tight ${stat.color}`}
+                          >
+                            {stat.value}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-5">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-900 dark:bg-white flex items-center justify-center text-white dark:text-black text-lg font-semibold shadow-xl">
+                        {selectedPatientHistory.patient.name.charAt(0)}
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white leading-tight">
+                          {selectedPatientHistory.patient.name}
+                        </h2>
+                        <span className="text-[11px] font-medium text-slate-400 uppercase tracking-widest mt-0.5 inline-block">
+                          ID: #{selectedPatientHistory.patient.id}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Calendar & Feed - Scrollable */}
+                  <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
+                    <div className="mb-12">
+                      <div className="flex items-center justify-between mb-8 px-1">
+                        <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em]">
+                          Patient Logs
+                        </h4>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() =>
+                              setAttendanceCalendarMonth(
+                                subMonths(attendanceCalendarMonth, 1),
+                              )
+                            }
+                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-all"
+                          >
+                            <ChevronLeft size={14} />
+                          </button>
+                          <span className="text-[10px] font-semibold min-w-[70px] text-center">
+                            {format(attendanceCalendarMonth, "MMM yyyy")}
+                          </span>
+                          <button
+                            onClick={() =>
+                              setAttendanceCalendarMonth(
+                                addMonths(attendanceCalendarMonth, 1),
+                              )
+                            }
+                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-all"
+                          >
+                            <ChevronRight size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-7 gap-y-1">
+                        {["S", "M", "T", "W", "T", "F", "S"].map((d) => (
+                          <span
+                            key={d}
+                            className="text-[10px] font-medium text-slate-300 uppercase h-6 flex items-center justify-center"
+                          >
+                            {d}
+                          </span>
+                        ))}
+                        {calendarDays.map((d, i) => {
+                          const dateStr = format(d, "yyyy-MM-dd");
+                          const dayRecords = (
+                            selectedPatientHistory.attendance_history || []
+                          ).filter((r) => r.date === dateStr);
+                          const latestRecord =
+                            dayRecords.length > 0 ? dayRecords[0] : null;
+                          const isPresent = latestRecord?.status === "present";
+                          const isPending = latestRecord?.status === "pending";
+                          const isRejected =
+                            latestRecord?.status === "rejected";
+
+                          const isSelected =
+                            selectedHistoryDate &&
+                            isSameDay(d, selectedHistoryDate);
+                          const isCurrent = isSameMonth(
+                            d,
+                            attendanceCalendarMonth,
+                          );
+                          const isTodayDate = isSameDay(d, new Date());
+
+                          return (
+                            <button
+                              key={i}
+                              onClick={() => {
+                                setSelectedHistoryDate(d);
+                                fetchAttendanceHistoryForDate(
+                                  selectedPatientHistory.patient.id,
+                                  d,
+                                );
+                              }}
+                              className={`w-9 h-9 rounded-xl text-[11px] font-semibold transition-all relative flex flex-col items-center justify-center mx-auto
+                                    ${!isCurrent ? "opacity-10 pointer-events-none" : "hover:bg-slate-100 dark:hover:bg-white/5"}
+                                    ${isSelected ? (isDark ? "bg-emerald-500 text-white shadow-lg" : "bg-slate-900 text-white") : ""}
+                                    ${isPresent && !isSelected ? "text-emerald-500 bg-emerald-500/5" : ""}
+                                    ${isPending && !isSelected ? "text-amber-500 bg-amber-500/5" : ""}
+                                    ${isRejected && !isSelected ? "text-rose-500 bg-rose-500/5" : ""}
+                                    ${isTodayDate && !isSelected ? "border-b-2 border-emerald-500" : ""}
+                                  `}
+                            >
+                              {format(d, "d")}
+                              {(isPresent || isPending || isRejected) &&
+                                !isSelected && (
+                                  <div
+                                    className={`absolute bottom-1 w-1 h-1 rounded-full ${isPresent ? "bg-emerald-500" : isPending ? "bg-amber-500" : "bg-rose-500"}`}
+                                  />
+                                )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Activity Timeline */}
+                    <div>
+                      <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em] mb-8 px-1">
+                        Activity Feed
+                      </h4>
+                      <div className="space-y-8 relative pl-4">
+                        <div className="absolute left-[19px] top-2 bottom-2 w-px bg-slate-200 dark:bg-white/5" />
+
+                        {(selectedHistoryDate
+                          ? selectedDateHistory
+                          : selectedPatientHistory.attendance_history || []
+                        )
+                          .slice(0, 10)
+                          .map((h, i) => (
+                            <div key={i} className="relative pl-10 group">
+                              <div
+                                className={`absolute left-[-4px] top-1.5 w-2 h-2 rounded-full border-2 ${isDark ? "border-[#0D0D0E]" : "border-white"} z-10 
+                                  ${h.status === "present" ? "bg-emerald-500" : h.status === "pending" ? "bg-amber-500" : h.status === "rejected" ? "bg-rose-500" : "bg-slate-300"}`}
+                              />
+                              <div className="flex flex-col">
+                                <div className="flex items-center justify-between mb-1">
+                                  <span
+                                    className={`text-[12px] font-bold capitalize
+                                    ${h.status === "present" ? "text-emerald-500" : h.status === "pending" ? "text-amber-500" : h.status === "rejected" ? "text-rose-500" : "text-slate-500"}`}
+                                  >
+                                    {h.status}
+                                  </span>
+                                  <span className="text-[10px] font-medium text-slate-400">
+                                    {format(new Date(h.date), "dd MMM yyyy")}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
+                                  {h.remarks ||
+                                    "No remarks provided for this record."}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ) : (
+                <div className="flex-1 flex flex-col items-center justify-center p-12 text-center select-none opacity-40">
+                  <div className="w-20 h-20 rounded-[40px] border-2 border-dashed border-slate-300 dark:border-white/10 flex items-center justify-center mb-6">
+                    <Users size={32} strokeWidth={1.5} />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">
+                    Attendance Insight
+                  </h3>
+                  <p className="text-[11px] font-medium leading-relaxed max-w-[200px]">
+                    Select a patient from the list <br /> to view engagement
+                    analytics.
+                  </p>
+                </div>
+              )}
+            </AnimatePresence>
+          </div>
+
           {/* === MAIN CONTENT === */}
           <main className="flex-1 overflow-hidden flex flex-col p-6 lg:p-10">
             {/* Top Overview Bar */}
@@ -580,224 +809,6 @@ const Attendance = () => {
               </div>
             </div>
           </main>
-
-          {/* === RIGHT PANEL (INTEGRATED INSIGHT) === */}
-          <div
-            className={`w-[580px] flex flex-col shrink-0 z-40 transition-all border-l ${isDark ? "bg-[#0D0D0E] border-white/5" : "bg-white border-slate-200/60 shadow-[-10px_0_30px_rgba(0,0,0,0.02)]"}`}
-          >
-            <AnimatePresence mode="wait">
-              {selectedPatientHistory ? (
-                <motion.div
-                  key={selectedPatientHistory.patient.id}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className="flex flex-col h-full overflow-hidden"
-                >
-                  {/* Seamless Header */}
-                  <div className="p-8 pt-10 border-b relative">
-                    <div className="flex items-center justify-between mb-8">
-                      <h3 className="text-[12px] font-bold text-slate-400 uppercase tracking-[0.2em]">
-                        Attendance Insight
-                      </h3>
-                      <div className="flex gap-2">
-                        <button
-                          className={`p-2 rounded-xl border ${isDark ? "border-white/10 hover:bg-white/5" : "border-slate-200 hover:bg-slate-50"}`}
-                        >
-                          <Filter size={16} className="text-slate-400" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 2x2 Integrated Stat Grid (Moved to top as Overview) */}
-                    <div className="grid grid-cols-2 gap-px bg-slate-200 dark:bg-white/5 border rounded-2xl overflow-hidden border-slate-200 dark:border-white/5 mb-8">
-                      {[
-                        {
-                          label: "Attendance",
-                          value: `${Math.round((selectedPatientHistory.patient.present_days / (selectedPatientHistory.patient.present_days + selectedPatientHistory.patient.remaining_days)) * 100)}%`,
-                          color: "text-emerald-500",
-                        },
-                        {
-                          label: "Completed",
-                          value: selectedPatientHistory.patient.present_days,
-                          color: "text-slate-900 dark:text-white",
-                        },
-                        {
-                          label: "Remaining",
-                          value: selectedPatientHistory.patient.remaining_days,
-                          color: "text-amber-500",
-                        },
-                        {
-                          label: "Total Days",
-                          value: selectedPatientHistory.patient.total_days,
-                          color: "text-slate-400",
-                        },
-                      ].map((stat, idx) => (
-                        <div
-                          key={idx}
-                          className={`p-4 ${isDark ? "bg-[#0D0D0E]" : "bg-white"}`}
-                        >
-                          <p className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest mb-1">
-                            {stat.label}
-                          </p>
-                          <p
-                            className={`text-xl font-semibold tracking-tight ${stat.color}`}
-                          >
-                            {stat.value}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="flex items-center gap-5">
-                      <div className="w-12 h-12 rounded-2xl bg-slate-900 dark:bg-white flex items-center justify-center text-white dark:text-black text-lg font-semibold shadow-xl">
-                        {selectedPatientHistory.patient.name.charAt(0)}
-                      </div>
-                      <div>
-                        <h2 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-white leading-tight">
-                          {selectedPatientHistory.patient.name}
-                        </h2>
-                        <span className="text-[11px] font-medium text-slate-400 uppercase tracking-widest mt-0.5 inline-block">
-                          ID: #{selectedPatientHistory.patient.id}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Calendar & Feed - Scrollable */}
-                  <div className="flex-1 overflow-y-auto custom-scrollbar p-8">
-                    <div className="mb-12">
-                      <div className="flex items-center justify-between mb-8 px-1">
-                        <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em]">
-                          Patient Logs
-                        </h4>
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() =>
-                              setAttendanceCalendarMonth(
-                                subMonths(attendanceCalendarMonth, 1),
-                              )
-                            }
-                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-all"
-                          >
-                            <ChevronLeft size={14} />
-                          </button>
-                          <span className="text-[10px] font-semibold min-w-[70px] text-center">
-                            {format(attendanceCalendarMonth, "MMM yyyy")}
-                          </span>
-                          <button
-                            onClick={() =>
-                              setAttendanceCalendarMonth(
-                                addMonths(attendanceCalendarMonth, 1),
-                              )
-                            }
-                            className="p-1.5 hover:bg-slate-100 dark:hover:bg-white/5 rounded-lg transition-all"
-                          >
-                            <ChevronRight size={14} />
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-7 gap-y-1">
-                        {["S", "M", "T", "W", "T", "F", "S"].map((d) => (
-                          <span
-                            key={d}
-                            className="text-[10px] font-medium text-slate-300 uppercase h-6 flex items-center justify-center"
-                          >
-                            {d}
-                          </span>
-                        ))}
-                        {calendarDays.map((d, i) => {
-                          const isPresent = isAttendanceDay(d);
-                          const isSelected =
-                            selectedHistoryDate &&
-                            isSameDay(d, selectedHistoryDate);
-                          const isCurrent = isSameMonth(
-                            d,
-                            attendanceCalendarMonth,
-                          );
-                          const isTodayDate = isSameDay(d, new Date());
-
-                          return (
-                            <button
-                              key={i}
-                              onClick={() => {
-                                setSelectedHistoryDate(d);
-                                fetchAttendanceHistoryForDate(
-                                  selectedPatientHistory.patient.id,
-                                  d,
-                                );
-                              }}
-                              className={`w-9 h-9 rounded-xl text-[11px] font-semibold transition-all relative flex flex-col items-center justify-center mx-auto
-                                    ${!isCurrent ? "opacity-10 pointer-events-none" : "hover:bg-slate-100 dark:hover:bg-white/5"}
-                                    ${isSelected ? (isDark ? "bg-emerald-500 text-white shadow-lg" : "bg-slate-900 text-white") : ""}
-                                    ${isPresent && !isSelected ? "text-emerald-500" : ""}
-                                    ${isTodayDate && !isSelected ? "border-b-2 border-emerald-500" : ""}
-                                  `}
-                            >
-                              {format(d, "d")}
-                              {isPresent && !isSelected && (
-                                <div className="absolute bottom-1 w-1 h-1 rounded-full bg-emerald-500" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Activity Timeline */}
-                    <div>
-                      <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.2em] mb-8 px-1">
-                        Activity Feed
-                      </h4>
-                      <div className="space-y-8 relative pl-4">
-                        <div className="absolute left-[19px] top-2 bottom-2 w-px bg-slate-200 dark:bg-white/5" />
-
-                        {(selectedHistoryDate
-                          ? selectedDateHistory
-                          : selectedPatientHistory.attendance_history || []
-                        )
-                          .slice(0, 6)
-                          .map((h, i) => (
-                            <div key={i} className="relative pl-10 group">
-                              <div
-                                className={`absolute left-[-4px] top-1.5 w-2 h-2 rounded-full border-2 ${isDark ? "border-[#0D0D0E]" : "border-white"} z-10 ${h.status === "present" ? "bg-emerald-500" : "bg-rose-500 opacity-50"}`}
-                              />
-                              <div className="flex flex-col">
-                                <div className="flex items-center justify-between mb-1">
-                                  <span className="text-[12px] font-semibold text-slate-800 dark:text-white capitalize">
-                                    Record {h.status}
-                                  </span>
-                                  <span className="text-[10px] font-medium text-slate-400">
-                                    {format(new Date(h.date), "dd MMM")}
-                                  </span>
-                                </div>
-                                <p className="text-[11px] font-medium text-slate-500 leading-relaxed">
-                                  Attendance updated at reception desk.
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              ) : (
-                <div className="flex-1 flex flex-col items-center justify-center p-12 text-center select-none opacity-40">
-                  <div className="w-20 h-20 rounded-[40px] border-2 border-dashed border-slate-300 dark:border-white/10 flex items-center justify-center mb-6">
-                    <Users size={32} strokeWidth={1.5} />
-                  </div>
-                  <h3 className="text-lg font-semibold mb-2">
-                    Attendance Insight
-                  </h3>
-                  <p className="text-[11px] font-medium leading-relaxed max-w-[200px]">
-                    Select a patient from the list <br /> to view engagement
-                    analytics.
-                  </p>
-                </div>
-              )}
-            </AnimatePresence>
-          </div>
         </div>
 
         {/* Date Picker Overlay */}

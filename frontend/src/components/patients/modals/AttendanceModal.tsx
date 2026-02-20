@@ -22,6 +22,7 @@ const AttendanceModal = ({
   const [amount, setAmount] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<string>("");
   const [remarks, setRemarks] = useState("");
+  const [isRemarksManual, setIsRemarksManual] = useState(false);
   const [markAsDue, setMarkAsDue] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -35,6 +36,7 @@ const AttendanceModal = ({
       setAmount(minRequired.toFixed(2));
       setPaymentMethod("");
       setRemarks("");
+      setIsRemarksManual(false);
       setMarkAsDue(false);
       setError("");
     }
@@ -44,12 +46,25 @@ const AttendanceModal = ({
     if (markAsDue) {
       setAmount("0");
       setPaymentMethod("");
-      setRemarks("Marked as Due - Patient will pay later");
     } else {
       setAmount(minRequired.toFixed(2));
-      setRemarks("");
     }
   }, [markAsDue, minRequired]);
+
+  useEffect(() => {
+    if (isRemarksManual) return;
+
+    if (markAsDue) {
+      setRemarks("Auto: Marked as Pending (Pay Later)");
+    } else {
+      const numAmount = parseFloat(amount) || 0;
+      if (numAmount > 0) {
+        setRemarks(`Auto: Payment of ₹${numAmount} received`);
+      } else {
+        setRemarks("Auto: Debited from Balance");
+      }
+    }
+  }, [markAsDue, amount, isRemarksManual]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -273,7 +288,10 @@ const AttendanceModal = ({
                 </label>
                 <textarea
                   value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
+                  onChange={(e) => {
+                    setRemarks(e.target.value);
+                    setIsRemarksManual(true);
+                  }}
                   className="w-full px-8 py-5 bg-slate-50 dark:bg-white/[0.03] border border-transparent focus:border-emerald-500/20 rounded-[24px] outline-none transition-all text-sm font-medium text-slate-700 dark:text-slate-200 resize-none"
                   placeholder="Add any notes here..."
                   rows={markAsDue ? 4 : 2}
