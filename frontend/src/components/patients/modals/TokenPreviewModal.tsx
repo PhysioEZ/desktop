@@ -120,6 +120,14 @@ const TokenPreviewModal = ({
             <div className="space-y-8">
               {/* Token Preview Card */}
               <div className="bg-white border-2 border-dashed border-slate-300 p-6 rounded-[4px] relative overflow-hidden shadow-sm mx-auto max-w-[300px] text-black font-mono text-xs">
+                {/* Reprint Watermark */}
+                {data.has_token_today && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden opacity-[0.08]">
+                    <span className="text-8xl font-black -rotate-45 uppercase tracking-[0.2em] whitespace-nowrap">
+                      REPRINT
+                    </span>
+                  </div>
+                )}
                 <div className="text-center mb-4">
                   <h1 className="font-black text-xl uppercase tracking-wider mb-1">
                     {(data.clinic_name || "PROSPINE").toUpperCase()}
@@ -138,11 +146,7 @@ const TokenPreviewModal = ({
                   <div className="flex justify-between font-bold">
                     <span>DATE:</span>
                     <span>
-                      {new Date().toLocaleDateString("en-GB", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                      {data.token_date}
                     </span>
                   </div>
                   <div className="flex justify-between font-bold">
@@ -216,7 +220,9 @@ const TokenPreviewModal = ({
                   <p className="font-bold text-xs mb-1">
                     PLEASE WAIT FOR YOUR TURN
                   </p>
-                  <p className="text-[9px]">System Generated Token</p>
+                  <p className="text-[9px]">
+                    {data.has_token_today ? `REPRINTED TOKEN (#${data.print_count})` : "System Generated Token"}
+                  </p>
                 </div>
               </div>
 
@@ -224,7 +230,7 @@ const TokenPreviewModal = ({
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => handleGenerateAndPrint("thermal")}
-                    disabled={printing || data?.has_token_today}
+                    disabled={printing || (data.has_token_today && data.print_count > 3)}
                     className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed uppercase tracking-widest text-[11px]"
                   >
                     {printing ? (
@@ -232,14 +238,16 @@ const TokenPreviewModal = ({
                     ) : (
                       <Printer size={18} />
                     )}
-                    {data?.has_token_today
-                      ? "Token Already Printed"
+                    {data.has_token_today
+                      ? data.print_count > 3
+                        ? "Reprint Limit Reached"
+                        : `Reprint Slip (${Math.max(0, 4 - data.print_count)} left)`
                       : 'Print Thermal Slip (3")'}
                   </button>
 
                   <button
                     onClick={() => handleGenerateAndPrint("a4")}
-                    disabled={printing || data?.has_token_today}
+                    disabled={printing || (data.has_token_today && data.print_count > 3)}
                     className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99] disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed uppercase tracking-widest text-[11px]"
                   >
                     {printing ? (
@@ -247,12 +255,14 @@ const TokenPreviewModal = ({
                     ) : (
                       <FileText size={18} />
                     )}
-                    Print A4 Statement
+                    {data.has_token_today ? "Reprint A4 Statement" : "Print A4 Statement"}
                   </button>
                 </div>
-                {data?.has_token_today && (
-                  <p className="text-[10px] text-center text-amber-600 dark:text-amber-400 font-black uppercase tracking-widest bg-amber-500/10 py-2 rounded-lg">
-                    Re-printing is currently restricted
+                {data.has_token_today && (
+                  <p className={`text-[10px] text-center font-black uppercase tracking-widest py-2 rounded-lg ${data.print_count > 3 ? 'text-rose-500 bg-rose-500/10' : 'text-amber-600 dark:text-amber-400 bg-amber-500/10'}`}>
+                    {data.print_count > 3
+                      ? "Maximum reprint limit of 3 has been reached"
+                      : `This is a reprint. ${Math.max(0, 4 - data.print_count)} reprints remaining.`}
                   </p>
                 )}
                 <p className="text-[10px] text-center text-slate-400 font-medium px-4 leading-relaxed">

@@ -41,12 +41,14 @@ export const printToken = (data: any) => {
     doc.write('.text-xl { font-size: 14pt; line-height: 1.2; }');
     doc.write('.text-4xl { font-size: 24pt; line-height: 1; }');
     doc.write('.text-xs { font-size: 9pt; line-height: 1.1; }');
-    doc.write('#token-print-area { page-break-inside: avoid; break-inside: avoid; }');
+    doc.write('#token-print-area { position: relative; page-break-inside: avoid; break-inside: avoid; }');
+    doc.write('.watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 70px; font-weight: 900; color: rgba(0, 0, 0, 0.08); white-space: nowrap; z-index: -1; pointer-events: none; text-transform: uppercase; letter-spacing: 5px; }');
     doc.write('</style>');
     doc.write('</head><body>');
 
     const htmlContent = `
         <div id="token-print-area">
+            ${data.has_token_today ? '<div class="watermark">REPRINT</div>' : ''}
             <div class="text-center mb-2">
                 <h1 class="font-black text-xl uppercase tracking-wider mb-1">${(data.clinic_name || 'PROSPINE').toUpperCase()}</h1>
                 <p class="text-[10px] uppercase font-bold text-center w-full">${(data.branch_address || 'Swami Vivika Nand Road').toUpperCase()}</p>
@@ -147,10 +149,11 @@ export const printA4Token = (data: any) => {
     doc.write('.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; font-size: 14px; }');
     doc.write('.label { font-size: 11px; text-transform: uppercase; color: #555; font-weight: bold; letter-spacing: 1px; margin-bottom: 4px; }');
     doc.write('.val { font-size: 16px; font-weight: 600; }');
-    doc.write('.footer { position: fixed; bottom: 0; width: 100%; text-align: center; font-size: 10px; border-top: 1px solid #ccc; padding-top: 10px; color: #777; }');
+    doc.write('.watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 151px; font-weight: 900; color: rgba(0, 0, 0, 0.05); white-space: nowrap; z-index: -1; pointer-events: none; text-transform: uppercase; letter-spacing: 20px; }');
     doc.write('</style></head><body>');
     
     const html = `
+        ${data.has_token_today ? '<div class="watermark">REPRINT</div>' : ''}
         <div class="header">
             <div>
                 <h1 class="clinic-title">${(data.clinic_name || 'Clinic').toUpperCase()}</h1>

@@ -30,6 +30,7 @@ export interface Patient {
     end_date: string;
     today_attendance: string | null;
     has_token_today: boolean;
+    print_count: number;
     cost_per_day: number;
     patient_condition?: string;
     referral_source?: string;

@@ -612,7 +612,12 @@ const Patients = () => {
                                 e.stopPropagation();
                                 handlePrintToken(e, patient.patient_id);
                               }}
-                              // disabled={!isPresent || patient.has_token_today}
+                              disabled={patient.print_count > 3}
+                              title={
+                                patient.print_count > 0
+                                  ? `Remaining reprints: ${Math.max(0, 4 - patient.print_count)}`
+                                  : "Generate Token"
+                              }
                               className="w-9 h-9 flex items-center justify-center rounded-full bg-slate-50 dark:bg-white/5 text-slate-400 hover:text-emerald-600 border border-transparent hover:border-emerald-500/20 transition-all shadow-sm disabled:opacity-20 disabled:cursor-not-allowed disabled:grayscale"
                             >
                               <Printer size={15} />

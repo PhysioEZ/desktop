@@ -118,11 +118,38 @@ async function getTokenData(req, res, patientId) {
         const today = new Date().toISOString().split("T")[0];
         const { patient, paidToday, balance, currentAttendanceCount, treatmentDays, paymentsHistory } = await getPatientFinancials(pool, patientId, today);
 
-        const [countRows] = await pool.query(
-            "SELECT COUNT(*) as count FROM tokens WHERE token_date = ?",
-            [today]
+        // Check if token already exists
+        const [existingTok] = await pool.query(
+            "SELECT * FROM tokens WHERE patient_id = ? AND token_date = ?",
+            [patientId, today]
         );
-        const nextTokenNo = countRows[0].count + 1;
+
+        let tokenData = {};
+        if (existingTok.length > 0) {
+            const tok = existingTok[0];
+            const tokenNo = parseInt(tok.token_uid.split('-').pop());
+            tokenData = {
+                has_token_today: true,
+                print_count: tok.print_count,
+                token_uid: tok.token_uid,
+                token_number: tokenNo,
+                token_date: new Date(tok.token_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-"),
+            };
+        } else {
+            const [countRows] = await pool.query(
+                "SELECT COUNT(*) as count FROM tokens WHERE token_date = ?",
+                [today]
+            );
+            const nextTokenNo = countRows[0].count + 1;
+            const datePart = today.replace(/-/g, '').slice(2);
+            tokenData = {
+                has_token_today: false,
+                print_count: 0,
+                token_uid: `T-${datePart}-${String(nextTokenNo).padStart(2, '0')}`,
+                token_number: nextTokenNo,
+                token_date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-"),
+            };
+        }
 
         // Fetch Branch Details
         const [branchRows] = await pool.query(
@@ -131,16 +158,10 @@ async function getTokenData(req, res, patientId) {
         );
         const branch = branchRows[0] || {};
 
-        // Formatting Token UID: T-YYMMDD-XX
-        const datePart = today.replace(/-/g, '').slice(2);
-        const tokenUid = `T-${datePart}-${String(nextTokenNo).padStart(2, '0')}`;
-
         res.json({
             success: true,
             data: {
-                token_date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-"),
-                token_uid: tokenUid,
-                token_number: nextTokenNo,
+                ...tokenData,
                 patient_name: patient.patient_name,
                 patient_phone: patient.phone_number,
                 treatment_type: patient.treatment_type,
@@ -157,10 +178,9 @@ async function getTokenData(req, res, patientId) {
                 attendance_progress: `${currentAttendanceCount}/${treatmentDays}`,
                 paid_today: paidToday,
                 due_amount: balance < 0 ? Math.abs(balance) : 0,
-                effective_balance: balance, // Changed from remaining_balance to effective_balance
-                pkg_dues: 0, // Explicitly sending 0 as requested
+                effective_balance: balance,
+                pkg_dues: 0,
                 payments_history: paymentsHistory,
-                // Branch Info
                 clinic_name: branch.clinic_name || 'ProSpine Clinic',
                 branch_address: branch.address_line_1 || '',
                 branch_phone: branch.phone_primary || ''
@@ -178,8 +198,81 @@ async function generateToken(req, res, patientId) {
 
         const today = new Date().toISOString().split("T")[0];
 
-        // Use helper with transaction connection
-        // Note: Helper uses 'conn.query'. 'connection' object has 'query' method.
+        // 1. Check if token already exists for this patient today
+        const [existingToken] = await connection.query(
+            "SELECT * FROM tokens WHERE patient_id = ? AND token_date = ? FOR UPDATE",
+            [patientId, today]
+        );
+
+        if (existingToken.length > 0) {
+            const token = existingToken[0];
+            
+            // Limit reprints to 3 times (Total 4 prints)
+            if (token.print_count > 3) {
+                await connection.rollback();
+                return res.status(400).json({ 
+                    status: 'error', 
+                    message: 'Max reprint limit (3) reached.' 
+                });
+            }
+
+            // Update print count
+            await connection.query(
+                "UPDATE tokens SET print_count = print_count + 1 WHERE token_id = ?",
+                [token.token_id]
+            );
+
+            const { patient, paidToday, balance, currentAttendanceCount, treatmentDays, paymentsHistory } = await getPatientFinancials(connection, patientId, today);
+
+            // Fetch Branch Details
+            const [branchRows] = await connection.query(
+                "SELECT clinic_name, address_line_1, phone_primary FROM branches WHERE branch_id = ?",
+                [patient.branch_id]
+            );
+            const branch = branchRows[0] || {};
+
+            // Extract number from UID (T-YYMMDD-XX)
+            const tokenNo = parseInt(token.token_uid.split('-').pop());
+
+            await connection.commit();
+
+            return res.json({
+                success: true,
+                status: 'REPRINT',
+                message: `This is reprint #${token.print_count}`,
+                data: {
+                    token_date: new Date(token.token_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-"),
+                    token_uid: token.token_uid,
+                    token_number: tokenNo,
+                    patient_name: patient.patient_name,
+                    patient_phone: patient.phone_number,
+                    treatment_type: patient.treatment_type,
+                    start_date: patient.start_date,
+                    end_date: patient.end_date,
+                    total_plan_cost: patient.total_amount,
+                    plan_days: patient.treatment_days,
+                    cost_per_day: patient.treatment_cost_per_day,
+                    session_time: patient.treatment_time_slot,
+                    discount: patient.discount_amount,
+                    patient_uid: patient.patient_uid,
+                    patient_id: patient.patient_id,
+                    assigned_doctor: patient.assigned_doctor,
+                    attendance_progress: `${currentAttendanceCount}/${treatmentDays}`,
+                    paid_today: paidToday,
+                    due_amount: balance < 0 ? Math.abs(balance) : 0,
+                    effective_balance: balance,
+                    pkg_dues: 0,
+                    payments_history: paymentsHistory,
+                    clinic_name: branch.clinic_name || 'ProSpine Clinic',
+                    branch_address: branch.address_line_1 || '',
+                    branch_phone: branch.phone_primary || '',
+                    has_token_today: true,
+                    print_count: token.print_count + 1
+                }
+            });
+        }
+
+        // 2. Otherwise generate new token
         const { patient, paidToday, balance, currentAttendanceCount, treatmentDays, paymentsHistory } = await getPatientFinancials(connection, patientId, today);
 
         const [countRows] = await connection.query(
@@ -198,21 +291,20 @@ async function generateToken(req, res, patientId) {
         const datePart = today.replace(/-/g, '').slice(2);
         const tokenUid = `T-${datePart}-${String(tokenNo).padStart(2, '0')}`;
 
-        // Fixed Insert: Removed token_number, status. Added branch_id, service_type.
         await connection.query(
-            "INSERT INTO tokens (patient_id, branch_id, service_type, token_uid, token_date, created_at) VALUES (?, ?, ?, ?, ?, NOW())",
+            "INSERT INTO tokens (patient_id, branch_id, service_type, token_uid, token_date, print_count, created_at) VALUES (?, ?, ?, ?, ?, 1, NOW())",
             [patientId, patient.branch_id, patient.service_type || 'General', tokenUid, today]
         );
 
         await connection.commit();
 
-        // Return the GENERATED token data
         res.json({
             success: true,
+            status: 'NEW',
             data: {
                 token_date: new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }).replace(/ /g, "-"),
                 token_uid: tokenUid,
-                token_number: tokenNo, // ACTUALLY generated number
+                token_number: tokenNo,
                 patient_name: patient.patient_name,
                 patient_phone: patient.phone_number,
                 treatment_type: patient.treatment_type,
@@ -229,13 +321,14 @@ async function generateToken(req, res, patientId) {
                 attendance_progress: `${currentAttendanceCount}/${treatmentDays}`,
                 paid_today: paidToday,
                 due_amount: balance < 0 ? Math.abs(balance) : 0,
-                effective_balance: balance, // Changed from remaining_balance to effective_balance
+                effective_balance: balance,
                 pkg_dues: 0,
                 payments_history: paymentsHistory,
-                // Branch Info
                 clinic_name: branch.clinic_name || 'ProSpine Clinic',
                 branch_address: branch.address_line_1 || '',
-                branch_phone: branch.phone_primary || ''
+                branch_phone: branch.phone_primary || '',
+                has_token_today: true,
+                print_count: 1
             }
         });
 
