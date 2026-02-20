@@ -627,7 +627,7 @@ const Schedule = () => {
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <PageHeader
-          title="Schedule"
+          title="Attendance"
           icon={Calendar}
           onRefresh={handleRefresh}
           isLoading={isLoading}
