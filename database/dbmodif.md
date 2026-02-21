@@ -20,3 +20,6 @@ ALTER TABLE patient_feedback ADD COLUMN is_resolved TINYINT(1) DEFAULT 0;
 ALTER TABLE patient_feedback ADD COLUMN resolution_note TEXT DEFAULT NULL;
 ALTER TABLE patient_feedback ADD COLUMN resolved_by INT DEFAULT NULL;
 ALTER TABLE patient_feedback ADD COLUMN resolved_at TIMESTAMP NULL DEFAULT NULL;
+
+-- 2026-02-21: Add print_count to tokens for reprint limiting
+ALTER TABLE tokens ADD COLUMN print_count INT DEFAULT 1;

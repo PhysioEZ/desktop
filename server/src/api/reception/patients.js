@@ -230,7 +230,8 @@ async function fetchPatients(req, res, branchId, input) {
                 ELSE p.treatment_cost_per_day 
             END) as cost_per_day,
             today_att.status as today_attendance,
-            (CASE WHEN today_tok.token_id IS NOT NULL THEN 1 ELSE 0 END) as has_token_today
+            (CASE WHEN today_tok.token_id IS NOT NULL THEN 1 ELSE 0 END) as has_token_today,
+            COALESCE(today_tok.print_count, 0) as print_count
         FROM patients p
         JOIN registration r ON p.registration_id = r.registration_id
         LEFT JOIN patient_master pm ON r.master_patient_id = pm.master_patient_id
