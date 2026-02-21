@@ -23,7 +23,9 @@ import {
   Keyboard,
   User,
   LogOut,
+  UserCheck,
 } from "lucide-react";
+
 import pack from "../../package.json";
 
 const APP_VERSION = pack.version;
@@ -60,7 +62,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
     },
     {
       icon: Calendar,
-      label: "Schedule",
+      label: "Appointments",
       desc: "Appmts & Queue",
       path: "/reception/schedule",
     },
@@ -89,7 +91,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
       path: "/reception/billing",
     },
     {
-      icon: ClipboardList,
+      icon: Users,
       label: "Attendance",
       desc: "Daily Track",
       path: "/reception/attendance",
