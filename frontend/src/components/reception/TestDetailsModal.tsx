@@ -7,19 +7,19 @@ import {
   Users,
   FlaskConical,
   Wallet,
-  AlertCircle,
   FileText,
   MapPin,
   Calendar,
   Check,
   Edit,
-  TrendingDown,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL, authFetch } from "../../config";
 import { toast } from "sonner";
+import { useConfigStore } from "../../store";
+import SplitPaymentInput from "./SplitPaymentInput";
 
 interface TestRecord {
   uid: string;
@@ -94,15 +94,24 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
     {},
   );
 
+  const { paymentMethods, fetchPaymentMethods } = useConfigStore();
+  const [pendingPayments, setPendingPayments] = useState<Record<number, { method: string; amount: number }[]>>({});
+
   useEffect(() => {
-    if (isOpen && test?.uid) {
-      fetchDetails();
-    } else if (!isOpen) {
+    if (isOpen) {
+      fetchPaymentMethods();
+      if (test?.uid) {
+        fetchDetails();
+      }
+    } else {
       setFullDetails(null);
       setIsEditing(false);
       setExpandedItems({});
+      setPendingPayments({});
     }
   }, [isOpen, test]);
+
+
 
   // Expand first item on load
   useEffect(() => {
@@ -181,12 +190,11 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
 
   const handleAddPayment = async (
     itemId: number | null,
-    amount: number,
+    amount?: number,
     method: string = "cash",
+    payments?: { method: string; amount: number }[],
   ) => {
     if (!fullDetails) return;
-    if (amount <= 0 || isNaN(amount))
-      return toast.error("Enter a valid amount");
 
     const toastId = toast.loading("Recording payment...");
     try {
@@ -198,6 +206,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
           item_id: itemId,
           amount,
           method,
+          payments,
         }),
       });
 
@@ -526,7 +535,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                 </div>
 
                 {/* Right Panel: Test Items List */}
-                <div className="w-full lg:w-2/3 p-6 flex flex-col gap-4 overflow-y-auto no-scrollbar bg-slate-50 dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-slate-800 h-full">
+                <div className="w-full lg:w-2/3 p-6 flex flex-col gap-4 overflow-y-auto bg-slate-50 dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-slate-800 min-h-0">
                   <div className="flex items-center gap-2 mb-2">
                     <FlaskConical size={18} className="text-slate-400" />
                     <h3 className="text-sm font-black uppercase text-slate-700 dark:text-slate-300">
@@ -540,7 +549,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                       return (
                         <div
                           key={item.item_id}
-                          className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden transition-all duration-300"
+                          className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden transition-all duration-300 shrink-0"
                         >
                           {/* Accordion Header */}
                           <div
@@ -556,7 +565,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                                   {item.test_name}
                                 </h4>
                                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
-                                  {idx === 0 && data.test_items.length === 1
+                                  {idx === 0 && data?.test_items?.length === 1
                                     ? "Original Test Details"
                                     : `Item #${item.item_id}`}
                                 </span>
@@ -794,63 +803,50 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                                       </div>
                                     </div>
 
-                                    {/* Add Payment Control */}
-                                    <div>
-                                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-                                        Add Payment
-                                      </label>
-                                      <div className="flex gap-2">
-                                        <div className="relative flex-1">
-                                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
-                                            ₹
-                                          </span>
-                                          <input
-                                            type="number"
-                                            id={`pay-input-${item.item_id}`}
-                                            min="0"
-                                            step="0.01"
-                                            placeholder="Amount"
-                                            className="w-full pl-7 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-teal-500 outline-none"
-                                          />
-                                        </div>
-                                        <select
-                                          id={`pay-method-${item.item_id}`}
-                                          className="w-24 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-2 py-2 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-teal-500 outline-none"
-                                        >
-                                          <option value="cash">Cash</option>
-                                          <option value="online">Online</option>
-                                          <option value="card">Card</option>
-                                        </select>
+                                    {/* Add Payment Control — Split Payment */}
+                                    <div className="space-y-3">
+                                      <SplitPaymentInput
+                                        paymentMethods={paymentMethods || []}
+                                        totalDue={item.due_amount}
+                                        onPaymentChange={(payments) =>
+                                          setPendingPayments((prev) => ({
+                                            ...prev,
+                                            [item.item_id]: payments,
+                                          }))
+                                        }
+                                      />
+
+                                      <div className="flex justify-end">
                                         <button
                                           onClick={() => {
-                                            const val = parseFloat(
-                                              (
-                                                document.getElementById(
-                                                  `pay-input-${item.item_id}`,
-                                                ) as HTMLInputElement
-                                              )?.value,
+                                            const payments =
+                                              pendingPayments[item.item_id] ||
+                                              [];
+                                            const validPayments = payments.filter(
+                                              (p) => p.amount > 0,
                                             );
-                                            const meth =
-                                              (
-                                                document.getElementById(
-                                                  `pay-method-${item.item_id}`,
-                                                ) as HTMLSelectElement
-                                              )?.value || "cash";
-                                            if (!isNaN(val) && val > 0)
+                                            if (validPayments.length > 0) {
                                               handleAddPayment(
                                                 item.item_id,
-                                                val,
-                                                meth,
+                                                undefined,
+                                                undefined,
+                                                validPayments,
                                               );
+                                            } else {
+                                              toast.error(
+                                                "Please select a payment method and enter an amount",
+                                              );
+                                            }
                                           }}
-                                          className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-sm font-semibold transition"
+                                          className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-bold transition shadow-lg shadow-teal-500/20 active:scale-95"
                                         >
-                                          Add
+                                          Confirm Payment
                                         </button>
                                       </div>
-                                      <p className="mt-2 text-[10px] text-slate-400 flex items-center gap-1">
-                                        <Info size={10} /> Updates 'Paid' and
-                                        'Due' amounts instantly.
+
+                                      <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                                        <Info size={10} /> Multiple payment
+                                        methods can be used for split billing.
                                       </p>
                                     </div>
                                   </div>

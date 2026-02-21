@@ -2,7 +2,27 @@
 
 All notable changes contributed by Avinash to this project are documented in this file.
 
+## Changes - 2026-02-22
+
+### Fixed
+
+- **Test Details Modal Layout Constraints**:
+  - **Scroll Propagation Fix**: Resolved an issue in `TestDetailsModal.tsx` where an inner, constrained scroll block inside expanded accordion items prevented the main record list from scrolling properly.
+  - **Flexbox Constraints**: Applied proper bounding values (`min-h-0`) directly on the flex container, resolving a CSS layout issue that caused overflow properties to be ignored by the browser.
+  - **Dynamic Accordion Height Locking**: Fixed an issue with accordion compression by utilizing the `shrink-0` flexbox property, ensuring that multiple open records fully expand without squishing the interface.
+
 ## Changes - 2026-02-21
+
+### Added
+
+- **Page Header Integration**: Implemented standardized `PageHeader` components across the `Billing` and `Support` modules for consistent navigation and unified header styling.
+- **Split Billing Feature**: Introduced a split billing system that allows multiple payment methods per transaction, featuring auto amount-splitting that dynamically calculates balances.
+
+### Changed
+
+- **Sidebar & Navigation Updates**:
+  - Updated navigation icons within the `Sidebar` component for a more modern look.
+  - Renamed the "Schedule" module title to "Appointment" for clearer user expectations.
 
 ### Fixed
 
