@@ -509,20 +509,36 @@ async function updateTestItem(req, res, branchId, input) {
 }
 
 async function addTestPayment(req, res, branchId, input) {
-    const { test_id, item_id, amount, method } = input; // item_id is optional, if provided adds to specific item
-    if (!test_id || !amount) throw new Error("Test ID and amount required");
+    const { test_id, item_id, amount, method, payments } = input;
+    if (!test_id) throw new Error("Test ID required");
 
     const connection = await pool.getConnection();
     try {
         await connection.beginTransaction();
 
-        // 1. Record Payment
-        await connection.query("INSERT INTO test_payments (test_id, payment_method, amount) VALUES (?, ?, ?)", [test_id, method || 'cash', amount]);
+        const paymentList = payments && Array.isArray(payments) 
+            ? payments 
+            : (amount ? [{ method: method || 'cash', amount }] : []);
+
+        if (paymentList.length === 0) throw new Error("No payment data provided");
+
+        let totalBatchAmount = 0;
+
+        for (const p of paymentList) {
+            const pAmount = parseFloat(p.amount);
+            if (pAmount > 0) {
+                totalBatchAmount += pAmount;
+                // 1. Record Payment
+                await connection.query("INSERT INTO test_payments (test_id, payment_method, amount) VALUES (?, ?, ?)", [test_id, p.method || 'cash', pAmount]);
+            }
+        }
+
+        if (totalBatchAmount <= 0) throw new Error("Total payment amount must be greater than zero");
 
         // 2. Update Parent Totals
         const [mainRows] = await connection.query("SELECT total_amount, advance_amount, discount FROM tests WHERE test_id = ?", [test_id]);
         const main = mainRows[0];
-        const newAdvance = parseFloat(main.advance_amount) + parseFloat(amount);
+        const newAdvance = parseFloat(main.advance_amount) + totalBatchAmount;
         const newDue = Math.max(0, parseFloat(main.total_amount) - newAdvance - parseFloat(main.discount));
 
         let newPayStatus = 'pending';
@@ -531,11 +547,11 @@ async function addTestPayment(req, res, branchId, input) {
 
         await connection.query("UPDATE tests SET advance_amount = ?, due_amount = ?, payment_status = ? WHERE test_id = ?", [newAdvance, newDue, newPayStatus, test_id]);
 
-        // 3. Update Item (simple distribution for now, matching legacy logic)
+        // 3. Update Item
         if (item_id) {
             const [itemRows] = await connection.query("SELECT total_amount, advance_amount, discount FROM test_items WHERE item_id = ?", [item_id]);
             const item = itemRows[0];
-            const iAdvance = parseFloat(item.advance_amount) + parseFloat(amount);
+            const iAdvance = parseFloat(item.advance_amount) + totalBatchAmount;
             const iDue = Math.max(0, parseFloat(item.total_amount) - iAdvance - parseFloat(item.discount));
 
             let iPayStatus = 'pending';
@@ -546,7 +562,7 @@ async function addTestPayment(req, res, branchId, input) {
         }
 
         await connection.commit();
-        res.json({ success: true, message: "Payment recorded" });
+        res.json({ success: true, message: "Payment(s) recorded" });
     } catch (e) {
         await connection.rollback();
         throw e;
