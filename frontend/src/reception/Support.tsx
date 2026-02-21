@@ -1,8 +1,7 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef } from "react";
 import {
   Search,
   RefreshCw,
-  Bell,
   Ticket,
   Clock,
   CheckCircle2,
@@ -17,11 +16,10 @@ import {
   X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { API_BASE_URL, authFetch } from "../config";
 import { toast } from "sonner";
-import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 import Sidebar from "../components/Sidebar";
+import PageHeader from "../components/PageHeader";
 
 interface SupportTicket {
   id: number;
@@ -38,7 +36,6 @@ interface SupportTicket {
 }
 
 const Support = () => {
-  const { user } = useAuthStore();
   const { isDark } = useThemeStore();
 
   // State
@@ -103,33 +100,6 @@ const Support = () => {
   const removeFile = (index: number) => {
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
-
-  // Header Logic (Notifications)
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [showNotifPopup, setShowNotifPopup] = useState(false);
-  const notifRef = useRef<HTMLButtonElement>(null);
-
-  const fetchNotifs = useCallback(async () => {
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ""}`,
-      );
-      const data = await res.json();
-      if (data.success || data.status === "success") {
-        setUnreadCount(data.unread_count || 0);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  }, [user?.employee_id]);
-
-  useEffect(() => {
-    if (user?.employee_id) {
-      fetchNotifs();
-      const inv = setInterval(fetchNotifs, 30000);
-      return () => clearInterval(inv);
-    }
-  }, [fetchNotifs, user?.employee_id]);
 
   const handleSubmitTicket = () => {
     if (!description.trim()) {
@@ -267,39 +237,13 @@ const Support = () => {
       {/* === MAIN CONTENT (Right Panel) === */}
       <main className="flex-1 h-screen overflow-y-auto custom-scrollbar relative">
         <div className="p-8 lg:p-12 flex flex-col gap-8">
-          {/* Global Header */}
-          <div
-            className={`flex justify-between items-end shrink-0 sticky top-0 z-[60] py-4 -mt-4 transition-colors ${isDark ? "bg-[#050505]/80" : "bg-[#FAFAFA]/80"} backdrop-blur-md`}
-          >
-            <div>
-              <h2 className="text-3xl font-medium tracking-tight text-slate-900 dark:text-slate-100">
-                Help & Support
-              </h2>
-              <p className="text-slate-500 text-base mt-1">
-                Submit tickets and track resolution status
-              </p>
-            </div>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => setLoading(true)}
-                className={`w-12 h-12 border rounded-2xl flex items-center justify-center transition-all ${isDark ? "bg-[#121212] border-white/5 hover:bg-white/10" : "bg-white border-slate-200 hover:bg-slate-50 shadow-sm"} ${loading ? "animate-spin" : ""}`}
-              >
-                <RefreshCw size={20} className="text-slate-500" />
-              </button>
-              <div className="relative">
-                <button
-                  ref={notifRef}
-                  onClick={() => setShowNotifPopup(!showNotifPopup)}
-                  className={`w-12 h-12 flex items-center justify-center rounded-2xl border transition-all hover:scale-105 ${isDark ? "bg-[#121212] border-white/5 hover:bg-white/10" : "bg-white border-slate-200 hover:bg-slate-50 shadow-sm"} relative text-slate-500`}
-                >
-                  <Bell size={20} strokeWidth={2} />
-                  {unreadCount > 0 && (
-                    <span className="absolute top-3 right-3 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white dark:border-black"></span>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
+          <PageHeader
+            title="Support"
+            subtitle="Help & Documentation"
+            icon={HelpCircle}
+            onRefresh={() => setLoading(true)}
+            isLoading={loading}
+          />
 
           {/* Updates Banner */}
           <div className="shrink-0">

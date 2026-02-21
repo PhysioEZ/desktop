@@ -21,6 +21,13 @@ All notable changes contributed by Avinash to this project are documented in thi
 
 - **Numeric Input UX**: Standardized the `FormInput` component to support dynamic HTML5 attributes like `min` and spread props, enabling more robust validation across the patient management modules.
 
+- **Token Reprint Limiting**:
+  - **Reprint Cap Implementation**: Introduced a strict limit on token reprints, capping them at 3 per patient per day to prevent paper waste and system abuse.
+  - **Dynamic UI Controls**: The print icon in the Patients registry now automatically disables when the limit is reached, featuring a high-visibility grayscale effect.
+  - **Live Remaining Count**: Integrated a dynamic tooltip that informs staff of the exact number of reprints remaining for each patient on hover.
+  - **Security Watermarking**: Implemented a "REPRINT" watermark in the token preview and updated the footer to explicitly show the reprint sequence number (#1, #2, etc.).
+  - **Enhanced Security Messaging**: Added visual indicators and status banners in the `TokenPreviewModal` to notify users when they are nearing or have reached the reprint threshold.
+
 ## Changes - 2026-02-18
 
 ### Added
