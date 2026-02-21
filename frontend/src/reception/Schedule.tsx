@@ -626,7 +626,7 @@ const Schedule = () => {
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <PageHeader
-          title="Schedule"
+          title="Appointments"
           icon={Calendar}
           onRefresh={handleRefresh}
           isLoading={isLoading}
@@ -654,7 +654,7 @@ const Schedule = () => {
                   <span
                     className={`italic font-bold ${isDark ? "text-[#4ADE80]" : "text-[#16a34a]"}`}
                   >
-                    Schedule
+                    Appointments
                   </span>
                 </h1>
                 <p className="text-gray-500 text-base">

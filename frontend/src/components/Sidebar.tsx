@@ -9,6 +9,7 @@ import {
   Calendar,
   Phone,
   Users,
+  UserPlus,
   Banknote,
   TestTube2,
   MessageSquare,
@@ -21,7 +22,9 @@ import {
   Keyboard,
   User,
   LogOut,
+  UserCheck,
 } from "lucide-react";
+
 import pack from "../../package.json";
 
 const APP_VERSION = pack.version;
@@ -58,7 +61,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
     },
     {
       icon: Calendar,
-      label: "Schedule",
+      label: "Appointments",
       desc: "Appmts & Queue",
       path: "/reception/schedule",
     },
@@ -69,7 +72,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
       path: "/reception/inquiry",
     },
     {
-      icon: Users,
+      icon: UserPlus,
       label: "Registration",
       desc: "New Patient",
       path: "/reception/registration",
@@ -87,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
       path: "/reception/billing",
     },
     {
-      icon: Users,
+      icon: UserCheck,
       label: "Attendance",
       desc: "Daily Track",
       path: "/reception/attendance",
