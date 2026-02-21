@@ -2,6 +2,25 @@
 
 All notable changes contributed by Avinash to this project are documented in this file.
 
+## Changes - 2026-02-21
+
+### Fixed
+
+- **Treatment Plan Persistence Fixes**:
+  - **24-Hour Time Standardization**: Resolved a time-format bug in `EditPlanModal.tsx` by implementing a dual-format system: storing values in a standardized 24-hour system (`HH:mm`) for database integrity while maintaining a 12-hour AM/PM display for clinicians.
+  - **Session Storage Logic**: Fixed an issue where "Total Sessions" (days) were not consistently stored or validated, ensuring they are correctly persisted as non-negative integers.
+
+### Added
+
+- **Change Plan Modal Enhancements**:
+  - **Intelligent Autofill System**: Developed a proactive autofill mechanism in `ChangePlanModal.tsx` that automatically reconstructs and populates the current patient's treatment rate, session count, and per-session discount from historical records.
+  - **Safe Data Constraints**: Implemented strict non-negative restrictions across all financial and session inputs. Added preventative keyboard listeners to block negative signs (`-`) and scientific notation (`e`) in number fields.
+  - **Split Payment Safety**: Enhanced the split payment calculation logic to ensure individual mode amounts are clamped to zero and above, preventing erroneous negative balance entries.
+
+### Changed
+
+- **Numeric Input UX**: Standardized the `FormInput` component to support dynamic HTML5 attributes like `min` and spread props, enabling more robust validation across the patient management modules.
+
 ## Changes - 2026-02-18
 
 ### Added

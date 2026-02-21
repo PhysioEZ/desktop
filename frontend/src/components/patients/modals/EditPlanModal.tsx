@@ -48,22 +48,27 @@ const EditPlanModal = ({
   // Generate daily slots 9 AM to 8 PM
   const timeSlots = Array.from({ length: 12 }, (_, i) => {
     const hour = i + 9;
+    const value = `${hour.toString().padStart(2, "0")}:00`;
     const label = new Date(0, 0, 0, hour).toLocaleTimeString("en-US", {
       hour: "2-digit",
       minute: "2-digit",
       hour12: true,
     });
-    return { value: label, label, booked: false };
+    return { value, label, booked: false };
   });
 
   useEffect(() => {
     if (isOpen && patient) {
-      // Calculate current discount amount from percentage if needed,
-      // but usually we want to start fresh or use stored discount_amount if available.
-      // Backend stores discount_amount.
+      // Normalize time slot to HH:mm for 24h consistency
+      let timeSlot = patient.treatment_time_slot || "";
+      if (timeSlot.includes(":")) {
+        const parts = timeSlot.split(":");
+        timeSlot = `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}`;
+      }
+
       setFormData({
         treatment_days: patient.treatment_days?.toString() || "",
-        treatment_time_slot: patient.treatment_time_slot || "",
+        treatment_time_slot: timeSlot,
         start_date: patient.start_date || "",
         end_date: patient.end_date || "",
         assigned_doctor: patient.assigned_doctor || "",
@@ -282,7 +287,11 @@ const EditPlanModal = ({
                   <span
                     className={`text-lg font-black ${formData.treatment_time_slot ? "text-slate-800 dark:text-white" : "text-slate-300"}`}
                   >
-                    {formData.treatment_time_slot || "Select Time"}
+                    {formData.treatment_time_slot
+                      ? timeSlots.find(
+                        (s) => s.value === formData.treatment_time_slot,
+                      )?.label || formData.treatment_time_slot
+                      : "Select Time"}
                   </span>
                   <Clock
                     size={16}
@@ -304,9 +313,9 @@ const EditPlanModal = ({
                   <span className="text-base font-black text-slate-800 dark:text-white">
                     {formData.start_date
                       ? new Date(formData.start_date).toLocaleDateString(
-                          "en-IN",
-                          { day: "2-digit", month: "short", year: "numeric" },
-                        )
+                        "en-IN",
+                        { day: "2-digit", month: "short", year: "numeric" },
+                      )
                       : "Select Date"}
                   </span>
                   <Calendar
@@ -329,9 +338,9 @@ const EditPlanModal = ({
                   <span className="text-base font-black text-slate-800 dark:text-white">
                     {formData.end_date
                       ? new Date(formData.end_date).toLocaleDateString(
-                          "en-IN",
-                          { day: "2-digit", month: "short", year: "numeric" },
-                        )
+                        "en-IN",
+                        { day: "2-digit", month: "short", year: "numeric" },
+                      )
                       : "Select Date"}
                   </span>
                   <Calendar

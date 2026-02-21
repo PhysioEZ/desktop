@@ -69,6 +69,7 @@ const FormInput = ({
   themeColor,
   disabled = false,
   readOnly = false,
+  ...props
 }: any) => (
   <div className="space-y-1 w-full group">
     <label
@@ -98,6 +99,13 @@ const FormInput = ({
         placeholder={placeholder}
         className={`${inputClass} ${Icon || prefix ? "pl-12" : "px-5"}`}
         style={{ borderColor: themeColor && value ? themeColor : undefined }}
+        {...props}
+        onKeyDown={(e) => {
+          if (type === "number" && ["-", "e", "E"].includes(e.key)) {
+            e.preventDefault();
+          }
+          if (props.onKeyDown) props.onKeyDown(e);
+        }}
       />
     </div>
   </div>
@@ -135,6 +143,21 @@ const ChangePlanModal = ({
       setCarryOverBalance(
         parseFloat(patient.effective_balance?.toString() || "0"),
       );
+
+      // Auto-fill existing patient plan data immediately
+      const currentRate = patient.cost_per_day?.toString() || "";
+      const currentDays = patient.treatment_days?.toString() || "";
+      const totalDisc = parseFloat(patient.discount_amount?.toString() || "0");
+      const daysForDisc = patient.treatment_days || 1;
+      const currentDisc = Math.round(totalDisc / daysForDisc).toString();
+
+      setRateOrCost(currentRate);
+      setDays(currentDays);
+      setDiscount(currentDisc);
+      setAdvance("");
+      setPaymentMethod("");
+      setReason("");
+
       const fetchTrack = async () => {
         try {
           let trackId = patient.service_track_id;
@@ -153,14 +176,19 @@ const ChangePlanModal = ({
             if (data.data.pricing?.plans?.length > 0) {
               const target =
                 data.data.pricing.plans.find(
-                  (p: any) => p.id === patient.treatment_type,
+                  (p: any) =>
+                    p.id === patient.treatment_type ||
+                    p.name === patient.treatment_type,
                 ) || data.data.pricing.plans[0];
               setSelectedPlanId(target.id);
-              setRateOrCost(target.rate.toString());
-              setDays(target.days.toString());
+
+              // If patient data was missing, use plan defaults
+              if (!currentRate) setRateOrCost(target.rate.toString());
+              if (!currentDays) setDays(target.days.toString());
             } else if (data.data.pricing?.model === "fixed-rate") {
-              setRateOrCost(data.data.pricing.fixedRate.toString());
-              setDays("1");
+              if (!currentRate)
+                setRateOrCost(data.data.pricing.fixedRate.toString());
+              if (!currentDays) setDays("1");
             }
           }
         } catch (err) {
@@ -168,10 +196,6 @@ const ChangePlanModal = ({
         }
       };
       fetchTrack();
-      setDiscount("0");
-      setAdvance("");
-      setPaymentMethod("");
-      setReason("");
     }
   }, [isOpen, patient]);
 
@@ -221,7 +245,10 @@ const ChangePlanModal = ({
   };
 
   const updateSplitAmount = (methodName: string, amount: number) => {
-    setPaymentSplits((prev) => ({ ...prev, [methodName]: amount }));
+    setPaymentSplits((prev) => ({
+      ...prev,
+      [methodName]: Math.max(0, amount),
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -251,6 +278,7 @@ const ChangePlanModal = ({
         master_patient_id: patient?.master_patient_id || "",
         registration_id: patient?.registration_id,
         new_treatment_type: selectedPlanId || "fixed",
+        new_treatment_days: days || "1",
         new_total_amount:
           (parseFloat(rateOrCost) || 0) - (parseFloat(discount) || 0),
 
@@ -535,33 +563,49 @@ const ChangePlanModal = ({
                     <FormInput
                       label="Price / Session"
                       value={rateOrCost}
-                      onChange={(e: any) => setRateOrCost(e.target.value)}
+                      onChange={(e: any) => {
+                        const val = parseFloat(e.target.value);
+                        setRateOrCost(isNaN(val) ? "" : Math.max(0, val).toString());
+                      }}
                       type="number"
                       prefix="₹"
+                      min="0"
                     />
                     <FormInput
                       label="Total Sessions"
                       value={days}
-                      onChange={(e: any) => setDays(e.target.value)}
+                      onChange={(e: any) => {
+                        const val = parseInt(e.target.value);
+                        setDays(isNaN(val) ? "" : Math.max(0, val).toString());
+                      }}
                       type="number"
                       icon={Hash}
+                      min="0"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-8">
                     <FormInput
                       label="Discount (₹/Session)"
                       value={discount}
-                      onChange={(e: any) => setDiscount(e.target.value)}
+                      onChange={(e: any) => {
+                        const val = parseFloat(e.target.value);
+                        setDiscount(isNaN(val) ? "" : Math.max(0, val).toString());
+                      }}
                       type="number"
                       prefix="-"
                       placeholder="Flat deduction"
+                      min="0"
                     />
                     <FormInput
                       label="Advance Paid"
                       value={advance}
-                      onChange={(e: any) => setAdvance(e.target.value)}
+                      onChange={(e: any) => {
+                        const val = parseFloat(e.target.value);
+                        setAdvance(isNaN(val) ? "" : Math.max(0, val).toString());
+                      }}
                       type="number"
                       prefix="₹"
+                      min="0"
                     />
                   </div>
 
@@ -633,6 +677,11 @@ const ChangePlanModal = ({
                               {active && (
                                 <input
                                   type="number"
+                                  min="0"
+                                  onKeyDown={(e) => {
+                                    if (["-", "e", "E"].includes(e.key))
+                                      e.preventDefault();
+                                  }}
                                   value={paymentSplits[m.method_name] || ""}
                                   onChange={(e) =>
                                     updateSplitAmount(
