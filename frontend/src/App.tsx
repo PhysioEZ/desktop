@@ -31,6 +31,7 @@ import Tests from "./reception/Tests";
 import Feedback from "./reception/Feedback";
 import Expenses from "./reception/Expenses";
 import Support from "./reception/Support";
+import Reports from "./reception/Reports";
 
 function App() {
   const { isDark } = useThemeStore();
@@ -87,6 +88,7 @@ function App() {
         <Route path="/reception/feedback" element={<Feedback />} />
         <Route path="/reception/expenses" element={<Expenses />} />
         <Route path="/reception/support" element={<Support />} />
+        <Route path="/reception/reports" element={<Reports />} />
         <Route
           path="/reception/registration/cancelled"
           element={<CancelledRegistrations />}

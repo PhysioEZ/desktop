@@ -396,6 +396,7 @@ const ReceptionLayout: React.FC<ReceptionLayoutProps> = ({
         searchQuery={globalSearchQuery}
         setSearchQuery={setGlobalSearchQuery}
         searchResults={globalSearchResults}
+        onSearch={() => {}}
       />
     </div>
   );

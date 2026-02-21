@@ -137,4 +137,8 @@ router.post("/billing", authenticate, billingController.handleBillingRequest);
 router.post("/tests", authenticate, testsController.handleTestsRequest);
 
 
+// Reports Route
+const reportsRouter = require("./reports");
+router.use("/reports", reportsRouter);
+
 module.exports = router;

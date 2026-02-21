@@ -9,6 +9,8 @@ import {
   Calendar,
   Phone,
   Users,
+  UserPlus,
+  ClipboardList,
   Banknote,
   TestTube2,
   MessageSquare,
@@ -69,7 +71,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
       path: "/reception/inquiry",
     },
     {
-      icon: Users,
+      icon: UserPlus,
       label: "Registration",
       desc: "New Patient",
       path: "/reception/registration",
@@ -87,7 +89,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
       path: "/reception/billing",
     },
     {
-      icon: Users,
+      icon: ClipboardList,
       label: "Attendance",
       desc: "Daily Track",
       path: "/reception/attendance",
