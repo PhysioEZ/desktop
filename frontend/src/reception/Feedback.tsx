@@ -9,9 +9,14 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Eye,
   Plus,
   PieChart,
+  Activity,
+  CheckCircle2,
+  XCircle,
+  User,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -106,6 +111,8 @@ const Feedback = () => {
   );
   const [treatmentStatus, setTreatmentStatus] = useState("Ongoing (Active)");
   const [comments, setComments] = useState("");
+  const [submittingFeedback, setSubmittingFeedback] = useState(false);
+  const [submissionSuccess, setSubmissionSuccess] = useState(false);
 
   const [patientSearchQuery, setPatientSearchQuery] = useState("");
   const [patientSearchResults, setPatientSearchResults] = useState<any[]>([]);
@@ -228,6 +235,7 @@ const Feedback = () => {
       mapStatus = "discontinued";
 
     const toastId = toast.loading("Saving feedback...");
+    setSubmittingFeedback(true);
 
     try {
       const res = await authFetch(`${API_BASE_URL}/reception/feedback`, {
@@ -242,20 +250,29 @@ const Feedback = () => {
       });
       const data = await res.json();
       if (data.success) {
+        setSubmissionSuccess(true);
         toast.success("Feedback saved successfully!", { id: toastId });
-        setShowForm(false);
-        setComments("");
-        setPatientSearchQuery("");
-        setSelectedPatientId(null);
-        setExperience("Good");
-        setTreatmentStatus("Ongoing (Active)");
-        fetchFeedback();
+
+        // Wait for animation
+        setTimeout(() => {
+          setShowForm(false);
+          setSubmittingFeedback(false);
+          setSubmissionSuccess(false);
+          setComments("");
+          setPatientSearchQuery("");
+          setSelectedPatientId(null);
+          setExperience("Good");
+          setTreatmentStatus("Ongoing (Active)");
+          fetchFeedback();
+        }, 1500);
       } else {
+        setSubmittingFeedback(false);
         toast.error(data.message || "Failed to submit feedback", {
           id: toastId,
         });
       }
     } catch (err) {
+      setSubmittingFeedback(false);
       toast.error("System error submitting feedback", { id: toastId });
     }
   };
@@ -759,15 +776,20 @@ const Feedback = () => {
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
                 className={`w-full max-w-2xl z-10 shadow-2xl rounded-[32px] flex flex-col overflow-hidden max-h-[90vh] ${isDark ? "bg-[#0A0A0A] border border-white/5" : "bg-white border border-slate-200"}`}
               >
-                <div className="px-8 py-6 border-b dark:border-white/5 flex items-center justify-between shrink-0">
-                  <h2 className="text-2xl font-medium tracking-tight">
-                    New Submission
-                  </h2>
+                <div className="px-10 py-8 border-b dark:border-white/5 flex items-center justify-between shrink-0 bg-gradient-to-r from-emerald-500/5 to-transparent">
+                  <div>
+                    <h2 className="text-3xl font-serif tracking-tight">
+                      Share <span className="text-emerald-500 italic">Feedback</span>
+                    </h2>
+                    <p className="text-xs font-medium text-slate-400 mt-1 uppercase tracking-widest">
+                      New Patient Experience Entry
+                    </p>
+                  </div>
                   <button
                     onClick={() => setShowForm(false)}
-                    className="w-10 h-10 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center hover:bg-slate-200 dark:hover:bg-white/10 transition-colors"
+                    className="w-12 h-12 rounded-[20px] bg-slate-100 dark:bg-white/5 flex items-center justify-center hover:bg-rose-500/10 hover:text-rose-500 transition-all duration-300 group"
                   >
-                    <Plus size={20} className="rotate-45 text-slate-500" />
+                    <Plus size={24} className="rotate-45 opacity-40 group-hover:opacity-100 transition-opacity" />
                   </button>
                 </div>
 
@@ -778,21 +800,21 @@ const Feedback = () => {
                       Find Patient
                     </label>
                     <div
-                      className={`relative flex items-center gap-4 px-5 py-4 rounded-2xl border transition-all ${isDark ? "bg-[#121212] border-white/5 focus-within:border-emerald-500/30" : "bg-slate-50 border-slate-100 focus-within:bg-white focus-within:border-emerald-500/30 shadow-inner focus-within:shadow-sm"}`}
+                      className={`relative flex items-center gap-4 px-6 py-5 rounded-[24px] border transition-all duration-300 ${isDark ? "bg-[#121212] border-white/5 focus-within:border-emerald-500/30" : "bg-slate-50 border-slate-100 focus-within:bg-white focus-within:border-emerald-500/30 shadow-inner focus-within:shadow-sm"}`}
                     >
-                      <Search size={20} className="text-slate-400" />
+                      <User size={20} className="text-emerald-500" />
                       <input
                         type="text"
-                        placeholder="Name or Phone #"
+                        placeholder="Search patient name or phone number..."
                         value={patientSearchQuery}
                         onChange={(e) => handlePatientSearch(e.target.value)}
-                        className="bg-transparent border-none outline-none text-base w-full font-medium"
+                        className="bg-transparent border-none outline-none text-base w-full font-bold placeholder:font-medium placeholder:opacity-30"
                       />
 
                       {patientSearchQuery &&
                         !selectedPatientId &&
                         patientSearchResults.length > 0 && (
-                          <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-[#1C1C1C] border border-slate-200 dark:border-white/10 rounded-2xl shadow-xl z-50 overflow-hidden max-h-60 overflow-y-auto">
+                          <div className="absolute top-full left-0 right-0 mt-3 bg-white dark:bg-[#1C1C1C] border border-slate-200 dark:border-white/10 rounded-[24px] shadow-2xl z-50 overflow-hidden max-h-64 overflow-y-auto backdrop-blur-xl bg-opacity-95 dark:bg-opacity-95">
                             {patientSearchResults.map((p) => (
                               <div
                                 key={p.patient_id}
@@ -815,14 +837,20 @@ const Feedback = () => {
 
                                   setPatientSearchResults([]);
                                 }}
-                                className="px-5 py-3 border-b border-slate-100 dark:border-white/5 hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer"
+                                className="px-6 py-4 border-b border-slate-100 dark:border-white/5 hover:bg-emerald-500/5 cursor-pointer flex items-center gap-4 transition-colors group"
                               >
-                                <div className="font-semibold">
-                                  {p.patient_name}
+                                <div className="w-10 h-10 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
+                                  {p.patient_name.charAt(0)}
                                 </div>
-                                <div className="text-xs text-slate-500">
-                                  {p.phone_number}
+                                <div className="flex-1">
+                                  <div className="font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-500 transition-colors">
+                                    {p.patient_name}
+                                  </div>
+                                  <div className="text-xs font-medium text-slate-400">
+                                    {p.phone_number}
+                                  </div>
                                 </div>
+                                <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
                               </div>
                             ))}
                           </div>
@@ -835,41 +863,55 @@ const Feedback = () => {
                     <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 px-1">
                       Overall Experience
                     </label>
-                    <div className="grid grid-cols-3 gap-6">
+                    <div className="grid grid-cols-3 gap-4">
                       {[
                         {
                           label: "Good",
                           icon: Smile,
                           color: "text-emerald-500",
-                          bg: "bg-emerald-500/10",
+                          activeBg: "bg-emerald-500/10",
+                          activeBorder: "border-emerald-500",
                         },
                         {
                           label: "Average",
                           icon: Meh,
                           color: "text-slate-500",
-                          bg: "bg-slate-500/10",
+                          activeBg: "bg-slate-500/10",
+                          activeBorder: "border-slate-400 dark:border-slate-500",
                         },
                         {
                           label: "Bad",
                           icon: Frown,
                           color: "text-rose-500",
-                          bg: "bg-rose-500/10",
+                          activeBg: "bg-rose-500/10",
+                          activeBorder: "border-rose-500",
                         },
-                      ].map((item) => (
-                        <button
-                          key={item.label}
-                          onClick={() => setExperience(item.label as any)}
-                          className={`flex flex-col items-center gap-3 p-6 rounded-[24px] border-2 transition-all ${experience === item.label
-                            ? `border-emerald-500 ${item.bg} ${item.color} scale-[1.05]`
-                            : `border-transparent opacity-40 hover:opacity-100 ${isDark ? "bg-[#121212]" : "bg-slate-50"}`
-                            }`}
-                        >
-                          <item.icon size={32} />
-                          <span className="text-[10px] font-bold uppercase tracking-widest">
-                            {item.label}
-                          </span>
-                        </button>
-                      ))}
+                      ].map((item) => {
+                        const active = experience === item.label;
+                        return (
+                          <button
+                            key={item.label}
+                            onClick={() => setExperience(item.label as any)}
+                            className={`flex flex-col items-center gap-3 p-5 rounded-[24px] border-2 transition-all duration-300 relative group cursor-pointer ${active
+                              ? `${item.activeBorder} ${item.activeBg} ${item.color} shadow-lg shadow-black/5`
+                              : `border-transparent ${isDark ? "bg-[#121212] hover:bg-white/5" : "bg-slate-50 hover:bg-slate-100"}`
+                              }`}
+                          >
+                            <div className={`transition-transform duration-300 ${active ? "scale-110" : "group-hover:scale-110"}`}>
+                              <item.icon size={28} />
+                            </div>
+                            <span className={`text-[10px] font-black uppercase tracking-[0.15em] ${active ? "opacity-100" : "opacity-40"}`}>
+                              {item.label}
+                            </span>
+                            {active && (
+                              <motion.div
+                                layoutId="experience-dot"
+                                className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white dark:border-[#0A0A0A] ${item.color.replace("text-", "bg-")}`}
+                              />
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -878,20 +920,52 @@ const Feedback = () => {
                     <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 px-1">
                       Treatment Status
                     </label>
-                    <div className="relative">
-                      <select
-                        value={treatmentStatus}
-                        onChange={(e) => setTreatmentStatus(e.target.value)}
-                        className={`w-full appearance-none pl-5 pr-12 py-4 rounded-2xl border text-base font-medium outline-none cursor-pointer transition-all ${isDark ? "bg-[#121212] border-white/5" : "bg-slate-50 border-slate-100"}`}
-                      >
-                        <option>Ongoing (Active)</option>
-                        <option>Treatment Completed</option>
-                        <option>Discontinued / Stopped</option>
-                      </select>
-                      <ChevronDown
-                        className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400"
-                        size={20}
-                      />
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      {[
+                        {
+                          value: "Ongoing (Active)",
+                          label: "Ongoing",
+                          icon: Activity,
+                          color: "text-blue-500",
+                          bg: "bg-blue-500/10",
+                          border: "border-blue-500",
+                        },
+                        {
+                          value: "Treatment Completed",
+                          label: "Completed",
+                          icon: CheckCircle2,
+                          color: "text-emerald-500",
+                          bg: "bg-emerald-500/10",
+                          border: "border-emerald-500",
+                        },
+                        {
+                          value: "Discontinued / Stopped",
+                          label: "Stopped",
+                          icon: XCircle,
+                          color: "text-rose-500",
+                          bg: "bg-rose-500/10",
+                          border: "border-rose-500",
+                        },
+                      ].map((item) => {
+                        const active = treatmentStatus === item.value;
+                        return (
+                          <button
+                            key={item.value}
+                            onClick={() => setTreatmentStatus(item.value)}
+                            className={`flex items-center gap-4 p-5 rounded-[24px] border-2 transition-all duration-300 cursor-pointer group ${active
+                              ? `${item.border} ${item.bg} ${item.color} shadow-lg shadow-black/5`
+                              : `border-transparent ${isDark ? "bg-[#121212] hover:bg-white/5 text-slate-400" : "bg-slate-50 hover:bg-slate-100 text-slate-500"}`
+                              }`}
+                          >
+                            <div className={`p-2 rounded-xl transition-all duration-300 ${active ? "bg-white/20" : "bg-slate-200/50 dark:bg-white/5 opacity-40"}`}>
+                              <item.icon size={20} />
+                            </div>
+                            <span className={`text-[11px] font-black uppercase tracking-wider ${active ? "opacity-100" : "opacity-60"}`}>
+                              {item.label}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -909,18 +983,67 @@ const Feedback = () => {
                   </div>
                 </div>
 
-                <div className="p-10 border-t dark:border-white/5">
+                <div className="p-10 border-t dark:border-white/5 bg-slate-50/50 dark:bg-black/20">
                   <button
+                    disabled={submittingFeedback || submissionSuccess}
                     onClick={handleSubmit}
-                    className="w-full py-5 rounded-[24px] bg-emerald-600 text-white text-lg font-semibold tracking-wide hover:bg-emerald-700 transition-all shadow-2xl shadow-emerald-500/20 flex items-center justify-center gap-3 active:scale-95"
+                    className={`w-full py-5 rounded-[24px] text-white text-lg font-bold tracking-wide transition-all flex items-center justify-center gap-3 shadow-xl overflow-hidden relative ${submissionSuccess
+                      ? "bg-emerald-500 shadow-emerald-500/40"
+                      : "bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20"
+                      }`}
                   >
-                    Save Submission <Send size={22} />
+                    <AnimatePresence mode="wait">
+                      {submissionSuccess ? (
+                        <motion.div
+                          key="success"
+                          initial={{ y: 20, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          className="flex items-center gap-2"
+                        >
+                          <CheckCircle2 size={24} className="text-white" />
+                          Success
+                        </motion.div>
+                      ) : submittingFeedback ? (
+                        <motion.div
+                          key="loading"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="flex items-center gap-3"
+                        >
+                          <RefreshCw className="animate-spin" size={20} />
+                          Processing...
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="idle"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          className="flex items-center gap-3 group"
+                        >
+                          Save Submission
+                          <Send
+                            size={22}
+                            className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform"
+                          />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+
+                    {/* Ripples / Shine effect on success */}
+                    {submissionSuccess && (
+                      <motion.div
+                        initial={{ left: "-100%" }}
+                        animate={{ left: "200%" }}
+                        transition={{ duration: 0.8, ease: "easeInOut" }}
+                        className="absolute top-0 w-20 h-full bg-white/20 skew-x-[30deg]"
+                      />
+                    )}
                   </button>
                 </div>
-              </motion.div>
-            </div>
+              </motion.div >
+            </div >
           )}
-        </AnimatePresence>
+        </AnimatePresence >
 
         <AnimatePresence>
           {selectedRecord && (
@@ -1121,8 +1244,8 @@ const Feedback = () => {
           downloadUrl={fileViewerConfig.downloadUrl}
           downloadFileName={fileViewerConfig.downloadFileName}
         />
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 
