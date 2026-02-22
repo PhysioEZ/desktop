@@ -11,11 +11,12 @@ interface DatePickerProps {
   value: string;
   onChange: (date: string) => void;
   onClose: () => void;
+  minDate?: string;
 }
 
 type ViewMode = "calendar" | "year" | "edit";
 
-const DatePicker = ({ value, onChange, onClose }: DatePickerProps) => {
+const DatePicker = ({ value, onChange, onClose, minDate }: DatePickerProps) => {
   const [viewMode, setViewMode] = useState<ViewMode>("calendar");
   const [currDate, setCurrDate] = useState(
     value ? new Date(value) : new Date(),
@@ -25,6 +26,15 @@ const DatePicker = ({ value, onChange, onClose }: DatePickerProps) => {
   );
   const [editValue, setEditValue] = useState(value || "");
   const yearRef = useRef<HTMLDivElement>(null);
+
+  const isDateDisabled = (date: Date) => {
+    if (!minDate) return false;
+    const min = new Date(minDate);
+    min.setHours(0, 0, 0, 0);
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d < min;
+  };
 
   // Year focus is handled by array ordering (2021 starts at top)
 
@@ -40,6 +50,7 @@ const DatePicker = ({ value, onChange, onClose }: DatePickerProps) => {
   };
 
   const handleDateClick = (date: Date) => {
+    if (isDateDisabled(date)) return;
     const localDate = new Date(
       date.getFullYear(),
       date.getMonth(),
@@ -53,6 +64,10 @@ const DatePicker = ({ value, onChange, onClose }: DatePickerProps) => {
     if (viewMode === "edit") {
       const parsed = new Date(editValue);
       if (!isNaN(parsed.getTime())) {
+        if (isDateDisabled(parsed)) {
+          // You might want to show a toast here, but for now we just don't confirm
+          return;
+        }
         dateToSave = parsed;
       }
     }
@@ -105,6 +120,7 @@ const DatePicker = ({ value, onChange, onClose }: DatePickerProps) => {
                 <input
                   type="date"
                   value={editValue}
+                  min={minDate}
                   onChange={(e) => setEditValue(e.target.value)}
                   className="bg-transparent border-none outline-none text-[28px] font-normal w-full"
                 />
@@ -198,13 +214,15 @@ const DatePicker = ({ value, onChange, onClose }: DatePickerProps) => {
                         <button
                           type="button"
                           onClick={() => handleDateClick(d)}
-                          className={`w-10 h-10 text-sm font-bold rounded-full flex items-center justify-center transition-all ${
-                            selected.toDateString() === d.toDateString()
-                              ? "bg-[#6750a4] dark:bg-[#d0bcff] text-white dark:text-[#381e72] shadow-md"
-                              : d.toDateString() === new Date().toDateString()
-                                ? "border border-[#6750a4] text-[#6750a4] dark:border-[#d0bcff] dark:text-[#d0bcff]"
-                                : "text-[#49454f] dark:text-[#cac4d0] hover:bg-[#1d1b20]/5 dark:hover:bg-[#e6e1e5]/5"
-                          }`}
+                          disabled={isDateDisabled(d)}
+                          className={`w-10 h-10 text-sm font-bold rounded-full flex items-center justify-center transition-all ${isDateDisabled(d)
+                              ? "opacity-20 cursor-not-allowed"
+                              : selected.toDateString() === d.toDateString()
+                                ? "bg-[#6750a4] dark:bg-[#d0bcff] text-white dark:text-[#381e72] shadow-md"
+                                : d.toDateString() === new Date().toDateString()
+                                  ? "border border-[#6750a4] text-[#6750a4] dark:border-[#d0bcff] dark:text-[#d0bcff]"
+                                  : "text-[#49454f] dark:text-[#cac4d0] hover:bg-[#1d1b20]/5 dark:hover:bg-[#e6e1e5]/5"
+                            }`}
                         >
                           {d.getDate()}
                         </button>
@@ -235,11 +253,10 @@ const DatePicker = ({ value, onChange, onClose }: DatePickerProps) => {
                         setCurrDate(new Date(y, currDate.getMonth(), 1));
                         setViewMode("calendar");
                       }}
-                      className={`py-3 rounded-2xl text-base font-bold transition-all ${
-                        y === currDate.getFullYear()
+                      className={`py-3 rounded-2xl text-base font-bold transition-all ${y === currDate.getFullYear()
                           ? "bg-[#6750a4] dark:bg-[#d0bcff] text-white dark:text-[#381e72]"
                           : "text-[#49454f] dark:text-[#e6e1e5] hover:bg-[#1d1b20]/5"
-                      }`}
+                        }`}
                     >
                       {y}
                     </button>
@@ -261,6 +278,7 @@ const DatePicker = ({ value, onChange, onClose }: DatePickerProps) => {
                   <input
                     type="date"
                     value={editValue}
+                    min={minDate}
                     onChange={(e) => setEditValue(e.target.value)}
                     className="w-full bg-white/50 dark:bg-black/20 border-b-2 border-[#6750a4] p-3 text-lg font-bold outline-none rounded-t-lg"
                   />
