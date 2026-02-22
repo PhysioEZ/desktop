@@ -124,13 +124,12 @@ const TimePicker = ({
                 key={slot.time}
                 disabled={slot.disabled}
                 onClick={() => setSelected(slot.time)}
-                className={`py-2 px-1 text-sm rounded-lg border transition-all ${
-                  selected === slot.time
+                className={`py-2 px-1 text-sm rounded-lg border transition-all ${selected === slot.time
                     ? "bg-[#6750a4] dark:bg-[#d0bcff] text-white dark:text-[#381e72] border-[#6750a4] dark:border-[#d0bcff]"
                     : slot.disabled
                       ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed"
                       : "bg-transparent border-[#79747e] text-[#49454f] dark:text-[#cac4d0] hover:bg-[#6750a4]/10"
-                }`}
+                  }`}
               >
                 <span
                   className={slot.disabled ? "line-through decoration-2" : ""}
@@ -1512,11 +1511,10 @@ const ReceptionDashboard = () => {
                 <button
                   key={btn.id}
                   onClick={() => setActiveModal(btn.id)}
-                  className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full transition-all duration-300 shadow-sm border shrink-0 ${
-                    isDark
+                  className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full transition-all duration-300 shadow-sm border shrink-0 ${isDark
                       ? "bg-[#1A1C1A] text-white/70 hover:text-white hover:bg-[#252825] border-white/5"
                       : "bg-white text-gray-600 hover:text-gray-900 border-gray-100 hover:shadow-md"
-                  }`}
+                    }`}
                 >
                   <btn.icon size={16} strokeWidth={2} />
                   <span className="text-[10px] sm:text-xs font-bold tracking-tight whitespace-nowrap">
@@ -1533,11 +1531,10 @@ const ReceptionDashboard = () => {
               >
                 <div
                   onClick={() => setShowGlobalSearch(true)}
-                  className={`flex items-center px-4 py-2.5 sm:py-3 rounded-[24px] border transition-all duration-300 cursor-text ${
-                    isDark
+                  className={`flex items-center px-4 py-2.5 sm:py-3 rounded-[24px] border transition-all duration-300 cursor-text ${isDark
                       ? "bg-[#121412]/80 border-[#2A2D2A] hover:bg-[#121412] shadow-2xl shadow-black/20"
                       : "bg-white border-gray-100 shadow-xl shadow-black/[0.03] hover:bg-white"
-                  } backdrop-blur-md`}
+                    } backdrop-blur-md`}
                 >
                   <Search size={18} className="opacity-30 flex-shrink-0" />
                   <div className="bg-transparent px-3 text-sm sm:text-base w-full opacity-30 font-medium select-none truncate">
@@ -1614,15 +1611,14 @@ const ReceptionDashboard = () => {
                           {notifList.map((n: any) => (
                             <div
                               key={n.notification_id}
-                              className={`p-3 rounded-xl transition-all cursor-pointer group mb-1 ${
-                                n.is_read === 0
+                              className={`p-3 rounded-xl transition-all cursor-pointer group mb-1 ${n.is_read === 0
                                   ? isDark
                                     ? "bg-[#CCEBC4]/5 hover:bg-[#CCEBC4]/10"
                                     : "bg-green-50 hover:bg-green-100/50"
                                   : isDark
                                     ? "hover:bg-white/5"
                                     : "hover:bg-gray-50"
-                              }`}
+                                }`}
                             >
                               <p
                                 className={`text-xs leading-snug ${n.is_read === 0 ? "font-bold" : ""} ${isDark ? "text-gray-200" : "text-gray-800"}`}
@@ -2086,11 +2082,11 @@ const ReceptionDashboard = () => {
                 >
                   {data?.weekly
                     ? fmt(
-                        data.weekly.reduce(
-                          (a: number, b: { total: number }) => a + b.total,
-                          0,
-                        ),
-                      )
+                      data.weekly.reduce(
+                        (a: number, b: { total: number }) => a + b.total,
+                        0,
+                      ),
+                    )
                     : fmt(0)}
                 </div>
               </div>
@@ -2495,12 +2491,12 @@ const ReceptionDashboard = () => {
                                         >
                                           {regPaymentSplits[m.method_code] !==
                                             undefined && (
-                                            <Check
-                                              size={14}
-                                              className="text-white"
-                                              strokeWidth={4}
-                                            />
-                                          )}
+                                              <Check
+                                                size={14}
+                                                className="text-white"
+                                                strokeWidth={4}
+                                              />
+                                            )}
                                         </div>
                                         <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">
                                           {m.method_name}
@@ -2509,7 +2505,7 @@ const ReceptionDashboard = () => {
                                       {regPaymentSplits[m.method_code] !==
                                         undefined &&
                                         Object.keys(regPaymentSplits).length >
-                                          1 && (
+                                        1 && (
                                           <div className="flex items-center gap-2 bg-white dark:bg-black/40 px-3 py-2 rounded-xl border border-[#006e1c]/30 min-w-[140px]">
                                             <span className="text-xs font-black text-[#006e1c]">
                                               ₹
@@ -2518,7 +2514,7 @@ const ReceptionDashboard = () => {
                                               type="number"
                                               value={
                                                 regPaymentSplits[
-                                                  m.method_code
+                                                m.method_code
                                                 ] || ""
                                               }
                                               onChange={(e) =>
@@ -2551,8 +2547,8 @@ const ReceptionDashboard = () => {
                                     {Object.keys(regPaymentSplits).length === 1
                                       ? `Single Method`
                                       : `₹${Object.values(regPaymentSplits)
-                                          .reduce((a, b) => a + b, 0)
-                                          .toLocaleString()}`}
+                                        .reduce((a, b) => a + b, 0)
+                                        .toLocaleString()}`}
                                   </span>
                                 </div>
                               </div>
@@ -2963,7 +2959,7 @@ const ReceptionDashboard = () => {
                       <div>
                         <label className={labelClass}>Due Amount</label>
                         {parseFloat(advanceAmount) <= 0 ||
-                        parseFloat(discountAmount) > 200 ? (
+                          parseFloat(discountAmount) > 200 ? (
                           <div
                             className={`${inputClass} flex items-center gap-1 text-yellow-600 bg-yellow-50 dark:bg-yellow-900/10`}
                           >
@@ -3056,12 +3052,12 @@ const ReceptionDashboard = () => {
                                         >
                                           {testPaymentSplits[m.method_code] !==
                                             undefined && (
-                                            <Check
-                                              size={14}
-                                              className="text-white"
-                                              strokeWidth={3}
-                                            />
-                                          )}
+                                              <Check
+                                                size={14}
+                                                className="text-white"
+                                                strokeWidth={3}
+                                              />
+                                            )}
                                         </div>
                                         <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">
                                           {m.method_name}
@@ -3070,7 +3066,7 @@ const ReceptionDashboard = () => {
                                       {testPaymentSplits[m.method_code] !==
                                         undefined &&
                                         Object.keys(testPaymentSplits).length >
-                                          1 && (
+                                        1 && (
                                           <div className="flex items-center gap-1.5 bg-[#f0f0f0] dark:bg-[#3a3a3c] px-3 py-1.5 rounded-lg min-w-[120px]">
                                             <span className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5]">
                                               ₹
@@ -3079,7 +3075,7 @@ const ReceptionDashboard = () => {
                                               type="number"
                                               value={
                                                 testPaymentSplits[
-                                                  m.method_code
+                                                m.method_code
                                                 ] || ""
                                               }
                                               onChange={(e) =>
@@ -3113,8 +3109,8 @@ const ReceptionDashboard = () => {
                                   {Object.keys(testPaymentSplits).length === 1
                                     ? `.`
                                     : `₹${Object.values(testPaymentSplits)
-                                        .reduce((a, b) => a + b, 0)
-                                        .toLocaleString()}`}
+                                      .reduce((a, b) => a + b, 0)
+                                      .toLocaleString()}`}
                                 </span>
                               </div>
                             </div>
@@ -3133,183 +3129,291 @@ const ReceptionDashboard = () => {
                 )}
                 {(activeModal === "inquiry" ||
                   activeModal === "test_inquiry") && (
-                  <form
-                    ref={formRef}
-                    onSubmit={(e) => e.preventDefault()}
-                    className="space-y-6"
-                  >
-                    {activeModal === "inquiry" && (
-                      <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className={labelClass}>Patient Name *</label>
-                            <input
-                              type="text"
-                              name="patient_name"
-                              required
-                              className={inputClass}
-                              placeholder="Full Name"
-                            />
-                          </div>
-                          <div>
-                            <label className={labelClass}>Age *</label>
-                            <input
-                              type="text"
-                              name="age"
-                              required
-                              className={inputClass}
-                              placeholder="e.g. 25 years"
-                            />
-                          </div>
+                    <form
+                      ref={formRef}
+                      onSubmit={(e) => e.preventDefault()}
+                      className="space-y-6"
+                    >
+                      {activeModal === "inquiry" && (
+                        <>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={labelClass}>Patient Name *</label>
+                              <input
+                                type="text"
+                                name="patient_name"
+                                required
+                                className={inputClass}
+                                placeholder="Full Name"
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass}>Age *</label>
+                              <input
+                                type="text"
+                                name="age"
+                                required
+                                className={inputClass}
+                                placeholder="e.g. 25 years"
+                              />
+                            </div>
 
-                          <div>
-                            <CustomSelect
-                              label="Gender *"
-                              value={inqGender}
-                              onChange={setInqGender}
-                              options={[
-                                { label: "Male", value: "Male" },
-                                { label: "Female", value: "Female" },
-                                { label: "Other", value: "Other" },
-                              ]}
-                              placeholder="Select"
-                            />
-                            <input
-                              type="hidden"
-                              name="gender"
-                              value={inqGender}
-                            />
-                          </div>
-                          <div>
-                            <CustomSelect
-                              label="Inquiry Service *"
-                              value={inqService}
-                              onChange={setInqService}
-                              options={
-                                formOptions?.inquiryServiceTypes.map(
-                                  (s: {
-                                    service_code: string;
-                                    service_name: string;
-                                  }) => ({
-                                    label: s.service_name,
-                                    value: s.service_code,
-                                  }),
-                                ) || []
-                              }
-                              placeholder="Select"
-                            />
-                            <input
-                              type="hidden"
-                              name="inquiry_type"
-                              value={inqService}
-                            />
-                          </div>
+                            <div>
+                              <CustomSelect
+                                label="Gender *"
+                                value={inqGender}
+                                onChange={setInqGender}
+                                options={[
+                                  { label: "Male", value: "Male" },
+                                  { label: "Female", value: "Female" },
+                                  { label: "Other", value: "Other" },
+                                ]}
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="gender"
+                                value={inqGender}
+                              />
+                            </div>
+                            <div>
+                              <CustomSelect
+                                label="Inquiry Service *"
+                                value={inqService}
+                                onChange={setInqService}
+                                options={
+                                  formOptions?.inquiryServiceTypes.map(
+                                    (s: {
+                                      service_code: string;
+                                      service_name: string;
+                                    }) => ({
+                                      label: s.service_name,
+                                      value: s.service_code,
+                                    }),
+                                  ) || []
+                                }
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="inquiry_type"
+                                value={inqService}
+                              />
+                            </div>
 
-                          <div>
-                            <CustomSelect
-                              label="How did you hear? *"
-                              value={inqSource}
-                              onChange={setInqSource}
-                              options={
-                                formOptions?.referralSources.map(
-                                  (s: {
-                                    source_code: string;
-                                    source_name: string;
-                                  }) => ({
-                                    label: s.source_name,
-                                    value: s.source_code,
-                                  }),
-                                ) || []
-                              }
-                              placeholder="Select"
-                            />
-                            <input
-                              type="hidden"
-                              name="referralSource"
-                              value={inqSource}
-                            />
-                          </div>
-                          <div>
-                            <CustomSelect
-                              label="Communication Type *"
-                              value={inqCommType}
-                              onChange={setInqCommType}
-                              options={[
-                                "Call",
-                                "Walk-in",
-                                "Email",
-                                "Chat",
-                                "Whatsapp",
-                              ].map((v) => ({ label: v, value: v }))}
-                              placeholder="Select"
-                            />
-                            <input
-                              type="hidden"
-                              name="communication_type"
-                              value={inqCommType}
-                            />
-                          </div>
+                            <div>
+                              <CustomSelect
+                                label="How did you hear? *"
+                                value={inqSource}
+                                onChange={setInqSource}
+                                options={
+                                  formOptions?.referralSources.map(
+                                    (s: {
+                                      source_code: string;
+                                      source_name: string;
+                                    }) => ({
+                                      label: s.source_name,
+                                      value: s.source_code,
+                                    }),
+                                  ) || []
+                                }
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="referralSource"
+                                value={inqSource}
+                              />
+                            </div>
+                            <div>
+                              <CustomSelect
+                                label="Communication Type *"
+                                value={inqCommType}
+                                onChange={setInqCommType}
+                                options={[
+                                  "Call",
+                                  "Walk-in",
+                                  "Email",
+                                  "Chat",
+                                  "Whatsapp",
+                                ].map((v) => ({ label: v, value: v }))}
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="communication_type"
+                                value={inqCommType}
+                              />
+                            </div>
 
-                          <div>
-                            <CustomSelect
-                              label="Chief Complaint *"
-                              value={inqComplaint}
-                              onChange={setInqComplaint}
-                              options={
-                                formOptions?.chiefComplaints.map(
-                                  (c: {
-                                    complaint_code: string;
-                                    complaint_name: string;
-                                  }) => ({
-                                    label: c.complaint_name,
-                                    value: c.complaint_code,
-                                  }),
-                                ) || []
-                              }
-                              placeholder="Select"
-                            />
-                            <input
-                              type="hidden"
-                              name="conditionType"
-                              value={inqComplaint}
-                            />
-                            {inqComplaint === "other" && (
-                              <div className="mt-2">
-                                <input
-                                  type="text"
-                                  name="conditionType_other"
-                                  className={inputClass}
-                                  placeholder="Specify other complaint"
+                            <div>
+                              <CustomSelect
+                                label="Chief Complaint *"
+                                value={inqComplaint}
+                                onChange={setInqComplaint}
+                                options={
+                                  formOptions?.chiefComplaints.map(
+                                    (c: {
+                                      complaint_code: string;
+                                      complaint_name: string;
+                                    }) => ({
+                                      label: c.complaint_name,
+                                      value: c.complaint_code,
+                                    }),
+                                  ) || []
+                                }
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="conditionType"
+                                value={inqComplaint}
+                              />
+                              {inqComplaint === "other" && (
+                                <div className="mt-2">
+                                  <input
+                                    type="text"
+                                    name="conditionType_other"
+                                    className={inputClass}
+                                    placeholder="Specify other complaint"
+                                  />
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              <label className={labelClass}>Mobile No. *</label>
+                              <input
+                                type="tel"
+                                name="phone"
+                                required
+                                maxLength={10}
+                                className={inputClass}
+                                placeholder="1234567890"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={labelClass}>
+                                Plan to Visit Date *
+                              </label>
+                              <div
+                                onClick={() => {
+                                  setActiveDateField("inquiry");
+                                  setShowDatePicker(true);
+                                }}
+                                className={`${inputClass} cursor-pointer flex items-center justify-between`}
+                              >
+                                <span>
+                                  {new Date(inquiryDate).toLocaleDateString(
+                                    "en-US",
+                                    {
+                                      weekday: "short",
+                                      month: "short",
+                                      day: "numeric",
+                                    },
+                                  )}
+                                </span>
+                                <Calendar
+                                  size={18}
+                                  className="text-[#43474e] dark:text-[#c4c7c5]"
                                 />
                               </div>
-                            )}
+                              <input
+                                type="hidden"
+                                name="expected_date"
+                                value={inquiryDate}
+                              />
+                            </div>
+                            <div>
+                              <label className={labelClass}>Remarks</label>
+                              <textarea
+                                name="remarks"
+                                className={`${inputClass} min-h-[50px] resize-none pt-3`}
+                                placeholder="Notes..."
+                              ></textarea>
+                            </div>
                           </div>
-                          <div>
-                            <label className={labelClass}>Mobile No. *</label>
-                            <input
-                              type="tel"
-                              name="phone"
-                              required
-                              maxLength={10}
-                              className={inputClass}
-                              placeholder="1234567890"
-                            />
+                        </>
+                      )}
+
+                      {activeModal === "test_inquiry" && (
+                        <>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                              <label className={labelClass}>Patient Name *</label>
+                              <input
+                                type="text"
+                                name="patient_name"
+                                required
+                                className={inputClass}
+                                placeholder="Full Name"
+                              />
+                            </div>
+                            <div>
+                              <CustomSelect
+                                label="Test Name *"
+                                value={tiTestName}
+                                onChange={setTiTestName}
+                                options={
+                                  formOptions?.testTypes.map(
+                                    (t: {
+                                      test_code: string;
+                                      test_name: string;
+                                    }) => ({
+                                      label: t.test_name,
+                                      value: t.test_code,
+                                    }),
+                                  ) || []
+                                }
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="test_name"
+                                value={tiTestName}
+                              />
+                            </div>
+
+                            <div>
+                              <label className={labelClass}>Referred By *</label>
+                              <input
+                                list="ti_referrers"
+                                name="referred_by"
+                                required
+                                className={inputClass}
+                                placeholder="Type"
+                              />
+                              <datalist id="ti_referrers">
+                                {formOptions?.referrers.map((r: string) => (
+                                  <option key={r} value={r} />
+                                ))}
+                              </datalist>
+                            </div>
+                            <div>
+                              <label className={labelClass}>Mobile No. *</label>
+                              <input
+                                type="tel"
+                                name="phone_number"
+                                required
+                                maxLength={10}
+                                className={inputClass}
+                              />
+                            </div>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className={labelClass}>
-                              Plan to Visit Date *
+                              Expected Visit Date *
                             </label>
                             <div
                               onClick={() => {
-                                setActiveDateField("inquiry");
+                                setActiveDateField("test_inquiry");
                                 setShowDatePicker(true);
                               }}
                               className={`${inputClass} cursor-pointer flex items-center justify-between`}
                             >
                               <span>
-                                {new Date(inquiryDate).toLocaleDateString(
+                                {new Date(testInquiryDate).toLocaleDateString(
                                   "en-US",
                                   {
                                     weekday: "short",
@@ -3325,122 +3429,14 @@ const ReceptionDashboard = () => {
                             </div>
                             <input
                               type="hidden"
-                              name="expected_date"
-                              value={inquiryDate}
+                              name="expected_visit_date"
+                              value={testInquiryDate}
                             />
                           </div>
-                          <div>
-                            <label className={labelClass}>Remarks</label>
-                            <textarea
-                              name="remarks"
-                              className={`${inputClass} min-h-[50px] resize-none pt-3`}
-                              placeholder="Notes..."
-                            ></textarea>
-                          </div>
-                        </div>
-                      </>
-                    )}
-
-                    {activeModal === "test_inquiry" && (
-                      <>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className={labelClass}>Patient Name *</label>
-                            <input
-                              type="text"
-                              name="patient_name"
-                              required
-                              className={inputClass}
-                              placeholder="Full Name"
-                            />
-                          </div>
-                          <div>
-                            <CustomSelect
-                              label="Test Name *"
-                              value={tiTestName}
-                              onChange={setTiTestName}
-                              options={
-                                formOptions?.testTypes.map(
-                                  (t: {
-                                    test_code: string;
-                                    test_name: string;
-                                  }) => ({
-                                    label: t.test_name,
-                                    value: t.test_code,
-                                  }),
-                                ) || []
-                              }
-                              placeholder="Select"
-                            />
-                            <input
-                              type="hidden"
-                              name="test_name"
-                              value={tiTestName}
-                            />
-                          </div>
-
-                          <div>
-                            <label className={labelClass}>Referred By *</label>
-                            <input
-                              list="ti_referrers"
-                              name="referred_by"
-                              required
-                              className={inputClass}
-                              placeholder="Type"
-                            />
-                            <datalist id="ti_referrers">
-                              {formOptions?.referrers.map((r: string) => (
-                                <option key={r} value={r} />
-                              ))}
-                            </datalist>
-                          </div>
-                          <div>
-                            <label className={labelClass}>Mobile No. *</label>
-                            <input
-                              type="tel"
-                              name="phone_number"
-                              required
-                              maxLength={10}
-                              className={inputClass}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <label className={labelClass}>
-                            Expected Visit Date *
-                          </label>
-                          <div
-                            onClick={() => {
-                              setActiveDateField("test_inquiry");
-                              setShowDatePicker(true);
-                            }}
-                            className={`${inputClass} cursor-pointer flex items-center justify-between`}
-                          >
-                            <span>
-                              {new Date(testInquiryDate).toLocaleDateString(
-                                "en-US",
-                                {
-                                  weekday: "short",
-                                  month: "short",
-                                  day: "numeric",
-                                },
-                              )}
-                            </span>
-                            <Calendar
-                              size={18}
-                              className="text-[#43474e] dark:text-[#c4c7c5]"
-                            />
-                          </div>
-                          <input
-                            type="hidden"
-                            name="expected_visit_date"
-                            value={testInquiryDate}
-                          />
-                        </div>
-                      </>
-                    )}
-                  </form>
-                )}
+                        </>
+                      )}
+                    </form>
+                  )}
               </div>
               <div className="p-6 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center bg-[#fdfcff] dark:bg-[#111315] sticky bottom-0 z-10 transition-colors">
                 {submitMessage ? (
@@ -3548,6 +3544,11 @@ const ReceptionDashboard = () => {
       <AnimatePresence>
         {showDatePicker && (
           <DatePicker
+            minDate={
+              activeDateField === "registration"
+                ? new Date().toISOString().split("T")[0]
+                : undefined
+            }
             value={
               activeDateField === "registration"
                 ? appointmentDate
