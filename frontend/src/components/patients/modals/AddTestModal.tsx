@@ -24,6 +24,7 @@ import CustomSelect from "../../ui/CustomSelect";
 import DatePicker from "../../ui/DatePicker";
 import { useAuthStore } from "../../../store/useAuthStore";
 import { toast } from "sonner";
+import TestBillModal from "./TestBillModal";
 
 interface AddTestModalProps {
   isOpen: boolean;
@@ -98,6 +99,10 @@ const AddTestModal = ({
 
   const [openVisitPicker, setOpenVisitPicker] = useState(false);
   const [openAssignedPicker, setOpenAssignedPicker] = useState(false);
+
+  // Token Preview Modal State
+  const [showTestBill, setShowTestBill] = useState(false);
+  const [generatedTestId, setGeneratedTestId] = useState<number | null>(null);
 
   // Fetch Options
   useEffect(() => {
@@ -311,7 +316,14 @@ const AddTestModal = ({
       if (data.success || data.status === "success") {
         toast.success("Test added successfully");
         onSuccess();
-        onClose();
+
+        // Open the test bill modal instead of closing immediately
+        if (data.test_id) {
+          setGeneratedTestId(data.test_id);
+          setShowTestBill(true);
+        } else {
+          onClose();
+        }
       } else {
         toast.error(data.message || "Failed to save record");
       }
@@ -327,7 +339,7 @@ const AddTestModal = ({
   const labelClass =
     "block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-2 px-1";
   const inputClass =
-    "w-full px-5 py-4 bg-slate-50 dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 focus:border-emerald-500/40 dark:focus:border-emerald-500/20 rounded-[24px] outline-none transition-all text-sm font-bold text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600";
+    "w-full px-5 py-4 bg-white dark:bg-white/[0.03] border border-slate-100 dark:border-white/5 focus:border-emerald-500/40 dark:focus:border-emerald-500/20 rounded-[20px] outline-none transition-all text-sm font-bold text-slate-900 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600 shadow-[0_2px_10px_rgba(0,0,0,0.02)]";
 
   return (
     <AnimatePresence>
@@ -354,15 +366,15 @@ const AddTestModal = ({
             {/* Header */}
             <div className="px-10 py-8 flex justify-between items-center bg-white/50 dark:bg-white/[0.01]">
               <div className="flex items-center gap-6">
-                <div className="w-14 h-14 flex items-center justify-center rounded-[24px] bg-emerald-500/10 text-emerald-500 shadow-inner">
-                  <FilePlus size={28} strokeWidth={2.5} />
+                <div className="w-14 h-14 flex items-center justify-center rounded-[20px] bg-[#e7f5f0] text-emerald-500 shadow-sm border border-emerald-100/50">
+                  <FilePlus size={24} strokeWidth={2.5} />
                 </div>
                 <div className="space-y-1">
                   <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
                     Add Test
                   </h3>
                   <div className="flex items-center gap-3">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                    <p className="text-[10px] font-black text-slate-400 text-opacity-70 uppercase tracking-[0.2em]">
                       Register New Test
                     </p>
                     <div className="w-1 h-1 rounded-full bg-slate-300" />
@@ -374,9 +386,9 @@ const AddTestModal = ({
               </div>
               <button
                 onClick={onClose}
-                className="w-12 h-12 flex items-center justify-center rounded-[20px] bg-slate-50 dark:bg-white/5 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition-all border border-slate-100 dark:border-white/5"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 dark:bg-white/5 hover:bg-rose-50 dark:hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition-all"
               >
-                <X size={20} strokeWidth={2.5} />
+                <X size={18} strokeWidth={2.5} />
               </button>
             </div>
 
@@ -429,17 +441,17 @@ const AddTestModal = ({
                                   !isSelected,
                                 )
                               }
-                              className={`group relative px-3 py-2.5 rounded-xl border transition-all duration-300 flex flex-col gap-1.5 text-left ${
+                              className={`group relative px-4 py-3.5 rounded-2xl border transition-all duration-300 flex flex-col gap-1.5 text-left ${
                                 isSelected
-                                  ? "bg-emerald-500/10 border-emerald-500/40 shadow-lg shadow-emerald-500/5"
-                                  : "bg-white dark:bg-white/[0.01] border-slate-100 dark:border-white/5 hover:border-emerald-500/20"
+                                  ? "bg-[#f2faf7] border-emerald-400 shadow-[0_2px_12px_rgba(16,185,129,0.06)]"
+                                  : "bg-white dark:bg-white/[0.01] border-slate-200 dark:border-white/5 hover:border-emerald-500/20 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
                               }`}
                             >
-                              <div className="flex justify-between items-center">
+                              <div className="flex justify-between items-start mb-1">
                                 <div
-                                  className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${isSelected ? "bg-emerald-500 text-white" : "bg-slate-50 dark:bg-white/5 text-slate-400"}`}
+                                  className={`transition-colors ${isSelected ? "text-emerald-500" : "text-slate-300"}`}
                                 >
-                                  <FlaskConical size={12} />
+                                  <FlaskConical size={14} />
                                 </div>
                                 {isSelected && (
                                   <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 flex items-center justify-center text-white scale-110 shadow-lg shadow-emerald-500/20">
@@ -469,123 +481,127 @@ const AddTestModal = ({
 
                   {/* Right: General Info */}
                   <div className="col-span-7 h-full">
-                    <div className="h-full p-6 rounded-[24px] bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 space-y-6 flex flex-col">
-                      <div className="flex items-center gap-4 px-2">
-                        <Activity
-                          className="text-emerald-500"
-                          size={16}
-                          strokeWidth={2.5}
-                        />
-                        <h4 className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">
-                          General Info
-                        </h4>
-                      </div>
+                    <div className="h-full p-8 rounded-[32px] bg-[#f8faf9] dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 space-y-6 flex flex-col relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-50 rounded-full blur-[80px] -translate-y-1/2 translate-x-1/2" />
 
-                      <div className="grid grid-cols-2 gap-6">
-                        <div>
-                          <label className={labelClass}>Doctor</label>
-                          <div className="relative">
-                            <Search
-                              size={16}
-                              className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300"
-                            />
-                            <input
-                              list="test_referrers"
-                              value={referredBy}
-                              onChange={(e) => setReferredBy(e.target.value)}
-                              className={`${inputClass} pl-14`}
-                              placeholder="Doctor Name"
-                            />
-                            <datalist id="test_referrers">
-                              {formOptions?.referrers.map((r) => (
-                                <option key={r} value={r} />
-                              ))}
-                            </datalist>
-                          </div>
+                      <div className="relative z-10 flex flex-col h-full space-y-6">
+                        <div className="flex items-center gap-4 px-2">
+                          <Activity
+                            className="text-emerald-500"
+                            size={16}
+                            strokeWidth={2.5}
+                          />
+                          <h4 className="text-[10px] font-black uppercase tracking-[0.25em] text-slate-400">
+                            General Info
+                          </h4>
                         </div>
 
-                        <CustomSelect
-                          label="Done By"
-                          value={testDoneBy}
-                          onChange={setTestDoneBy}
-                          options={
-                            formOptions?.staffMembers.map((s) => ({
-                              label: s.staff_name,
-                              value: s.staff_name,
-                            })) || []
-                          }
-                          placeholder="Select Staff"
-                        />
-
-                        <div className="col-span-2 space-y-4">
-                          <label className={labelClass}>Date Details</label>
-                          <div className="grid grid-cols-2 gap-3">
-                            <button
-                              type="button"
-                              onClick={() => setOpenVisitPicker(true)}
-                              className={`${inputClass} !py-3 flex items-center justify-between group`}
-                            >
-                              <span
-                                className={
-                                  visitDate
-                                    ? "text-slate-900 dark:text-white"
-                                    : "text-slate-300"
-                                }
-                              >
-                                {visitDate
-                                  ? new Date(visitDate).toLocaleDateString(
-                                      "en-IN",
-                                      { day: "2-digit", month: "short" },
-                                    )
-                                  : "Visit"}
-                              </span>
-                              <Calendar
-                                size={14}
-                                className="text-slate-300 group-hover:text-emerald-500 transition-colors"
+                        <div className="grid grid-cols-2 gap-6">
+                          <div>
+                            <label className={labelClass}>Doctor</label>
+                            <div className="relative">
+                              <Search
+                                size={16}
+                                className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300"
                               />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setOpenAssignedPicker(true)}
-                              className={`${inputClass} !py-3 flex items-center justify-between group`}
-                            >
-                              <span
-                                className={
-                                  assignedDate
-                                    ? "text-slate-900 dark:text-white"
-                                    : "text-slate-300"
-                                }
-                              >
-                                {assignedDate
-                                  ? new Date(assignedDate).toLocaleDateString(
-                                      "en-IN",
-                                      { day: "2-digit", month: "short" },
-                                    )
-                                  : "Execution"}
-                              </span>
-                              <Calendar
-                                size={14}
-                                className="text-slate-300 group-hover:text-emerald-500 transition-colors"
+                              <input
+                                list="test_referrers"
+                                value={referredBy}
+                                onChange={(e) => setReferredBy(e.target.value)}
+                                className={`${inputClass} pl-14`}
+                                placeholder="Doctor Name"
                               />
-                            </button>
+                              <datalist id="test_referrers">
+                                {formOptions?.referrers.map((r) => (
+                                  <option key={r} value={r} />
+                                ))}
+                              </datalist>
+                            </div>
                           </div>
 
-                          <AnimatePresence>
-                            {openVisitPicker && (
-                              <DatePicker
-                                value={visitDate}
-                                onChange={setVisitDate}
-                                onClose={() => setOpenVisitPicker(false)}
-                              />
-                            )}
-                            {openAssignedPicker && (
-                              <DatePicker
-                                value={assignedDate}
-                                onChange={setAssignedDate}
-                                onClose={() => setOpenAssignedPicker(false)}
-                              />
-                            )}
-                          </AnimatePresence>
+                          <CustomSelect
+                            label="Done By"
+                            value={testDoneBy}
+                            onChange={setTestDoneBy}
+                            options={
+                              formOptions?.staffMembers.map((s) => ({
+                                label: s.staff_name,
+                                value: s.staff_name,
+                              })) || []
+                            }
+                            placeholder="Select Staff"
+                          />
+
+                          <div className="col-span-2 space-y-4">
+                            <label className={labelClass}>Date Details</label>
+                            <div className="grid grid-cols-2 gap-3">
+                              <button
+                                type="button"
+                                onClick={() => setOpenVisitPicker(true)}
+                                className={`${inputClass} !py-3 flex items-center justify-between group`}
+                              >
+                                <span
+                                  className={
+                                    visitDate
+                                      ? "text-slate-900 dark:text-white"
+                                      : "text-slate-300"
+                                  }
+                                >
+                                  {visitDate
+                                    ? new Date(visitDate).toLocaleDateString(
+                                        "en-IN",
+                                        { day: "2-digit", month: "short" },
+                                      )
+                                    : "Visit"}
+                                </span>
+                                <Calendar
+                                  size={14}
+                                  className="text-slate-300 group-hover:text-emerald-500 transition-colors"
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setOpenAssignedPicker(true)}
+                                className={`${inputClass} !py-3 flex items-center justify-between group`}
+                              >
+                                <span
+                                  className={
+                                    assignedDate
+                                      ? "text-slate-900 dark:text-white"
+                                      : "text-slate-300"
+                                  }
+                                >
+                                  {assignedDate
+                                    ? new Date(assignedDate).toLocaleDateString(
+                                        "en-IN",
+                                        { day: "2-digit", month: "short" },
+                                      )
+                                    : "Execution"}
+                                </span>
+                                <Calendar
+                                  size={14}
+                                  className="text-slate-300 group-hover:text-emerald-500 transition-colors"
+                                />
+                              </button>
+                            </div>
+
+                            <AnimatePresence>
+                              {openVisitPicker && (
+                                <DatePicker
+                                  value={visitDate}
+                                  onChange={setVisitDate}
+                                  onClose={() => setOpenVisitPicker(false)}
+                                />
+                              )}
+                              {openAssignedPicker && (
+                                <DatePicker
+                                  value={assignedDate}
+                                  onChange={setAssignedDate}
+                                  onClose={() => setOpenAssignedPicker(false)}
+                                />
+                              )}
+                            </AnimatePresence>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -822,13 +838,24 @@ const AddTestModal = ({
                   ) : (
                     <ShieldCheck size={16} strokeWidth={3} />
                   )}
-                  <span>Save & Print Invoice</span>
+                  <span>Save Test</span>
                 </button>
               </div>
             </form>
           </motion.div>
         </div>
       )}
+
+      {/* Test Bill Modal */}
+      <TestBillModal
+        isOpen={showTestBill}
+        onClose={() => {
+          setShowTestBill(false);
+          setGeneratedTestId(null);
+          onClose(); // Close the main AddTestModal only after bill preview is dismissed
+        }}
+        testId={generatedTestId}
+      />
     </AnimatePresence>
   );
 };

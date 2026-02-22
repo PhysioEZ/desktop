@@ -124,6 +124,289 @@ export const printToken = (data: any) => {
     }, 500);
 };
 
+export const printTestBill = (data: any) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    doc.open();
+    doc.write('<html><head><title>Test Bill</title>');
+    doc.write('<style>');
+    doc.write('@page { size: 80mm auto; margin: 0; }'); 
+    doc.write('body { margin: 0 auto; padding: 2mm; font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; font-size: 11px; color: #000; width: 72mm; max-width: 72mm; box-sizing: border-box; }');
+    doc.write('* { box-sizing: border-box; }');
+    doc.write('.text-center { text-align: center; }');
+    doc.write('.text-right { text-align: right; }');
+    doc.write('.uppercase { text-transform: uppercase; }');
+    doc.write('.font-bold { text-transform: uppercase; font-weight: bold; }');
+    doc.write('.font-black { text-transform: uppercase; font-weight: 900; }');
+    doc.write('.font-mono { font-family: monospace; }');
+    doc.write('.border-black { border-color: #000; }');
+    doc.write('.border-b-2 { border-bottom: 1.5px solid #000; }');
+    doc.write('.border-t-2 { border-top: 1.5px solid #000; }');
+    doc.write('.border-t { border-top: 0.5px solid #000; }');
+    doc.write('.border-2 { border: 2px solid #000; }');
+    doc.write('.border-dashed { border-style: dashed; }');
+    doc.write('.rounded-lg { border-radius: 4px; }');
+    doc.write('.flex { display: flex; }');
+    doc.write('.flex-1 { flex: 1; min-width: 0; }');
+    doc.write('.justify-between { justify-content: space-between; }');
+    doc.write('.items-center { align-items: center; }');
+    doc.write('.mb-4 { margin-bottom: 0.5rem; }');
+    doc.write('.mb-2 { margin-bottom: 0.25rem; }');
+    doc.write('.mb-1 { margin-bottom: 0.125rem; }');
+    doc.write('.mt-2 { margin-top: 0.25rem; }'); 
+    doc.write('.mt-4 { margin-top: 0.5rem; }'); 
+    doc.write('.mt-6 { margin-top: 0.75rem; }'); 
+    doc.write('.pb-2 { padding-bottom: 0.25rem; }');
+    doc.write('.pt-2 { padding-top: 0.25rem; }');
+    doc.write('.text-xl { font-size: 14pt; line-height: 1.2; }');
+    doc.write('.text-4xl { font-size: 24pt; line-height: 1; }');
+    doc.write('.text-xs { font-size: 9pt; line-height: 1.1; }');
+    doc.write('#token-print-area { position: relative; page-break-inside: avoid; break-inside: avoid; }');
+    doc.write('.watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 70px; font-weight: 900; color: rgba(0, 0, 0, 0.08); white-space: nowrap; z-index: -1; pointer-events: none; text-transform: uppercase; letter-spacing: 5px; }');
+    doc.write('</style>');
+    doc.write('</head><body>');
+
+    let itemsHtml = '';
+    if (data.items?.length > 0) {
+        itemsHtml = data.items.map((item: any) => `
+            <div class="flex justify-between text-xs font-bold font-mono leading-tight mb-1 mt-1">
+                <span class="uppercase">${item.name}</span>
+                <span>${Number(item.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+            </div>
+        `).join('');
+    } else if (data.test_name) {
+        const testsList = data.test_name.split(", ");
+        itemsHtml = testsList.map((test: string, i: number) => `
+            <div class="flex justify-between text-xs font-bold font-mono leading-tight mb-1 mt-1">
+                <span class="uppercase">${test}</span>
+                <span>${i === 0 ? Number(data.total_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</span>
+            </div>
+        `).join('');
+    }
+
+    const htmlContent = `
+        <div id="token-print-area">
+            <div class="text-center mb-2">
+                <h1 class="font-black text-[16pt] uppercase tracking-wide mb-2 mt-2" style="font-family: inherit;">${(data.clinic_name || 'PROSPINE').toUpperCase()}</h1>
+                <p class="text-[10px] uppercase font-bold text-center w-full mb-3" style="font-family: inherit; font-size: 8.5pt;">${(data.branch_address || 'SWAMI VIVIKA NAND ROAD').toUpperCase()}</p>
+                <p class="text-[10px] uppercase font-bold mb-2" style="font-family: inherit; font-size: 9pt;">PH: ${data.branch_phone || '+91-8002910021'}</p>
+                
+                <div style="border-top: 3.5px dashed #000; margin: 6px 0;"></div>
+                
+                <div class="flex justify-between text-[11px] font-bold font-mono leading-tight mb-2 mt-2">
+                    <span>RCPT #:</span>
+                    <span>${data.uid || '--'}</span>
+                </div>
+                 <div class="flex justify-between text-[11px] font-bold font-mono leading-tight mb-2">
+                    <span>DATE:</span>
+                    <span class="uppercase">${data.date}</span>
+                </div>
+                 <div class="flex justify-between text-[11px] font-bold font-mono leading-tight mb-2">
+                    <span>PATIENT:</span>
+                    <span class="uppercase text-right truncate" style="max-width: 40mm;">${data.patient_name}</span>
+                </div>
+                
+                <div style="border-top: 2px solid #000; margin: 6px 0;"></div>
+                
+                <div class="flex justify-between text-[11px] font-bold font-mono leading-tight mb-2 mt-2">
+                    <span>ITEM</span>
+                    <span>AMT</span>
+                </div>
+                
+                <div style="border-top: 3.5px dashed #000; margin: 6px 0;"></div>
+
+                ${itemsHtml}
+
+                <div style="border-top: 3.5px dashed #000; margin: 6px 0;"></div>
+
+                <div class="flex justify-between text-[11px] font-bold font-mono leading-tight mt-2 mb-2">
+                    <span>SUBTOTAL:</span>
+                    <span>${parseFloat(data.total_amount || '0').toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+                
+                ${parseFloat(data.discount || '0') > 0 ? `
+                <div class="flex justify-between text-[11px] font-bold font-mono leading-tight mb-2">
+                    <span>DISCOUNT:</span>
+                    <span>${parseFloat(data.discount || '0').toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+                ` : ''}
+
+                <div class="flex justify-between text-[11px] font-bold font-mono leading-tight mb-3">
+                    <span>TOTAL:</span>
+                    <span>${(parseFloat(data.total_amount || '0') - parseFloat(data.discount || '0')).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+
+                 <div class="flex justify-between text-[11px] font-bold font-mono leading-tight mb-2 mt-3">
+                    <span>PAID:</span>
+                    <span>${parseFloat(data.paid_amount || '0').toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+                 <div class="flex justify-between text-[11px] font-bold font-mono leading-tight mb-3">
+                    <span>BALANCE DUE:</span>
+                    <span>${parseFloat(data.due_amount || '0').toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                </div>
+
+                <div style="border-top: 3.5px dashed #000; margin: 6px 0;"></div>
+
+                <div class="text-center my-3 font-bold text-[13px] font-mono uppercase tracking-widest px-2" style="font-size: 13pt;">
+                    STATUS: ${data.payment_status}
+                </div>
+
+                <div style="border-top: 3.5px dashed #000; margin: 6px 0;"></div>
+
+                <div class="text-center mt-4">
+                    <p class="font-bold text-[10px] font-mono mb-2 uppercase tracking-wider">THANK YOU FOR VISITING</p>
+                    <p class="text-[9px] font-mono mt-2">System Generated Receipt</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    doc.write(htmlContent);
+    doc.write('</body></html>');
+    doc.close();
+
+    iframe.contentWindow?.focus();
+    setTimeout(() => {
+        iframe.contentWindow?.print();
+        document.body.removeChild(iframe);
+    }, 500);
+};
+
+export const printA4TestBill = (data: any) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0';
+    iframe.style.height = '0';
+    iframe.style.border = '0';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+
+    doc.open();
+    doc.write('<html><head><title>Test Bill</title>');
+    doc.write('<style>');
+    doc.write('@page { size: A4; margin: 20mm; }');
+    doc.write('body { font-family: "Inter", Arial, sans-serif; color: #000; line-height: 1.6; }');
+    doc.write('.text-center { text-align: center; }');
+    doc.write('.text-right { text-align: right; }');
+    doc.write('.font-bold { font-weight: bold; }');
+    doc.write('.bill-box { border: 2px dashed #000; padding: 40px 20px; margin: 30px 0; background: #fcfcfc; border-radius: 20px; }');
+    doc.write('.header { border-bottom: 2px solid #000; padding-bottom: 20px; margin-bottom: 40px; display: flex; justify-content: space-between; align-items: start; }');
+    doc.write('.clinic-title { font-size: 24px; font-weight: 900; text-transform: uppercase; margin: 0; }');
+    doc.write('.details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; font-size: 14px; }');
+    doc.write('.label { font-size: 11px; text-transform: uppercase; color: #555; font-weight: bold; letter-spacing: 1px; margin-bottom: 4px; }');
+    doc.write('.val { font-size: 16px; font-weight: 600; }');
+    doc.write('.table-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px dashed #ccc; font-size: 15px; }');
+    doc.write('.table-row.header-row { font-weight: bold; text-transform: uppercase; border-bottom: 2px solid #000; font-size: 12px; color: #555; }');
+    doc.write('.table-row.total-row { font-weight: bold; border-bottom: none; border-top: 2px solid #000; font-size: 18px; margin-top: 10px; }');
+    doc.write('.table-row.sub-total { border-bottom: none; display: flex; justify-content: space-between; padding: 6px 0; font-size: 14px; }');
+    doc.write('.watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-45deg); font-size: 151px; font-weight: 900; color: rgba(0, 0, 0, 0.05); white-space: nowrap; z-index: -1; pointer-events: none; text-transform: uppercase; letter-spacing: 20px; }');
+    doc.write('</style></head><body>');
+    
+    let itemsHtml = '';
+    if (data.items?.length > 0) {
+        itemsHtml = data.items.map((item: any) => `
+            <div class="table-row">
+                <span style="font-weight: 600; text-transform: uppercase;">${item.name}</span>
+                <span>₹${Number(item.amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+            </div>
+        `).join('');
+    } else if (data.test_name) {
+        const testsList = data.test_name.split(", ");
+        itemsHtml = testsList.map((test: string, i: number) => `
+            <div class="table-row">
+                <span style="font-weight: 600; text-transform: uppercase;">${test}</span>
+                <span>₹${i === 0 ? Number(data.total_amount || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 }) : "0.00"}</span>
+            </div>
+        `).join('');
+    }
+
+    const html = `
+        <div class="header">
+            <div>
+                <h1 class="clinic-title">${(data.clinic_name || 'Clinic').toUpperCase()}</h1>
+                <p style="margin:5px 0 0 0; font-size:12px;">${data.branch_address}</p>
+                <p style="margin:0; font-size:12px;">Ph: ${data.branch_phone}</p>
+            </div>
+            <div class="text-right">
+                <h2 style="margin:0; font-size:18px; font-weight:900;">TEST BILL</h2>
+                <p style="margin:5px 0 0 0;">${data.date}</p>
+                <p style="margin:0; font-size:12px;">RCPT #: ${data.uid}</p>
+            </div>
+        </div>
+
+        <div class="details-grid">
+            <div>
+                <p class="label">Patient Name</p>
+                <p class="val" style="text-transform: uppercase;">${data.patient_name}</p>
+            </div>
+             <div>
+                <p class="label">Payment Status</p>
+                <p class="val" style="text-transform: uppercase; font-weight: 900; color: ${data.due_amount > 0 ? '#b91c1c' : '#15803d'};">${data.payment_status}</p>
+            </div>
+        </div>
+
+        <div class="bill-box">
+             <div class="table-row header-row" style="margin-bottom: 5px;">
+                <span>Description / ITEM</span>
+                <span>Amount</span>
+            </div>
+
+            ${itemsHtml}
+
+            <div style="margin-top: 20px;"></div>
+
+            <div class="table-row sub-total" style="font-weight: 600;">
+                <span class="label" style="font-size: 13px;">SUBTOTAL</span>
+                <span>₹${parseFloat(data.total_amount || '0').toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            </div>
+
+            ${parseFloat(data.discount || '0') > 0 ? `
+            <div class="table-row sub-total" style="font-weight: 600; padding-top: 0;">
+                <span class="label" style="font-size: 13px;">DISCOUNT</span>
+                <span>-₹${parseFloat(data.discount || '0').toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            </div>
+            ` : ''}
+
+            <div class="table-row total-row">
+                <span style="font-size: 16px;">TOTAL AMOUNT</span>
+                <span>₹${(parseFloat(data.total_amount || '0') - parseFloat(data.discount || '0')).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            </div>
+        </div>
+
+        <div style="border-top: 2px solid #eee; padding-top: 20px; margin-top: 20px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px; font-size: 15px;">
+                <span class="label" style="font-size: 13px;">Paid Amount</span>
+                <span class="font-bold">₹${parseFloat(data.paid_amount || '0').toLocaleString('en-IN', { minimumFractionDigits: 2})}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 16px;">
+                <span class="label" style="margin:0; font-size: 14px; align-self: center;">Balance Due</span>
+                <span style="font-weight:900; color:${data.due_amount > 0 ? '#b91c1c' : '#15803d'}">₹${parseFloat(data.due_amount || '0').toLocaleString('en-IN', { minimumFractionDigits: 2})}</span>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 60px; font-size: 13px; color: #666; font-weight: bold; text-transform: uppercase;">
+            THANK YOU FOR VISITING
+            <div style="font-size: 11px; font-weight: normal; margin-top: 5px; color: #888;">System Generated Receipt • ${data.uid}</div>
+        </div>
+    `;
+
+    doc.write(html);
+    doc.write('</body></html>');
+    doc.close();
+    iframe.contentWindow?.focus();
+    setTimeout(() => { iframe.contentWindow?.print(); document.body.removeChild(iframe); }, 500);
+};
+
 export const printA4Token = (data: any) => {
     const iframe = document.createElement('iframe');
     iframe.style.position = 'absolute';

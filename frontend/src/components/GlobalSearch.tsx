@@ -22,7 +22,7 @@ interface GlobalSearchProps {
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   searchResults: SearchResult[];
-  onSearch: () => void;
+  onSearch?: () => void;
   isLoading?: boolean;
 }
 
@@ -105,7 +105,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") onSearch();
+                    if (e.key === "Enter") onSearch?.();
                   }}
                   className={`bg-transparent border-none outline-none text-xl w-full placeholder:opacity-20 font-medium ${
                     isDark ? "text-white" : "text-black"

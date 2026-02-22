@@ -362,6 +362,9 @@ exports.handleTestsRequest = async (req, res) => {
             case 'fetch_details':
                 await fetchTestDetails(req, res, branchId, input.test_id);
                 break;
+            case 'get_bill':
+                await fetchTestBill(req, res, branchId, input.test_id);
+                break;
             case 'update_metadata':
                 await updateTestMetadata(req, res, branchId, input);
                 break;
@@ -452,6 +455,47 @@ async function fetchTestDetails(req, res, branchId, testId) {
     mainTest.test_items = items;
 
     res.json({ success: true, data: mainTest });
+}
+
+async function fetchTestBill(req, res, branchId, testId) {
+    if (!testId) throw new Error("Test ID required");
+
+    const [mainRows] = await pool.query("SELECT * FROM tests WHERE test_id = ? AND branch_id = ?", [testId, branchId]);
+    const mainTest = mainRows[0];
+    if (!mainTest) throw new Error("Test not found");
+
+    const [items] = await pool.query("SELECT * FROM test_items WHERE test_id = ? ORDER BY item_id ASC", [testId]);
+
+    // Fetch Branch Details
+    const [branchRows] = await pool.query(
+        "SELECT clinic_name, address_line_1, phone_primary FROM branches WHERE branch_id = ?",
+        [mainTest.branch_id]
+    );
+    const branch = branchRows[0] || {};
+
+    const token_date = new Date(mainTest.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) + " " + new Date(mainTest.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+
+    const billData = {
+        uid: mainTest.test_uid,
+        patient_name: mainTest.patient_name,
+        test_name: mainTest.test_name,
+        total_amount: mainTest.total_amount,
+        paid_amount: mainTest.advance_amount,
+        due_amount: mainTest.due_amount,
+        discount: mainTest.discount,
+        payment_status: mainTest.payment_status,
+        test_status: mainTest.test_status,
+        date: token_date,
+        clinic_name: branch.clinic_name,
+        branch_address: branch.address_line_1,
+        branch_phone: branch.phone_primary,
+        items: items.map(i => ({
+            name: i.test_name,
+            amount: i.total_amount
+        }))
+    };
+
+    res.json({ success: true, data: billData });
 }
 
 async function updateTestMetadata(req, res, branchId, input) {
