@@ -92,6 +92,7 @@ interface PatientState {
         payments: any[];
         history: any[];
         attendance: any[];
+        tests: any[];
     }) | null;
     isLoadingDetails: boolean;
 

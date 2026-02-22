@@ -18,15 +18,34 @@ exports.submitTest = async (req, res) => {
         const today = new Date().toISOString().split('T')[0];
         const visit_date = data.visit_date || today;
         const assigned_test_date = data.assigned_test_date || today;
-        const patient_name = (data.patient_name || '').trim();
-        const age = (data.age || '').trim();
-        const gender = data.gender || '';
+
+        let patient_name = (data.patient_name || '').trim();
+        let age = (data.age || '').trim();
+        let gender = data.gender || '';
+        let phone_number = (data.phone_number || '').trim();
+
+        // If from PatientDetailsModal, we might only get patient_id
+        if (data.patient_id && (!patient_name || !age || !gender)) {
+            const [ptRows] = await connection.query(
+                `SELECT r.patient_name, r.age, r.gender, r.phone_number 
+                 FROM patients p
+                 JOIN registration r ON p.registration_id = r.registration_id
+                 WHERE p.patient_id = ?`,
+                [data.patient_id]
+            );
+            if (ptRows.length > 0) {
+                const pt = ptRows[0];
+                if (!patient_name) patient_name = (pt.patient_name || '').trim();
+                if (!age) age = String(pt.age || '').trim();
+                if (!gender) gender = pt.gender || '';
+                if (!phone_number) phone_number = (pt.phone_number || '').trim();
+            }
+        }
 
         // Optional fields
         const dob = data.dob || null;
         const parents = (data.parents || '').trim() || null;
         const relation = (data.relation || '').trim() || null;
-        const phone_number = (data.phone_number || '').trim();
         const alternate_phone_no = (data.alternate_phone_no || '').trim() || null;
         const address = (data.address || '').trim() || null;
         const referred_by = (data.referred_by || '').trim() || null;
@@ -516,8 +535,8 @@ async function addTestPayment(req, res, branchId, input) {
     try {
         await connection.beginTransaction();
 
-        const paymentList = payments && Array.isArray(payments) 
-            ? payments 
+        const paymentList = payments && Array.isArray(payments)
+            ? payments
             : (amount ? [{ method: method || 'cash', amount }] : []);
 
         if (paymentList.length === 0) throw new Error("No payment data provided");

@@ -3,11 +3,9 @@ import {
   X,
   User,
   Phone,
-  Info,
   Users,
   FlaskConical,
   Wallet,
-  FileText,
   MapPin,
   Calendar,
   Check,
@@ -93,9 +91,12 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
   const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>(
     {},
   );
+  const [showMoreInfo, setShowMoreInfo] = useState(false);
 
   const { paymentMethods, fetchPaymentMethods } = useConfigStore();
-  const [pendingPayments, setPendingPayments] = useState<Record<number, { method: string; amount: number }[]>>({});
+  const [pendingPayments, setPendingPayments] = useState<
+    Record<number, { method: string; amount: number }[]>
+  >({});
 
   useEffect(() => {
     if (isOpen) {
@@ -108,10 +109,9 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
       setIsEditing(false);
       setExpandedItems({});
       setPendingPayments({});
+      setShowMoreInfo(false);
     }
   }, [isOpen, test]);
-
-
 
   // Expand first item on load
   useEffect(() => {
@@ -406,136 +406,322 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
             ) : (
               <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
                 {/* Left Panel: Patient & Financials */}
-                <div className="w-full lg:w-1/3 p-6 flex flex-col gap-6 overflow-y-auto no-scrollbar shrink-0 bg-slate-50 dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800">
+                <div className="w-full lg:w-[40%] xl:w-[35%] p-6 flex flex-col gap-6 overflow-y-auto no-scrollbar shrink-0 bg-slate-50 dark:bg-slate-900/30 border-r border-slate-200 dark:border-white/5">
                   {/* Patient Info Card */}
-                  <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700">
-                    <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-700 pb-4 mb-4">
-                      <div className="w-12 h-12 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center text-teal-600 dark:text-teal-400">
-                        <User size={20} />
+                  <div className="bg-white dark:bg-slate-800/80 rounded-[24px] p-6 shadow-sm border border-slate-100 dark:border-white/5 relative overflow-hidden">
+                    {/* Abstract bg element */}
+                    <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 dark:bg-teal-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+
+                    <div className="flex items-start gap-4 mb-6 relative z-10">
+                      <div className="w-14 h-14 rounded-2xl bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center text-xl font-black shadow-inner">
+                        {data.patient_name ? (
+                          data.patient_name.charAt(0).toUpperCase()
+                        ) : (
+                          <User size={24} />
+                        )}
                       </div>
-                      <div>
-                        <h4 className="text-lg font-bold text-slate-900 dark:text-white">
-                          Patient Information
+                      <div className="flex-1 pt-1">
+                        <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight leading-tight mb-1">
+                          {data.patient_name || "Unknown Patient"}
                         </h4>
-                        <p className="text-xs text-slate-500">
-                          Personal details & contact
-                        </p>
+                        <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+                          <span>{data.gender || "N/A"}</span>
+                          <span className="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
+                          <span>{data.age ? `${data.age} YRS` : "N/A"}</span>
+                        </div>
                       </div>
                     </div>
-                    <div className="space-y-1">
-                      {renderInfoItem(
-                        User,
-                        "Patient Name",
-                        data.patient_name,
-                        "patient_name",
-                      )}
-                      {renderInfoItem(Info, "Age", data.age, "age")}
-                      {renderInfoItem(User, "Gender", data.gender, "gender")}
-                      {renderInfoItem(
-                        Phone,
-                        "Phone Number",
-                        data.phone_number,
-                        "phone_number",
-                      )}
-                      {renderInfoItem(
-                        Phone,
-                        "Alt Phone",
-                        data.alternate_phone_no,
-                        "alternate_phone_no",
-                      )}
-                      {renderInfoItem(
-                        MapPin,
-                        "Address",
-                        data.address,
-                        "address",
-                      )}
-                      {renderInfoItem(
-                        Calendar,
-                        "Date of Birth",
-                        data.dob,
-                        "dob",
-                      )}
-                      {renderInfoItem(
-                        Users,
-                        "Parent/Guardian",
-                        data.parents,
-                        "parents",
-                      )}
-                      {renderInfoItem(
-                        Users,
-                        "Relation",
-                        data.relation,
-                        "relation",
+
+                    <div className="grid grid-cols-1 gap-y-4 gap-x-4 relative z-10 w-full">
+                      {isEditing ? (
+                        <div className="space-y-3">
+                          {renderInfoItem(
+                            Phone,
+                            "Phone Number",
+                            data.phone_number,
+                            "phone_number",
+                          )}
+                          {renderInfoItem(
+                            Phone,
+                            "Alt Phone",
+                            data.alternate_phone_no,
+                            "alternate_phone_no",
+                          )}
+                          {renderInfoItem(
+                            MapPin,
+                            "Address",
+                            data.address,
+                            "address",
+                          )}
+                          {renderInfoItem(
+                            Calendar,
+                            "Date of Birth",
+                            data.dob,
+                            "dob",
+                          )}
+                          {renderInfoItem(
+                            Users,
+                            "Parent/Guardian",
+                            data.parents,
+                            "parents",
+                          )}
+                          {renderInfoItem(
+                            Users,
+                            "Relation",
+                            data.relation,
+                            "relation",
+                          )}
+                        </div>
+                      ) : (
+                        <>
+                          <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-4 border border-slate-100 dark:border-white/5 space-y-3">
+                            <div className="flex items-start gap-3">
+                              <Phone
+                                size={14}
+                                className="text-slate-400 mt-0.5"
+                              />
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
+                                  Contact
+                                </p>
+                                <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                                  {data.phone_number || "N/A"}
+                                </p>
+                                {data.alternate_phone_no && (
+                                  <p className="text-xs font-medium text-slate-500 mt-0.5">
+                                    {data.alternate_phone_no} (Alt)
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-start gap-3 pt-3 border-t border-slate-200 dark:border-white/5">
+                              <MapPin
+                                size={14}
+                                className="text-slate-400 mt-0.5"
+                              />
+                              <div>
+                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">
+                                  Address
+                                </p>
+                                <p className="text-sm font-semibold text-slate-900 dark:text-white leading-snug">
+                                  {data.address || "N/A"}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {!showMoreInfo ? (
+                            <button
+                              onClick={() => setShowMoreInfo(true)}
+                              className="w-full mt-2 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors bg-slate-50 dark:bg-slate-900/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-white/5 focus:outline-none"
+                            >
+                              View More Details
+                            </button>
+                          ) : (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              className="space-y-3 mt-1"
+                            >
+                              <div className="grid grid-cols-2 gap-3 mt-1">
+                                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                    <Phone size={10} /> Alt Phone
+                                  </p>
+                                  <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                                    {data.alternate_phone_no || "N/A"}
+                                  </p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                    <Calendar size={10} /> DOB
+                                  </p>
+                                  <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                                    {data.dob || "N/A"}
+                                  </p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                    <Users size={10} /> Guardian
+                                  </p>
+                                  <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                                    {data.parents || "N/A"}
+                                  </p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                    <Users size={10} /> Relation
+                                  </p>
+                                  <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                                    {data.relation || "N/A"}
+                                  </p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                    <User size={10} /> Referred By
+                                  </p>
+                                  <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                                    {data.referred_by || "N/A"}
+                                  </p>
+                                </div>
+                                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5">
+                                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                    <Calendar size={10} /> Added On
+                                  </p>
+                                  <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">
+                                    {data.visit_date || "N/A"}
+                                  </p>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => setShowMoreInfo(false)}
+                                className="w-full mt-2 py-2.5 text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors bg-slate-50 dark:bg-slate-900/50 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 border border-transparent hover:border-slate-200 dark:hover:border-white/5 focus:outline-none flex items-center justify-center gap-1.5"
+                              >
+                                <ChevronUp size={12} /> View Less
+                              </button>
+                            </motion.div>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
 
                   {/* Financial Summary Card */}
-                  <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
-                    <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-700 pb-4 mb-4">
-                      <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                        <Wallet size={20} />
+                  <div
+                    className={`rounded-[24px] p-6 shadow-lg border relative overflow-hidden ${
+                      parseFloat(String(data.due_amount || 0)) > 0
+                        ? "bg-gradient-to-br from-rose-500/5 to-orange-500/5 border-rose-500/20 dark:from-rose-500/5 dark:to-orange-500/10 dark:border-rose-500/10"
+                        : "bg-gradient-to-br from-emerald-500/5 to-teal-500/5 border-emerald-500/20 dark:from-emerald-500/10 dark:to-teal-500/5 dark:border-emerald-500/10"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-6 relative z-10">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            parseFloat(String(data.due_amount || 0)) > 0
+                              ? "bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                              : "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                          }`}
+                        >
+                          <Wallet size={18} />
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-black uppercase text-slate-900 dark:text-white tracking-widest">
+                            Financial Summary
+                          </h4>
+                        </div>
                       </div>
-                      <div>
-                        <h4 className="text-lg font-bold text-slate-900 dark:text-white">
-                          Financial Summary
-                        </h4>
-                        <p className="text-xs text-slate-500">
-                          Total payable details
-                        </p>
+
+                      <div
+                        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
+                          parseFloat(String(data.due_amount || 0)) > 0
+                            ? "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/20"
+                            : "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/20"
+                        }`}
+                      >
+                        {parseFloat(String(data.due_amount || 0)) > 0
+                          ? "Pending Dues"
+                          : "All Clear"}
                       </div>
                     </div>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
-                        <span className="text-xs font-bold text-slate-500 uppercase">
-                          Total Amount
-                        </span>
-                        <span className="text-sm font-black text-slate-800 dark:text-white">
-                          ₹
-                          {parseFloat(String(data.total_amount || 0)).toFixed(
-                            2,
-                          )}
-                        </span>
+
+                    <div className="space-y-4 relative z-10 w-full">
+                      <div className="flex justify-between items-end">
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            Total Bill
+                          </span>
+                          <div className="text-xl font-black text-slate-800 dark:text-white tracking-tight">
+                            ₹
+                            {parseFloat(String(data.total_amount || 0)).toFixed(
+                              2,
+                            )}
+                          </div>
+                        </div>
+
+                        {parseFloat(String(data.discount || 0)) > 0 && (
+                          <div className="text-right space-y-1">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                              Discount
+                            </span>
+                            <div className="text-sm font-bold text-slate-600 dark:text-slate-400">
+                              -₹
+                              {parseFloat(String(data.discount || 0)).toFixed(
+                                2,
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
-                        <span className="text-xs font-bold text-slate-500 uppercase">
-                          Discount
-                        </span>
-                        <span className="text-sm font-black text-slate-800 dark:text-white">
-                          ₹{parseFloat(String(data.discount || 0)).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center bg-emerald-50 dark:bg-emerald-900/10 p-3 rounded-xl border border-emerald-100 dark:border-emerald-900/30">
-                        <span className="text-xs font-bold text-emerald-600 dark:text-emerald-500 uppercase">
-                          Total Paid
-                        </span>
-                        <span className="text-sm font-black text-emerald-700 dark:text-emerald-400">
-                          ₹
-                          {parseFloat(String(data.advance_amount || 0)).toFixed(
-                            2,
-                          )}
-                        </span>
-                      </div>
-                      <div
-                        className={`flex justify-between items-center p-3 rounded-xl border ${parseFloat(String(data.due_amount || 0)) > 0 ? "bg-rose-50 border-rose-100 text-rose-700 dark:bg-rose-900/10 dark:border-rose-900/30 dark:text-rose-400" : "bg-slate-50 border-slate-100 text-slate-800 dark:bg-slate-900 dark:border-slate-800 dark:text-white"}`}
-                      >
-                        <span className="text-xs font-bold uppercase">
-                          Balance Due
-                        </span>
-                        <span className="text-sm font-black">
-                          ₹
-                          {Math.max(
-                            0,
-                            parseFloat(String(data.due_amount || 0)),
-                          ).toFixed(2)}
-                        </span>
+
+                      <div className="pt-4 border-t border-black/5 dark:border-white/5 space-y-4">
+                        {/* Progress bar logic */}
+                        <div>
+                          <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest mb-1.5">
+                            <span className="text-emerald-600 dark:text-emerald-500">
+                              Paid: ₹
+                              {parseFloat(
+                                String(data.advance_amount || 0),
+                              ).toFixed(2)}
+                            </span>
+                            <span className="text-slate-500">
+                              {Number(data.total_amount) > 0
+                                ? (
+                                    (parseFloat(
+                                      String(data.advance_amount || 0),
+                                    ) /
+                                      parseFloat(
+                                        String(data.total_amount || 1),
+                                      )) *
+                                    100
+                                  ).toFixed(0)
+                                : 0}
+                              %
+                            </span>
+                          </div>
+                          <div className="h-1.5 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{
+                                width: `${Number(data.total_amount) > 0 ? (parseFloat(String(data.advance_amount || 0)) / parseFloat(String(data.total_amount || 1))) * 100 : 0}%`,
+                              }}
+                              className="h-full bg-emerald-500 rounded-full"
+                            />
+                          </div>
+                        </div>
+
+                        <div
+                          className={`p-4 rounded-xl flex items-center justify-between border ${
+                            parseFloat(String(data.due_amount || 0)) > 0
+                              ? "bg-white dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/30"
+                              : "bg-white dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30"
+                          }`}
+                        >
+                          <span className="text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
+                            Balance Due
+                          </span>
+                          <span
+                            className={`text-xl font-black tracking-tight ${
+                              parseFloat(String(data.due_amount || 0)) > 0
+                                ? "text-rose-600 dark:text-rose-400"
+                                : "text-emerald-600 dark:text-emerald-400"
+                            }`}
+                          >
+                            ₹
+                            {Math.max(
+                              0,
+                              parseFloat(String(data.due_amount || 0)),
+                            ).toFixed(2)}
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Right Panel: Test Items List */}
-                <div className="w-full lg:w-2/3 p-6 flex flex-col gap-4 overflow-y-auto bg-slate-50 dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-slate-800 min-h-0">
+                <div className="w-full lg:w-[60%] xl:w-[65%] p-6 flex flex-col gap-4 overflow-y-auto bg-slate-50 dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-white/5 min-h-0 auto-rows-max">
                   <div className="flex items-center gap-2 mb-2">
                     <FlaskConical size={18} className="text-slate-400" />
                     <h3 className="text-sm font-black uppercase text-slate-700 dark:text-slate-300">
@@ -549,40 +735,43 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                       return (
                         <div
                           key={item.item_id}
-                          className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden transition-all duration-300 shrink-0"
+                          className={`bg-white dark:bg-slate-800/80 rounded-[24px] shadow-sm border overflow-hidden transition-all duration-300 shrink-0 ${expanded ? "border-teal-500/30 dark:border-teal-500/30" : "border-slate-100 dark:border-white/5"}`}
                         >
                           {/* Accordion Header */}
                           <div
                             onClick={() => toggleItem(item.item_id)}
-                            className="p-5 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-transparent dark:border-transparent transition-colors hover:bg-slate-100 dark:hover:bg-slate-700/50 cursor-pointer"
+                            className="p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer relative group"
                           >
-                            <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900/30 text-teal-600 dark:text-teal-400">
-                                <FlaskConical size={18} />
+                            <div
+                              className={`absolute left-0 top-0 bottom-0 w-1 ${item.test_status.toLowerCase() === "completed" ? "bg-emerald-500" : item.test_status.toLowerCase() === "pending" ? "bg-amber-500" : "bg-slate-500"}`}
+                            />
+                            <div className="flex items-center gap-4 pl-2">
+                              <div
+                                className={`w-12 h-12 flex items-center justify-center rounded-2xl ${expanded ? "bg-teal-500 text-white shadow-md shadow-teal-500/20" : "bg-slate-100 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 group-hover:bg-teal-50 dark:group-hover:bg-teal-500/10"} transition-all`}
+                              >
+                                <FlaskConical size={20} />
                               </div>
                               <div>
-                                <h4 className="text-base font-bold text-slate-900 dark:text-white uppercase">
+                                <h4 className="text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
                                   {item.test_name}
                                 </h4>
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                                   {idx === 0 && data?.test_items?.length === 1
-                                    ? "Original Test Details"
+                                    ? "Original Details"
                                     : `Item #${item.item_id}`}
                                 </span>
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
                               <span
-                                className={`px-3 py-1 text-[10px] font-bold uppercase tracking-wide rounded-full border ${getStatusColor(item.test_status)}`}
+                                className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest rounded-full border ${getStatusColor(item.test_status)}`}
                               >
                                 {item.test_status}
                               </span>
-                              <div className="w-8 h-8 rounded-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 flex items-center justify-center text-slate-400 transition-transform">
-                                {expanded ? (
-                                  <ChevronUp size={16} />
-                                ) : (
-                                  <ChevronDown size={16} />
-                                )}
+                              <div
+                                className={`w-10 h-10 rounded-full flex items-center justify-center transition-transform ${expanded ? "bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 rotate-180" : "bg-slate-50 dark:bg-slate-900/50 text-slate-400"}`}
+                              >
+                                <ChevronDown size={18} />
                               </div>
                             </div>
                           </div>
@@ -594,217 +783,131 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                                 initial={{ height: 0, opacity: 0 }}
                                 animate={{ height: "auto", opacity: 1 }}
                                 exit={{ height: 0, opacity: 0 }}
-                                className="overflow-hidden"
+                                className="overflow-hidden bg-slate-50/50 dark:bg-slate-900/20"
                               >
-                                <div className="p-6 border-t border-slate-100 dark:border-slate-700">
-                                  {/* Item Metadata */}
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 mb-6">
-                                    <div className="flex justify-between items-center">
-                                      <div className="flex items-center gap-2">
-                                        <FlaskConical
-                                          size={14}
-                                          className="text-slate-400"
-                                        />
-                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                          Test Name
-                                        </span>
-                                      </div>
-                                      <span className="text-sm font-medium text-slate-900 dark:text-white">
-                                        {item.test_name}
-                                      </span>
-                                    </div>
-                                    <div className="flex justify-between items-center">
-                                      <div className="flex items-center gap-2">
-                                        <MapPin
-                                          size={14}
-                                          className="text-slate-400"
-                                        />
-                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                          Limb
-                                        </span>
-                                      </div>
-                                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                <div className="p-6 border-t border-slate-100 dark:border-white/5">
+                                  {/* Item Metadata Grid */}
+                                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                        <MapPin size={12} /> Limb
+                                      </p>
+                                      <p className="text-sm font-black text-slate-800 dark:text-white truncate">
                                         {item.limb || "N/A"}
-                                      </span>
+                                      </p>
                                     </div>
-                                    <div className="flex justify-between items-center">
-                                      <div className="flex items-center gap-2">
-                                        <Calendar
-                                          size={14}
-                                          className="text-slate-400"
-                                        />
-                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                          Assigned Date
-                                        </span>
-                                      </div>
-                                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                        <Calendar size={12} /> Date
+                                      </p>
+                                      <p className="text-sm font-black text-slate-800 dark:text-white truncate">
                                         {item.assigned_test_date ||
                                           data.assigned_test_date ||
                                           "N/A"}
-                                      </span>
+                                      </p>
                                     </div>
-                                    <div className="flex justify-between items-center">
-                                      <div className="flex items-center gap-2">
-                                        <User
-                                          size={14}
-                                          className="text-slate-400"
-                                        />
-                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                          Performed By
-                                        </span>
-                                      </div>
-                                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                        <User size={12} /> Performed By
+                                      </p>
+                                      <p className="text-sm font-black text-slate-800 dark:text-white truncate">
                                         {item.test_done_by ||
                                           data.test_done_by ||
                                           "N/A"}
-                                      </span>
+                                      </p>
                                     </div>
-                                    <div className="flex justify-between items-center">
-                                      <div className="flex items-center gap-2">
-                                        <Users
-                                          size={14}
-                                          className="text-slate-400"
-                                        />
-                                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                          Referred By
-                                        </span>
-                                      </div>
-                                      <span className="text-sm font-medium text-slate-900 dark:text-white">
+                                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-white/5">
+                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                        <Users size={12} /> Referred By
+                                      </p>
+                                      <p className="text-sm font-black text-slate-800 dark:text-white truncate">
                                         {item.referred_by ||
                                           data.referred_by ||
                                           "N/A"}
-                                      </span>
-                                    </div>
-                                  </div>
-
-                                  {/* Item Financials */}
-                                  <div className="bg-slate-50 dark:bg-slate-900/50 rounded-xl p-5 mb-6 border border-slate-100 dark:border-slate-700">
-                                    <h5 className="flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-white mb-4">
-                                      <FileText
-                                        size={16}
-                                        className="text-teal-500"
-                                      />{" "}
-                                      Financial Details
-                                    </h5>
-                                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-                                      <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                          Total
-                                        </p>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white">
-                                          ₹
-                                          {parseFloat(
-                                            String(item.total_amount || 0),
-                                          ).toFixed(2)}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                          Discount
-                                        </p>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white">
-                                          ₹
-                                          {parseFloat(
-                                            String(item.discount || 0),
-                                          ).toFixed(2)}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                          Paid
-                                        </p>
-                                        <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                                          ₹
-                                          {parseFloat(
-                                            String(item.advance_amount || 0),
-                                          ).toFixed(2)}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                          Due
-                                        </p>
-                                        <p
-                                          className={`text-sm font-bold ${item.due_amount > 0 ? "text-rose-600 dark:text-rose-400" : "text-slate-900 dark:text-white"}`}
-                                        >
-                                          ₹
-                                          {Math.max(
-                                            0,
-                                            parseFloat(
-                                              String(item.due_amount || 0),
-                                            ),
-                                          ).toFixed(2)}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                                          Method
-                                        </p>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white capitalize">
-                                          {item.payment_method || "N/A"}
-                                        </p>
-                                      </div>
+                                      </p>
                                     </div>
                                   </div>
 
                                   {/* Controls (Status / Payment) */}
-                                  <div className="pt-6 border-t border-slate-100 dark:border-slate-700 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="pt-6 border-t border-slate-200 dark:border-white/5 space-y-6">
                                     {/* Status Controls */}
-                                    <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                       <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-                                          Test Status
+                                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                          <FlaskConical size={12} /> Test Status
                                         </label>
-                                        <select
-                                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-teal-500 outline-none"
-                                          value={item.test_status}
-                                          onChange={(e) =>
-                                            handleUpdateStatus(
-                                              item.item_id,
-                                              e.target.value,
-                                              "test",
-                                            )
-                                          }
-                                        >
-                                          <option value="pending">
-                                            Pending
-                                          </option>
-                                          <option value="completed">
-                                            Completed
-                                          </option>
-                                          <option value="cancelled">
-                                            Cancelled
-                                          </option>
-                                        </select>
+                                        <div className="flex flex-wrap gap-2">
+                                          {[
+                                            "pending",
+                                            "completed",
+                                            "cancelled",
+                                          ].map((status) => (
+                                            <button
+                                              key={status}
+                                              onClick={() =>
+                                                handleUpdateStatus(
+                                                  item.item_id,
+                                                  status,
+                                                  "test",
+                                                )
+                                              }
+                                              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                                                item.test_status.toLowerCase() ===
+                                                status
+                                                  ? status === "completed"
+                                                    ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                                                    : status === "pending"
+                                                      ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                                                      : "bg-rose-500 text-white shadow-md shadow-rose-500/20"
+                                                  : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300 dark:hover:border-white/20"
+                                              }`}
+                                            >
+                                              {status}
+                                            </button>
+                                          ))}
+                                        </div>
                                       </div>
+
                                       <div>
-                                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
-                                          Payment Status
+                                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                          <Wallet size={12} /> Payment Status
                                         </label>
-                                        <select
-                                          className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-1 focus:ring-teal-500 outline-none"
-                                          value={item.payment_status}
-                                          onChange={(e) =>
-                                            handleUpdateStatus(
-                                              item.item_id,
-                                              e.target.value,
-                                              "payment",
-                                            )
-                                          }
-                                        >
-                                          <option value="pending">
-                                            Pending
-                                          </option>
-                                          <option value="partial">
-                                            Partial
-                                          </option>
-                                          <option value="paid">Paid</option>
-                                        </select>
+                                        <div className="flex flex-wrap gap-2">
+                                          {["pending", "partial", "paid"].map(
+                                            (status) => (
+                                              <button
+                                                key={status}
+                                                onClick={() =>
+                                                  handleUpdateStatus(
+                                                    item.item_id,
+                                                    status,
+                                                    "payment",
+                                                  )
+                                                }
+                                                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
+                                                  item.payment_status.toLowerCase() ===
+                                                  status
+                                                    ? status === "paid"
+                                                      ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                                                      : status === "partial"
+                                                        ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                                                        : "bg-slate-500 text-white shadow-md shadow-slate-500/20"
+                                                    : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300 dark:hover:border-white/20"
+                                                }`}
+                                              >
+                                                {status}
+                                              </button>
+                                            ),
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
 
                                     {/* Add Payment Control — Split Payment */}
-                                    <div className="space-y-3">
+                                    <div className="w-full mt-4 space-y-4 bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-100 dark:border-white/5">
+                                      <h5 className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-2 mb-2">
+                                        <Wallet size={12} /> Record Payment
+                                      </h5>
                                       <SplitPaymentInput
                                         paymentMethods={paymentMethods || []}
                                         totalDue={item.due_amount}
@@ -816,15 +919,19 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                                         }
                                       />
 
-                                      <div className="flex justify-end">
+                                      <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-100 dark:border-white/5">
+                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest max-w-[150px]">
+                                          Supports split billing.
+                                        </p>
                                         <button
                                           onClick={() => {
                                             const payments =
                                               pendingPayments[item.item_id] ||
                                               [];
-                                            const validPayments = payments.filter(
-                                              (p) => p.amount > 0,
-                                            );
+                                            const validPayments =
+                                              payments.filter(
+                                                (p) => p.amount > 0,
+                                              );
                                             if (validPayments.length > 0) {
                                               handleAddPayment(
                                                 item.item_id,
@@ -838,16 +945,11 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                                               );
                                             }
                                           }}
-                                          className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-bold transition shadow-lg shadow-teal-500/20 active:scale-95"
+                                          className="px-6 py-2.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-black uppercase tracking-widest transition shadow-lg shadow-teal-500/20 active:scale-95"
                                         >
-                                          Confirm Payment
+                                          Confirm
                                         </button>
                                       </div>
-
-                                      <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                                        <Info size={10} /> Multiple payment
-                                        methods can be used for split billing.
-                                      </p>
                                     </div>
                                   </div>
                                 </div>
@@ -858,12 +960,12 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                       );
                     })
                   ) : (
-                    <div className="p-8 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">
+                    <div className="p-10 flex flex-col items-center justify-center text-slate-400 bg-white dark:bg-slate-800 border border-dashed border-slate-200 dark:border-white/10 rounded-[24px]">
                       <FlaskConical
-                        size={24}
-                        className="mx-auto mb-2 opacity-50"
+                        size={32}
+                        className="mx-auto mb-3 opacity-30"
                       />
-                      <p className="text-sm font-semibold uppercase tracking-widest">
+                      <p className="text-xs font-black uppercase tracking-widest">
                         No detailed items found
                       </p>
                     </div>

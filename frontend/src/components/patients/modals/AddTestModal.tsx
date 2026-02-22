@@ -89,7 +89,6 @@ const AddTestModal = ({
   const [totalAmount, setTotalAmount] = useState("0");
   const [advanceAmount, setAdvanceAmount] = useState("");
   const [discountAmount, setDiscountAmount] = useState("");
-  const [hasManualPaidEntry, setHasManualPaidEntry] = useState(false);
   const [dueAmount, setDueAmount] = useState("");
   const [primaryPaymentMethod, setPrimaryPaymentMethod] = useState("");
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
@@ -112,9 +111,7 @@ const AddTestModal = ({
         const data = await res.json();
         if (data.status === "success" || data.success) {
           setFormOptions(data.data);
-          if (data.data.paymentMethods?.length > 0) {
-            setPrimaryPaymentMethod(data.data.paymentMethods[0].method_code);
-          }
+          // Do not select a payment method by default
         }
       } catch (err) {
         toast.error("Failed to load options");
@@ -139,23 +136,11 @@ const AddTestModal = ({
       setAdvanceAmount("");
       setDiscountAmount("");
       setDueAmount("");
-      setHasManualPaidEntry(false);
-      setPrimaryPaymentMethod(
-        formOptions?.paymentMethods[0]?.method_code || "",
-      );
+      setPrimaryPaymentMethod("");
       setShowPaymentDetails(false);
       setPaymentSplits({});
     }
   }, [isOpen, patient, formOptions]);
-
-  // Intelligent auto-sync: Paid Amount follows Total unless manually edited
-  useEffect(() => {
-    if (!showPaymentDetails && !hasManualPaidEntry) {
-      const net =
-        (parseFloat(totalAmount) || 0) - (parseFloat(discountAmount) || 0);
-      setAdvanceAmount(net > 0 ? net.toString() : "");
-    }
-  }, [totalAmount, discountAmount, hasManualPaidEntry, showPaymentDetails]);
 
   // Sync back from splits to total paid
   useEffect(() => {
@@ -277,6 +262,11 @@ const AddTestModal = ({
         toast.error(
           `Split amounts (₹${splitTotal}) must match total paid (₹${advanceAmount || 0})`,
         );
+        return;
+      }
+    } else {
+      if ((parseFloat(advanceAmount) || 0) > 0 && !primaryPaymentMethod) {
+        toast.error("Please select a payment method for the paid amount");
         return;
       }
     }
@@ -672,7 +662,6 @@ const AddTestModal = ({
                               value={advanceAmount}
                               onChange={(e) => {
                                 setAdvanceAmount(e.target.value);
-                                setHasManualPaidEntry(true);
                               }}
                               readOnly={showPaymentDetails}
                               className={`w-full pl-10 pr-4 py-3 bg-white/5 border border-white/10 rounded-[16px] outline-none focus:border-emerald-500/40 transition-all text-lg font-black text-white ${showPaymentDetails ? "opacity-50 cursor-not-allowed" : ""}`}
@@ -730,7 +719,11 @@ const AddTestModal = ({
                                     key={m.method_code}
                                     type="button"
                                     onClick={() =>
-                                      setPrimaryPaymentMethod(m.method_code)
+                                      setPrimaryPaymentMethod(
+                                        m.method_code === primaryPaymentMethod
+                                          ? ""
+                                          : m.method_code,
+                                      )
                                     }
                                     className={`flex items-center gap-2.5 px-5 py-3 rounded-xl border transition-all ${
                                       isSelected

@@ -421,6 +421,10 @@ async function fetchDetails(req, res, patientId) {
         "SELECT treatment_id as id, treatment_type, treatment_days, package_cost, treatment_cost_per_day, total_amount, advance_payment, discount_amount, start_date, end_date, created_at FROM patients_treatment WHERE patient_id = ? ORDER BY start_date DESC",
         [patientId],
     );
+    const [tests] = await pool.query(
+        "SELECT test_id, test_uid, test_name, total_amount, test_status, payment_status, created_at FROM tests WHERE patient_id = ? ORDER BY created_at DESC",
+        [patientId]
+    );
 
     res.json({
         status: "success",
@@ -429,6 +433,7 @@ async function fetchDetails(req, res, patientId) {
             payments,
             attendance,
             history: treatmentHistory,
+            tests,
         },
     });
 }

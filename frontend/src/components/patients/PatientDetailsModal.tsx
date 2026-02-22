@@ -26,6 +26,7 @@ import {
   History,
   Clock,
   Hash,
+  FlaskConical,
   UserPlus,
 } from "lucide-react";
 import { usePatientStore } from "../../store/usePatientStore";
@@ -450,6 +451,48 @@ const PatientDetailsModal = () => {
                       exit={{ opacity: 0, y: -10 }}
                       className="space-y-8"
                     >
+                      {/* Quick Personal Info Strip */}
+                      <div className="p-8 rounded-[32px] bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 shadow-sm">
+                        <SectionHeader
+                          title="Quick Identification"
+                          icon={User}
+                        />
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                          <div>
+                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">
+                              Full Name
+                            </span>
+                            <span className="text-sm font-bold text-slate-800 dark:text-white truncate block">
+                              {data.patient_name}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">
+                              Contact
+                            </span>
+                            <span className="text-sm font-bold text-slate-800 dark:text-white truncate block">
+                              {data.patient_phone || data.phone_number}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">
+                              Age / Gender
+                            </span>
+                            <span className="text-sm font-bold text-slate-800 dark:text-white truncate block">
+                              {data.patient_age} Years • {data.patient_gender}
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">
+                              Condition
+                            </span>
+                            <span className="text-sm font-bold text-slate-800 dark:text-white truncate block">
+                              {data.patient_condition || "Active"}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Stats Row */}
                       {/* Panel 1: Financials */}
                       <div className="bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-[32px] p-8 shadow-sm">
@@ -680,47 +723,61 @@ const PatientDetailsModal = () => {
                         </div>
                       </div>
 
-                      {/* Quick Personal Info Strip */}
-                      <div className="p-8 rounded-[32px] bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 shadow-sm">
-                        <SectionHeader
-                          title="Quick Identification"
-                          icon={User}
-                        />
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                          <div>
-                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">
-                              Full Name
-                            </span>
-                            <span className="text-sm font-bold text-slate-800 dark:text-white truncate block">
-                              {data.patient_name}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">
-                              Contact
-                            </span>
-                            <span className="text-sm font-bold text-slate-800 dark:text-white truncate block">
-                              {data.patient_phone || data.phone_number}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">
-                              Age / Gender
-                            </span>
-                            <span className="text-sm font-bold text-slate-800 dark:text-white truncate block">
-                              {data.patient_age} Years • {data.patient_gender}
-                            </span>
-                          </div>
-                          <div>
-                            <span className="text-[9px] font-black text-slate-400 uppercase block mb-1">
-                              Condition
-                            </span>
-                            <span className="text-sm font-bold text-slate-800 dark:text-white truncate block">
-                              {data.patient_condition || "Active"}
-                            </span>
+                      {/* Recent Tests */}
+                      {data.tests && data.tests.length > 0 && (
+                        <div className="p-8 rounded-[32px] bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 shadow-sm relative overflow-hidden">
+                          <SectionHeader
+                            title="Recent Tests"
+                            icon={FlaskConical}
+                          />
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {data.tests
+                              .slice(0, 3)
+                              .map((t: any, idx: number) => (
+                                <div
+                                  key={idx}
+                                  className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5 flex flex-col gap-2"
+                                >
+                                  <div className="flex justify-between items-start">
+                                    <div>
+                                      <h5 className="text-xs font-bold text-slate-800 dark:text-white line-clamp-1">
+                                        {t.test_name}
+                                      </h5>
+                                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                                        {t.test_uid}
+                                      </p>
+                                    </div>
+                                    <span
+                                      className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${
+                                        t.test_status === "completed"
+                                          ? "bg-emerald-500/10 text-emerald-500"
+                                          : t.test_status === "cancelled"
+                                            ? "bg-rose-500/10 text-rose-500"
+                                            : "bg-amber-500/10 text-amber-500"
+                                      }`}
+                                    >
+                                      {t.test_status}
+                                    </span>
+                                  </div>
+                                  <div className="flex justify-between items-end mt-2 pt-2 border-t border-slate-100 dark:border-white/5">
+                                    <p className="text-[10px] font-medium text-slate-400">
+                                      {format(
+                                        new Date(t.created_at),
+                                        "dd MMM, yyyy",
+                                      )}
+                                    </p>
+                                    <p className="text-xs font-black text-slate-700 dark:text-slate-300">
+                                      ₹
+                                      {parseFloat(
+                                        t.total_amount,
+                                      ).toLocaleString()}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
                           </div>
                         </div>
-                      </div>
+                      )}
                     </motion.div>
                   )}
 
