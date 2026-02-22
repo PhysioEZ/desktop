@@ -1188,11 +1188,11 @@ const ReceptionDashboard = () => {
     },
   ];
 
-  // MD3 Styled Inputs
+  // Modernize Styled Inputs
   const inputClass =
-    "w-full px-4 py-3 bg-[#e0e2ec] dark:bg-[#43474e] border-b-2 border-[#74777f] dark:border-[#8e918f] focus:border-[#006e1c] dark:focus:border-[#88d99d] rounded-t-lg text-[#1a1c1e] dark:text-[#e3e2e6] text-base focus:outline-none transition-colors placeholder:text-[#43474e] dark:placeholder:text-[#8e918f] focus:bg-[#dadae2] dark:focus:bg-[#50545c]";
+    "w-full px-4 py-3 bg-white border border-blue-100 dark:border-blue-900/30 focus:border-blue-500 dark:focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/20 rounded-xl text-[#1a1c1e] dark:text-[#e3e2e6] text-sm focus:outline-none transition-all duration-300 placeholder:text-gray-400 dark:placeholder:text-gray-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 shadow-sm";
   const labelClass =
-    "block text-xs font-medium text-[#43474e] dark:text-[#c4c7c5] mb-1 px-1";
+    "block text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 ml-1 uppercase tracking-widest";
 
   // Keyboard Shortcuts with Grouping
   const shortcuts: ShortcutItem[] = [
@@ -2111,9 +2111,15 @@ const ReceptionDashboard = () => {
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-[#fdfcff] dark:bg-[#111315] w-full max-w-[1400px] max-h-[90vh] overflow-y-auto rounded-[32px] shadow-2xl overflow-hidden transition-colors duration-300"
+              className="bg-[#fdfcff] dark:bg-[#111315] w-full max-w-[1400px] max-h-[90vh] overflow-y-auto rounded-[32px] shadow-2xl overflow-hidden transition-colors duration-300 relative"
             >
-              <div className="px-8 py-6 border-b border-[#e0e2ec] dark:border-[#43474e] flex items-center justify-between bg-[#fdfcff] dark:bg-[#111315] sticky top-0 z-10 transition-colors">
+              {activeModal === "registration" && (
+                <div
+                  className="absolute inset-0 z-0  dark:opacity-20 pointer-events-none blur-lg bg-cover bg-center bg-no-repeat"
+                  style={{ backgroundImage: "url('/bg.jpg')" }}
+                />
+              )}
+              <div className="px-8 py-6 border-b border-[#e0e2ec]/80 dark:border-[#43474e]/80 flex items-center justify-between bg-white/70 dark:bg-[#111315]/70 backdrop-blur-xl sticky top-0 z-10 transition-colors">
                 <div>
                   <h2
                     className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6]"
@@ -2136,7 +2142,7 @@ const ReceptionDashboard = () => {
                   <X size={24} className="text-[#43474e] dark:text-[#c4c7c5]" />
                 </button>
               </div>
-              <div className="p-8">
+              <div className="p-8 relative z-10">
                 {activeModal === "registration" && (
                   <form
                     ref={formRef}
@@ -2180,7 +2186,7 @@ const ReceptionDashboard = () => {
                           </div>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-2 gap-4 items-center ">
                         <div>
                           <label className={labelClass}>Age *</label>
                           <input
@@ -2751,7 +2757,7 @@ const ReceptionDashboard = () => {
                                         e.target.value,
                                       )
                                     }
-                                    className="w-full bg-white dark:bg-[#111315] border border-[#e0e2ec] dark:border-[#43474e] rounded-lg px-2 py-1 text-sm outline-none"
+                                    className="w-full bg-white/50 dark:bg-[#111315]/50 border border-gray-200 dark:border-white/10 rounded-xl px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
                                     placeholder="Amount"
                                   />
                                 )}
@@ -2800,7 +2806,7 @@ const ReceptionDashboard = () => {
                                         setOtherTestName(e.target.value)
                                       }
                                       placeholder="Test Name"
-                                      className="flex-1 bg-white dark:bg-[#111315] border border-[#e0e2ec] dark:border-[#43474e] rounded-lg px-3 py-1.5 text-sm outline-none"
+                                      className="flex-1 bg-white/50 dark:bg-[#111315]/50 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
                                     />
                                     <input
                                       type="number"
@@ -2815,7 +2821,7 @@ const ReceptionDashboard = () => {
                                           e.target.value,
                                         )
                                       }
-                                      className="w-32 bg-white dark:bg-[#111315] border border-[#e0e2ec] dark:border-[#43474e] rounded-lg px-3 py-1.5 text-sm outline-none"
+                                      className="w-32 bg-white/50 dark:bg-[#111315]/50 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
                                       placeholder="Amount"
                                     />
                                   </>

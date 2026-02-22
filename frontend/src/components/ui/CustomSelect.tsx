@@ -108,7 +108,7 @@ const CustomSelect = ({
       {label && (
         <span
           className={`
-                    absolute -top-2 left-3 px-1.5 text-[10px] font-black uppercase tracking-widest bg-white dark:bg-[#0A0B0A] z-10 
+                    absolute -top-2 left-3 px-1.5 text-[10px] font-black uppercase rounded-md tracking-widest bg-white dark:bg-[#0A0B0A] z-10 
                     ${error ? "text-rose-500" : isOpen ? "text-emerald-500" : "text-slate-400"}
                 `}
         >
