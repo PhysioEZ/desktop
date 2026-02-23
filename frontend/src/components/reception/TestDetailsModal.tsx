@@ -18,6 +18,7 @@ import { API_BASE_URL, authFetch } from "../../config";
 import { toast } from "sonner";
 import { useConfigStore } from "../../store";
 import SplitPaymentInput from "./SplitPaymentInput";
+import DatePicker from "../ui/DatePicker";
 
 interface TestRecord {
   uid: string;
@@ -92,6 +93,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
     {},
   );
   const [showMoreInfo, setShowMoreInfo] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const { paymentMethods, fetchPaymentMethods } = useConfigStore();
   const [pendingPayments, setPendingPayments] = useState<
@@ -110,6 +112,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
       setExpandedItems({});
       setPendingPayments({});
       setShowMoreInfo(false);
+      setShowDatePicker(false);
     }
   }, [isOpen, test]);
 
@@ -284,26 +287,60 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
     const Icon = icon;
     if (isEditing) {
       return (
-        <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2">
-            <Icon size={14} className="text-slate-400" />
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              {label}
-            </span>
+        <motion.div
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col gap-1.5 mb-3.5 last:mb-0"
+        >
+          {/* Top Label */}
+          <label className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500 pl-1">
+            {label}
+          </label>
+
+          <div className="relative group">
+            {/* Icon Overlay */}
+            <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none z-10">
+              <Icon
+                size={16}
+                className="text-slate-300 group-focus-within:text-teal-500 transition-colors"
+              />
+            </div>
+
+            {fieldKey === "dob" ? (
+              <div
+                onClick={() => setShowDatePicker(true)}
+                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl pl-11 pr-4 py-3 text-sm font-semibold text-slate-700 dark:text-white cursor-pointer hover:bg-white dark:hover:bg-slate-800 hover:border-teal-400 transition-all flex items-center justify-between"
+              >
+                <span>
+                  {(editedData[fieldKey] as string) ??
+                    (data[fieldKey] as string) ??
+                    "Select Date"}
+                </span>
+                <Calendar
+                  size={14}
+                  className="text-teal-500 opacity-40 group-hover:opacity-100 transition-opacity"
+                />
+              </div>
+            ) : (
+              <input
+                type="text"
+                className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-white/10 rounded-xl pl-11 pr-10 py-3 text-sm font-semibold text-slate-700 dark:text-white placeholder-slate-300 focus:bg-white dark:focus:bg-slate-800 focus:border-teal-500 focus:outline-none focus:ring-4 focus:ring-teal-500/5 transition-all"
+                placeholder={`Enter ${label.toLowerCase()}...`}
+                value={
+                  (editedData[fieldKey] as string) ??
+                  (data[fieldKey] as string) ??
+                  ""
+                }
+                onChange={(e) =>
+                  setEditedData((prev) => ({
+                    ...prev,
+                    [fieldKey]: e.target.value,
+                  }))
+                }
+              />
+            )}
           </div>
-          <input
-            type="text"
-            className="w-1/2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded px-2 py-1 text-sm font-medium text-slate-900 dark:text-white text-right focus:outline-none focus:ring-1 focus:ring-teal-500"
-            value={
-              (editedData[fieldKey] as string) ??
-              (data[fieldKey] as string) ??
-              ""
-            }
-            onChange={(e) =>
-              setEditedData((prev) => ({ ...prev, [fieldKey]: e.target.value }))
-            }
-          />
-        </div>
+        </motion.div>
       );
     }
 
@@ -406,9 +443,9 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
             ) : (
               <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
                 {/* Left Panel: Patient & Financials */}
-                <div className="w-full lg:w-[40%] xl:w-[35%] p-6 flex flex-col gap-6 overflow-y-auto no-scrollbar shrink-0 bg-slate-50 dark:bg-slate-900/30 border-r border-slate-200 dark:border-white/5">
+                <div className="w-full lg:w-[40%] xl:w-[35%] p-6 pb-20 flex flex-col gap-6 overflow-y-auto overflow-x-hidden shrink-0 bg-slate-50 dark:bg-slate-900/30 border-r border-slate-200 dark:border-white/5">
                   {/* Patient Info Card */}
-                  <div className="bg-white dark:bg-slate-800/80 rounded-[24px] p-6 shadow-sm border border-slate-100 dark:border-white/5 relative overflow-hidden">
+                  <div className="bg-white dark:bg-slate-800/80 rounded-[24px] p-6 shadow-sm border border-slate-100 dark:border-white/5 relative">
                     {/* Abstract bg element */}
                     <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 dark:bg-teal-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
 
@@ -434,7 +471,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
 
                     <div className="grid grid-cols-1 gap-y-4 gap-x-4 relative z-10 w-full">
                       {isEditing ? (
-                        <div className="space-y-3">
+                        <div className="space-y-4 pb-4">
                           {renderInfoItem(
                             Phone,
                             "Phone Number",
@@ -589,20 +626,18 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
 
                   {/* Financial Summary Card */}
                   <div
-                    className={`rounded-[24px] p-6 shadow-lg border relative overflow-hidden ${
-                      parseFloat(String(data.due_amount || 0)) > 0
-                        ? "bg-gradient-to-br from-rose-500/5 to-orange-500/5 border-rose-500/20 dark:from-rose-500/5 dark:to-orange-500/10 dark:border-rose-500/10"
-                        : "bg-gradient-to-br from-emerald-500/5 to-teal-500/5 border-emerald-500/20 dark:from-emerald-500/10 dark:to-teal-500/5 dark:border-emerald-500/10"
-                    }`}
+                    className={`rounded-[24px] p-6 shadow-lg border relative overflow-hidden ${parseFloat(String(data.due_amount || 0)) > 0
+                      ? "bg-gradient-to-br from-rose-500/5 to-orange-500/5 border-rose-500/20 dark:from-rose-500/5 dark:to-orange-500/10 dark:border-rose-500/10"
+                      : "bg-gradient-to-br from-emerald-500/5 to-teal-500/5 border-emerald-500/20 dark:from-emerald-500/10 dark:to-teal-500/5 dark:border-emerald-500/10"
+                      }`}
                   >
                     <div className="flex items-center justify-between mb-6 relative z-10">
                       <div className="flex items-center gap-3">
                         <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                            parseFloat(String(data.due_amount || 0)) > 0
-                              ? "bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400"
-                              : "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
-                          }`}
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${parseFloat(String(data.due_amount || 0)) > 0
+                            ? "bg-rose-100 dark:bg-rose-500/20 text-rose-600 dark:text-rose-400"
+                            : "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
+                            }`}
                         >
                           <Wallet size={18} />
                         </div>
@@ -614,11 +649,10 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                       </div>
 
                       <div
-                        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${
-                          parseFloat(String(data.due_amount || 0)) > 0
-                            ? "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/20"
-                            : "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/20"
-                        }`}
+                        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border ${parseFloat(String(data.due_amount || 0)) > 0
+                          ? "bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-500/20 dark:text-rose-400 dark:border-rose-500/20"
+                          : "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/20"
+                          }`}
                       >
                         {parseFloat(String(data.due_amount || 0)) > 0
                           ? "Pending Dues"
@@ -668,14 +702,14 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                             <span className="text-slate-500">
                               {Number(data.total_amount) > 0
                                 ? (
-                                    (parseFloat(
-                                      String(data.advance_amount || 0),
-                                    ) /
-                                      parseFloat(
-                                        String(data.total_amount || 1),
-                                      )) *
-                                    100
-                                  ).toFixed(0)
+                                  (parseFloat(
+                                    String(data.advance_amount || 0),
+                                  ) /
+                                    parseFloat(
+                                      String(data.total_amount || 1),
+                                    )) *
+                                  100
+                                ).toFixed(0)
                                 : 0}
                               %
                             </span>
@@ -692,21 +726,19 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                         </div>
 
                         <div
-                          className={`p-4 rounded-xl flex items-center justify-between border ${
-                            parseFloat(String(data.due_amount || 0)) > 0
-                              ? "bg-white dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/30"
-                              : "bg-white dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30"
-                          }`}
+                          className={`p-4 rounded-xl flex items-center justify-between border ${parseFloat(String(data.due_amount || 0)) > 0
+                            ? "bg-white dark:bg-rose-950/20 border-rose-100 dark:border-rose-900/30"
+                            : "bg-white dark:bg-emerald-950/20 border-emerald-100 dark:border-emerald-900/30"
+                            }`}
                         >
                           <span className="text-xs font-black uppercase tracking-widest text-slate-600 dark:text-slate-300">
                             Balance Due
                           </span>
                           <span
-                            className={`text-xl font-black tracking-tight ${
-                              parseFloat(String(data.due_amount || 0)) > 0
-                                ? "text-rose-600 dark:text-rose-400"
-                                : "text-emerald-600 dark:text-emerald-400"
-                            }`}
+                            className={`text-xl font-black tracking-tight ${parseFloat(String(data.due_amount || 0)) > 0
+                              ? "text-rose-600 dark:text-rose-400"
+                              : "text-emerald-600 dark:text-emerald-400"
+                              }`}
                           >
                             ₹
                             {Math.max(
@@ -721,7 +753,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                 </div>
 
                 {/* Right Panel: Test Items List */}
-                <div className="w-full lg:w-[60%] xl:w-[65%] p-6 flex flex-col gap-4 overflow-y-auto bg-slate-50 dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-white/5 min-h-0 auto-rows-max">
+                <div className="w-full lg:w-[60%] xl:w-[65%] p-6 flex flex-col gap-4 overflow-y-auto overflow-x-hidden bg-slate-50 dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-white/5 min-h-0 auto-rows-max">
                   <div className="flex items-center gap-2 mb-2">
                     <FlaskConical size={18} className="text-slate-400" />
                     <h3 className="text-sm font-black uppercase text-slate-700 dark:text-slate-300">
@@ -851,16 +883,15 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                                                   "test",
                                                 )
                                               }
-                                              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
-                                                item.test_status.toLowerCase() ===
+                                              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${item.test_status.toLowerCase() ===
                                                 status
-                                                  ? status === "completed"
-                                                    ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
-                                                    : status === "pending"
-                                                      ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
-                                                      : "bg-rose-500 text-white shadow-md shadow-rose-500/20"
-                                                  : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300 dark:hover:border-white/20"
-                                              }`}
+                                                ? status === "completed"
+                                                  ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                                                  : status === "pending"
+                                                    ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                                                    : "bg-rose-500 text-white shadow-md shadow-rose-500/20"
+                                                : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300 dark:hover:border-white/20"
+                                                }`}
                                             >
                                               {status}
                                             </button>
@@ -884,16 +915,15 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                                                     "payment",
                                                   )
                                                 }
-                                                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${
-                                                  item.payment_status.toLowerCase() ===
+                                                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all ${item.payment_status.toLowerCase() ===
                                                   status
-                                                    ? status === "paid"
-                                                      ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
-                                                      : status === "partial"
-                                                        ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
-                                                        : "bg-slate-500 text-white shadow-md shadow-slate-500/20"
-                                                    : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300 dark:hover:border-white/20"
-                                                }`}
+                                                  ? status === "paid"
+                                                    ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/20"
+                                                    : status === "partial"
+                                                      ? "bg-amber-500 text-white shadow-md shadow-amber-500/20"
+                                                      : "bg-slate-500 text-white shadow-md shadow-slate-500/20"
+                                                  : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 text-slate-500 hover:border-slate-300 dark:hover:border-white/20"
+                                                  }`}
                                               >
                                                 {status}
                                               </button>
@@ -973,6 +1003,19 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                 </div>
               </div>
             )}
+
+            {/* Date Picker Overlay */}
+            <AnimatePresence>
+              {showDatePicker && (
+                <DatePicker
+                  value={editedData.dob || data.dob || ""}
+                  onChange={(date) =>
+                    setEditedData((prev) => ({ ...prev, dob: date }))
+                  }
+                  onClose={() => setShowDatePicker(false)}
+                />
+              )}
+            </AnimatePresence>
           </motion.div>
         </div>
       )}
