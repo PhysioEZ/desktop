@@ -457,7 +457,7 @@ async function fetchTests(req, res, branchId, input) {
 
     if (search) {
         whereClauses.push("(patient_name LIKE ? OR phone_number LIKE ? OR test_uid LIKE ?)");
-        const p = `% ${search}% `;
+        const p = `%${search}%`;
         params.push(p, p, p);
     }
     if (status) {
@@ -470,7 +470,7 @@ async function fetchTests(req, res, branchId, input) {
     }
     if (test_name) {
         whereClauses.push("test_name LIKE ?");
-        params.push(`% ${test_name}% `);
+        params.push(`%${test_name}%`);
     }
 
     const [tests] = await pool.query(`
