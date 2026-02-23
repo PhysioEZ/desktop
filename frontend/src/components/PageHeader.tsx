@@ -14,6 +14,7 @@ interface PageHeaderProps {
   refreshCooldown?: number;
   onShowIntelligence?: () => void;
   onShowNotes?: () => void;
+  children?: React.ReactNode;
 }
 
 const PageHeader: React.FC<PageHeaderProps> = ({
@@ -25,6 +26,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({
   refreshCooldown = 0,
   onShowIntelligence,
   onShowNotes,
+  children,
 }) => {
   const { isDark } = useThemeStore();
   const { notifications, unreadCount, setShowGlobalSearch } =
@@ -46,13 +48,11 @@ const PageHeader: React.FC<PageHeaderProps> = ({
 
   return (
     <header
-      className={`sticky top-0 z-[150] px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-4 transition-all duration-500 ${
-        isDark ? "bg-[#0E110E]/80" : "bg-white/80"
-      } backdrop-blur-xl border-b ${
-        isDark
+      className={`sticky top-0 z-[150] px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between gap-4 transition-all duration-500 ${isDark ? "bg-[#0E110E]/80" : "bg-white/80"
+        } backdrop-blur-xl border-b ${isDark
           ? "border-white/5 shadow-2xl shadow-black/40"
           : "border-gray-100 shadow-sm"
-      }`}
+        }`}
     >
       {/* Title Area */}
       <div className="flex items-center gap-4">
@@ -78,11 +78,10 @@ const PageHeader: React.FC<PageHeaderProps> = ({
       <div className="hidden md:block flex-1 max-w-xl mx-8">
         <div
           onClick={() => setShowGlobalSearch(true)}
-          className={`group flex items-center gap-3 px-6 py-2.5 rounded-full shadow-lg shadow-black/[0.02] border transition-all cursor-pointer ${
-            isDark
-              ? "bg-white/5 border-white/10 hover:bg-white/10"
-              : "bg-white border-gray-100 hover:border-emerald-500/30"
-          }`}
+          className={`group flex items-center gap-3 px-6 py-2.5 rounded-full shadow-lg shadow-black/[0.02] border transition-all cursor-pointer ${isDark
+            ? "bg-white/5 border-white/10 hover:bg-white/10"
+            : "bg-white border-gray-100 hover:border-emerald-500/30"
+            }`}
         >
           <Search
             size={18}
@@ -92,33 +91,33 @@ const PageHeader: React.FC<PageHeaderProps> = ({
             Search anything...
           </span>
           <div
-            className={`px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-tighter ${
-              isDark
-                ? "border-white/10 text-white/40"
-                : "border-black/5 text-black/20"
-            }`}
+            className={`px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-tighter ${isDark
+              ? "border-white/10 text-white/40"
+              : "border-black/5 text-black/20"
+              }`}
           >
             <span className="mr-1">⌥</span>S
           </div>
         </div>
       </div>
 
+      {/* Extra Actions Prop */}
+      {children}
+
       {/* Utilities Area */}
       <div
-        className={`flex items-center p-1 rounded-2xl shadow-lg shadow-black/[0.02] ${
-          isDark
-            ? "bg-white/5 border border-white/10"
-            : "bg-white border border-gray-100"
-        }`}
+        className={`flex items-center p-1 rounded-2xl shadow-lg shadow-black/[0.02] ${isDark
+          ? "bg-white/5 border border-white/10"
+          : "bg-white border border-gray-100"
+          }`}
       >
         {onRefresh && (
           <>
             <button
               onClick={onRefresh}
               disabled={isLoading || refreshCooldown > 0}
-              className={`p-2.5 rounded-xl text-slate-400 hover:text-emerald-500 transition-all hover:bg-black/5 dark:hover:bg-white/5 ${
-                isLoading ? "animate-spin" : ""
-              } ${refreshCooldown > 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+              className={`p-2.5 rounded-xl text-slate-400 hover:text-emerald-500 transition-all hover:bg-black/5 dark:hover:bg-white/5 ${isLoading ? "animate-spin" : ""
+                } ${refreshCooldown > 0 ? "opacity-50 cursor-not-allowed" : ""}`}
               title={
                 refreshCooldown > 0 ? `Wait ${refreshCooldown}s` : "Refresh"
               }
@@ -148,11 +147,10 @@ const PageHeader: React.FC<PageHeaderProps> = ({
                 initial={{ opacity: 0, y: 10, scale: 0.95 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                className={`absolute top-full right-0 mt-3 w-80 rounded-3xl border shadow-2xl z-[200] overflow-hidden ${
-                  isDark
-                    ? "bg-[#121412] border-white/5"
-                    : "bg-white border-gray-100"
-                }`}
+                className={`absolute top-full right-0 mt-3 w-80 rounded-3xl border shadow-2xl z-[200] overflow-hidden ${isDark
+                  ? "bg-[#121412] border-white/5"
+                  : "bg-white border-gray-100"
+                  }`}
               >
                 <div className="p-4 border-b dark:border-white/5 border-gray-100 flex items-center justify-between">
                   <span className="text-xs font-black uppercase tracking-widest opacity-40">
@@ -169,9 +167,8 @@ const PageHeader: React.FC<PageHeaderProps> = ({
                     notifications.map((n: any) => (
                       <div
                         key={n.id}
-                        className={`p-3 rounded-2xl mb-1 last:mb-0 transition-all cursor-pointer ${
-                          isDark ? "hover:bg-white/5" : "hover:bg-gray-50"
-                        }`}
+                        className={`p-3 rounded-2xl mb-1 last:mb-0 transition-all cursor-pointer ${isDark ? "hover:bg-white/5" : "hover:bg-gray-50"
+                          }`}
                       >
                         <p className="text-xs font-bold leading-relaxed">
                           {n.message}

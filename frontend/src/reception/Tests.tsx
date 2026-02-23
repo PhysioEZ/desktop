@@ -10,6 +10,10 @@ import {
   CheckCircle2,
   Search,
   Loader2,
+  ChevronDown,
+  Ban,
+  Calendar,
+  Filter,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -18,6 +22,7 @@ import Sidebar from "../components/Sidebar";
 import PageHeader from "../components/PageHeader";
 import { useAuthStore } from "../store/useAuthStore";
 import { API_BASE_URL, authFetch } from "../config";
+import { toast } from "sonner";
 
 import DailyIntelligence from "../components/DailyIntelligence";
 import NotesDrawer from "../components/NotesDrawer";
@@ -25,6 +30,7 @@ import ChatModal from "../components/Chat/ChatModal";
 import KeyboardShortcuts from "../components/KeyboardShortcuts";
 import TestDetailsModal from "../components/reception/TestDetailsModal";
 import TestBillModal from "../components/patients/modals/TestBillModal";
+import type { ShortcutItem } from "../types/shortcuts";
 
 interface TestRecord {
   uid: string;
@@ -34,21 +40,21 @@ interface TestRecord {
   paid_amount: number;
   due_amount: number;
   payment_status:
-    | "Paid"
-    | "Partial"
-    | "Unpaid"
-    | "paid"
-    | "partial"
-    | "pending";
+  | "Paid"
+  | "Partial"
+  | "Unpaid"
+  | "paid"
+  | "partial"
+  | "pending";
   test_status:
-    | "Completed"
-    | "Pending"
-    | "Cancelled"
-    | "In Progress"
-    | "completed"
-    | "pending"
-    | "cancelled"
-    | "in-progress";
+  | "Completed"
+  | "Pending"
+  | "Cancelled"
+  | "In Progress"
+  | "completed"
+  | "pending"
+  | "cancelled"
+  | "in-progress";
   test_uid: string;
 }
 
@@ -62,6 +68,12 @@ const Tests = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [appliedSearchQuery, setAppliedSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("All");
+
+  const [testTypeFilter, setTestTypeFilter] = useState("All");
+  const [paymentFilter, setPaymentFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [showCancelledOnly, setShowCancelledOnly] = useState(false);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(true);
 
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -90,11 +102,67 @@ const Tests = () => {
   const [showTestBill, setShowTestBill] = useState(false);
   const [billTestId, setBillTestId] = useState<number | null>(null);
 
+  const [isTypeMenuOpen, setIsTypeMenuOpen] = useState(false);
+  const [isPaymentMenuOpen, setIsPaymentMenuOpen] = useState(false);
+  const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false);
+
+  const shortcuts: ShortcutItem[] = [
+    {
+      keys: ["Alt", "/"],
+      description: "Keyboard Shortcuts",
+      group: "General",
+      action: () => setShowShortcuts((prev) => !prev),
+    },
+    {
+      keys: ["Alt", "C"],
+      description: "Toggle Chat",
+      group: "Modals",
+      action: () => setShowChatModal((prev) => !prev),
+    },
+  ];
+
   // Filter Logic
-  // We apply the tab filter locally over whatever records were fetched
   const filteredRecords = records.filter((record) => {
-    if (activeTab === "All") return true;
-    return record.test_status.toLowerCase() === activeTab.toLowerCase();
+    // Tab Filter (All, Pending, Completed)
+    const matchesTab =
+      activeTab === "All" ||
+      record.test_status.toLowerCase() === activeTab.toLowerCase();
+
+    // Type Filter
+    const matchesType =
+      testTypeFilter === "All" ||
+      record.test_name.toLowerCase().includes(testTypeFilter.toLowerCase());
+
+    // Payment Filter
+    const matchesPayment =
+      paymentFilter === "All" ||
+      record.payment_status.toLowerCase() === paymentFilter.toLowerCase();
+
+    // Status Filter (Dropdown)
+    const matchesStatus =
+      statusFilter === "All" ||
+      record.test_status.toLowerCase() === statusFilter.toLowerCase();
+
+    // Cancelled Only Filter
+    const matchesCancelled = showCancelledOnly
+      ? record.test_status.toLowerCase() === "cancelled"
+      : true;
+
+    // Search Filter (Synced with Server Results)
+    const matchesSearch =
+      appliedSearchQuery.trim() === "" ||
+      record.patient_name.toLowerCase().includes(appliedSearchQuery.toLowerCase()) ||
+      record.test_uid.toLowerCase().includes(appliedSearchQuery.toLowerCase()) ||
+      record.test_name.toLowerCase().includes(appliedSearchQuery.toLowerCase());
+
+    return (
+      matchesTab &&
+      matchesType &&
+      matchesPayment &&
+      matchesStatus &&
+      matchesCancelled &&
+      matchesSearch
+    );
   });
 
   // Fetch Logic
@@ -199,11 +267,21 @@ const Tests = () => {
 
   const handleSearchClick = () => {
     const trimmed = searchQuery.trim();
-    if (trimmed === "" && appliedSearchQuery === "") return;
+    if (trimmed === "") {
+      toast.error("Please enter a patient name, UID, or phone number to search.");
+      return;
+    }
+
     if (trimmed === appliedSearchQuery) return;
 
     setAppliedSearchQuery(trimmed);
     fetchTests(1, trimmed);
+  };
+
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    setAppliedSearchQuery("");
+    fetchTests(1, "");
   };
 
   const handleTabChange = (tab: string) => {
@@ -234,154 +312,162 @@ const Tests = () => {
         <div className="flex-1 flex overflow-hidden">
           {/* === LEFT PANEL: SUMMARY === */}
           <aside
-            className={`w-[500px] flex flex-col border-r overflow-y-auto custom-scrollbar p-8 space-y-10 transition-colors duration-300 ${isDark ? "bg-[#0A0B0A] border-white/5" : "bg-white border-gray-100"}`}
+            className={`w-[450px] flex flex-col border-r overflow-y-auto custom-scrollbar p-6 space-y-8 transition-colors duration-300 ${isDark ? "bg-[#0A0B0A] border-white/5" : "bg-white border-gray-100"}`}
           >
-            {/* Today's Summary */}
-            <div className="space-y-6">
+            {/* 1. Daily Volume Card - Consolidated */}
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                  Today's Summary
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                  Diagnostic Status
                 </h3>
-                <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest animate-pulse">
+                <div className="flex items-center gap-2 px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-500 text-[8px] font-black uppercase tracking-widest">
                   <Activity size={10} /> Live
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div
-                  className={`p-6 rounded-[24px] border transition-all hover:scale-[1.02] cursor-default ${isDark ? "bg-white/[0.02] border-white/5" : "bg-slate-50 border-slate-100 shadow-sm"}`}
-                >
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                    Total Tests
-                  </p>
-                  <p className="text-3xl font-black tracking-tight">
-                    {stats.total}
-                  </p>
-                  <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-emerald-500">
-                    <TrendingUp size={12} /> +12%
-                  </div>
-                </div>
-                <div
-                  onClick={() => setShowApprovals(true)}
-                  className={`p-6 rounded-[24px] border transition-all hover:scale-[1.02] cursor-pointer ${isDark ? "bg-white/[0.02] border-white/5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]" : "bg-white border-slate-100 shadow-xl shadow-black/5"}`}
-                >
-                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                    Pending
-                  </p>
-                  <p className="text-3xl font-black tracking-tight text-amber-500">
-                    {pendingApprovals.filter((a) => a.type === "test").length}
-                  </p>
-                  <div className="mt-2 flex items-center gap-1 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                    Needs Action
-                  </div>
-                </div>
-              </div>
-
               <div
-                className={`p-6 rounded-[24px] bg-gradient-to-br from-[#0c4a48] to-[#062d2c] text-white shadow-2xl relative overflow-hidden group`}
+                className={`p-6 rounded-[32px] border relative overflow-hidden transition-all ${isDark ? "bg-white/[0.02] border-white/5" : "bg-white border-slate-100 shadow-2xl shadow-slate-200/20"}`}
               >
-                <div className="relative z-10">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                      <CreditCard size={20} className="text-teal-300" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-black uppercase tracking-tight">
-                        Today's Money
-                      </h4>
-                      <p className="text-[10px] font-bold text-teal-200/60 uppercase tracking-widest">
-                        Payment Overview
-                      </p>
+                <div className="grid grid-cols-3 gap-2 relative z-10 divide-x dark:divide-white/5 divide-slate-100">
+                  <div className="flex flex-col items-center justify-center">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                      Total
+                    </p>
+                    <p className="text-2xl font-black tracking-tighter">
+                      {stats.total}
+                    </p>
+                    <div className="mt-1 flex items-center gap-0.5 text-[9px] font-bold text-emerald-500">
+                      <TrendingUp size={10} /> +12%
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-y-6">
-                    <div>
-                      <p className="text-[10px] font-black text-teal-200/40 uppercase tracking-widest mb-1">
-                        Total Billed
-                      </p>
-                      <p className="text-2xl font-black">
-                        ₹{stats.total_revenue.toLocaleString()}
-                      </p>
+                  <div className="flex flex-col items-center justify-center">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                      Completed
+                    </p>
+                    <p className="text-2xl font-black tracking-tighter text-emerald-500">
+                      {stats.completed}
+                    </p>
+                    <div className="mt-1 flex items-center gap-0.5 text-[9px] font-bold text-slate-400 opacity-40">
+                      SUCCESS
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-black text-teal-200/40 uppercase tracking-widest mb-1 text-right">
-                        Paid
-                      </p>
-                      <p className="text-2xl font-black text-emerald-400">
-                        ₹{stats.total_paid.toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="col-span-2 pt-4 border-t border-white/10">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-black text-teal-200/40 uppercase tracking-widest">
-                          Percentage Paid
-                        </span>
-                        <span className="text-xs font-black text-emerald-400">
-                          {stats.total_revenue > 0
-                            ? (
-                                (stats.total_paid / stats.total_revenue) *
-                                100
-                              ).toFixed(1)
-                            : 0}
-                          %
-                        </span>
-                      </div>
-                      <div className="mt-2 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{
-                            width: `${stats.total_revenue > 0 ? (stats.total_paid / stats.total_revenue) * 100 : 0}%`,
-                          }}
-                          className="h-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]"
-                        />
-                      </div>
+                  </div>
+                  <div className="flex flex-col items-center justify-center group">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5 transition-colors">
+                      Pending
+                    </p>
+                    <p className="text-2xl font-black tracking-tighter text-amber-500">
+                      {stats.pending}
+                    </p>
+                    <div className="mt-1 flex items-center gap-0.5 text-[9px] font-bold text-slate-400 opacity-40 uppercase">
+                      Wait
                     </div>
                   </div>
                 </div>
-                {/* Abstract background shape */}
-                <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-700" />
+                {/* Decorative glow */}
+                <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 blur-2xl rounded-full" />
               </div>
             </div>
 
-            {/* Test Types Distribution */}
-            <div className="space-y-6">
+            {/* 2. Today's Money Card */}
+            <div
+              className={`p-6 rounded-[32px] bg-gradient-to-br from-[#0c4a48] to-[#062d2c] text-white shadow-2xl relative overflow-hidden group`}
+            >
+              <div className="relative z-10">
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                    <CreditCard size={20} className="text-teal-300" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black uppercase tracking-tight">
+                      Today's Money
+                    </h4>
+                    <p className="text-[10px] font-bold text-teal-200/60 uppercase tracking-widest">
+                      Payment Overview
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-y-6">
+                  <div>
+                    <p className="text-[10px] font-black text-teal-200/40 uppercase tracking-widest mb-1">
+                      Total Billed
+                    </p>
+                    <p className="text-2xl font-black">
+                      ₹{stats.total_revenue.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] font-black text-teal-200/40 uppercase tracking-widest mb-1 text-right">
+                      Paid
+                    </p>
+                    <p className="text-2xl font-black text-emerald-400">
+                      ₹{stats.total_paid.toLocaleString()}
+                    </p>
+                  </div>
+                  <div className="col-span-2 pt-4 border-t border-white/10">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black text-teal-200/40 uppercase tracking-widest">
+                        Percentage Paid
+                      </span>
+                      <span className="text-xs font-black text-emerald-400">
+                        {stats.total_revenue > 0
+                          ? ((stats.total_paid / stats.total_revenue) * 100).toFixed(1)
+                          : 0}
+                        %
+                      </span>
+                    </div>
+                    <div className="mt-2 h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{
+                          width: `${stats.total_revenue > 0 ? (stats.total_paid / stats.total_revenue) * 100 : 0}%`,
+                        }}
+                        className="h-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.5)]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-700" />
+            </div>
+
+            {/* 3. Test Types Distribution Card - Consolidated */}
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                  Test Types
+                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                  Service Distribution
                 </h3>
               </div>
 
-              <div className="space-y-3">
+              <div
+                className={`p-6 rounded-[32px] border ${isDark ? "bg-white/[0.02] border-white/5" : "bg-white border-slate-100 shadow-sm"} space-y-6`}
+              >
                 {[
                   {
                     name: "EEG (Brain Test)",
                     count: 24,
                     progress: 65,
-                    color: "bg-indigo-500",
+                    color: "bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.3)]",
                   },
                   {
                     name: "NCV (Nerve Test)",
                     count: 18,
                     progress: 45,
-                    color: "bg-emerald-500",
+                    color: "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]",
                   },
                   {
                     name: "BERA (Hearing Test)",
                     count: 12,
                     progress: 30,
-                    color: "bg-rose-500",
+                    color: "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.3)]",
                   },
                 ].map((item, idx) => (
-                  <div
-                    key={idx}
-                    className={`p-4 rounded-2xl border transition-colors ${isDark ? "bg-white/[0.02] border-white/5 hover:bg-white/[0.04]" : "bg-white border-slate-100 hover:bg-slate-50"}`}
-                  >
-                    <div className="flex justify-between items-center mb-3">
-                      <span className="text-[11px] font-bold opacity-70">
+                  <div key={idx} className="group">
+                    <div className="flex justify-between items-center mb-2.5">
+                      <span className="text-[9px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">
                         {item.name}
                       </span>
-                      <span className="text-xs font-black">{item.count}</span>
+                      <span className="text-xs font-black tracking-tight">{item.count}</span>
                     </div>
                     <div className="h-1.5 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
                       <motion.div
@@ -396,10 +482,7 @@ const Tests = () => {
             </div>
 
             {/* Important Info */}
-            <div className="space-y-6">
-              <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                Important Info
-              </h3>
+            <div className="space-y-6 pb-10">
               <div
                 className={`p-5 rounded-[24px] border ${isDark ? "bg-amber-500/5 border-amber-500/10" : "bg-amber-50 border-amber-100"}`}
               >
@@ -430,47 +513,216 @@ const Tests = () => {
           {/* === MAIN CONTENT AREA === */}
           <main className="flex-1 bg-transparent flex flex-col relative">
             {/* Top Toolbar */}
-            <div className="px-6 py-4 flex items-center justify-between border-b dark:border-white/5 border-gray-100 bg-white/50 dark:bg-black/20 backdrop-blur-sm z-10 sticky top-0">
+            <div
+              className={`px-8 py-4 flex items-center gap-4 border-b transition-colors z-[100] sticky top-0 backdrop-blur-md ${isDark ? "bg-black/40 border-white/5" : "bg-white/80 border-gray-100"}`}
+            >
+              {/* Resized Search Bar */}
               <div
-                className={`flex items-center gap-3 px-2 py-1.5 rounded-xl border ${isDark ? "bg-[#1A1C1A] border-white/5" : "bg-white border-gray-200 shadow-sm"} min-w-[480px] max-w-xl`}
+                className={`max-w-md flex-1 flex items-center gap-3 px-5 py-3 rounded-[20px] border transition-all duration-300 ${isDark ? "bg-[#1A1C1A] border-white/5 focus-within:border-emerald-500/50" : "bg-gray-50 border-gray-200 focus-within:bg-white focus-within:shadow-xl focus-within:shadow-emerald-500/5 focus-within:border-emerald-500/30"}`}
               >
-                <div className="flex-1 flex items-center gap-3 px-2">
-                  <Search size={16} className="text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search patient, uid..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearchClick()}
-                    className="bg-transparent border-none outline-none text-sm w-full font-medium"
-                  />
+                <Search size={18} className="text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="SEARCH PATIENTS..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearchClick()}
+                  className="bg-transparent border-none outline-none text-[11px] w-full font-black tracking-widest uppercase placeholder:opacity-20 placeholder:font-black"
+                />
+
+                {searchQuery && (
+                  <button
+                    onClick={handleClearSearch}
+                    className="p-1 hover:bg-black/5 rounded-full transition-colors text-slate-400"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleSearchClick}
+                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#009b7c] text-white text-[9px] font-black uppercase tracking-widest hover:bg-[#008268] transition-all shadow-lg shadow-[#009b7c]/10"
+                  >
+                    <Search size={12} />
+                    Search
+                  </button>
+
+                  {appliedSearchQuery && (
+                    <button
+                      onClick={handleClearSearch}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${isDark ? "bg-white/10 text-slate-300 hover:bg-white/20" : "bg-gray-100 text-gray-500 hover:bg-gray-200 shadow-sm"}`}
+                    >
+                      <X size={12} />
+                      Clear
+                    </button>
+                  )}
                 </div>
-                <button
-                  onClick={handleSearchClick}
-                  className="px-4 py-1.5 rounded-lg text-xs font-bold bg-[#009b7c] text-white hover:bg-[#008268] transition-colors shadow-sm"
-                >
-                  Search
-                </button>
               </div>
 
-              <div
-                className={`flex p-1 rounded-xl border ${isDark ? "bg-[#121412] border-white/5" : "bg-gray-100/50 border-gray-200"}`}
-              >
-                {["All", "Pending", "Completed"].map((tab) => (
+              {/* Filters Dropdowns */}
+              <div className="flex items-center gap-2 ml-auto">
+                {/* 1. Test Type Dropdown */}
+                <div className="relative">
                   <button
-                    key={tab}
-                    onClick={() => handleTabChange(tab)}
-                    className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      activeTab === tab
-                        ? isDark
-                          ? "bg-[#1A1C1A] text-white shadow-sm"
-                          : "bg-white text-gray-900 shadow-sm"
-                        : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                    }`}
+                    onClick={() => setIsTypeMenuOpen(!isTypeMenuOpen)}
+                    className={`flex items-center gap-3 pl-5 pr-4 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest outline-none transition-all ${isDark ? "bg-[#1A1C1A] border-white/5 hover:bg-white/5 text-slate-300" : "bg-white border-gray-200 hover:bg-gray-50 text-slate-500 hover:border-emerald-500/20 shadow-sm"} ${isTypeMenuOpen ? "border-emerald-500/40 ring-4 ring-emerald-500/5" : ""}`}
                   >
-                    {tab}
+                    <span>{testTypeFilter === "All" ? "Types" : testTypeFilter}</span>
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform duration-300 ${isTypeMenuOpen ? "rotate-180" : "opacity-30"}`}
+                    />
                   </button>
-                ))}
+
+                  <AnimatePresence>
+                    {isTypeMenuOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setIsTypeMenuOpen(false)}
+                        />
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                          className={`absolute top-full right-0 mt-3 w-48 rounded-[24px] border shadow-2xl z-50 overflow-hidden backdrop-blur-xl ${isDark ? "bg-black/60 border-white/10" : "bg-white/90 border-gray-100"}`}
+                        >
+                          <div className="p-2 space-y-1">
+                            {["All", "EEG", "NCV", "BERA"].map((option) => (
+                              <button
+                                key={option}
+                                onClick={() => {
+                                  setTestTypeFilter(option);
+                                  setIsTypeMenuOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${testTypeFilter === option ? "bg-emerald-500/10 text-emerald-500" : (isDark ? "text-slate-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-600")}`}
+                              >
+                                {option === "All" ? "All Types" : option}
+                                {testTypeFilter === option && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />}
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* 2. Payment Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setIsPaymentMenuOpen(!isPaymentMenuOpen)}
+                    className={`flex items-center gap-3 pl-5 pr-4 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest outline-none transition-all ${isDark ? "bg-[#1A1C1A] border-white/5 hover:bg-white/5 text-slate-300" : "bg-white border-gray-200 hover:bg-gray-50 text-slate-500 hover:border-emerald-500/20 shadow-sm"} ${isPaymentMenuOpen ? "border-emerald-500/40 ring-4 ring-emerald-500/5" : ""}`}
+                  >
+                    <span>{paymentFilter === "All" ? "Payment" : paymentFilter}</span>
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform duration-300 ${isPaymentMenuOpen ? "rotate-180" : "opacity-30"}`}
+                    />
+                  </button>
+
+                  <AnimatePresence>
+                    {isPaymentMenuOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setIsPaymentMenuOpen(false)}
+                        />
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                          className={`absolute top-full right-0 mt-3 w-48 rounded-[24px] border shadow-2xl z-50 overflow-hidden backdrop-blur-xl ${isDark ? "bg-black/60 border-white/10" : "bg-white/90 border-gray-100"}`}
+                        >
+                          <div className="p-2 space-y-1">
+                            {["All", "Paid", "Partial", "Unpaid"].map((option) => (
+                              <button
+                                key={option}
+                                onClick={() => {
+                                  setPaymentFilter(option);
+                                  setIsPaymentMenuOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${paymentFilter === option ? "bg-emerald-500/10 text-emerald-500" : (isDark ? "text-slate-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-600")}`}
+                              >
+                                {option === "All" ? "All Payments" : option}
+                                {paymentFilter === option && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />}
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+
+                {/* 3. Status Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setIsStatusMenuOpen(!isStatusMenuOpen)}
+                    className={`flex items-center gap-3 pl-5 pr-4 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest outline-none transition-all ${isDark ? "bg-[#1A1C1A] border-white/5 hover:bg-white/5 text-slate-300" : "bg-white border-gray-200 hover:bg-gray-50 text-slate-500 hover:border-emerald-500/20 shadow-sm"} ${isStatusMenuOpen ? "border-emerald-500/40 ring-4 ring-emerald-500/5" : ""}`}
+                  >
+                    <span>{statusFilter === "All" ? "Status" : statusFilter}</span>
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform duration-300 ${isStatusMenuOpen ? "rotate-180" : "opacity-30"}`}
+                    />
+                  </button>
+
+                  <AnimatePresence>
+                    {isStatusMenuOpen && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-40"
+                          onClick={() => setIsStatusMenuOpen(false)}
+                        />
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                          className={`absolute top-full right-0 mt-3 w-48 rounded-[24px] border shadow-2xl z-50 overflow-hidden backdrop-blur-xl ${isDark ? "bg-black/60 border-white/10" : "bg-white/90 border-gray-100"}`}
+                        >
+                          <div className="p-2 space-y-1">
+                            {["All", "Pending", "Completed", "In Progress", "Cancelled"].map((option) => (
+                              <button
+                                key={option}
+                                onClick={() => {
+                                  setStatusFilter(option);
+                                  setIsStatusMenuOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === option ? "bg-emerald-500/10 text-emerald-500" : (isDark ? "text-slate-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-600")}`}
+                              >
+                                {option === "All" ? "All Status" : option}
+                                {statusFilter === option && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />}
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              {/* Action Buttons with larger gap */}
+              <div className="flex items-center gap-2 ml-6">
+                <button
+                  onClick={() => setShowCancelledOnly(!showCancelledOnly)}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest transition-all ${showCancelledOnly ? (isDark ? "bg-rose-500/20 border-rose-500/40 text-rose-400" : "bg-rose-50 border-rose-100 text-rose-600 shadow-sm") : (isDark ? "bg-[#1A1C1A] border-white/5 text-slate-400" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50")}`}
+                >
+                  <Ban
+                    size={14}
+                    className={showCancelledOnly ? "text-rose-500" : "opacity-30"}
+                  />
+                  Cancelled
+                </button>
+
+                <button
+                  className={`flex items-center gap-2 px-5 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest transition-all bg-[#009b7c] text-white hover:bg-[#008268] shadow-lg shadow-[#009b7c]/20`}
+                >
+                  <Calendar size={14} />
+                  Schedule
+                </button>
               </div>
             </div>
 
@@ -559,15 +811,14 @@ const Tests = () => {
                               </div>
                               <div>
                                 <span
-                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${
-                                    record.payment_status.toLowerCase() ===
+                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${record.payment_status.toLowerCase() ===
                                     "paid"
-                                      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20"
-                                      : record.payment_status.toLowerCase() ===
-                                          "partial"
-                                        ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500 border border-amber-200 dark:border-amber-500/20"
-                                        : "bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-500 border border-rose-200 dark:border-rose-500/20"
-                                  }`}
+                                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20"
+                                    : record.payment_status.toLowerCase() ===
+                                      "partial"
+                                      ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500 border border-amber-200 dark:border-amber-500/20"
+                                      : "bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-500 border border-rose-200 dark:border-rose-500/20"
+                                    }`}
                                 >
                                   {record.payment_status
                                     .charAt(0)
@@ -579,15 +830,14 @@ const Tests = () => {
                               </div>
                               <div>
                                 <span
-                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${
-                                    record.test_status.toLowerCase() ===
+                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${record.test_status.toLowerCase() ===
                                     "completed"
-                                      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20"
-                                      : record.test_status.toLowerCase() ===
-                                          "pending"
-                                        ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500 border border-amber-200 dark:border-amber-500/20"
-                                        : "bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-500 border border-blue-200 dark:border-blue-500/20"
-                                  }`}
+                                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20"
+                                    : record.test_status.toLowerCase() ===
+                                      "pending"
+                                      ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500 border border-amber-200 dark:border-amber-500/20"
+                                      : "bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-500 border border-blue-200 dark:border-blue-500/20"
+                                    }`}
                                 >
                                   {record.test_status.charAt(0).toUpperCase() +
                                     record.test_status.slice(1).toLowerCase()}
@@ -628,11 +878,10 @@ const Tests = () => {
                               fetchTests(page + 1, appliedSearchQuery)
                             }
                             disabled={isLoadingMore}
-                            className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${
-                              isDark
-                                ? "bg-white/5 text-slate-300 hover:bg-white/10"
-                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                            }`}
+                            className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${isDark
+                              ? "bg-white/5 text-slate-300 hover:bg-white/10"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                              }`}
                           >
                             {isLoadingMore ? (
                               <>
@@ -659,177 +908,183 @@ const Tests = () => {
             </div>
           </main>
         </div>
-      </div>
 
-      <DailyIntelligence
-        isOpen={showIntelligence}
-        onClose={() => setShowIntelligence(false)}
-      />
-      <NotesDrawer isOpen={showNotes} onClose={() => setShowNotes(false)} />
-
-      {showChatModal && (
-        <ChatModal
-          isOpen={showChatModal}
-          onClose={() => setShowChatModal(false)}
+        <DailyIntelligence
+          isOpen={showIntelligence}
+          onClose={() => setShowIntelligence(false)}
         />
-      )}
+        <NotesDrawer isOpen={showNotes} onClose={() => setShowNotes(false)} />
 
-      {/* === APPROVALS MODAL === */}
-      <AnimatePresence>
-        {showApprovals && (
-          <div
-            className="fixed inset-0 z-[10020] bg-black/20 backdrop-blur-md flex items-center justify-center p-6 md:p-10"
-            onClick={(e) =>
-              e.target === e.currentTarget && setShowApprovals(false)
-            }
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: 10 }}
-              className={`w-full max-w-3xl rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] border transition-colors ${isDark ? "bg-[#121412] border-white/5" : "bg-white border-gray-100"}`}
+        {
+          showChatModal && (
+            <ChatModal
+              isOpen={showChatModal}
+              onClose={() => setShowChatModal(false)}
+            />
+          )
+        }
+
+        {/* === APPROVALS MODAL === */}
+        <AnimatePresence>
+          {showApprovals && (
+            <div
+              className="fixed inset-0 z-[10020] bg-black/20 backdrop-blur-md flex items-center justify-center p-6 md:p-10"
+              onClick={(e) =>
+                e.target === e.currentTarget && setShowApprovals(false)
+              }
             >
-              <div className="px-8 py-6 flex items-center justify-between sticky top-0 z-10 transition-colors">
-                <div>
-                  <h2 className="text-xl font-bold tracking-tight">
-                    Pending Approvals
-                  </h2>
-                  <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest mt-0.5">
-                    Review zero-cost requests
-                  </p>
-                </div>
-                <button
-                  onClick={() => setShowApprovals(false)}
-                  className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isDark ? "bg-white/5 hover:bg-white/10" : "bg-gray-100 hover:bg-gray-200"}`}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              <div className="px-6 pb-8 overflow-y-auto custom-scrollbar flex-1">
-                {pendingApprovals.filter((a) => a.type === "test").length ===
-                0 ? (
-                  <div className="flex flex-col items-center justify-center py-16 opacity-20">
-                    <CheckCircle2 size={48} strokeWidth={1} className="mb-3" />
-                    <p className="text-sm font-medium">No pending approvals.</p>
+              <motion.div
+                initial={{ opacity: 0, scale: 0.98, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.98, y: 10 }}
+                className={`w-full max-w-3xl rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] border transition-colors ${isDark ? "bg-[#121412] border-white/5" : "bg-white border-gray-100"}`}
+              >
+                <div className="px-8 py-6 flex items-center justify-between sticky top-0 z-10 transition-colors">
+                  <div>
+                    <h2 className="text-xl font-bold tracking-tight">
+                      Pending Approvals
+                    </h2>
+                    <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest mt-0.5">
+                      Review zero-cost requests
+                    </p>
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    {pendingApprovals
-                      .filter((a) => a.type === "test")
-                      .map((item: any, idx: number) => (
-                        <div
-                          key={`${item.type}-${item.id}-${idx}`}
-                          className={`p-5 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${isDark ? "bg-white/5 border-white/5" : "bg-white border-gray-100 shadow-sm"}`}
-                        >
-                          <div className="flex gap-4 items-center">
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <span
-                                  className={`px-2 py-0.5 rounded text-[12px] font-black uppercase tracking-widest ${item.type === "registration" ? "bg-blue-500/10 text-blue-500" : "bg-purple-500/10 text-purple-500"}`}
-                                >
-                                  {item.type}
-                                </span>
-                                <span className="text-[10px] opacity-30 font-bold">
-                                  {new Date(item.created_at).toLocaleString()}
-                                </span>
-                              </div>
-                              <h3 className="text-lg font-bold">
-                                {item.patient_name}
-                              </h3>
-                              <p className="text-xs opacity-50 font-medium">
-                                {item.type === "test"
-                                  ? `Test: ${item.test_name}`
-                                  : `Consultation`}
-                              </p>
+                  <button
+                    onClick={() => setShowApprovals(false)}
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isDark ? "bg-white/5 hover:bg-white/10" : "bg-gray-100 hover:bg-gray-200"}`}
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
 
-                              {item.type === "registration" && (
-                                <p className="text-sm font-bold mt-2">
-                                  Amount:{" "}
-                                  <span className="text-[#006e1c] dark:text-[#4ade80]">
-                                    ₹{item.amount}
+                <div className="px-6 pb-8 overflow-y-auto custom-scrollbar flex-1">
+                  {pendingApprovals.filter((a) => a.type === "test").length ===
+                    0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 opacity-20">
+                      <CheckCircle2 size={48} strokeWidth={1} className="mb-3" />
+                      <p className="text-sm font-medium">No pending approvals.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {pendingApprovals
+                        .filter((a) => a.type === "test")
+                        .map((item: any, idx: number) => (
+                          <div
+                            key={`${item.type}-${item.id}-${idx}`}
+                            className={`p-5 rounded-2xl border transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 ${isDark ? "bg-white/5 border-white/5" : "bg-white border-gray-100 shadow-sm"}`}
+                          >
+                            <div className="flex gap-4 items-center">
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-[12px] font-black uppercase tracking-widest ${item.type === "registration" ? "bg-blue-500/10 text-blue-500" : "bg-purple-500/10 text-purple-500"}`}
+                                  >
+                                    {item.type}
                                   </span>
-                                </p>
-                              )}
-
-                              {item.type === "test" && (
-                                <div className="flex items-center gap-2 mt-3">
-                                  <div
-                                    className={`px-3 py-1.5 rounded-lg border ${isDark ? "bg-white/5 border-white/5" : "bg-gray-50 border-gray-100"}`}
-                                  >
-                                    <p className="text-[8px] font-bold uppercase opacity-30 mb-0.5">
-                                      Total
-                                    </p>
-                                    <p className="text-xs font-black">
-                                      ₹{item.amount}
-                                    </p>
-                                  </div>
-                                  <div
-                                    className={`px-3 py-1.5 rounded-lg border bg-yellow-500/5 border-yellow-500/10`}
-                                  >
-                                    <p className="text-[8px] font-bold uppercase text-yellow-600 opacity-50 mb-0.5">
-                                      Paid
-                                    </p>
-                                    <p className="text-xs font-black text-yellow-600">
-                                      ₹{item.advance_amount || 0}
-                                    </p>
-                                  </div>
-                                  <div
-                                    className={`px-3 py-1.5 rounded-lg border ${isDark ? "bg-white/5 border-white/5" : "bg-gray-50 border-gray-100"}`}
-                                  >
-                                    <p className="text-[8px] font-bold uppercase opacity-30 mb-0.5">
-                                      Discount
-                                    </p>
-                                    <p className="text-xs font-black">
-                                      ₹{item.discount || 0}
-                                    </p>
-                                  </div>
+                                  <span className="text-[10px] opacity-30 font-bold">
+                                    {new Date(item.created_at).toLocaleString()}
+                                  </span>
                                 </div>
-                              )}
+                                <h3 className="text-lg font-bold">
+                                  {item.patient_name}
+                                </h3>
+                                <p className="text-xs opacity-50 font-medium">
+                                  {item.type === "test"
+                                    ? `Test: ${item.test_name}`
+                                    : `Consultation`}
+                                </p>
+
+                                {item.type === "registration" && (
+                                  <p className="text-sm font-bold mt-2">
+                                    Amount:{" "}
+                                    <span className="text-[#006e1c] dark:text-[#4ade80]">
+                                      ₹{item.amount}
+                                    </span>
+                                  </p>
+                                )}
+
+                                {item.type === "test" && (
+                                  <div className="flex items-center gap-2 mt-3">
+                                    <div
+                                      className={`px-3 py-1.5 rounded-lg border ${isDark ? "bg-white/5 border-white/5" : "bg-gray-50 border-gray-100"}`}
+                                    >
+                                      <p className="text-[8px] font-bold uppercase opacity-30 mb-0.5">
+                                        Total
+                                      </p>
+                                      <p className="text-xs font-black">
+                                        ₹{item.amount}
+                                      </p>
+                                    </div>
+                                    <div
+                                      className={`px-3 py-1.5 rounded-lg border bg-yellow-500/5 border-yellow-500/10`}
+                                    >
+                                      <p className="text-[8px] font-bold uppercase text-yellow-600 opacity-50 mb-0.5">
+                                        Paid
+                                      </p>
+                                      <p className="text-xs font-black text-yellow-600">
+                                        ₹{item.advance_amount || 0}
+                                      </p>
+                                    </div>
+                                    <div
+                                      className={`px-3 py-1.5 rounded-lg border ${isDark ? "bg-white/5 border-white/5" : "bg-gray-50 border-gray-100"}`}
+                                    >
+                                      <p className="text-[8px] font-bold uppercase opacity-30 mb-0.5">
+                                        Discount
+                                      </p>
+                                      <p className="text-xs font-black">
+                                        ₹{item.discount || 0}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-yellow-500/5 text-yellow-600 dark:text-yellow-500 border border-yellow-500/10 shrink-0">
+                              <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
+                              <span className="text-[10px] font-black uppercase tracking-widest">
+                                Awaiting Approval
+                              </span>
                             </div>
                           </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
-                          <div className="flex items-center gap-2 px-4 py-2.5 rounded-full bg-yellow-500/5 text-yellow-600 dark:text-yellow-500 border border-yellow-500/10 shrink-0">
-                            <div className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
-                            <span className="text-[10px] font-black uppercase tracking-widest">
-                              Awaiting Approval
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+        <AnimatePresence>
+          {isDetailsModalOpen && selectedTest && (
+            <TestDetailsModal
+              isOpen={isDetailsModalOpen}
+              onClose={() => setIsDetailsModalOpen(false)}
+              testId={parseInt(selectedTest.uid)}
+            />
+          )}
+        </AnimatePresence>
 
-      <KeyboardShortcuts
-        shortcuts={[]}
-        isOpen={showShortcuts}
-        onClose={() => setShowShortcuts(false)}
-        onToggle={() => setShowShortcuts((p) => !p)}
-      />
+        {
+          showTestBill && billTestId && (
+            <TestBillModal
+              isOpen={showTestBill}
+              onClose={() => {
+                setShowTestBill(false);
+                setBillTestId(null);
+              }}
+              testId={billTestId}
+            />
+          )
+        }
 
-      <TestDetailsModal
-        isOpen={isDetailsModalOpen}
-        onClose={() => {
-          setIsDetailsModalOpen(false);
-          setSelectedTest(null);
-        }}
-        test={selectedTest}
-      />
-
-      {/* Test Bill Modal */}
-      <TestBillModal
-        isOpen={showTestBill}
-        onClose={() => {
-          setShowTestBill(false);
-          setBillTestId(null);
-        }}
-        testId={billTestId}
-      />
+        <KeyboardShortcuts
+          shortcuts={shortcuts}
+          isOpen={showShortcuts}
+          onClose={() => setShowShortcuts(false)}
+          onToggle={() => setShowShortcuts((prev) => !prev)}
+        />
+      </div>
     </div>
   );
 };
