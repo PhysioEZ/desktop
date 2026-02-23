@@ -121,8 +121,27 @@ router.post("/registration", registrationManager.handleRegistrationRequest);
 
 const billingController = require("./billing");
 const notesController = require("./notes");
+const expensesController = require("./expenses");
 const getAttendanceDataController = require("./getAttendanceData");
 const getAttendanceHistoryController = require("./getAttendanceHistory");
+
+// Configure Multer for Expenses
+const expenseUploadDir = path.join(__dirname, "../../../uploads/expenses");
+if (!fs.existsSync(expenseUploadDir)) fs.mkdirSync(expenseUploadDir, { recursive: true });
+
+const expenseStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, expenseUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const safeName = file.originalname.replace(/[^a-zA-Z0-9-_\.]/g, "");
+    cb(null, `expense-${Date.now()}-${safeName}`);
+  },
+});
+const uploadExpenses = multer({
+  storage: expenseStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
+});
 
 // Notes Routes
 router.get("/notes", authenticate, notesController.getNotes);
@@ -134,6 +153,7 @@ router.get("/attendance_data", authenticate, getAttendanceDataController.getAtte
 router.get("/get_attendance_history", authenticate, getAttendanceHistoryController.getAttendanceHistory);
 
 router.post("/billing", authenticate, billingController.handleBillingRequest);
+router.post("/expenses", authenticate, uploadExpenses.single("bill_image"), expensesController.handleExpensesRequest);
 router.post("/tests", authenticate, testsController.handleTestsRequest);
 
 
@@ -142,3 +162,4 @@ const reportsRouter = require("./reports");
 router.use("/reports", reportsRouter);
 
 module.exports = router;
+

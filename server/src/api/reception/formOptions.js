@@ -118,7 +118,8 @@ exports.getFormOptions = async (req, res) => {
                 consultationTypes,
                 inquiryServiceTypes,
                 timeSlots,
-                employees
+                employees,
+                expenseCategories: (await pool.query("SELECT category_name FROM expense_categories WHERE is_active = 1 ORDER BY display_order ASC"))[0].map(c => c.category_name)
             }
         });
 

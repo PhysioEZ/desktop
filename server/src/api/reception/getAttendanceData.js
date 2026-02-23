@@ -42,7 +42,13 @@ exports.getAttendanceData = async (req, res) => {
                     FROM attendance
                     WHERE patient_id = p.patient_id
                       AND status = 'present'
-                ) AS attendance_count
+                ) AS attendance_count,
+                (
+                    SELECT MAX(attendance_date)
+                    FROM attendance
+                    WHERE patient_id = p.patient_id
+                      AND status = 'present'
+                ) AS last_attendance_date
             FROM
                 patients p
             JOIN

@@ -17,10 +17,11 @@ import {
   Upload,
   FileText,
   Check,
+  CreditCard,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format, startOfMonth, endOfMonth } from "date-fns";
-import { API_BASE_URL, authFetch } from "../config";
+import { API_BASE_URL, authFetch, FILE_BASE_URL } from "../config";
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 import Sidebar from "../components/Sidebar";
@@ -36,6 +37,7 @@ interface ExpenseRecord {
   payment_method: string;
   status: "Approved" | "Pending" | "Rejected";
   has_bill: boolean;
+  bill_path?: string;
   reason?: string;
   expense_done_by?: string;
 }
@@ -43,32 +45,14 @@ interface ExpenseRecord {
 interface ExpenseStats {
   total_count: number;
   total_spent: number;
+  monthly_spent: number;
   daily_limit: number;
   daily_rem: number;
   monthly_rem: number;
   monthly_limit: number;
 }
 
-const CATEGORIES = [
-  "Medical Supplies",
-  "Office Supplies",
-  "Rent & Utilities",
-  "Staff Salary",
-  "Maintenance",
-  "Marketing",
-  "Electricity",
-  "Cleaning",
-  "Equipment Maintenance",
-  "Other Misc",
-];
-
-const PAYMENT_METHODS = [
-  "Cash",
-  "Online Transfer",
-  "GPay/PhonePe",
-  "Credit Card",
-  "Cheque",
-];
+// Redundant static arrays removed as they are now fetched from form_options API.
 
 // Function to convert number to words (Simplified for UI)
 const numberToWords = (num: number): string => {
@@ -145,6 +129,7 @@ const Expenses = () => {
   const [stats, setStats] = useState<ExpenseStats>({
     total_count: 0,
     total_spent: 0,
+    monthly_spent: 0,
     daily_limit: 2000,
     daily_rem: 2000,
     monthly_rem: 50000,
@@ -161,15 +146,82 @@ const Expenses = () => {
     end: format(endOfMonth(new Date()), "yyyy-MM-dd"),
   });
 
-  // Modal State
+  // Modal & Preview State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [selectedExpense, setSelectedExpense] = useState<ExpenseRecord | null>(
+    null,
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showTotal, setShowTotal] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [paymentMethods, setPaymentMethods] = useState<
+    { method_code: string; method_name: string }[]
+  >([]);
 
-  // Form Temporary State for Live View (Amount in Words)
+  // Form Temporary State for Live View
   const [formAmount, setFormAmount] = useState<number>(0);
+  const [showTotal, setShowTotal] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedMethod, setSelectedMethod] = useState("");
+  const [otherCategory, setOtherCategory] = useState("");
+
+  // Debounced search effect
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchTerm), 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const res = await authFetch(`${API_BASE_URL}/reception/form_options`);
+        const data = await res.json();
+        if (data.status === "success") {
+          setCategories(data.data.expenseCategories || []);
+          setPaymentMethods(data.data.paymentMethods || []);
+        }
+      } catch (err) {
+        console.error("Error fetching options:", err);
+      }
+    };
+    fetchOptions();
+  }, []);
 
   // Initial Data Fetch
+  const handleViewBill = (path: string) => {
+    if (!path) return;
+    const fullUrl = `${FILE_BASE_URL}/${path}`;
+    setPreviewUrl(fullUrl);
+    setIsPreviewModalOpen(true);
+  };
+
+  const handleTableBillUpload = async (file: File, expenseId: number) => {
+    const formData = new FormData();
+    formData.append("action", "update_bill");
+    formData.append("expense_id", String(expenseId));
+    formData.append("bill_image", file);
+
+    try {
+      const res = await authFetch(`${API_BASE_URL}/reception/expenses`, {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        toast.success("Bill updated successfully");
+        fetchData();
+      } else {
+        toast.error(data.message || "Failed to upload bill");
+      }
+    } catch {
+      toast.error("Upload failed");
+    }
+  };
+
   const fetchData = useCallback(async () => {
     if (!user?.branch_id) return;
     setLoading(true);
@@ -183,12 +235,13 @@ const Expenses = () => {
           end_date: dateRange.end,
           page,
           limit: 10,
+          search: debouncedSearch,
         }),
       });
       const data = await res.json();
       if (data.status === "success") {
         setExpenses(data.data || []);
-        setStats(data.stats || stats);
+        if (data.stats) setStats(data.stats);
         setTotalPages(data.total_pages || 1);
       }
     } catch (err) {
@@ -197,7 +250,7 @@ const Expenses = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.branch_id, dateRange, page, stats]);
+  }, [user?.branch_id, dateRange, page]);
 
   useEffect(() => {
     fetchData();
@@ -210,6 +263,12 @@ const Expenses = () => {
     formData.append("action", "add");
     formData.append("branch_id", String(user?.branch_id));
     formData.append("employee_id", String(user?.employee_id));
+    formData.append("amount_in_words", numberToWords(formAmount));
+
+    // Handle "Other" category
+    if (selectedCategory === "Other") {
+      formData.set("category", otherCategory);
+    }
 
     try {
       const res = await authFetch(`${API_BASE_URL}/reception/expenses`, {
@@ -316,16 +375,44 @@ const Expenses = () => {
 
         {/* Vertical Stats Stack */}
         <div className="space-y-4 w-full flex-1 flex flex-col justify-center py-4 z-10">
+          {/* Stat 0: Transaction Volume (New) */}
+          <div
+            className={`p-6 rounded-[24px] border transition-all duration-300 relative overflow-hidden group ${isDark ? "bg-[#121212] border-white/[0.03] hover:border-indigo-500/20" : "bg-white border-slate-100 shadow-sm hover:border-indigo-500/20"}`}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2.5 opacity-60">
+                <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
+                  <Receipt size={16} strokeWidth={2} />
+                </div>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
+                  Transaction Volume
+                </span>
+              </div>
+            </div>
+            <div className="flex items-end justify-between">
+              <div>
+                <div
+                  className={`text-3xl font-semibold tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}
+                >
+                  {stats.total_count}
+                </div>
+                <p className="text-[10px] font-medium text-slate-400 mt-0.5">
+                  Records for Period
+                </p>
+              </div>
+              <div className="p-2 rounded-xl bg-indigo-500/5 text-indigo-500">
+                <CreditCard size={18} strokeWidth={2.5} />
+              </div>
+            </div>
+          </div>
+
           {/* Stat 1: Total Spent */}
           <div
             className={`p-6 rounded-[24px] border transition-all duration-300 relative overflow-hidden group ${isDark ? "bg-[#121212] border-white/[0.03] hover:border-emerald-500/20" : "bg-white border-slate-100 shadow-sm hover:border-emerald-500/20"}`}
           >
             <div className="flex items-center gap-2.5 opacity-60 mb-3">
-              <div className="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
-                <Wallet size={16} strokeWidth={2} />
-              </div>
               <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-                Monthly Spending
+                Period Spending
               </span>
             </div>
             <div className="flex items-center justify-between gap-2">
@@ -340,6 +427,14 @@ const Expenses = () => {
               >
                 {showTotal ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
+            </div>
+            <div className="mt-1 flex items-center justify-between opacity-40">
+              <span className="text-[8px] font-bold uppercase">
+                Monthly Spent
+              </span>
+              <span className="text-[10px] font-mono">
+                {fmt(stats.monthly_spent)}
+              </span>
             </div>
             <div className="absolute -bottom-1 -right-1 w-12 h-12 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity pointer-events-none">
               <Wallet size={48} />
@@ -456,6 +551,20 @@ const Expenses = () => {
             className={`flex flex-col xl:flex-row items-center justify-between gap-6 p-8 border-b ${isDark ? "border-white/5" : "border-slate-100"}`}
           >
             <div className="flex items-center gap-4">
+              {/* Search Bar */}
+              <div
+                className={`flex items-center gap-3 px-5 py-3 rounded-2xl border transition-all ${isDark ? "bg-[#121212] border-white/5 focus-within:border-emerald-500/30" : "bg-slate-50 border-slate-100 focus-within:border-emerald-500/30"}`}
+              >
+                <Filter size={18} className="text-slate-400" />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search voucher, recipient..."
+                  className="bg-transparent border-none outline-none text-sm font-medium w-64 text-slate-900 dark:text-slate-100 placeholder:text-slate-400"
+                />
+              </div>
+
               <div
                 className={`flex items-center gap-4 px-6 py-3.5 rounded-2xl border ${isDark ? "bg-[#121212] border-white/5" : "bg-slate-50 border-slate-100"} transition-all`}
               >
@@ -540,6 +649,7 @@ const Expenses = () => {
             <div className="w-[12%] text-center">Payment</div>
             <div className="w-[10%] text-center">Status</div>
             <div className="w-[8%] text-right">Bill</div>
+            <div className="w-[8%] text-right pr-4">Actions</div>
           </div>
 
           {/* Table Body */}
@@ -610,14 +720,45 @@ const Expenses = () => {
                     </div>
                     <div className="w-[8%] text-right">
                       {exp.has_bill ? (
-                        <button className="p-2 hover:bg-emerald-500/10 rounded-xl text-emerald-500 transition-colors">
+                        <button
+                          onClick={() => handleViewBill(exp.bill_path || "")}
+                          className="p-2 hover:bg-indigo-500/10 rounded-xl text-indigo-500 transition-colors"
+                          title="View Receipt"
+                        >
                           <FileText size={18} />
                         </button>
                       ) : (
-                        <div className="p-2 opacity-10">
-                          <EyeOff size={18} />
+                        <div className="relative inline-block">
+                          <input
+                            type="file"
+                            className="hidden"
+                            id={`upload-${exp.id}`}
+                            accept="image/*,.pdf"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) handleTableBillUpload(file, exp.id);
+                            }}
+                          />
+                          <label
+                            htmlFor={`upload-${exp.id}`}
+                            className="p-2 hover:bg-emerald-500/10 rounded-xl text-emerald-500 transition-colors cursor-pointer inline-block"
+                            title="Upload Receipt"
+                          >
+                            <Upload size={18} />
+                          </label>
                         </div>
                       )}
+                    </div>
+                    <div className="w-[8%] text-right pr-4">
+                      <button
+                        onClick={() => {
+                          setSelectedExpense(exp);
+                          setIsViewModalOpen(true);
+                        }}
+                        className="p-2 hover:bg-slate-100 dark:hover:bg-white/5 rounded-xl text-slate-400 group-hover:text-indigo-500 transition-all active:scale-90"
+                      >
+                        <Eye size={18} />
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -659,6 +800,165 @@ const Expenses = () => {
         </div>
       </main>
 
+      {/* === VIEW EXPENSE MODAL (PREMIUM DETAILS) === */}
+      <AnimatePresence>
+        {isViewModalOpen && selectedExpense && (
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsViewModalOpen(false)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-xl"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className={`w-full max-w-2xl rounded-[48px] shadow-2xl relative z-10 overflow-hidden border transition-colors ${isDark ? "bg-[#0A0A0A] border-white/10" : "bg-white border-slate-200"}`}
+            >
+              {/* Branding Strip */}
+              <div className="h-2 w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500" />
+
+              <div className="p-12">
+                <div className="flex justify-between items-start mb-10">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-500">
+                        <FileText size={22} />
+                      </div>
+                      <h3 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                        Voucher Details
+                      </h3>
+                    </div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest pl-1">
+                      Audit ID: #EXP-{selectedExpense.id}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsViewModalOpen(false)}
+                    className="p-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-400"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-y-10 gap-x-12 mb-12">
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      Voucher Number
+                    </p>
+                    <p className="text-base font-bold text-slate-900 dark:text-white font-mono">
+                      {selectedExpense.voucher_no || "N/A"}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      Transaction Date
+                    </p>
+                    <p className="text-base font-bold text-slate-900 dark:text-white">
+                      {format(new Date(selectedExpense.date), "dd MMMM yyyy")}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      Paid To
+                    </p>
+                    <p className="text-base font-bold text-indigo-500 uppercase italic">
+                      {selectedExpense.paid_to}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      Expense Done By
+                    </p>
+                    <p className="text-base font-bold text-slate-900 dark:text-white">
+                      {selectedExpense.expense_done_by || "Unspecified"}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      Accounting Category
+                    </p>
+                    <p className="text-base font-bold text-slate-900 dark:text-white">
+                      {selectedExpense.category}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      Voucher Status
+                    </p>
+                    <span
+                      className={`inline-flex px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${getStatusStyle(selectedExpense.status)}`}
+                    >
+                      {selectedExpense.status}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      Payment Method
+                    </p>
+                    <p className="text-base font-bold text-slate-900 dark:text-white uppercase">
+                      {selectedExpense.payment_method}
+                    </p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
+                      Amount Invoiced
+                    </p>
+                    <p className="text-2xl font-black text-slate-900 dark:text-white">
+                      {fmt(selectedExpense.amount)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="p-6 rounded-[32px] bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5">
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">
+                      Being (Description)
+                    </p>
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-400 leading-relaxed italic">
+                      "
+                      {selectedExpense.reason ||
+                        "No detailed description provided."}
+                      "
+                    </p>
+                  </div>
+
+                  <div className="p-6 rounded-[32px] bg-emerald-500/[0.03] border border-emerald-500/10 border-dashed">
+                    <p className="text-[9px] font-black text-emerald-500 uppercase tracking-widest mb-2">
+                      Authenticated Words
+                    </p>
+                    <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
+                      {numberToWords(selectedExpense.amount)}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-12 flex items-center justify-between">
+                  {selectedExpense.has_bill && (
+                    <button
+                      onClick={() =>
+                        handleViewBill(selectedExpense.bill_path || "")
+                      }
+                      className="flex items-center gap-3 px-6 py-3 rounded-2xl bg-slate-900 text-white text-xs font-bold uppercase tracking-widest hover:scale-105 transition-all"
+                    >
+                      <FileText size={18} /> View Receipt
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setIsViewModalOpen(false)}
+                    className="px-10 py-4 rounded-2xl bg-indigo-500 text-white text-sm font-bold shadow-xl shadow-indigo-500/20 active:scale-95 transition-all ml-auto"
+                  >
+                    Close Preview
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* === ADD EXPENSE MODAL (REFACTORED BASED ON IMAGE) === */}
       <AnimatePresence>
         {isAddModalOpen && (
@@ -671,125 +971,152 @@ const Expenses = () => {
               className="absolute inset-0 bg-black/40 backdrop-blur-sm"
             />
             <motion.div
-              initial={{ opacity: 0, y: 30, scale: 0.95 }}
+              initial={{ opacity: 0, y: 30, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              className={`w-full max-w-[850px] rounded-[32px] shadow-2xl overflow-hidden relative z-10 p-1 font-sans ${isDark ? "bg-[#1A1C1E]" : "bg-white"}`}
+              exit={{ opacity: 0, y: 20, scale: 0.98 }}
+              className={`w-full max-w-3xl rounded-[40px] shadow-[0_32px_128px_-16px_rgba(0,0,0,0.3)] overflow-hidden relative z-10 border transition-colors ${isDark ? "bg-[#0D0D0D] border-white/10" : "bg-white border-slate-200"}`}
             >
               <form
                 onSubmit={handleAddExpense}
-                className="flex flex-col h-full"
+                className="flex flex-col h-full max-h-[90vh]"
               >
-                {/* Modal Header */}
-                <div className="px-12 pt-12 pb-8 flex justify-between items-start">
-                  <div>
-                    <h3 className="text-[32px] font-bold tracking-tight text-[#6366f1]">
-                      Add New Expense
-                    </h3>
-                    <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">
-                      Create a new expense voucher
+                {/* Header Section */}
+                <div className="px-10 pt-10 pb-6 flex justify-between items-start shrink-0">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                        <Plus size={24} />
+                      </div>
+                      <h3 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">
+                        Record Expenditure
+                      </h3>
+                    </div>
+                    <p className="text-sm text-slate-500 font-medium pl-1">
+                      Generate a new audit-ready expense voucher
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setIsAddModalOpen(false)}
-                    className="p-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 transition-all text-slate-500 mt-1"
+                    className="p-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-white/5 transition-colors text-slate-400"
                   >
-                    <X size={22} strokeWidth={2.5} />
+                    <X size={24} />
                   </button>
                 </div>
 
-                {/* Form Content */}
-                <div className="px-12 pb-12 space-y-8 overflow-y-auto max-h-[75vh] custom-scrollbar">
-                  {/* Line 1: Voucher No & Date */}
-                  <div className="grid grid-cols-2 gap-8">
-                    <div className="space-y-2.5">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest flex items-center gap-1">
-                        Voucher No.
+                {/* Form Body Start */}
+                <div className="px-10 pb-10 space-y-7 overflow-y-auto custom-scrollbar flex-1">
+                  <div className="grid grid-cols-2 gap-6">
+                    {/* Basic Info */}
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Voucher Number
                       </label>
                       <input
                         disabled
                         placeholder="Auto-generated"
-                        className="w-full px-5 py-4 bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-2xl text-base font-semibold text-slate-500 outline-none"
+                        className="w-full px-5 py-4 bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-2xl text-base font-semibold text-slate-400 italic outline-none"
                       />
                     </div>
-                    <div className="space-y-2.5">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest flex items-center gap-1">
-                        Date <span className="text-rose-500 font-bold">*</span>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Transaction Date
                       </label>
-                      <div className="relative">
+                      <div className="relative group">
                         <input
                           name="date"
                           type="date"
                           required
                           defaultValue={format(new Date(), "yyyy-MM-dd")}
                           onClick={(e) => (e.target as any).showPicker?.()}
-                          className="w-full px-5 py-4 bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-2xl text-base font-semibold text-slate-900 dark:text-white outline-none ring-2 ring-transparent focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all cursor-pointer"
+                          className="w-full px-5 py-4 bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-2xl text-base font-semibold text-slate-900 dark:text-white outline-none ring-2 ring-transparent focus:ring-emerald-500/10 focus:border-emerald-500/30 transition-all cursor-pointer"
                         />
                         <Calendar
                           size={18}
-                          className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+                          className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors pointer-events-none"
                         />
                       </div>
                     </div>
                   </div>
 
-                  {/* Line 2: Paid To */}
-                  <div className="space-y-2.5">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest flex items-center gap-1">
-                      Paid To <span className="text-rose-500 font-bold">*</span>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                      Beneficiary / Recipient
                     </label>
-                    <input
-                      name="paid_to"
-                      required
-                      placeholder="Recipient Name"
-                      className="w-full px-6 py-5 bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-2xl text-base font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/20 outline-none ring-2 ring-transparent focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all"
-                    />
+                    <div className="relative group">
+                      <input
+                        name="paid_to"
+                        required
+                        placeholder="Who received this payment?"
+                        className="w-full px-12 py-4 bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-2xl text-base font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/10 outline-none ring-2 ring-transparent focus:ring-emerald-500/10 focus:border-emerald-500/30 transition-all"
+                      />
+                      <Wallet
+                        size={18}
+                        className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-emerald-500 transition-colors"
+                      />
+                    </div>
                   </div>
 
-                  {/* Line 3: Expense Done By & Category */}
-                  <div className="grid grid-cols-2 gap-8">
-                    <div className="space-y-2.5">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest flex items-center gap-1">
-                        Expense Done By{" "}
-                        <span className="text-rose-500 font-bold">*</span>
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Procured By
                       </label>
                       <input
                         name="expense_done_by"
                         required
-                        placeholder="Staff Name"
-                        className="w-full px-5 py-4 bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-2xl text-base font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/20 outline-none ring-2 ring-transparent focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all"
+                        placeholder="Staff member"
+                        className="w-full px-5 py-4 bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-2xl text-base font-semibold text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/10 outline-none ring-2 ring-transparent focus:ring-emerald-500/10 focus:border-emerald-500/30 transition-all"
                       />
                     </div>
-                    <div className="space-y-2.5">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest flex items-center gap-1">
-                        Category{" "}
-                        <span className="text-rose-500 font-bold">*</span>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Account Category
                       </label>
                       <select
                         name="category"
                         required
-                        className="w-full px-5 py-4 bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-2xl text-base font-semibold text-slate-900 dark:text-white outline-none ring-2 ring-transparent focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all appearance-none cursor-pointer"
+                        value={selectedCategory}
+                        onChange={(e) => setSelectedCategory(e.target.value)}
+                        className="w-full px-5 py-4 bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-2xl text-base font-semibold text-slate-900 dark:text-white outline-none focus:border-emerald-500/30 transition-all appearance-none cursor-pointer"
                       >
-                        <option value="">-- Select Category --</option>
-                        {CATEGORIES.map((c) => (
+                        <option value="">-- Choose Category --</option>
+                        {categories.map((c) => (
                           <option key={c} value={c}>
                             {c}
                           </option>
                         ))}
+                        <option value="Other">Other (Custom)</option>
                       </select>
                     </div>
                   </div>
 
-                  {/* Line 4: Amount & Payment Method */}
-                  <div className="grid grid-cols-2 gap-8">
-                    <div className="space-y-2.5">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest flex items-center gap-1">
-                        Amount (₹){" "}
-                        <span className="text-rose-500 font-bold">*</span>
+                  {selectedCategory === "Other" && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      className="space-y-2"
+                    >
+                      <label className="text-[10px] font-bold text-emerald-500 uppercase tracking-widest pl-1">
+                        Specify Detail Category
+                      </label>
+                      <input
+                        required
+                        value={otherCategory}
+                        onChange={(e) => setOtherCategory(e.target.value)}
+                        placeholder="Enter account head..."
+                        className="w-full px-5 py-4 bg-emerald-500/[0.02] border border-emerald-500/20 rounded-2xl text-base font-semibold text-slate-900 dark:text-white outline-none focus:border-emerald-500 transition-all"
+                      />
+                    </motion.div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Amount (INR)
                       </label>
                       <div className="relative group">
-                        <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-500 font-semibold text-xl group-focus-within:text-indigo-600 transition-colors">
+                        <div className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg group-focus-within:text-emerald-500 transition-colors">
                           ₹
                         </div>
                         <input
@@ -800,66 +1127,85 @@ const Expenses = () => {
                             setFormAmount(Number(e.target.value))
                           }
                           placeholder="0.00"
-                          className="w-full pl-12 pr-6 py-4 bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-2xl text-base font-semibold text-slate-900 dark:text-white outline-none ring-2 ring-transparent focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all"
+                          className="w-full pl-12 pr-6 py-4 bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-2xl text-base font-semibold text-slate-900 dark:text-white outline-none ring-2 ring-transparent focus:ring-emerald-500/10 focus:border-emerald-500/30 transition-all"
                         />
                       </div>
                     </div>
-                    <div className="space-y-2.5">
-                      <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest flex items-center gap-1">
-                        Payment Method{" "}
-                        <span className="text-rose-500 font-bold">*</span>
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Payment Instrument
                       </label>
                       <select
                         name="payment_method"
                         required
-                        className="w-full px-5 py-4 bg-slate-50 dark:bg-white/[0.03] border border-slate-200 dark:border-white/10 rounded-2xl text-base font-semibold text-slate-900 dark:text-white outline-none ring-2 ring-transparent focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all appearance-none cursor-pointer"
+                        value={selectedMethod}
+                        onChange={(e) => setSelectedMethod(e.target.value)}
+                        className="w-full px-5 py-4 bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-2xl text-base font-semibold text-slate-900 dark:text-white outline-none focus:border-emerald-500/30 transition-all appearance-none cursor-pointer"
                       >
-                        <option value="">-- Select Method --</option>
-                        {PAYMENT_METHODS.map((m) => (
-                          <option key={m} value={m}>
-                            {m}
+                        <option value="">-- Mode of Payment --</option>
+                        {paymentMethods.map((m) => (
+                          <option key={m.method_code} value={m.method_code}>
+                            {m.method_name}
                           </option>
                         ))}
                       </select>
                     </div>
                   </div>
 
-                  {/* Line 5: Being (Description) */}
-                  <div className="space-y-2.5">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest flex items-center gap-1">
-                      Being (Description)
+                  {selectedMethod.toLowerCase() === "cheque" && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      className="space-y-2"
+                    >
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                        Cheque Reference Details
+                      </label>
+                      <input
+                        name="cheque_details"
+                        required
+                        placeholder="Bank Name, Cheque #, Date"
+                        className="w-full px-5 py-4 bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-2xl text-base font-semibold text-slate-900 dark:text-white outline-none focus:border-emerald-500/30 transition-all"
+                      />
+                    </motion.div>
+                  )}
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest pl-1">
+                      Detailed Description
                     </label>
                     <textarea
                       name="reason"
                       rows={3}
-                      placeholder="Enter details..."
-                      className="w-full px-6 py-6 bg-[#f5f7ff] dark:bg-white/[0.02] border-2 border-indigo-500/20 rounded-[24px] text-base font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/20 outline-none focus:border-indigo-500 focus:bg-white dark:focus:bg-transparent transition-all overflow-hidden resize-none"
+                      placeholder="Enter specific details regarding this expense..."
+                      className="w-full px-6 py-4 bg-slate-50 dark:bg-white/[0.02] border border-slate-200 dark:border-white/5 rounded-[24px] text-base font-medium text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-white/10 outline-none focus:border-emerald-500/30 transition-all resize-none"
                     />
                   </div>
 
-                  {/* Line 6: Amount in Words */}
-                  <div className="pt-2">
-                    <label className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-widest block mb-2">
-                      Amount in Words
-                    </label>
-                    <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wide min-h-[1.5rem]">
-                      {formAmount > 0 ? numberToWords(formAmount) : ""}
+                  {formAmount > 0 && (
+                    <div className="p-5 rounded-3xl bg-emerald-500/5 border border-emerald-500/10 border-dashed">
+                      <label className="text-[9px] font-black text-emerald-500/60 uppercase tracking-widest block mb-1">
+                        Amount Authentication (In Words)
+                      </label>
+                      <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 uppercase break-words leading-relaxed">
+                        {numberToWords(formAmount)}
+                      </div>
                     </div>
-                  </div>
+                  )}
 
-                  {/* Line 7: Bill Upload (Subtle) */}
-                  <div className="pt-6 border-t border-slate-200 dark:border-white/10">
-                    <div className="flex items-center justify-between">
+                  {/* Attachment Section */}
+                  <div className="pt-2">
+                    <div className="flex items-center justify-between p-5 rounded-3xl border border-dashed border-slate-200 dark:border-white/10 bg-slate-50/50 dark:bg-white/[0.01]">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-500 dark:text-slate-400">
-                          <Upload size={22} />
+                        <div className="w-12 h-12 rounded-2xl bg-slate-200/50 dark:bg-white/5 flex items-center justify-center text-slate-400">
+                          <Upload size={20} />
                         </div>
                         <div>
-                          <p className="text-sm font-bold uppercase tracking-tight text-slate-900 dark:text-white">
-                            Upload Bill
+                          <p className="text-sm font-bold text-slate-900 dark:text-white">
+                            Audit Proof
                           </p>
-                          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                            JPG, PNG or PDF supported
+                          <p className="text-[10px] font-medium text-slate-400 uppercase tracking-tight">
+                            Image or PDF (Max 5MB)
                           </p>
                         </div>
                       </div>
@@ -867,35 +1213,111 @@ const Expenses = () => {
                         name="bill_image"
                         type="file"
                         className="hidden"
-                        id="bill-upload-modal"
+                        id="bill-upload-final"
+                        accept="image/*,.pdf"
                       />
                       <label
-                        htmlFor="bill-upload-modal"
-                        className="px-6 py-2.5 bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl text-xs font-bold uppercase tracking-widest cursor-pointer hover:bg-white dark:hover:bg-white/10 transition-all text-slate-700 dark:text-slate-300"
+                        htmlFor="bill-upload-final"
+                        className="px-6 py-2.5 bg-slate-900 dark:bg-emerald-500 text-white dark:text-emerald-950 text-[10px] font-black uppercase tracking-widest rounded-xl cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-lg shadow-black/10"
                       >
-                        Browse Files
+                        Attach Bill
                       </label>
                     </div>
                   </div>
                 </div>
 
-                {/* Footer Area */}
-                <div className="px-12 py-10 flex justify-end items-center bg-slate-50/30 dark:bg-white/[0.01] border-t border-slate-200 dark:border-white/10">
+                {/* Action Footer */}
+                <div className="px-10 py-8 bg-slate-50/50 dark:bg-white/[0.02] border-t dark:border-white/5 flex items-center justify-end gap-4 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(false)}
+                    className="px-8 py-4 rounded-2xl text-sm font-bold text-slate-500 hover:text-slate-700 dark:hover:text-slate-100 transition-colors"
+                  >
+                    Discard
+                  </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex items-center gap-3 px-10 py-4 rounded-2xl bg-[#6366f1] text-white text-base font-semibold hover:bg-[#4f46e5] text-white shadow-xl shadow-indigo-500/20 active:scale-95 transition-all disabled:opacity-50"
+                    className="px-10 py-4 rounded-2xl bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-mono font-bold transition-all shadow-xl shadow-indigo-500/20 disabled:opacity-50 flex items-center gap-3 active:scale-95"
                   >
                     {isSubmitting ? (
-                      <RefreshCw size={20} className="animate-spin" />
+                      <RefreshCw size={18} className="animate-spin" />
                     ) : (
-                      <>
-                        <Check size={20} strokeWidth={3} /> Save Expense Record
-                      </>
+                      <Check size={18} />
                     )}
+                    Generate Voucher
                   </button>
                 </div>
               </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* === BILL PREVIEW MODAL (GLOBAL) === */}
+      <AnimatePresence>
+        {isPreviewModalOpen && previewUrl && (
+          <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsPreviewModalOpen(false)}
+              className="absolute inset-0 bg-slate-950/90 backdrop-blur-md"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className={`w-full max-w-5xl h-[85vh] rounded-[48px] shadow-2xl relative z-10 overflow-hidden border transition-colors flex flex-col ${isDark ? "bg-[#0A0A0A] border-white/10" : "bg-white border-slate-200"}`}
+            >
+              <div className="px-8 py-6 border-b dark:border-white/5 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                    <FileText size={20} />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                      Document Preview
+                    </h4>
+                    <p className="text-[10px] uppercase tracking-widest font-black text-slate-400">
+                      Authenticated Proof
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <a
+                    href={previewUrl}
+                    download
+                    className="p-3 rounded-2xl hover:bg-slate-100 dark:hover:bg-white/5 text-slate-400 transition-colors"
+                    title="Download File"
+                  >
+                    <Upload size={20} className="rotate-180" />
+                  </a>
+                  <button
+                    onClick={() => setIsPreviewModalOpen(false)}
+                    className="p-3 rounded-2xl hover:bg-red-500/10 text-slate-400 hover:text-red-500 transition-colors"
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 bg-slate-50 dark:bg-black/20 overflow-auto p-8 flex items-center justify-center">
+                {previewUrl.toLowerCase().endsWith(".pdf") ? (
+                  <iframe
+                    src={previewUrl}
+                    className="w-full h-full rounded-3xl border dark:border-white/5"
+                    title="PDF Preview"
+                  />
+                ) : (
+                  <img
+                    src={previewUrl}
+                    alt="Bill Preview"
+                    className="max-w-full max-h-full object-contain rounded-2xl shadow-lg border dark:border-white/10"
+                  />
+                )}
+              </div>
             </motion.div>
           </div>
         )}
