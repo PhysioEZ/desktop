@@ -101,8 +101,10 @@ interface PatientState {
     setPage: (page: number) => void;
     fetchPatients: (branchId: number) => Promise<void>;
     fetchMetaData: (branchId: number) => Promise<void>;
-    fetchPatientDetails: (patientId: number) => Promise<void>;
-    openPatientDetails: (patient: Patient) => void;
+    fetchPatientDetails: (patientId: number | null, patientName?: string, phone?: string) => Promise<void>;
+    billingViewMode: 'treatment' | 'test';
+    setBillingViewMode: (mode: 'treatment' | 'test') => void;
+    openPatientDetails: (patient: Patient, mode?: 'treatment' | 'test') => void;
     closePatientDetails: () => void;
     refreshPatients: (branchId: number) => Promise<void>;
     markAttendance: (patientId: number, branchId: number, status?: string) => Promise<boolean>;
@@ -144,6 +146,9 @@ export const usePatientStore = create<PatientState>((set, get) => ({
     isDetailsModalOpen: false,
     patientDetails: null,
     isLoadingDetails: false,
+    billingViewMode: 'treatment',
+
+    setBillingViewMode: (mode) => set({ billingViewMode: mode }),
 
     setFilters: (newFilters) => {
         set((state) => ({ 
@@ -213,7 +218,7 @@ export const usePatientStore = create<PatientState>((set, get) => ({
         }
     },
 
-    fetchPatientDetails: async (patientId: number) => {
+    fetchPatientDetails: async (patientId: number | null, patientName?: string, phone?: string) => {
         set({ isLoadingDetails: true });
         try {
             const response = await authFetch(`${API_BASE_URL}/reception/patients`, {
@@ -221,7 +226,9 @@ export const usePatientStore = create<PatientState>((set, get) => ({
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     action: 'fetch_details',
-                    patient_id: patientId
+                    patient_id: patientId,
+                    patient_name: patientName,
+                    phone_number: phone
                 })
             });
             const result = await response.json();
@@ -236,9 +243,9 @@ export const usePatientStore = create<PatientState>((set, get) => ({
         }
     },
 
-    openPatientDetails: (patient) => {
-        set({ selectedPatient: patient, isDetailsModalOpen: true, patientDetails: null });
-        get().fetchPatientDetails(patient.patient_id);
+    openPatientDetails: (patient, mode = 'treatment') => {
+        set({ selectedPatient: patient, isDetailsModalOpen: true, patientDetails: null, billingViewMode: mode });
+        get().fetchPatientDetails(patient.patient_id, patient.patient_name, patient.patient_phone || patient.phone_number);
     },
 
     closePatientDetails: () => {

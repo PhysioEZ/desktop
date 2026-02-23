@@ -285,8 +285,8 @@ async function fetchPatients(req, res, branchId, input) {
 
         // Logic Update: Show 'Plan Remaining' for Packages, 'Arrears' for Daily.
         if (parseFloat(p.total_amount) > 0) {
-            // For Packages: Due = Total Plan Cost - Total Paid (Ignoring history consumption for simple "Remaining" view)
-            p.due_amount = parseFloat(p.total_amount) - p.total_paid;
+            // For Packages: Due = Total Plan Cost - Total Paid - Discount (Ignoring history consumption for simple "Remaining" view)
+            p.due_amount = parseFloat(p.total_amount) - p.total_paid - (parseFloat(p.discount_amount) || 0);
         } else {
             // For Daily: DueAmount is only non-zero if they are in debt (negative balance)
             p.due_amount = p.effective_balance < 0 ? Math.abs(p.effective_balance) : 0;
@@ -317,120 +317,200 @@ async function fetchPatients(req, res, branchId, input) {
 }
 
 async function fetchDetails(req, res, patientId) {
-    if (!patientId)
-        return res
-            .status(400)
-            .json({ status: "error", message: "Patient ID required" });
+    let p;
+    let totalPaid = 0;
+    let tests = [];
+    let attendance = [];
+    let treatmentHistory = [];
+    let combinedHistory = [];
 
-    const [ptRows] = await pool.query(`
-        SELECT p.*, 
-               r.patient_name, r.phone_number, r.email, r.gender, r.age, 
-               r.referralSource, r.reffered_by, r.chief_complain, r.occupation, r.address
-        FROM patients p
-        JOIN registration r ON p.registration_id = r.registration_id
-        WHERE p.patient_id = ?
-    `, [patientId]);
-    const p = ptRows[0];
-    if (!p)
-        return res
-            .status(404)
-            .json({ status: "error", message: "Patient not found" });
+    if (patientId) {
+        const [ptRows] = await pool.query(`
+            SELECT p.*, 
+                   r.patient_name, r.phone_number, r.email, r.gender, r.age, 
+                   r.referralSource, r.reffered_by, r.chief_complain, r.occupation, r.address
+            FROM patients p
+            JOIN registration r ON p.registration_id = r.registration_id
+            WHERE p.patient_id = ?
+        `, [patientId]);
+        p = ptRows[0];
+        if (!p)
+            return res
+                .status(404)
+                .json({ status: "error", message: "Patient not found" });
 
-    const [paidRows] = await pool.query(
-        "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE patient_id = ?",
-        [patientId],
-    );
-    const totalPaid = parseFloat(paidRows[0].total || 0);
+        const [paidRows] = await pool.query(
+            "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE patient_id = ?",
+            [patientId],
+        );
+        const [testPaidRows] = await pool.query(
+            "SELECT COALESCE(SUM(tp.amount), 0) as total FROM test_payments tp JOIN tests t ON tp.test_id = t.test_id WHERE t.patient_id = ?",
+            [patientId]
+        );
+        totalPaid = parseFloat(paidRows[0].total || 0) + parseFloat(testPaidRows[0].total || 0);
 
-    let totalConsumed = 0;
-    const [history] = await pool.query(
-        "SELECT treatment_type, treatment_days, package_cost, treatment_cost_per_day, start_date, end_date, consumed_amount FROM patients_treatment WHERE patient_id = ?",
-        [patientId],
-    );
-    for (let h of history) {
-        if (h.consumed_amount != null && h.consumed_amount > 0) {
-            totalConsumed += parseFloat(h.consumed_amount);
+        const [testBilledRows] = await pool.query(
+            "SELECT COALESCE(SUM(total_amount), 0) as total FROM tests WHERE patient_id = ?",
+            [patientId]
+        );
+        p.test_billed_amount = parseFloat(testBilledRows[0].total || 0);
+
+        let totalConsumed = 0;
+        const [history] = await pool.query(
+            "SELECT treatment_type, treatment_days, package_cost, treatment_cost_per_day, start_date, end_date, consumed_amount FROM patients_treatment WHERE patient_id = ?",
+            [patientId],
+        );
+        for (let h of history) {
+            if (h.consumed_amount != null && h.consumed_amount > 0) {
+                totalConsumed += parseFloat(h.consumed_amount);
+            } else {
+                const [hAttRows] = await pool.query(
+                    "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < ? AND status = 'present'",
+                    [patientId, h.start_date, h.end_date],
+                );
+                const hCount = hAttRows[0].count;
+                const hRate =
+                    h.treatment_type === "package" && h.treatment_days > 0
+                        ? parseFloat(h.package_cost) / h.treatment_days
+                        : parseFloat(h.treatment_cost_per_day);
+                totalConsumed += hCount * hRate;
+            }
+        }
+
+        const curRate =
+            p.treatment_type === "package" && p.treatment_days > 0
+                ? parseFloat(p.package_cost) / p.treatment_days
+                : parseFloat(p.treatment_cost_per_day || p.cost_per_day);
+        const [cAttRows] = await pool.query(
+            "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'",
+            [patientId, p.start_date || "2000-01-01"],
+        );
+        const cCount = cAttRows[0].count;
+        totalConsumed += cCount * curRate;
+
+        p.effective_balance = totalPaid - totalConsumed;
+        p.attendance_count = cCount;
+        p.cost_per_day = curRate;
+
+        // Calculate Due Amount
+        const planCost = parseFloat(p.total_amount || 0);
+        const discountAmount = parseFloat(p.discount_amount || 0);
+        if (planCost > 0) {
+            p.due_amount = planCost - totalPaid - discountAmount;
         } else {
-            const [hAttRows] = await pool.query(
-                "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < ? AND status = 'present'",
-                [patientId, h.start_date, h.end_date],
-            );
-            const hCount = hAttRows[0].count;
-            const hRate =
-                h.treatment_type === "package" && h.treatment_days > 0
-                    ? parseFloat(h.package_cost) / h.treatment_days
-                    : parseFloat(h.treatment_cost_per_day);
-            totalConsumed += hCount * hRate;
+            p.due_amount = p.effective_balance < 0 ? Math.abs(p.effective_balance) : 0;
         }
-    }
+        if (p.due_amount < 0) p.due_amount = 0;
 
-    const curRate =
-        p.treatment_type === "package" && p.treatment_days > 0
-            ? parseFloat(p.package_cost) / p.treatment_days
-            : parseFloat(p.treatment_cost_per_day || p.cost_per_day);
-    const [cAttRows] = await pool.query(
-        "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'",
-        [patientId, p.start_date || "2000-01-01"],
-    );
-    const cCount = cAttRows[0].count;
-    totalConsumed += cCount * curRate;
+        p.total_consumed = totalConsumed;
+        p.total_paid = totalPaid;
 
-    p.effective_balance = totalPaid - totalConsumed;
-    p.attendance_count = cCount;
-    p.cost_per_day = curRate;
+        // Resolve plan name for current plan
+        if (p.service_track_id) {
+            const [tRows] = await pool.query("SELECT pricing FROM service_tracks WHERE id = ?", [p.service_track_id]);
+            if (tRows.length > 0) {
+                const pricing = typeof tRows[0].pricing === 'string' ? JSON.parse(tRows[0].pricing) : tRows[0].pricing;
+                const plan = pricing.plans?.find(pl => String(pl.id) === String(p.treatment_type));
+                if (plan) p.treatment_type = plan.name;
+            }
+        }
 
-    // Calculate Due Amount
-    // If Package (total_amount > 0): Due = Total Amount - Total Paid (Simple Remaining)
-    // If Daily: Due = Arrears (if any)
-    const planCost = parseFloat(p.total_amount || 0);
-    if (planCost > 0) {
-        p.due_amount = planCost - totalPaid;
+        const [todayPaidRows] = await pool.query(
+            "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE patient_id = ? AND DATE(payment_date) = CURDATE()",
+            [patientId],
+        );
+        p.has_payment_today = parseFloat(todayPaidRows[0].total || 0);
+
+        const [treatmentPayments] = await pool.query(
+            "SELECT payment_id, amount, payment_date, mode as payment_method, remarks, created_at, 'treatment' as type FROM payments WHERE patient_id = ? ORDER BY payment_date DESC, created_at DESC",
+            [patientId],
+        );
+        const [testPayments] = await pool.query(
+            `SELECT tp.id as payment_id, tp.amount, tp.created_at as payment_date, tp.payment_method, t.test_name, 'test' as type 
+             FROM test_payments tp 
+             JOIN tests t ON tp.test_id = t.test_id 
+             WHERE t.patient_id = ? 
+             ORDER BY tp.created_at DESC`,
+            [patientId]
+        );
+        combinedHistory = [...treatmentPayments, ...testPayments].sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
+
+        const [attendanceRows] = await pool.query(
+            "SELECT attendance_id, attendance_date, status, created_at FROM attendance WHERE patient_id = ? ORDER BY attendance_date DESC LIMIT 50",
+            [patientId],
+        );
+        attendance = attendanceRows;
+
+        const [historyRows] = await pool.query(
+            "SELECT treatment_id as id, treatment_type, treatment_days, package_cost, treatment_cost_per_day, total_amount, advance_payment, discount_amount, start_date, end_date, created_at FROM patients_treatment WHERE patient_id = ? ORDER BY start_date DESC",
+            [patientId],
+        );
+        treatmentHistory = historyRows;
+
+        const [testRows] = await pool.query(
+            "SELECT test_id, test_uid, test_name, total_amount, test_status, payment_status, created_at FROM tests WHERE patient_id = ? ORDER BY created_at DESC",
+            [patientId]
+        );
+        tests = testRows;
     } else {
-        p.due_amount = p.effective_balance < 0 ? Math.abs(p.effective_balance) : 0;
-    }
-    if (p.due_amount < 0) p.due_amount = 0;
-
-    p.total_consumed = totalConsumed;
-    p.total_paid = totalPaid;
-
-    // Resolve plan name for current plan
-    if (p.service_track_id) {
-        const [tRows] = await pool.query("SELECT pricing FROM service_tracks WHERE id = ?", [p.service_track_id]);
-        if (tRows.length > 0) {
-            const pricing = typeof tRows[0].pricing === 'string' ? JSON.parse(tRows[0].pricing) : tRows[0].pricing;
-            const plan = pricing.plans?.find(pl => String(pl.id) === String(p.treatment_type));
-            if (plan) p.treatment_type = plan.name;
+        const { patient_name, phone_number } = req.body;
+        if (!patient_name) {
+            return res.status(400).json({ status: "error", message: "Patient ID or Name required" });
         }
+
+        const [testRows] = await pool.query(
+            "SELECT * FROM tests WHERE patient_name = ? AND phone_number = ? AND (patient_id IS NULL OR patient_id = 0) AND test_status != 'cancelled' ORDER BY created_at DESC",
+            [patient_name, phone_number]
+        );
+
+        if (testRows.length === 0) {
+            return res.status(404).json({ status: "error", message: "No records found" });
+        }
+
+        const first = testRows[0];
+        p = {
+            patient_id: 0,
+            patient_name: first.patient_name,
+            phone_number: first.phone_number,
+            gender: first.gender,
+            age: first.age,
+            address: first.address,
+            created_at: first.created_at,
+            total_amount: 0,
+            due_amount: testRows.reduce((sum, t) => sum + parseFloat(t.due_amount || 0), 0),
+            total_paid: 0,
+            effective_balance: 0
+        };
+
+        const [tpRows] = await pool.query(
+            `SELECT tp.id as payment_id, tp.amount, tp.created_at as payment_date, tp.payment_method, t.test_name, 'test' as type 
+             FROM test_payments tp 
+             JOIN tests t ON tp.test_id = t.test_id 
+             WHERE t.patient_name = ? AND t.phone_number = ? AND (t.patient_id IS NULL OR t.patient_id = 0)
+             ORDER BY tp.created_at DESC`,
+            [patient_name, phone_number]
+        );
+
+        combinedHistory = tpRows;
+        tests = testRows;
+        p.total_paid = tpRows.reduce((sum, tp) => sum + parseFloat(tp.amount), 0);
+        p.test_billed_amount = testRows.reduce((sum, t) => sum + parseFloat(t.total_amount), 0);
+
+        const [todayPaidRows] = await pool.query(
+            `SELECT COALESCE(SUM(tp.amount), 0) as total 
+             FROM test_payments tp 
+             JOIN tests t ON tp.test_id = t.test_id 
+             WHERE t.patient_name = ? AND t.phone_number = ? AND (t.patient_id IS NULL OR t.patient_id = 0) AND DATE(tp.created_at) = CURDATE()`,
+            [patient_name, phone_number]
+        );
+        p.has_payment_today = parseFloat(todayPaidRows[0].total || 0);
     }
-
-    const [todayPaidRows] = await pool.query(
-        "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE patient_id = ? AND DATE(payment_date) = CURDATE()",
-        [patientId],
-    );
-    p.has_payment_today = parseFloat(todayPaidRows[0].total || 0);
-
-    const [payments] = await pool.query(
-        "SELECT payment_id, amount, payment_date, mode as payment_method, remarks, created_at FROM payments WHERE patient_id = ? ORDER BY payment_date DESC, created_at DESC",
-        [patientId],
-    );
-    const [attendance] = await pool.query(
-        "SELECT attendance_id, attendance_date, status, created_at FROM attendance WHERE patient_id = ? ORDER BY attendance_date DESC LIMIT 50",
-        [patientId],
-    );
-    const [treatmentHistory] = await pool.query(
-        "SELECT treatment_id as id, treatment_type, treatment_days, package_cost, treatment_cost_per_day, total_amount, advance_payment, discount_amount, start_date, end_date, created_at FROM patients_treatment WHERE patient_id = ? ORDER BY start_date DESC",
-        [patientId],
-    );
-    const [tests] = await pool.query(
-        "SELECT test_id, test_uid, test_name, total_amount, test_status, payment_status, created_at FROM tests WHERE patient_id = ? ORDER BY created_at DESC",
-        [patientId]
-    );
 
     res.json({
         status: "success",
         data: {
             ...p,
-            payments,
+            payments: combinedHistory,
             attendance,
             history: treatmentHistory,
             tests,
