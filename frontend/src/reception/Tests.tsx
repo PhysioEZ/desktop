@@ -24,6 +24,7 @@ import NotesDrawer from "../components/NotesDrawer";
 import ChatModal from "../components/Chat/ChatModal";
 import KeyboardShortcuts from "../components/KeyboardShortcuts";
 import TestDetailsModal from "../components/reception/TestDetailsModal";
+import TestBillModal from "../components/patients/modals/TestBillModal";
 
 interface TestRecord {
   uid: string;
@@ -86,6 +87,8 @@ const Tests = () => {
 
   const [selectedTest, setSelectedTest] = useState<TestRecord | null>(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [showTestBill, setShowTestBill] = useState(false);
+  const [billTestId, setBillTestId] = useState<number | null>(null);
 
   // Filter Logic
   // We apply the tab filter locally over whatever records were fetched
@@ -601,7 +604,14 @@ const Tests = () => {
                                 >
                                   View
                                 </button>
-                                <button className="px-4 py-1.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/20 transition-colors shadow-sm">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setBillTestId(parseInt(record.uid));
+                                    setShowTestBill(true);
+                                  }}
+                                  className="px-4 py-1.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/20 transition-colors shadow-sm"
+                                >
                                   Bill
                                 </button>
                               </div>
@@ -761,7 +771,7 @@ const Tests = () => {
                                       Paid
                                     </p>
                                     <p className="text-xs font-black text-yellow-600">
-                                      ₹0
+                                      ₹{item.advance_amount || 0}
                                     </p>
                                   </div>
                                   <div
@@ -770,7 +780,9 @@ const Tests = () => {
                                     <p className="text-[8px] font-bold uppercase opacity-30 mb-0.5">
                                       Discount
                                     </p>
-                                    <p className="text-xs font-black">₹0</p>
+                                    <p className="text-xs font-black">
+                                      ₹{item.discount || 0}
+                                    </p>
                                   </div>
                                 </div>
                               )}
@@ -807,6 +819,16 @@ const Tests = () => {
           setSelectedTest(null);
         }}
         test={selectedTest}
+      />
+
+      {/* Test Bill Modal */}
+      <TestBillModal
+        isOpen={showTestBill}
+        onClose={() => {
+          setShowTestBill(false);
+          setBillTestId(null);
+        }}
+        testId={billTestId}
       />
     </div>
   );

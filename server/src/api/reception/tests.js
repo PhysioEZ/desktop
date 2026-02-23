@@ -90,76 +90,90 @@ exports.submitTest = async (req, res) => {
         const discount = parseFloat(data.discount || 0);
         const payment_method = data.payment_method || 'cash';
 
-        // 2. Generate Test UID
-        // Format: YYMMDD + serial (2 digits)
-        // Need to parse visit_date to YYMMDD
-        // visit_date is YYYY-MM-DD
-        const dateObj = new Date(visit_date);
-        const ymd = dateObj.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
-        const datePrefix = ymd;
+        // 2. Check for existing session (Test Grouping)
+        let parent_test_id = null;
+        let existing_test = null;
+        let newTestUid = null;
 
-        const [lastUidRows] = await connection.query(`
-            SELECT test_uid FROM tests 
-            WHERE test_uid LIKE ? 
-            ORDER BY test_uid DESC 
-            LIMIT 1
-        `, [datePrefix + '%']);
-
-        let serial = 0;
-        if (lastUidRows.length > 0) {
-            const lastUid = lastUidRows[0].test_uid;
-            // lastUid format YYMMDDXX
-            const suffix = lastUid.substring(6);
-            serial = parseInt(suffix, 10) || 0;
+        if (patient_id) {
+            const [existingRows] = await connection.query(
+                "SELECT * FROM tests WHERE patient_id = ? AND test_status != 'cancelled' ORDER BY created_at DESC LIMIT 1",
+                [patient_id]
+            );
+            if (existingRows.length > 0) {
+                existing_test = existingRows[0];
+                parent_test_id = existing_test.test_id;
+                newTestUid = existing_test.test_uid;
+            }
         }
-        serial++;
-        const newTestUid = datePrefix + String(serial).padStart(2, '0');
 
-        // 3. Calculate Global Totals and Status
-        let global_total_amount = 0.00;
+        // 3. Generate Test UID (only if new)
+        if (!parent_test_id) {
+            const dateObj = new Date(visit_date);
+            const ymd = dateObj.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
+            const datePrefix = ymd;
+
+            const [lastUidRows] = await connection.query(`
+                SELECT test_uid FROM tests 
+                WHERE test_uid LIKE ? 
+                ORDER BY test_uid DESC 
+                LIMIT 1
+            `, [datePrefix + '%']);
+
+            let serial = 0;
+            if (lastUidRows.length > 0) {
+                const lastUid = lastUidRows[0].test_uid;
+                const suffix = lastUid.substring(6);
+                serial = parseInt(suffix, 10) || 0;
+            }
+            serial++;
+            newTestUid = datePrefix + String(serial).padStart(2, '0');
+        }
+
+        // 4. Calculate Global Totals and Update/Insert Parent
+        let batch_total_amount = 0.00;
         test_names.forEach(name => {
             const amt = parseFloat(test_amounts[name] || 0);
-            global_total_amount += amt;
+            batch_total_amount += amt;
         });
 
-        // Ensure global_total_amount matches passed total (sanity check? or override?)
-        // PHP code calculated it from test_amounts logic. Let's trust logic.
+        const parent_test_name_part = test_names.map(t => t.toUpperCase()).join(', ');
 
-        const global_due_amount = global_total_amount - advance_amount - discount;
+        if (parent_test_id) {
+            // Update Existing Parent
+            const updated_total = parseFloat(existing_test.total_amount) + batch_total_amount;
+            const updated_discount = parseFloat(existing_test.discount) + discount;
+            const combinedNames = (existing_test.test_name || '') + ', ' + parent_test_name_part;
+            const uniqueNames = [...new Set(combinedNames.toUpperCase().split(',').map(s => s.trim()))].filter(Boolean).join(', ');
+            const updated_test_name = uniqueNames;
 
-        let global_payment_status = 'pending';
-        if (global_total_amount === 0) {
-            global_payment_status = 'paid';
-        } else if (global_due_amount <= 0 && global_total_amount > 0) {
-            global_payment_status = 'paid';
-        } else if (advance_amount > 0 && global_due_amount > 0) {
-            global_payment_status = 'partial';
-        }
-
-        // Approval Status
-        const approval_status = (advance_amount <= 0 || discount > 200) ? 'pending' : 'approved';
-
-        // 4. Insert Parent Record
-        const parent_test_name = test_names.map(t => t.toUpperCase()).join(', ');
-        const patient_id = data.patient_id || null;
-
-        const [parentResult] = await connection.query(`
-            INSERT INTO tests (
-                test_uid, visit_date, assigned_test_date, patient_name, phone_number,
+            await connection.query(`
+                UPDATE tests SET 
+                    total_amount = ?, discount = ?, test_name = ?,
+                    referred_by = COALESCE(?, referred_by),
+                    test_done_by = COALESCE(?, test_done_by)
+                WHERE test_id = ?
+            `, [updated_total, updated_discount, updated_test_name, referred_by, test_done_by, parent_test_id]);
+        } else {
+            // Insert New Parent
+            const approval_status = (advance_amount === 0) ? 'pending' : 'approved';
+            const [parentResult] = await connection.query(`
+                INSERT INTO tests (
+                    test_uid, visit_date, assigned_test_date, patient_name, phone_number,
+                    gender, age, dob, parents, relation, alternate_phone_no, address,
+                    limb, test_name, referred_by, test_done_by, created_by_employee_id,
+                    total_amount, advance_amount, discount, due_amount, payment_method,
+                    payment_status, branch_id, approval_status, patient_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+                newTestUid, visit_date, assigned_test_date, patient_name, phone_number,
                 gender, age, dob, parents, relation, alternate_phone_no, address,
-                limb, test_name, referred_by, test_done_by, created_by_employee_id,
-                total_amount, advance_amount, discount, due_amount, payment_method,
-                payment_status, branch_id, approval_status, patient_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-            newTestUid, visit_date, assigned_test_date, patient_name, phone_number,
-            gender, age, dob, parents, relation, alternate_phone_no, address,
-            limb, parent_test_name, referred_by, test_done_by, employee_id,
-            global_total_amount, advance_amount, discount, Math.max(0, global_due_amount), payment_method,
-            global_payment_status, branch_id, approval_status, patient_id
-        ]);
-
-        const parent_test_id = parentResult.insertId;
+                limb, parent_test_name_part, referred_by, test_done_by, employee_id,
+                batch_total_amount, 0, discount, 0, payment_method,
+                'pending', branch_id, approval_status, patient_id
+            ]);
+            parent_test_id = parentResult.insertId;
+        }
 
         // 5. Insert Payment Splits
         const payment_amounts_split = data.payment_amounts || {};
@@ -178,69 +192,37 @@ exports.submitTest = async (req, res) => {
         }
 
         // 6. Insert Child Items
-        let remaining_advance = advance_amount;
-        let remaining_discount = discount;
-
         for (const single_test_name of test_names) {
             const current_total_amount = parseFloat(test_amounts[single_test_name] || 0);
 
-            // Distribute advance
-            let current_advance_amount = 0.00;
-            if (remaining_advance > 0) {
-                if (remaining_advance >= current_total_amount) {
-                    current_advance_amount = current_total_amount;
-                    remaining_advance -= current_total_amount;
-                } else {
-                    current_advance_amount = remaining_advance;
-                    remaining_advance = 0;
-                }
-            }
-
-            // Distribute discount
-            let current_discount_amount = 0.00;
-            if (remaining_discount > 0) {
-                const max_discount = Math.max(0, current_total_amount - current_advance_amount);
-                if (remaining_discount >= max_discount) {
-                    current_discount_amount = max_discount;
-                    remaining_discount -= max_discount;
-                } else {
-                    current_discount_amount = remaining_discount;
-                    remaining_discount = 0;
-                }
-            }
-
-            const current_due_amount = current_total_amount - current_advance_amount - current_discount_amount;
-
-            let current_payment_status = 'pending';
-            if (current_total_amount === 0) current_payment_status = 'paid';
-            else if (current_due_amount <= 0) current_payment_status = 'paid';
-            else if (current_advance_amount > 0) current_payment_status = 'partial';
+            // In our new transaction-based system, we don't necessarily need to distribute advance/discount immediately to rows
+            // But for compatibility with existing views, we'll set them to 0 or prorate if it's a new record.
+            // For now, let's keep it simple: parent has the totals, items have their specific amounts.
 
             const [itemResult] = await connection.query(`
                 INSERT INTO test_items (
                     test_id, created_by_employee_id, assigned_test_date, test_name,
                     limb, referred_by, test_done_by, total_amount, advance_amount, discount,
                     due_amount, payment_method, test_status, payment_status, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, NOW())
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?, ?, 'pending', 'pending', NOW())
             `, [
                 parent_test_id, employee_id, assigned_test_date, single_test_name,
-                limb, referred_by, test_done_by, current_total_amount, current_advance_amount, current_discount_amount,
-                Math.max(0, current_due_amount), payment_method, current_payment_status
+                limb, referred_by, test_done_by, current_total_amount,
+                current_total_amount, payment_method
             ]);
 
             const newItemId = itemResult.insertId;
 
-            // 7. Referral Logic
+            // 7. Referral Logic (Inside loop)
             if (referred_by) {
                 const [pRules] = await connection.query("SELECT partner_id FROM referral_partners WHERE TRIM(name) = ? LIMIT 1", [referred_by]);
                 if (pRules.length > 0) {
                     const pId = pRules[0].partner_id;
-
-                    // Update parent and child
-                    await connection.query("UPDATE tests SET referral_partner_id = ? WHERE test_id = ?", [pId, parent_test_id]);
+                    // Update parent referral_partner_id only if it's the first item or not set yet
+                    // This ensures the parent test record reflects the referral partner for the whole batch
+                    await connection.query("UPDATE tests SET referral_partner_id = ? WHERE test_id = ? AND referral_partner_id IS NULL", [pId, parent_test_id]);
                     await connection.query("UPDATE test_items SET referral_partner_id = ? WHERE item_id = ?", [pId, newItemId]);
 
-                    // Calculate Commission
                     const [rateRows] = await connection.query(
                         "SELECT commission_amount FROM referral_rates WHERE partner_id = ? AND service_type = 'test' AND service_item_name = ? LIMIT 1",
                         [pId, single_test_name]
@@ -253,6 +235,33 @@ exports.submitTest = async (req, res) => {
                 }
             }
         }
+
+        // 8. Recalculate Aggregated Totals and Status for the Session
+        const [aggRows] = await connection.query(`
+            SELECT 
+                COALESCE(SUM(amount), 0) as total_paid
+            FROM test_payments 
+            WHERE test_id = ?
+        `, [parent_test_id]);
+
+        const total_paid = parseFloat(aggRows[0].total_paid);
+        const [currentParent] = await connection.query("SELECT total_amount, discount FROM tests WHERE test_id = ?", [parent_test_id]);
+        const final_total = parseFloat(currentParent[0].total_amount);
+        const final_discount = parseFloat(currentParent[0].discount);
+        const final_due = Math.max(0, final_total - total_paid - final_discount);
+
+        let final_payment_status = 'pending';
+        if (final_total === 0) final_payment_status = 'paid';
+        else if (final_due <= 0) final_payment_status = 'paid';
+        else if (total_paid > 0) final_payment_status = 'partial';
+
+        await connection.query(`
+            UPDATE tests SET 
+                advance_amount = ?, 
+                due_amount = ?, 
+                payment_status = ? 
+            WHERE test_id = ?
+        `, [total_paid, final_due, final_payment_status, parent_test_id]);
 
         await connection.commit();
 
@@ -293,46 +302,97 @@ exports.addTestForPatient = async (req, res) => {
         const patient = ptRows[0];
         if (!patient) throw new Error("Patient not found");
 
-        // 2. Generate UID
-        const today = new Date().toISOString().split('T')[0];
-        const datePrefix = new Date().toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
-        const [lastUidRows] = await connection.query("SELECT test_uid FROM tests WHERE test_uid LIKE ? ORDER BY test_uid DESC LIMIT 1", [datePrefix + '%']);
-        const lastUid = lastUidRows.length > 0 ? lastUidRows[0].test_uid : null;
-        let serial = lastUid ? parseInt(lastUid.substring(6)) : 0;
-        serial++;
-        const newTestUid = datePrefix + String(serial).padStart(2, '0');
+        // 2. Check for existing session (Grouping)
+        let testId = null;
+        let newTestUid = null;
+        let existing_test = null;
+        const today = new Date().toISOString().split('T')[0]; // Define today here
 
-        // 3. Insert into tests
-        const status = (due <= 0) ? 'paid' : ((advance > 0) ? 'partial' : 'pending');
+        const [existingRows] = await connection.query(
+            "SELECT * FROM tests WHERE patient_id = ? AND test_status != 'cancelled' ORDER BY created_at DESC LIMIT 1",
+            [patientId]
+        );
 
-        const [testResult] = await connection.query(`
-            INSERT INTO tests (
-                test_uid, visit_date, assigned_test_date, patient_name, phone_number,
-                gender, age, test_name, total_amount, advance_amount, due_amount, 
-                payment_status, branch_id, approval_status
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 'General Test (Patient Module)', ?, ?, ?, ?, ?, 'approved')
-        `, [
-            newTestUid, today, today, patient.patient_name || 'N/A', patient.patient_phone || 'N/A',
-            patient.patient_gender || 'N/A', patient.patient_age || 'N/A',
-            total, advance, due, status, patient.branch_id
-        ]);
+        if (existingRows.length > 0) {
+            existing_test = existingRows[0];
+            testId = existing_test.test_id;
+            newTestUid = existing_test.test_uid;
 
-        const testId = testResult.insertId;
+            // Update Existing Parent
+            const updated_total = parseFloat(existing_test.total_amount) + total;
+            const combinedNames = (existing_test.test_name || '') + ', ' + 'General Test';
+            const uniqueNames = [...new Set(combinedNames.toUpperCase().split(',').map(s => s.trim()))].filter(Boolean).join(', ');
+            const updated_test_name = uniqueNames;
 
-        // 4. Insert into test_items
+            await connection.query(`
+                UPDATE tests SET 
+                    total_amount = ?, test_name = ?
+                WHERE test_id = ?
+            `, [updated_total, updated_test_name, testId]);
+        } else {
+            // Generate New UID
+            const datePrefix = new Date().toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
+            const [lastUidRows] = await connection.query("SELECT test_uid FROM tests WHERE test_uid LIKE ? ORDER BY test_uid DESC LIMIT 1", [datePrefix + '%']);
+            const lastUid = lastUidRows.length > 0 ? lastUidRows[0].test_uid : null;
+            let serial = lastUid ? parseInt(lastUid.substring(6)) : 0;
+            serial++;
+            newTestUid = datePrefix + String(serial).padStart(2, '0');
+
+            // Insert New Parent
+            const [testResult] = await connection.query(`
+                INSERT INTO tests (
+                    test_uid, visit_date, assigned_test_date, patient_name, phone_number,
+                    gender, age, test_name, total_amount, advance_amount, due_amount, 
+                    payment_status, branch_id, approval_status, patient_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 'General Test (Patient Module)', ?, 0, ?, 'pending', ?, ?, ?)
+            `, [
+                newTestUid, today, today, patient.patient_name || 'N/A', patient.patient_phone || 'N/A',
+                patient.patient_gender || 'N/A', patient.patient_age || 'N/A',
+                total, total, patient.branch_id, (advance === 0 ? 'pending' : 'approved'), patientId
+            ]);
+            testId = testResult.insertId;
+        }
+
+        // 3. Insert into test_items
         await connection.query(`
-            INSERT INTO test_items (
-                test_id, test_name, total_amount, advance_amount, due_amount, payment_status, created_at
-            ) VALUES (?, 'General Test', ?, ?, ?, ?, NOW())
-        `, [testId, total, advance, due, status]);
+            INSERT INTO test_items(
+                    test_id, test_name, total_amount, advance_amount, due_amount, payment_status, created_at
+                ) VALUES(?, 'General Test', ?, 0, ?, 'pending', NOW())
+                    `, [testId, total, total]);
 
-        // 5. Insert into payments
+        // 4. Insert into test_payments (Transaction Table)
         if (advance > 0) {
             await connection.query(`
-                INSERT INTO payments (patient_id, amount, payment_method, mode, payment_date, remarks, branch_id, created_at, processed_by_employee_id)
-                VALUES (?, ?, 'Cash', 'Cash', ?, 'Test Advance', ?, NOW(), ?)
-            `, [patientId, advance, today, patient.branch_id, req.user.employee_id]);
+                INSERT INTO test_payments(test_id, payment_method, amount)
+            VALUES(?, 'Cash', ?)
+                `, [testId, advance]);
+
+            // Also record in global payments table for overall tracking if needed
+            await connection.query(`
+                INSERT INTO payments(patient_id, amount, payment_method, mode, payment_date, remarks, branch_id, created_at, processed_by_employee_id)
+            VALUES(?, ?, 'Cash', 'Cash', ?, 'Test Advance', ?, NOW(), ?)
+                `, [patientId, advance, today, patient.branch_id, req.user?.employee_id || 0]);
         }
+
+        // 5. Recalculate Aggregated Totals
+        const [aggRows] = await connection.query(`
+            SELECT COALESCE(SUM(amount), 0) as total_paid FROM test_payments WHERE test_id = ?
+                `, [testId]);
+
+        const total_paid = parseFloat(aggRows[0].total_paid);
+        const [finalParent] = await connection.query("SELECT total_amount, discount FROM tests WHERE test_id = ?", [testId]);
+        const final_total = parseFloat(finalParent[0].total_amount);
+        const final_discount = parseFloat(finalParent[0].discount);
+        const final_due = Math.max(0, final_total - total_paid - final_discount);
+
+        let final_status = 'pending';
+        if (final_due <= 0) final_status = 'paid';
+        else if (total_paid > 0) final_status = 'partial';
+
+        await connection.query(`
+            UPDATE tests SET advance_amount = ?, due_amount = ?, payment_status = ?
+                WHERE test_id = ?
+                    `, [total_paid, final_due, final_status, testId]);
 
         await connection.commit();
         res.json({ success: true, message: 'Test added successfully' });
@@ -361,6 +421,9 @@ exports.handleTestsRequest = async (req, res) => {
                 break;
             case 'fetch_details':
                 await fetchTestDetails(req, res, branchId, input.test_id);
+                break;
+            case 'get_bill':
+                await fetchTestBill(req, res, branchId, input.test_id);
                 break;
             case 'update_metadata':
                 await updateTestMetadata(req, res, branchId, input);
@@ -394,7 +457,7 @@ async function fetchTests(req, res, branchId, input) {
 
     if (search) {
         whereClauses.push("(patient_name LIKE ? OR phone_number LIKE ? OR test_uid LIKE ?)");
-        const p = `%${search}%`;
+        const p = `% ${search}% `;
         params.push(p, p, p);
     }
     if (status) {
@@ -407,28 +470,28 @@ async function fetchTests(req, res, branchId, input) {
     }
     if (test_name) {
         whereClauses.push("test_name LIKE ?");
-        params.push(`%${test_name}%`);
+        params.push(`% ${test_name}% `);
     }
 
     const [tests] = await pool.query(`
-        SELECT 
-            test_id as uid, patient_name, test_name, total_amount, 
-            advance_amount as paid_amount, due_amount, payment_status, 
-            test_status, created_at, test_uid
+            SELECT
+            test_id as uid, patient_name, test_name, total_amount,
+                advance_amount as paid_amount, due_amount, payment_status,
+                test_status, created_at, test_uid
         FROM tests
         WHERE ${whereClauses.join(" AND ")}
         ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
-    `, [...params, limit, offset]);
+            LIMIT ? OFFSET ?
+                `, [...params, limit, offset]);
 
     const [[stats]] = await pool.query(`
-        SELECT 
+        SELECT
             COUNT(*) as total,
-            SUM(CASE WHEN test_status = 'completed' THEN 1 ELSE 0 END) as completed,
-            SUM(CASE WHEN test_status = 'pending' THEN 1 ELSE 0 END) as pending
+                SUM(CASE WHEN test_status = 'completed' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN test_status = 'pending' THEN 1 ELSE 0 END) as pending
         FROM tests
         WHERE branch_id = ? AND test_status != 'cancelled'
-    `, [branchId]);
+                `, [branchId]);
 
     res.json({
         success: true,
@@ -451,7 +514,58 @@ async function fetchTestDetails(req, res, branchId, testId) {
     const [items] = await pool.query("SELECT * FROM test_items WHERE test_id = ? ORDER BY item_id ASC", [testId]);
     mainTest.test_items = items;
 
+    const [payments] = await pool.query("SELECT * FROM test_payments WHERE test_id = ? ORDER BY created_at DESC", [testId]);
+    mainTest.test_payments = payments;
+
     res.json({ success: true, data: mainTest });
+}
+
+async function fetchTestBill(req, res, branchId, testId) {
+    if (!testId) throw new Error("Test ID required");
+
+    const [mainRows] = await pool.query("SELECT * FROM tests WHERE test_id = ? AND branch_id = ?", [testId, branchId]);
+    const mainTest = mainRows[0];
+    if (!mainTest) throw new Error("Test not found");
+
+    const [items] = await pool.query("SELECT * FROM test_items WHERE test_id = ? ORDER BY item_id ASC", [testId]);
+
+    // Fetch Branch Details
+    const [branchRows] = await pool.query(
+        "SELECT clinic_name, address_line_1, phone_primary FROM branches WHERE branch_id = ?",
+        [mainTest.branch_id]
+    );
+    const branch = branchRows[0] || {};
+
+    const token_date = new Date(mainTest.created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }) + " " + new Date(mainTest.created_at).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true });
+
+    const [payments] = await pool.query("SELECT amount, payment_method, created_at FROM test_payments WHERE test_id = ? ORDER BY created_at ASC", [testId]);
+
+    const billData = {
+        uid: mainTest.test_uid,
+        patient_name: mainTest.patient_name,
+        test_name: mainTest.test_name,
+        total_amount: mainTest.total_amount,
+        paid_amount: mainTest.advance_amount,
+        due_amount: mainTest.due_amount,
+        discount: mainTest.discount,
+        payment_status: mainTest.payment_status,
+        test_status: mainTest.test_status,
+        date: token_date,
+        clinic_name: branch.clinic_name,
+        branch_address: branch.address_line_1,
+        branch_phone: branch.phone_primary,
+        items: items.map(i => ({
+            name: i.test_name,
+            amount: i.total_amount
+        })),
+        payments_history: payments.map(p => ({
+            amount: p.amount,
+            method: p.payment_method,
+            date: new Date(p.created_at).toLocaleDateString("en-GB")
+        }))
+    };
+
+    res.json({ success: true, data: billData });
 }
 
 async function updateTestMetadata(req, res, branchId, input) {
@@ -476,7 +590,7 @@ async function updateTestMetadata(req, res, branchId, input) {
 
     if (updates.length > 0) {
         params.push(test_id, branchId);
-        await pool.query(`UPDATE tests SET ${updates.join(", ")} WHERE test_id = ? AND branch_id = ?`, params);
+        await pool.query(`UPDATE tests SET ${updates.join(", ")} WHERE test_id = ? AND branch_id = ? `, params);
     }
 
     res.json({ success: true, message: "Metadata updated" });
@@ -498,7 +612,7 @@ async function updateTestItem(req, res, branchId, input) {
 
         if (updates.length > 0) {
             params.push(item_id);
-            await connection.query(`UPDATE test_items SET ${updates.join(", ")} WHERE item_id = ?`, params);
+            await connection.query(`UPDATE test_items SET ${updates.join(", ")} WHERE item_id = ? `, params);
         }
 
         // Sync Parent Status
@@ -554,30 +668,38 @@ async function addTestPayment(req, res, branchId, input) {
 
         if (totalBatchAmount <= 0) throw new Error("Total payment amount must be greater than zero");
 
-        // 2. Update Parent Totals
-        const [mainRows] = await connection.query("SELECT total_amount, advance_amount, discount FROM tests WHERE test_id = ?", [test_id]);
-        const main = mainRows[0];
-        const newAdvance = parseFloat(main.advance_amount) + totalBatchAmount;
-        const newDue = Math.max(0, parseFloat(main.total_amount) - newAdvance - parseFloat(main.discount));
+        // 2. Recalculate Aggregated Totals and Status
+        const [aggRows] = await connection.query(`
+            SELECT
+            COALESCE(SUM(amount), 0) as total_paid
+            FROM test_payments 
+            WHERE test_id = ?
+                `, [test_id]);
 
-        let newPayStatus = 'pending';
-        if (newDue <= 0) newPayStatus = 'paid';
-        else if (newAdvance > 0) newPayStatus = 'partial';
+        const total_paid = parseFloat(aggRows[0].total_paid);
+        const [currentParent] = await connection.query("SELECT total_amount, discount FROM tests WHERE test_id = ?", [test_id]);
+        const final_total = parseFloat(currentParent[0].total_amount);
+        const final_discount = parseFloat(currentParent[0].discount);
+        const final_due = Math.max(0, final_total - total_paid - final_discount);
 
-        await connection.query("UPDATE tests SET advance_amount = ?, due_amount = ?, payment_status = ? WHERE test_id = ?", [newAdvance, newDue, newPayStatus, test_id]);
+        let final_payment_status = 'pending';
+        if (final_total === 0) final_payment_status = 'paid';
+        else if (final_due <= 0) final_payment_status = 'paid';
+        else if (total_paid > 0) final_payment_status = 'partial';
 
-        // 3. Update Item
+        await connection.query(`
+            UPDATE tests SET
+            advance_amount = ?,
+                due_amount = ?,
+                payment_status = ?
+                    WHERE test_id = ?
+                        `, [total_paid, final_due, final_payment_status, test_id]);
+
+        // 3. Update Item (Optional: Prorate or just update status)
         if (item_id) {
-            const [itemRows] = await connection.query("SELECT total_amount, advance_amount, discount FROM test_items WHERE item_id = ?", [item_id]);
-            const item = itemRows[0];
-            const iAdvance = parseFloat(item.advance_amount) + totalBatchAmount;
-            const iDue = Math.max(0, parseFloat(item.total_amount) - iAdvance - parseFloat(item.discount));
-
-            let iPayStatus = 'pending';
-            if (iDue <= 0) iPayStatus = 'paid';
-            else if (iAdvance > 0) iPayStatus = 'partial';
-
-            await connection.query("UPDATE test_items SET advance_amount = ?, due_amount = ?, payment_status = ? WHERE item_id = ?", [iAdvance, iDue, iPayStatus, item_id]);
+            // For now, we'll just update the status if the parent is paid
+            let itemPayStatus = final_payment_status;
+            await connection.query("UPDATE test_items SET payment_status = ? WHERE item_id = ?", [itemPayStatus, item_id]);
         }
 
         await connection.commit();

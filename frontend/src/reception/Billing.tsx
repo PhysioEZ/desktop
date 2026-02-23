@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   format,
   startOfMonth,
@@ -11,10 +11,7 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
-  AlertCircle,
   CheckCircle2,
-  Eye,
-  EyeOff,
   Zap,
   CalendarRange,
   SlidersHorizontal,
@@ -26,7 +23,7 @@ import {
   IndianRupee,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useNavigate } from "react-router-dom";
+// import { useNavigate } from "react-router-dom";
 import { useThemeStore } from "../store";
 import { API_BASE_URL, authFetch } from "../config";
 import { toast } from "sonner";
@@ -34,9 +31,9 @@ import BillingDrawer from "../components/billing/BillingDrawer";
 import RangePicker from "../components/ui/RangePicker";
 import FileViewer from "../components/FileViewer/FileViewer";
 import { usePatientStore } from "../store/usePatientStore";
-import { useAuthStore } from "../store/useAuthStore";
 import PageHeader from "../components/PageHeader";
 import Sidebar from "../components/Sidebar";
+import TestDetailsModal from "../components/reception/TestDetailsModal";
 
 interface BillingRecord {
   patient_id: number;
@@ -50,37 +47,33 @@ interface BillingRecord {
   created_at: string;
   branch_id: number;
   effective_balance?: number;
-}
-
-interface Notification {
-  notification_id: number;
-  message: string;
-  link_url: string | null;
-  is_read: number;
-  created_at: string;
-  time_ago: string;
+  discount_amount?: string;
+  discount?: string;
 }
 
 const Billing = () => {
   const { isDark } = useThemeStore();
-  const { user } = useAuthStore();
+  // const { user } = useAuthStore();
 
   // State
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<any>({
+    treatment: { billed: 0, paid: 0, due: 0 },
+    tests: { billed: 0, paid: 0, due: 0 },
     today_collection: 0,
-    range_billed: 0,
-    range_paid: 0,
-    range_due: 0,
   });
   const [records, setRecords] = useState<BillingRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showOnlyToday, setShowOnlyToday] = useState(false);
+  const [activeTab, setActiveTab] = useState<"overview" | "patients" | "tests">(
+    "overview",
+  );
+  const [combinedRecords, setCombinedRecords] = useState<any[]>([]);
+  const [groupedTests, setGroupedTests] = useState<any[]>([]);
+
   const [statsData, setStatsData] = useState<any>({ methods: [], trends: [] });
-  const [showBilled, setShowBilled] = useState(false);
-  const [showCollected, setShowCollected] = useState(false);
 
   // Custom Range States
   const [isCustomRange, setIsCustomRange] = useState(false);
@@ -96,6 +89,10 @@ const Billing = () => {
     direction: "asc" | "desc";
   }>({ key: "created_at", direction: "desc" });
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+
+  // Test Modal State
+  const [selectedTest, setSelectedTest] = useState<any>(null);
+  const [isTestModalOpen, setIsTestModalOpen] = useState(false);
 
   // File Viewer
   const [fileViewerConfig, setFileViewerConfig] = useState<{
@@ -126,27 +123,64 @@ const Billing = () => {
         : format(endOfMonth(currentMonth), "yyyy-MM-dd");
 
     try {
-      const res = await authFetch(`${API_BASE_URL}/reception/billing`, {
-        method: "POST",
-        body: JSON.stringify({
-          action: "fetch_overview",
-          startDate: start,
-          endDate: end,
-          search,
-          status: statusFilter,
-          paymentFilter: showOnlyToday ? "today" : "all",
-        }),
-      });
-      const json = await res.json();
-      if (json.status === "success") {
-        setStats(json.data.stats);
-        setRecords(json.data.records);
-        setStatsData({
-          methods: json.data.stats.methods || [],
-          trends: json.data.stats.trends || [],
+      if (activeTab === "overview") {
+        const res = await authFetch(`${API_BASE_URL}/reception/billing`, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "fetch_combined_overview",
+            startDate: start,
+            endDate: end,
+            search,
+          }),
         });
+        const json = await res.json();
+        if (json.status === "success") {
+          setCombinedRecords(json.data.records);
+          setStats(json.data.stats);
+          setStatsData({
+            methods: json.data.stats.methods || [],
+            trends: json.data.stats.trends || [],
+          });
+        }
+      } else if (activeTab === "patients") {
+        const res = await authFetch(`${API_BASE_URL}/reception/billing`, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "fetch_overview",
+            startDate: start,
+            endDate: end,
+            search,
+            status: statusFilter,
+            paymentFilter: showOnlyToday ? "today" : "all",
+          }),
+        });
+        const json = await res.json();
+        if (json.status === "success") {
+          setStats(json.data.stats);
+          setRecords(json.data.records);
+          setStatsData({
+            methods: json.data.stats.methods || [],
+            trends: json.data.stats.trends || [],
+          });
+        } else {
+          toast.error(json.message || "Failed to fetch billing data");
+        }
       } else {
-        toast.error(json.message || "Failed to fetch billing data");
+        const res = await authFetch(`${API_BASE_URL}/reception/billing`, {
+          method: "POST",
+          body: JSON.stringify({
+            action: "fetch_grouped_tests",
+            startDate: start,
+            endDate: end,
+            search,
+          }),
+        });
+        const json = await res.json();
+        if (json.status === "success") {
+          setGroupedTests(json.data);
+        } else {
+          toast.error(json.message || "Failed to fetch grouped tests");
+        }
       }
     } catch (e) {
       console.error(e);
@@ -168,6 +202,7 @@ const Billing = () => {
     rangeStart,
     rangeEnd,
     isCustomRange,
+    activeTab,
   ]);
 
   // Format Currency
@@ -191,8 +226,14 @@ const Billing = () => {
     let bVal: any = b[sortConfig.key as keyof BillingRecord];
 
     if (sortConfig.key === "due_amount") {
-      aVal = parseNum(a.total_amount) - parseNum(a.total_paid);
-      bVal = parseNum(b.total_amount) - parseNum(b.total_paid);
+      aVal =
+        parseNum(a.total_amount) -
+        parseNum(a.total_paid) -
+        (parseNum((a as any).discount_amount) || parseNum((a as any).discount));
+      bVal =
+        parseNum(b.total_amount) -
+        parseNum(b.total_paid) -
+        (parseNum((b as any).discount_amount) || parseNum((b as any).discount));
     } else {
       aVal = parseNum(aVal);
       bVal = parseNum(bVal);
@@ -209,9 +250,10 @@ const Billing = () => {
       (acc, r) => {
         const billed = parseNum(r.total_amount);
         const paid = parseNum(r.total_paid);
+        const discount = parseNum(r.discount_amount);
         acc.billed += billed;
         acc.paid += paid;
-        acc.due += billed - paid;
+        acc.due += billed - paid - discount;
         return acc;
       },
       { billed: 0, paid: 0, due: 0 },
@@ -288,8 +330,8 @@ const Billing = () => {
           </thead>
           <tbody>
             ${records
-        .map(
-          (r) => `
+              .map(
+                (r) => `
               <tr>
                 <td class="patient-id">#${r.patient_id}</td>
                 <td>${r.patient_name}</td>
@@ -302,8 +344,8 @@ const Billing = () => {
                 </td>
               </tr>
             `,
-        )
-        .join("")}
+              )
+              .join("")}
           </tbody>
         </table>
         
@@ -482,96 +524,123 @@ const Billing = () => {
                   <div
                     className={`text-5xl font-bold tracking-tight ${isDark ? "text-white" : "text-[#0F172A]"}`}
                   >
-                    {fmt(stats.today_collection)}
+                    {fmt(stats.today_collection || 0)}
                   </div>
                 </div>
               </div>
 
-              {/* Stat 2: Month Performance */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 opacity-50 px-2">
-                  <Banknote size={16} />
-                  <span className="text-sm font-bold uppercase tracking-wider">
-                    {format(currentMonth, "MMM")} Overview
-                  </span>
-                </div>
-
-                <div
-                  className={`p-5 rounded-3xl border flex flex-col gap-4 ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-gray-100 shadow-sm"}`}
-                >
-                  <div className="flex justify-between items-center border-b pb-4 border-dashed border-gray-100 dark:border-[#2A2D2A]">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`text-2xl font-bold ${isDark ? "text-white" : "text-gray-900"}`}
-                        >
-                          {showBilled ? fmt(stats.range_billed) : "••••••"}
-                        </div>
-                        <button
-                          onClick={() => setShowBilled(!showBilled)}
-                          className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-[#2A2D2A] transition-colors opacity-40 hover:opacity-100 flex items-center justify-center"
-                        >
-                          {showBilled ? (
-                            <EyeOff size={20} strokeWidth={2} />
-                          ) : (
-                            <Eye size={20} strokeWidth={2} />
-                          )}
-                        </button>
-                      </div>
-                      <div className="text-xs font-bold uppercase tracking-wide opacity-40 mt-1">
-                        Billed
-                      </div>
-                    </div>
-                    <div className="p-2 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400">
-                      <FileText size={18} strokeWidth={2.5} />
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`text-2xl font-bold text-emerald-600 dark:text-emerald-400`}
-                        >
-                          {showCollected ? fmt(stats.range_paid) : "••••••"}
-                        </div>
-                        <button
-                          onClick={() => setShowCollected(!showCollected)}
-                          className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-[#2A2D2A] transition-colors opacity-40 hover:opacity-100 flex items-center justify-center"
-                        >
-                          {showCollected ? (
-                            <EyeOff size={20} strokeWidth={2} />
-                          ) : (
-                            <Eye size={20} strokeWidth={2} />
-                          )}
-                        </button>
-                      </div>
-                      <div className="text-xs font-bold uppercase tracking-wide opacity-40 mt-1">
-                        Collected
-                      </div>
-                    </div>
-                    <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
-                      <CheckCircle2 size={18} strokeWidth={2.5} />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Stat 3: Dues */}
-              <div
-                className={`p-6 rounded-3xl border shadow-sm ${isDark ? "bg-[#251010] border-red-900/30" : "bg-white border-red-100"}`}
-              >
-                <div className="flex justify-between items-center mb-2">
-                  <div className="flex items-center gap-2">
-                    <div className="p-2 rounded-lg bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400">
-                      <AlertCircle size={20} strokeWidth={2.5} />
-                    </div>
-                    <span className="text-sm font-bold uppercase tracking-wider text-red-600 dark:text-red-400">
-                      Due (Range)
+              {/* Stat 2: Separated Performance Sections */}
+              <div className="space-y-6">
+                {/* Treatments Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 opacity-50 px-2">
+                    <Banknote size={16} />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+                      Patients (Treatments)
                     </span>
                   </div>
+
+                  <div
+                    className={`p-5 rounded-3xl border flex flex-col gap-4 ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-gray-100 shadow-sm"}`}
+                  >
+                    <div className="flex justify-between items-center border-b pb-4 border-dashed border-gray-100 dark:border-[#2A2D2A]">
+                      <div>
+                        <div
+                          className={`text-2xl font-black ${isDark ? "text-white" : "text-gray-900"}`}
+                        >
+                          {fmt(stats.treatment?.billed || 0)}
+                        </div>
+                        <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
+                          Billed
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20">
+                        <FileText size={18} strokeWidth={2.5} />
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center border-b pb-4 border-dashed border-gray-100 dark:border-[#2A2D2A]">
+                      <div>
+                        <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                          {fmt(stats.treatment?.paid || 0)}
+                        </div>
+                        <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
+                          Collected
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20">
+                        <CheckCircle2 size={18} strokeWidth={2.5} />
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="text-2xl font-black text-red-500">
+                          {fmt(stats.treatment?.due || 0)}
+                        </div>
+                        <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
+                          Balance Due
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-red-50 text-red-600 dark:bg-red-900/20">
+                        <ArrowUpRight size={18} strokeWidth={2.5} />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="text-4xl font-bold tracking-tight text-red-600 dark:text-red-400">
-                  {fmt(stats.range_due)}
+
+                {/* Tests Section */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 opacity-50 px-2">
+                    <Zap size={16} className="text-purple-500" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+                      Diagnostic Tests
+                    </span>
+                  </div>
+
+                  <div
+                    className={`p-5 rounded-3xl border flex flex-col gap-4 ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-purple-50 shadow-sm shadow-purple-500/5"}`}
+                  >
+                    <div className="flex justify-between items-center border-b pb-4 border-dashed border-purple-100 dark:border-[#2A2D2A]">
+                      <div>
+                        <div
+                          className={`text-2xl font-black ${isDark ? "text-white" : "text-gray-900"}`}
+                        >
+                          {fmt(stats.tests?.billed || 0)}
+                        </div>
+                        <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
+                          Billed
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-900/20">
+                        <FileText size={18} strokeWidth={2.5} />
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center border-b pb-4 border-dashed border-purple-100 dark:border-[#2A2D2A]">
+                      <div>
+                        <div className="text-2xl font-black text-purple-600 dark:text-purple-400">
+                          {fmt(stats.tests?.paid || 0)}
+                        </div>
+                        <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
+                          Collected
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-900/20">
+                        <CheckCircle2 size={18} strokeWidth={2.5} />
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <div className="text-2xl font-black text-red-500">
+                          {fmt(stats.tests?.due || 0)}
+                        </div>
+                        <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
+                          Balance Due
+                        </div>
+                      </div>
+                      <div className="p-2 rounded-lg bg-red-50 text-red-600 dark:bg-red-900/20">
+                        <ArrowUpRight size={18} strokeWidth={2.5} />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -588,7 +657,10 @@ const Billing = () => {
                   </div>
                   <div className="space-y-2.5">
                     {statsData.methods.map((m: any, idx: number) => (
-                      <div key={idx} className="flex justify-between items-center">
+                      <div
+                        key={idx}
+                        className="flex justify-between items-center"
+                      >
                         <div className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-teal-500" />
                           <span className="text-xs font-bold text-gray-500 dark:text-gray-400 capitalize">
@@ -645,7 +717,11 @@ const Billing = () => {
                                 {(() => {
                                   const [y, m, d] = t.date.split("-");
                                   return format(
-                                    new Date(Number(y), Number(m) - 1, Number(d)),
+                                    new Date(
+                                      Number(y),
+                                      Number(m) - 1,
+                                      Number(d),
+                                    ),
                                     "dd MMM",
                                   );
                                 })()}
@@ -668,7 +744,28 @@ const Billing = () => {
           </div>
 
           {/* === MAIN CONTENT (Right Panel) === */}
-          <main className="flex-1 h-screen overflow-hidden relative flex flex-col p-6 lg:p-10 gap-6">
+          <main className="flex-1 h-screen overflow-hidden relative flex flex-col p-6 lg:p-10 lg:pt-8 gap-4">
+            {/* Tabs Trigger */}
+            <div className="px-6 flex justify-end gap-3">
+              <button
+                onClick={() => setActiveTab("overview")}
+                className={`px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "overview" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-white/5 text-slate-400 hover:bg-white/10"}`}
+              >
+                Overview
+              </button>
+              <button
+                onClick={() => setActiveTab("patients")}
+                className={`px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "patients" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-white/5 text-slate-400 hover:bg-white/10"}`}
+              >
+                Patients
+              </button>
+              <button
+                onClick={() => setActiveTab("tests")}
+                className={`px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "tests" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-white/5 text-slate-400 hover:bg-white/10"}`}
+              >
+                Tests
+              </button>
+            </div>
 
             {/* Main Card */}
             <div
@@ -690,7 +787,13 @@ const Billing = () => {
                       type="text"
                       value={search}
                       onChange={(e) => setSearch(e.target.value)}
-                      placeholder="Search Patient..."
+                      placeholder={
+                        activeTab === "overview"
+                          ? "Search Entries..."
+                          : activeTab === "patients"
+                            ? "Search Patients..."
+                            : "Search Test/Person..."
+                      }
                       className="bg-transparent border-none outline-none text-sm w-full font-medium placeholder:opacity-40"
                     />
                   </div>
@@ -700,7 +803,9 @@ const Billing = () => {
                     className={`hidden md:flex items-center gap-2 px-2 py-1.5 rounded-xl border transition-all ${isCustomRange ? "opacity-30 pointer-events-none scale-95" : ""} ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-gray-50 border-gray-200"}`}
                   >
                     <button
-                      onClick={() => setCurrentMonth((prev) => subMonths(prev, 1))}
+                      onClick={() =>
+                        setCurrentMonth((prev) => subMonths(prev, 1))
+                      }
                       className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg transition-colors"
                     >
                       <ChevronLeft size={16} className="opacity-60" />
@@ -709,7 +814,9 @@ const Billing = () => {
                       {format(currentMonth, "MMMM yyyy")}
                     </span>
                     <button
-                      onClick={() => setCurrentMonth((prev) => addMonths(prev, 1))}
+                      onClick={() =>
+                        setCurrentMonth((prev) => addMonths(prev, 1))
+                      }
                       disabled={currentMonth >= startOfMonth(new Date())}
                       className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-lg transition-colors disabled:opacity-20"
                     >
@@ -731,33 +838,37 @@ const Billing = () => {
                         setShowRangePicker("start");
                       }
                     }}
-                    className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide transition-all ${isCustomRange
-                      ? isDark
-                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                        : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
-                      : isDark
-                        ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5"
-                        : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
-                      }`}
+                    className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide transition-all ${
+                      isCustomRange
+                        ? isDark
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                          : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
+                        : isDark
+                          ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5"
+                          : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
+                    }`}
                   >
                     <CalendarRange
                       size={16}
                       className={isCustomRange ? "fill-current" : "opacity-50"}
                     />
-                    <span>{isCustomRange ? "Active Range" : "Custom Range"}</span>
+                    <span>
+                      {isCustomRange ? "Active Range" : "Custom Range"}
+                    </span>
                   </button>
 
                   {/* Today */}
                   <button
                     onClick={() => setShowOnlyToday(!showOnlyToday)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide transition-all ${showOnlyToday
-                      ? isDark
-                        ? "bg-[#4ADE80]/10 border-[#4ADE80]/30 text-[#4ADE80]"
-                        : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
-                      : isDark
-                        ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5"
-                        : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
-                      }`}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide transition-all ${
+                      showOnlyToday
+                        ? isDark
+                          ? "bg-[#4ADE80]/10 border-[#4ADE80]/30 text-[#4ADE80]"
+                          : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
+                        : isDark
+                          ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5"
+                          : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
+                    }`}
                   >
                     <Zap
                       size={16}
@@ -773,105 +884,110 @@ const Billing = () => {
                     )}
                   </button>
 
-                  {/* Status */}
-                  <div className="relative">
-                    <select
-                      value={statusFilter}
-                      onChange={(e) => setStatusFilter(e.target.value)}
-                      className={`appearance-none pl-4 pr-10 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide outline-none cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"}`}
-                    >
-                      <option value="">All Statuses</option>
-                      <option value="active">Active</option>
-                      <option value="completed">Completed</option>
-                    </select>
-                    <ChevronLeft
-                      className="absolute right-3 top-1/2 -translate-y-1/2 -rotate-90 opacity-40 pointer-events-none"
-                      size={14}
-                    />
-                  </div>
+                  {/* Status (Only for Patients) */}
+                  {activeTab === "patients" && (
+                    <div className="relative">
+                      <select
+                        value={statusFilter}
+                        onChange={(e) => setStatusFilter(e.target.value)}
+                        className={`appearance-none pl-4 pr-10 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide outline-none cursor-pointer overflow-hidden text-ellipsis whitespace-nowrap ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                      >
+                        <option value="">All Statuses</option>
+                        <option value="active">Active</option>
+                        <option value="completed">Completed</option>
+                      </select>
+                      <ChevronLeft
+                        className="absolute right-3 top-1/2 -translate-y-1/2 -rotate-90 opacity-40 pointer-events-none"
+                        size={14}
+                      />
+                    </div>
+                  )}
 
-                  {/* Filter Icon */}
-                  <div className="relative">
-                    <button
-                      onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
-                      className={`p-2.5 rounded-xl border transition-colors ${isSortMenuOpen || sortConfig.key !== "created_at" ? (isDark ? "bg-[#4ADE80]/10 border-[#4ADE80]/30 text-[#4ADE80]" : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm") : isDark ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"}`}
-                    >
-                      <SlidersHorizontal size={18} strokeWidth={2} />
-                    </button>
+                  {/* Filter Icon and Sort Menu (Only for Patients) */}
+                  {activeTab === "patients" && (
+                    <div className="relative">
+                      <button
+                        onClick={() => setIsSortMenuOpen(!isSortMenuOpen)}
+                        className={`p-2.5 rounded-xl border transition-colors ${isSortMenuOpen || sortConfig.key !== "created_at" ? (isDark ? "bg-[#4ADE80]/10 border-[#4ADE80]/30 text-[#4ADE80]" : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm") : isDark ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                      >
+                        <SlidersHorizontal size={18} strokeWidth={2} />
+                      </button>
 
-                    {/* Export Button */}
-                    <button
-                      onClick={exportReport}
-                      className={`p-2.5 rounded-xl border transition-colors ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50 shadow-sm"}`}
-                      title="Export Financial Report"
-                    >
-                      <FileText size={18} strokeWidth={2} />
-                    </button>
-                    <AnimatePresence>
-                      {isSortMenuOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                          animate={{ opacity: 1, scale: 1, y: 0 }}
-                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                          className={`absolute top-full right-0 mt-2 w-56 rounded-2xl shadow-2xl border z-[70] overflow-hidden p-1 ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-gray-100"}`}
-                        >
-                          <div className="px-3 py-2 text-[10px] font-black uppercase tracking-widest opacity-30">
-                            Sort By
-                          </div>
-                          {[
-                            {
-                              label: "Date (Newest)",
-                              key: "created_at",
-                              dir: "desc",
-                            },
-                            {
-                              label: "Date (Oldest)",
-                              key: "created_at",
-                              dir: "asc",
-                            },
-                            {
-                              label: "Bill (High-Low)",
-                              key: "total_amount",
-                              dir: "desc",
-                            },
-                            {
-                              label: "Paid (High-Low)",
-                              key: "total_paid",
-                              dir: "desc",
-                            },
-                            {
-                              label: "Dues (Highest)",
-                              key: "due_amount",
-                              dir: "desc",
-                            },
-                            {
-                              label: "Wallet (High-Low)",
-                              key: "effective_balance",
-                              dir: "desc",
-                            },
-                          ].map((opt) => (
-                            <button
-                              key={`${opt.key}-${opt.dir}`}
-                              onClick={() => {
-                                setSortConfig({
-                                  key: opt.key as any,
-                                  direction: opt.dir as any,
-                                });
-                                setIsSortMenuOpen(false);
-                              }}
-                              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${sortConfig.key === opt.key && sortConfig.direction === opt.dir ? (isDark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-700") : isDark ? "hover:bg-white/5" : "hover:bg-gray-50"}`}
-                            >
-                              {opt.label}
-                              {sortConfig.key === opt.key &&
-                                sortConfig.direction === opt.dir && (
-                                  <CheckCircle2 size={12} />
-                                )}
-                            </button>
-                          ))}
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
+                      <AnimatePresence>
+                        {isSortMenuOpen && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                            className={`absolute top-full right-0 mt-2 w-56 rounded-2xl shadow-2xl border z-[70] overflow-hidden p-1 ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-gray-100"}`}
+                          >
+                            <div className="px-3 py-2 text-[10px] font-black uppercase tracking-widest opacity-30">
+                              Sort By
+                            </div>
+                            {[
+                              {
+                                label: "Date (Newest)",
+                                key: "created_at",
+                                dir: "desc",
+                              },
+                              {
+                                label: "Date (Oldest)",
+                                key: "created_at",
+                                dir: "asc",
+                              },
+                              {
+                                label: "Bill (High-Low)",
+                                key: "total_amount",
+                                dir: "desc",
+                              },
+                              {
+                                label: "Paid (High-Low)",
+                                key: "total_paid",
+                                dir: "desc",
+                              },
+                              {
+                                label: "Dues (Highest)",
+                                key: "due_amount",
+                                dir: "desc",
+                              },
+                              {
+                                label: "Wallet (High-Low)",
+                                key: "effective_balance",
+                                dir: "desc",
+                              },
+                            ].map((opt) => (
+                              <button
+                                key={`${opt.key}-${opt.dir}`}
+                                onClick={() => {
+                                  setSortConfig({
+                                    key: opt.key as any,
+                                    direction: opt.dir as any,
+                                  });
+                                  setIsSortMenuOpen(false);
+                                }}
+                                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${sortConfig.key === opt.key && sortConfig.direction === opt.dir ? (isDark ? "bg-emerald-500/10 text-emerald-400" : "bg-emerald-50 text-emerald-700") : isDark ? "hover:bg-white/5" : "hover:bg-gray-50"}`}
+                              >
+                                {opt.label}
+                                {sortConfig.key === opt.key &&
+                                  sortConfig.direction === opt.dir && (
+                                    <CheckCircle2 size={12} />
+                                  )}
+                              </button>
+                            ))}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  )}
+
+                  {/* Export Button */}
+                  <button
+                    onClick={exportReport}
+                    className={`p-2.5 rounded-xl border transition-colors ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50 shadow-sm"}`}
+                    title="Export Financial Report"
+                  >
+                    <FileText size={18} strokeWidth={2} />
+                  </button>
                 </div>
               </div>
 
@@ -879,41 +995,89 @@ const Billing = () => {
               <div
                 className={`flex items-center px-8 py-4 border-b ${isDark ? "bg-[#1A1C1A]/50 border-[#2A2D2A]" : "bg-gray-50/50 border-gray-100"}`}
               >
-                <div className="w-[10%] text-xs font-bold text-emerald-500 uppercase tracking-wider">
-                  Patient ID
-                </div>
-                <div className="flex-1 text-xs font-bold text-gray-400 uppercase tracking-wider">
-                  Patient Name
-                </div>
-                <div className="w-[10%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
-                  Total Bill
-                </div>
-                <div className="w-[10%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
-                  Total Paid
-                </div>
-                <div className="w-[10%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
-                  Expected Due
-                </div>
-                <div className="w-[10%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
-                  Wallet Bal
-                </div>
-                <div className="w-[10%] text-center text-xs font-bold text-gray-400 uppercase tracking-wider">
-                  Status
-                </div>
-                <div className="w-[8%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
-                  Actions
-                </div>
+                {activeTab === "overview" && (
+                  <>
+                    <div className="w-[10%] text-xs font-bold text-slate-400 uppercase tracking-wider">
+                      Date
+                    </div>
+                    <div className="flex-1 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Participant & Type
+                    </div>
+                    <div className="w-[12%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Billed
+                    </div>
+                    <div className="w-[12%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Paid
+                    </div>
+                    <div className="w-[12%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider px-4">
+                      Balance Due
+                    </div>
+                  </>
+                )}
+                {activeTab === "patients" && (
+                  <>
+                    <div className="w-[10%] text-xs font-bold text-emerald-500 uppercase tracking-wider">
+                      Patient ID
+                    </div>
+                    <div className="flex-1 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Patient Name
+                    </div>
+                    <div className="w-[10%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Billed
+                    </div>
+                    <div className="w-[10%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Paid
+                    </div>
+                    <div className="w-[10%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Due
+                    </div>
+                    <div className="w-[10%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Wallet Bal
+                    </div>
+                    <div className="w-[10%] text-center text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Status
+                    </div>
+                    <div className="w-[8%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Actions
+                    </div>
+                  </>
+                )}
+                {activeTab === "tests" && (
+                  <>
+                    <div className="flex-1 text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Person / Last Test
+                    </div>
+                    <div className="w-[12%] text-center text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Test Count
+                    </div>
+                    <div className="w-[15%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Total Billed
+                    </div>
+                    <div className="w-[15%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider">
+                      Total Paid
+                    </div>
+                    <div className="w-[15%] text-right text-xs font-bold text-gray-400 uppercase tracking-wider px-8">
+                      Total Due
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Table Body */}
-              <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+              <div className="flex-1 overflow-y-auto custom-scrollbar relative pb-16">
                 {loading ? (
                   <div className="h-40 flex items-center justify-center gap-2 opacity-50">
                     <div className="w-2 h-2 bg-current rounded-full animate-bounce" />
                     <div className="w-2 h-2 bg-current rounded-full animate-bounce delay-100" />
                     <div className="w-2 h-2 bg-current rounded-full animate-bounce delay-200" />
                   </div>
-                ) : sortedRecords.length === 0 ? (
+                ) : (
+                    activeTab === "overview"
+                      ? combinedRecords.length === 0
+                      : activeTab === "patients"
+                        ? sortedRecords.length === 0
+                        : groupedTests.length === 0
+                  ) ? (
                   <div className="h-64 flex flex-col items-center justify-center opacity-40 gap-4">
                     <FileText size={48} strokeWidth={1} />
                     <p className="font-bold text-gray-400">No records found</p>
@@ -922,96 +1086,224 @@ const Billing = () => {
                   <div
                     className={`divide-y ${isDark ? "divide-[#2A2D2A]" : "divide-gray-50"}`}
                   >
-                    {sortedRecords.map((row) => {
-                      const bill = parseNum(row.total_amount);
-                      const paid = parseNum(row.total_paid);
-                      const due = bill - paid;
-
-                      return (
+                    {activeTab === "overview" &&
+                      combinedRecords.map((row, idx) => (
                         <div
-                          key={row.patient_id}
-                          onClick={() => openPatientDetails(row as any)}
-                          className={`flex items-center px-8 py-4 transition-all cursor-pointer group hover:bg-gray-50 dark:hover:bg-white/5`}
+                          key={idx}
+                          onClick={() => {
+                            if (row.billing_type === "treatment") {
+                              openPatientDetails(row as any, "treatment");
+                            } else {
+                              openPatientDetails(
+                                {
+                                  patient_id: row.patient_id,
+                                  patient_name: row.patient_name,
+                                  patient_phone: row.phone_number,
+                                } as any,
+                                "test",
+                              );
+                            }
+                          }}
+                          className={`flex items-center px-8 py-4 transition-all cursor-pointer group hover:bg-gray-50 dark:hover:bg-white/5 border-b dark:border-white/5 last:border-0`}
                         >
-                          <div className="w-[10%] font-bold text-sm text-gray-900 dark:text-white">
-                            #{row.patient_id}
+                          <div className="w-[10%] text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            {format(new Date(row.last_activity), "dd MMM yy")}
                           </div>
-
                           <div className="flex-1">
-                            <div className="font-bold text-sm text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors uppercase">
-                              {row.patient_name}
-                            </div>
-                          </div>
-
-                          <div className="w-[10%] text-right font-medium text-sm text-gray-500 dark:text-gray-400">
-                            {fmt(bill)}
-                          </div>
-
-                          <div className="w-[10%] text-right">
-                            <div className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
-                              {fmt(paid)}
-                            </div>
-                          </div>
-
-                          <div className="w-[10%] text-right font-bold text-sm text-gray-600 dark:text-gray-400">
-                            {due > 0 ? (
-                              <span className="text-gray-500 dark:text-gray-400">
-                                {fmt(due)}
-                              </span>
-                            ) : (
-                              <span className="text-gray-900 dark:text-white">
-                                {fmt(due)}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="w-[10%] text-right">
-                            <div
-                              className={`font-bold text-sm ${parseNum(row.effective_balance) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
-                            >
-                              {fmt(row.effective_balance || 0)}
-                            </div>
-                          </div>
-
-                          <div className="w-[10%] flex flex-col items-center gap-1">
-                            <span
-                              className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${row.status === "active"
-                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-                                : row.status === "completed"
-                                  ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400"
-                                  : "bg-gray-100 text-gray-600"
-                                }`}
-                            >
-                              {row.status}
-                            </span>
-                            {row.has_payment_today > 0 && (
-                              <div className="flex items-center gap-1 text-[9px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-tight mt-0.5">
-                                <CheckCircle2 size={10} strokeWidth={3} /> Paid
-                                Today
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="w-[8%] flex justify-end gap-2">
-                            {due > 0 && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  sendWhatsAppReminder(row);
-                                }}
-                                className="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 hover:bg-emerald-100 transition-colors"
-                                title="Send WhatsApp Reminder"
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`font-black text-sm uppercase ${isDark ? "text-white" : "text-slate-900"}`}
                               >
-                                <MessageCircle size={14} strokeWidth={2.5} />
-                              </button>
+                                {row.patient_name}
+                              </span>
+                              <span
+                                className={`text-[8px] font-black px-2 py-0.5 rounded tracking-[0.1em] uppercase ${
+                                  row.billing_type === "test"
+                                    ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400"
+                                    : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
+                                }`}
+                              >
+                                {row.billing_type}
+                              </span>
+                              {row.billing_type === "test" &&
+                                row.is_registered === 1 && (
+                                  <span className="text-[7px] font-black px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 border border-blue-100 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800/30 uppercase tracking-tighter">
+                                    Registered
+                                  </span>
+                                )}
+                            </div>
+                            <div className="text-[10px] font-bold text-slate-400 opacity-60">
+                              {row.phone_number}
+                            </div>
+                          </div>
+                          <div className="w-[12%] text-right font-black text-sm text-slate-800 dark:text-white">
+                            {fmt(row.billed_amount)}
+                          </div>
+                          <div className="w-[12%] text-right font-black text-sm text-emerald-600 dark:text-emerald-400">
+                            {fmt(row.paid_amount)}
+                          </div>
+                          <div
+                            className={`w-[12%] text-right font-black text-sm px-4 ${parseNum(row.billed_amount) - parseNum(row.paid_amount) - parseNum(row.discount) > 0 ? "text-red-500" : "text-slate-400 opacity-20"}`}
+                          >
+                            {fmt(
+                              parseNum(row.billed_amount) -
+                                parseNum(row.paid_amount) -
+                                parseNum(row.discount),
                             )}
-                            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-600 dark:bg-white/5 dark:text-slate-400 hover:bg-slate-100 transition-colors">
-                              <Eye size={16} strokeWidth={2} />
-                            </button>
                           </div>
                         </div>
-                      );
-                    })}
+                      ))}
+
+                    {activeTab === "patients" &&
+                      sortedRecords.map((row) => {
+                        const bill = parseNum(row.total_amount);
+                        const paid = parseNum(row.total_paid);
+                        const discount = parseNum(row.discount_amount);
+                        const due = bill - paid - discount;
+
+                        return (
+                          <div
+                            key={row.patient_id}
+                            onClick={() => openPatientDetails(row as any)}
+                            className={`flex items-center px-8 py-4 transition-all cursor-pointer group hover:bg-gray-50 dark:hover:bg-white/5 border-b dark:border-white/5 last:border-0`}
+                          >
+                            <div className="w-[10%] font-bold text-sm text-gray-900 dark:text-white">
+                              #{row.patient_id}
+                            </div>
+
+                            <div className="flex-1">
+                              <div className="font-bold text-sm text-gray-900 dark:text-white group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors uppercase">
+                                {row.patient_name}
+                              </div>
+                              <div className="text-[10px] font-bold text-slate-400 opacity-60">
+                                {row.phone_number}
+                              </div>
+                            </div>
+
+                            <div className="w-[10%] text-right font-medium text-sm text-gray-500 dark:text-gray-400">
+                              {fmt(bill)}
+                            </div>
+
+                            <div className="w-[10%] text-right">
+                              <div className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                                {fmt(paid)}
+                              </div>
+                            </div>
+
+                            <div className="w-[10%] text-right font-bold text-sm text-gray-600 dark:text-gray-400">
+                              <span
+                                className={
+                                  due > 0
+                                    ? "text-red-500"
+                                    : "text-slate-900 dark:text-white"
+                                }
+                              >
+                                {fmt(due)}
+                              </span>
+                            </div>
+
+                            <div className="w-[10%] text-right">
+                              <div
+                                className={`font-bold text-sm ${parseNum(row.effective_balance) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}
+                              >
+                                {fmt(row.effective_balance || 0)}
+                              </div>
+                            </div>
+
+                            <div className="w-[10%] flex flex-col items-center gap-1">
+                              <span
+                                className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${row.status === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" : row.status === "completed" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400" : "bg-gray-100 text-gray-600"}`}
+                              >
+                                {row.status}
+                              </span>
+                              {row.has_payment_today > 0 && (
+                                <div className="flex items-center gap-1 text-[9px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-tight mt-0.5">
+                                  <CheckCircle2 size={10} strokeWidth={3} />{" "}
+                                  Paid
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="w-[8%] flex justify-end gap-2">
+                              {due > 0 && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    sendWhatsAppReminder(row);
+                                  }}
+                                  className="w-8 h-8 flex items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400 hover:bg-emerald-100 transition-colors"
+                                  title="Send WhatsApp Reminder"
+                                >
+                                  <MessageCircle size={14} strokeWidth={2.5} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                    {activeTab === "tests" &&
+                      groupedTests.map((row, idx) => (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            if (row.patient_id) {
+                              openPatientDetails({
+                                patient_id: row.patient_id,
+                                patient_name: row.patient_name,
+                                patient_phone: row.phone_number,
+                              } as any);
+                            } else {
+                              toast.info(
+                                "Redirecting to patient's last test details...",
+                              );
+                              setSelectedTest({
+                                uid: row.patient_name,
+                                patient_name: row.patient_name,
+                              });
+                              setIsTestModalOpen(true);
+                            }
+                          }}
+                          className={`flex items-center px-8 py-4 transition-all cursor-pointer group hover:bg-gray-50 dark:hover:bg-white/5 border-b dark:border-white/5 last:border-0`}
+                        >
+                          <div className="flex-1">
+                            <div className="font-black text-sm uppercase text-slate-900 dark:text-white">
+                              {row.patient_name}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className="text-[10px] font-bold text-slate-400">
+                                {row.phone_number}
+                              </span>
+                              <div className="w-1 h-1 rounded-full bg-slate-200" />
+                              <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">
+                                Last:{" "}
+                                {format(
+                                  new Date(row.last_test_date),
+                                  "dd MMM yy",
+                                )}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="w-[12%] text-center">
+                            <span className="px-3 py-1 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-black uppercase tracking-widest">
+                              {row.test_count} Tests
+                            </span>
+                          </div>
+
+                          <div className="w-[15%] text-right font-black text-sm text-slate-800 dark:text-white">
+                            {fmt(row.total_billed)}
+                          </div>
+                          <div className="w-[15%] text-right font-black text-sm text-emerald-600 dark:text-emerald-400">
+                            {fmt(row.total_paid)}
+                          </div>
+                          <div
+                            className={`w-[15%] text-right font-black text-sm px-8 ${parseNum(row.total_due) > 0 ? "text-red-500" : "text-slate-400 opacity-20"}`}
+                          >
+                            {fmt(row.total_due)}
+                          </div>
+                        </div>
+                      ))}
                   </div>
                 )}
               </div>
@@ -1057,8 +1349,17 @@ const Billing = () => {
           downloadUrl={fileViewerConfig.downloadUrl}
           downloadFileName={fileViewerConfig.downloadFileName}
         />
-      </div>
 
+        <TestDetailsModal
+          isOpen={isTestModalOpen}
+          onClose={() => {
+            setIsTestModalOpen(false);
+            setSelectedTest(null);
+            fetchData();
+          }}
+          test={selectedTest}
+        />
+      </div>
     </div>
   );
 };

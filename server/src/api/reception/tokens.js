@@ -181,9 +181,9 @@ async function getTokenData(req, res, patientId) {
                 effective_balance: balance,
                 pkg_dues: 0,
                 payments_history: paymentsHistory,
-                clinic_name: branch.clinic_name || 'ProSpine Clinic',
-                branch_address: branch.address_line_1 || '',
-                branch_phone: branch.phone_primary || ''
+                clinic_name: branch.clinic_name,
+                branch_address: branch.address_line_1,
+                branch_phone: branch.phone_primary
             }
         });
     } catch (e) {
@@ -206,13 +206,13 @@ async function generateToken(req, res, patientId) {
 
         if (existingToken.length > 0) {
             const token = existingToken[0];
-            
+
             // Limit reprints to 3 times (Total 4 prints)
             if (token.print_count > 3) {
                 await connection.rollback();
-                return res.status(400).json({ 
-                    status: 'error', 
-                    message: 'Max reprint limit (3) reached.' 
+                return res.status(400).json({
+                    status: 'error',
+                    message: 'Max reprint limit (3) reached.'
                 });
             }
 
@@ -263,9 +263,9 @@ async function generateToken(req, res, patientId) {
                     effective_balance: balance,
                     pkg_dues: 0,
                     payments_history: paymentsHistory,
-                    clinic_name: branch.clinic_name || 'ProSpine Clinic',
-                    branch_address: branch.address_line_1 || '',
-                    branch_phone: branch.phone_primary || '',
+                    clinic_name: branch.clinic_name,
+                    branch_address: branch.address_line_1,
+                    branch_phone: branch.phone_primary,
                     has_token_today: true,
                     print_count: token.print_count + 1
                 }
@@ -324,9 +324,9 @@ async function generateToken(req, res, patientId) {
                 effective_balance: balance,
                 pkg_dues: 0,
                 payments_history: paymentsHistory,
-                clinic_name: branch.clinic_name || 'ProSpine Clinic',
-                branch_address: branch.address_line_1 || '',
-                branch_phone: branch.phone_primary || '',
+                clinic_name: branch.clinic_name,
+                branch_address: branch.address_line_1,
+                branch_phone: branch.phone_primary,
                 has_token_today: true,
                 print_count: 1
             }

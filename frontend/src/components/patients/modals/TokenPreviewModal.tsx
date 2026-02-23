@@ -77,7 +77,7 @@ const TokenPreviewModal = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
@@ -128,26 +128,24 @@ const TokenPreviewModal = ({
                     </span>
                   </div>
                 )}
-                <div className="text-center mb-4">
-                  <h1 className="font-black text-xl uppercase tracking-wider mb-1">
-                    {(data.clinic_name || "PROSPINE").toUpperCase()}
+                <div className="text-center mb-4 relative z-10">
+                  <h1 className="font-black text-xl uppercase tracking-wider mb-2 mt-2">
+                    {data.clinic_name?.toUpperCase()}
                   </h1>
-                  <p className="text-[10px] uppercase font-bold">
+                  <p className="text-[10px] uppercase font-bold text-center w-full mb-2">
                     {data.branch_address?.toUpperCase()}
                   </p>
-                  <p className="text-[10px] uppercase font-bold mb-2">
-                    Ph: {data.branch_phone}
+                  <p className="text-[10px] uppercase font-bold mb-1">
+                    PH: {data.branch_phone}
                   </p>
-                  <div className="border-t-2 border-black border-dashed my-2"></div>
+                  <div className="border-t-[3px] border-dashed border-black my-2 mt-3"></div>
                   <div className="flex justify-between font-bold">
                     <span>TOKEN #:</span>
                     <span>{data.token_number || "--"}</span>
                   </div>
                   <div className="flex justify-between font-bold">
                     <span>DATE:</span>
-                    <span>
-                      {data.token_date}
-                    </span>
+                    <span>{data.token_date}</span>
                   </div>
                   <div className="flex justify-between font-bold">
                     <span>PATIENT:</span>
@@ -221,7 +219,9 @@ const TokenPreviewModal = ({
                     PLEASE WAIT FOR YOUR TURN
                   </p>
                   <p className="text-[9px]">
-                    {data.has_token_today ? `REPRINTED TOKEN (#${data.print_count})` : "System Generated Token"}
+                    {data.has_token_today
+                      ? `REPRINTED TOKEN (#${data.print_count})`
+                      : "System Generated Token"}
                   </p>
                 </div>
               </div>
@@ -230,7 +230,9 @@ const TokenPreviewModal = ({
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => handleGenerateAndPrint("thermal")}
-                    disabled={printing || (data.has_token_today && data.print_count > 3)}
+                    disabled={
+                      printing || (data.has_token_today && data.print_count > 3)
+                    }
                     className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed uppercase tracking-widest text-[11px]"
                   >
                     {printing ? (
@@ -247,7 +249,9 @@ const TokenPreviewModal = ({
 
                   <button
                     onClick={() => handleGenerateAndPrint("a4")}
-                    disabled={printing || (data.has_token_today && data.print_count > 3)}
+                    disabled={
+                      printing || (data.has_token_today && data.print_count > 3)
+                    }
                     className="w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-black rounded-2xl flex items-center justify-center gap-3 transition-all shadow-lg hover:scale-[1.01] active:scale-[0.99] disabled:opacity-30 disabled:grayscale disabled:cursor-not-allowed uppercase tracking-widest text-[11px]"
                   >
                     {printing ? (
@@ -255,11 +259,15 @@ const TokenPreviewModal = ({
                     ) : (
                       <FileText size={18} />
                     )}
-                    {data.has_token_today ? "Reprint A4 Statement" : "Print A4 Statement"}
+                    {data.has_token_today
+                      ? "Reprint A4 Statement"
+                      : "Print A4 Statement"}
                   </button>
                 </div>
                 {data.has_token_today && (
-                  <p className={`text-[10px] text-center font-black uppercase tracking-widest py-2 rounded-lg ${data.print_count > 3 ? 'text-rose-500 bg-rose-500/10' : 'text-amber-600 dark:text-amber-400 bg-amber-500/10'}`}>
+                  <p
+                    className={`text-[10px] text-center font-black uppercase tracking-widest py-2 rounded-lg ${data.print_count > 3 ? "text-rose-500 bg-rose-500/10" : "text-amber-600 dark:text-amber-400 bg-amber-500/10"}`}
+                  >
                     {data.print_count > 3
                       ? "Maximum reprint limit of 3 has been reached"
                       : `This is a reprint. ${Math.max(0, 4 - data.print_count)} reprints remaining.`}

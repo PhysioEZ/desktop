@@ -13,6 +13,15 @@ exports.handleBillingRequest = async (req, res) => {
             case "fetch_overview":
                 await fetchBillingOverview(req, res, branchId);
                 break;
+            case "fetch_combined_overview":
+                await fetchCombinedOverview(req, res, branchId);
+                break;
+            case "fetch_test_payments":
+                await fetchTestPayments(req, res, branchId);
+                break;
+            case "fetch_grouped_tests":
+                await fetchGroupedTests(req, res, branchId);
+                break;
             default:
                 res.status(400).json({ status: "error", message: "Invalid action" });
         }
@@ -43,21 +52,22 @@ async function fetchBillingOverview(req, res, branchId) {
 
     // B1. Range Billed: Total bill generated for patients registered in this period
     const [billedRows] = await pool.query(`
-        SELECT SUM(total_amount) as total 
+        SELECT COALESCE(SUM(total_amount), 0) as total, COALESCE(SUM(discount_amount), 0) as total_discount
         FROM patients 
         WHERE branch_id = ? AND created_at BETWEEN ? AND ?
     `, [branchId, start, end]);
-    const rangeBilled = billedRows[0].total || 0;
+    const rangeBilled = billedRows[0].total;
+    const rangeDiscount = billedRows[0].total_discount;
 
     // B2. Range Paid: TOTAL CASH COLLECTED in this period (Regardless of registration date)
     const [paidRows] = await pool.query(`
-        SELECT SUM(amount) as total 
+        SELECT COALESCE(SUM(amount), 0) as total 
         FROM payments 
         WHERE branch_id = ? AND payment_date BETWEEN ? AND ?
     `, [branchId, start, end]);
-    const rangePaid = paidRows[0].total || 0;
+    const rangePaid = paidRows[0].total;
 
-    const rangeDue = rangeBilled - rangePaid;
+    const rangeDue = Math.max(0, rangeBilled - rangePaid - rangeDiscount);
 
     // C. Payment Method Breakdown (For charts)
     const [methodRows] = await pool.query(`
@@ -186,4 +196,208 @@ async function fetchBillingOverview(req, res, branchId) {
             records: patients
         }
     });
+}
+
+async function fetchTestPayments(req, res, branchId) {
+    const { startDate, endDate, search } = req.body;
+
+    const start = startDate ? `${startDate} 00:00:00` : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 19).replace('T', ' ');
+    const end = endDate ? `${endDate} 23:59:59` : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 19).replace('T', ' ');
+
+    try {
+        let whereSql = `t.branch_id = ? AND tp.created_at BETWEEN ? AND ?`;
+        let params = [branchId, start, end];
+
+        if (search) {
+            whereSql += " AND (t.patient_name LIKE ? OR t.test_uid LIKE ? OR t.phone_number LIKE ?)";
+            params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+        }
+
+        const query = `
+            SELECT 
+                tp.id as payment_id,
+                tp.test_id,
+                tp.amount,
+                tp.payment_method,
+                tp.created_at as payment_date,
+                t.test_uid,
+                t.patient_name,
+                t.phone_number,
+                t.test_name,
+                t.patient_id
+            FROM test_payments tp
+            JOIN tests t ON tp.test_id = t.test_id
+            WHERE ${whereSql}
+            ORDER BY tp.created_at DESC
+        `;
+
+        const [rows] = await pool.query(query, params);
+
+        res.json({
+            status: "success",
+            data: rows
+        });
+    } catch (error) {
+        console.error("fetchTestPayments Error:", error);
+        res.status(500).json({ status: "error", message: error.message });
+    }
+}
+
+async function fetchCombinedOverview(req, res, branchId) {
+    const { startDate, endDate, search } = req.body;
+    const start = startDate ? `${startDate} 00:00:00` : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 19).replace('T', ' ');
+    const end = endDate ? `${endDate} 23:59:59` : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 19).replace('T', ' ');
+
+    try {
+        // Range Stats (Separated)
+        const [treatmentStats] = await pool.query(`
+            SELECT 
+                COALESCE(SUM(p.total_amount), 0) as billed,
+                COALESCE(SUM(p.total_amount - (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE patient_id = p.patient_id) - COALESCE(p.discount_amount, 0)), 0) as due
+            FROM patients p
+            WHERE p.branch_id = ? AND p.created_at BETWEEN ? AND ?
+        `, [branchId, start, end]);
+
+        const [treatmentPaid] = await pool.query(`
+            SELECT COALESCE(SUM(amount), 0) as paid 
+            FROM payments 
+            WHERE branch_id = ? AND payment_date BETWEEN ? AND ?
+        `, [branchId, start, end]);
+
+        const [testStats] = await pool.query(`
+            SELECT 
+                COALESCE(SUM(t.total_amount), 0) as billed,
+                COALESCE(SUM(t.due_amount), 0) as due
+            FROM tests t
+            WHERE t.branch_id = ? AND (t.created_at BETWEEN ? AND ? OR t.updated_at BETWEEN ? AND ?) AND t.test_status != 'cancelled'
+        `, [branchId, start, end, start, end]);
+
+        const [testPaid] = await pool.query(`
+            SELECT COALESCE(SUM(tp.amount), 0) as paid 
+            FROM test_payments tp
+            JOIN tests t ON tp.test_id = t.test_id
+            WHERE t.branch_id = ? AND tp.created_at BETWEEN ? AND ?
+        `, [branchId, start, end]);
+
+        const today = new Date().toISOString().slice(0, 10);
+        const [todayCollection] = await pool.query(`
+            SELECT 
+                (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE branch_id = ? AND payment_date BETWEEN ? AND ?) +
+                (SELECT COALESCE(SUM(tp.amount), 0) FROM test_payments tp JOIN tests t ON tp.test_id = t.test_id WHERE t.branch_id = ? AND tp.created_at BETWEEN ? AND ?) as total
+        `, [branchId, `${today} 00:00:00`, `${today} 23:59:59`, branchId, `${today} 00:00:00`, `${today} 23:59:59`]);
+
+        const stats = {
+            treatment: {
+                billed: parseFloat(treatmentStats[0].billed),
+                paid: parseFloat(treatmentPaid[0].paid),
+                due: parseFloat(treatmentStats[0].due)
+            },
+            tests: {
+                billed: parseFloat(testStats[0].billed),
+                paid: parseFloat(testPaid[0].paid),
+                due: parseFloat(testStats[0].due)
+            },
+            today_collection: parseFloat(todayCollection[0].total)
+        };
+
+        // Fetch Records (Treatments)
+        let treatmentSql = `
+            SELECT 
+                p.patient_id, r.patient_name, r.phone_number, 'treatment' as billing_type,
+                p.total_amount as billed_amount, 
+                p.discount_amount as discount,
+                COALESCE((SELECT SUM(amount) FROM payments WHERE patient_id = p.patient_id AND payment_date BETWEEN ? AND ?), 0) as paid_amount,
+                GREATEST(p.created_at, COALESCE((SELECT MAX(payment_date) FROM payments WHERE patient_id = p.patient_id), p.created_at)) as last_activity
+            FROM patients p
+            JOIN registration r ON p.registration_id = r.registration_id
+            WHERE p.branch_id = ? AND (
+                p.created_at BETWEEN ? AND ? 
+                OR EXISTS (SELECT 1 FROM payments WHERE patient_id = p.patient_id AND payment_date BETWEEN ? AND ?)
+            )
+        `;
+        let treatmentParams = [start, end, branchId, start, end, start, end];
+        if (search) {
+            treatmentSql += " AND (r.patient_name LIKE ? OR r.phone_number LIKE ?)";
+            treatmentParams.push(`%${search}%`, `%${search}%`);
+        }
+
+        // Fetch Records (Grouped Tests)
+        let testSql = `
+            SELECT 
+                t.patient_id, t.patient_name, t.phone_number, 'test' as billing_type,
+                SUM(t.total_amount) as billed_amount, 
+                SUM(t.discount) as discount,
+                SUM(COALESCE((SELECT SUM(amount) FROM test_payments WHERE test_id = t.test_id AND created_at BETWEEN ? AND ?), 0)) as paid_amount,
+                MAX(GREATEST(t.created_at, t.updated_at, COALESCE((SELECT MAX(created_at) FROM test_payments WHERE test_id = t.test_id), t.created_at))) as last_activity,
+                IF(t.patient_id IS NOT NULL AND t.patient_id > 0, 1, 0) as is_registered
+            FROM tests t
+            WHERE t.branch_id = ? AND (
+                t.created_at BETWEEN ? AND ? 
+                OR t.updated_at BETWEEN ? AND ?
+                OR EXISTS (SELECT 1 FROM test_payments WHERE test_id = t.test_id AND created_at BETWEEN ? AND ?)
+            ) AND t.test_status != 'cancelled'
+        `;
+        let testParams = [start, end, branchId, start, end, start, end, start, end];
+        if (search) {
+            testSql += " AND (t.patient_name LIKE ? OR t.phone_number LIKE ?)";
+            testParams.push(`%${search}%`, `%${search}%`);
+        }
+        testSql += " GROUP BY COALESCE(t.patient_id, CONCAT(t.patient_name, t.phone_number))";
+
+        const [tRecords] = await pool.query(treatmentSql, treatmentParams);
+        const [testRecords] = await pool.query(testSql, testParams);
+
+        const mergedRecords = [...tRecords, ...testRecords].sort((a, b) => new Date(b.last_activity) - new Date(a.last_activity));
+
+        res.json({
+            status: "success",
+            data: {
+                stats,
+                records: mergedRecords
+            }
+        });
+    } catch (e) {
+        console.error("fetchCombinedOverview Error:", e);
+        res.status(500).json({ status: "error", message: e.message });
+    }
+}
+
+async function fetchGroupedTests(req, res, branchId) {
+    const { startDate, endDate, search } = req.body;
+    const start = startDate ? `${startDate} 00:00:00` : new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 19).replace('T', ' ');
+    const end = endDate ? `${endDate} 23:59:59` : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 19).replace('T', ' ');
+
+    try {
+        let whereSql = `t.branch_id = ? AND t.created_at BETWEEN ? AND ? AND t.test_status != 'cancelled'`;
+        let params = [branchId, start, end];
+
+        if (search) {
+            whereSql += " AND (t.patient_name LIKE ? OR t.phone_number LIKE ?)";
+            params.push(`%${search}%`, `%${search}%`);
+        }
+
+        // Group by person. We'll use patient_id if available, otherwise patient_name + phone_number
+        const query = `
+            SELECT 
+                t.patient_id, t.patient_name, t.phone_number,
+                COUNT(t.test_id) as test_count,
+                SUM(t.total_amount) as total_billed,
+                SUM(t.advance_amount) as total_paid,
+                SUM(t.due_amount) as total_due,
+                MAX(t.created_at) as last_test_date
+            FROM tests t
+            WHERE ${whereSql}
+            GROUP BY COALESCE(t.patient_id, CONCAT(t.patient_name, t.phone_number))
+            ORDER BY last_test_date DESC
+        `;
+
+        const [rows] = await pool.query(query, params);
+
+        res.json({
+            status: "success",
+            data: rows
+        });
+    } catch (error) {
+        res.status(500).json({ status: "error", message: error.message });
+    }
 }
