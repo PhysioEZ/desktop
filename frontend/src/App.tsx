@@ -32,6 +32,7 @@ import Feedback from "./reception/Feedback";
 import Expenses from "./reception/Expenses";
 import Support from "./reception/Support";
 import Reports from "./reception/Reports";
+import ReceptionAnalytics from "./reception/ReceptionAnalytics";
 
 function App() {
   const { isDark } = useThemeStore();
@@ -96,6 +97,7 @@ function App() {
         <Route path="/reception/patients" element={<Patients />} />
         <Route path="/reception/billing" element={<Billing />} />
         <Route path="/reception/profile" element={<Profile />} />
+        <Route path="/reception/reception-analytics" element={<ReceptionAnalytics />} />
 
         {/* Admin Routes */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />

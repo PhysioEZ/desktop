@@ -10,7 +10,6 @@ import {
   Phone,
   Users,
   UserPlus,
-  ClipboardList,
   Banknote,
   TestTube2,
   MessageSquare,
@@ -23,7 +22,7 @@ import {
   Keyboard,
   User,
   LogOut,
-  UserCheck,
+  Activity,
 } from "lucide-react";
 
 import pack from "../../package.json";
@@ -115,6 +114,12 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
       path: "/reception/reports",
     },
     {
+      icon: Activity,
+      label: "Ops Analytics",
+      desc: "Reception Insights",
+      path: "/reception/reception-analytics",
+    },
+    {
       icon: PieChart,
       label: "Expenses",
       desc: "Clinic Exp",
@@ -138,11 +143,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
       variants={sidebarEntrance}
       initial={hasDashboardAnimated ? "visible" : "hidden"}
       animate="visible"
-      className={`w-20 hidden md:flex flex-col items-center py-8 border-r z-[60] shrink-0 gap-6 transition-colors duration-300 ${
-        isDark
-          ? "bg-[#0A0A0A] border-[#151515]"
-          : "bg-white border-gray-200 shadow-xl"
-      }`}
+      className={`w-20 hidden md:flex flex-col items-center py-8 border-r z-[60] shrink-0 gap-6 transition-colors duration-300 ${isDark
+        ? "bg-[#0A0A0A] border-[#151515]"
+        : "bg-white border-gray-200 shadow-xl"
+        }`}
     >
       <div className="w-10 h-10 rounded-xl bg-emerald-500 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-emerald-500/20">
         PE
@@ -154,15 +158,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
           return (
             <div
               key={idx}
-              className={`group flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 relative cursor-pointer ${
-                isActive
-                  ? isDark
-                    ? "bg-[#1C1C1C] text-white shadow-inner"
-                    : "bg-emerald-50 text-emerald-600 shadow-inner"
-                  : isDark
-                    ? "text-[#444] hover:bg-[#1C1C1C] hover:text-white"
-                    : "text-gray-400 hover:bg-gray-50 hover:text-gray-900"
-              }`}
+              className={`group flex items-center justify-center w-10 h-10 rounded-xl transition-all duration-300 relative cursor-pointer ${isActive
+                ? isDark
+                  ? "bg-[#1C1C1C] text-white shadow-inner"
+                  : "bg-emerald-50 text-emerald-600 shadow-inner"
+                : isDark
+                  ? "text-[#444] hover:bg-[#1C1C1C] hover:text-white"
+                  : "text-gray-400 hover:bg-gray-50 hover:text-gray-900"
+                }`}
             >
               <button
                 onClick={() => navigate(link.path)}
@@ -173,11 +176,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
 
               {/* Hover Tooltip */}
               <div
-                className={`absolute left-16 top-1/2 -translate-y-1/2 rounded-lg p-3 w-32 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ml-2 z-[60] border ${
-                  isDark
-                    ? "bg-[#1A1A1A] border-[#2A2A2A]"
-                    : "bg-white border-gray-200"
-                }`}
+                className={`absolute left-16 top-1/2 -translate-y-1/2 rounded-lg p-3 w-32 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ml-2 z-[60] border ${isDark
+                  ? "bg-[#1A1A1A] border-[#2A2A2A]"
+                  : "bg-white border-gray-200"
+                  }`}
               >
                 <div
                   className={`text-xs font-bold mb-0.5 ${isDark ? "text-white" : "text-gray-900"}`}
@@ -190,11 +192,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
                   {link.desc}
                 </div>
                 <div
-                  className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 border-l border-b rotate-45 ${
-                    isDark
-                      ? "bg-[#1A1A1A] border-[#2A2A2A]"
-                      : "bg-white border-gray-200"
-                  }`}
+                  className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 border-l border-b rotate-45 ${isDark
+                    ? "bg-[#1A1A1A] border-[#2A2A2A]"
+                    : "bg-white border-gray-200"
+                    }`}
                 ></div>
               </div>
 
@@ -212,21 +213,19 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
         <div className="relative group">
           <button
             onClick={onShowChat}
-            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 ${
-              isDark
-                ? "bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"
-                : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
-            }`}
+            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-300 ${isDark
+              ? "bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20"
+              : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+              }`}
           >
             <MessageCircle size={16} strokeWidth={2.5} />
           </button>
           {/* Tooltip */}
           <div
-            className={`absolute left-14 top-1/2 -translate-y-1/2 rounded-lg p-3 w-28 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ml-2 z-[60] border ${
-              isDark
-                ? "bg-[#1A1A1A] border-[#2A2A2A]"
-                : "bg-white border-gray-200"
-            }`}
+            className={`absolute left-14 top-1/2 -translate-y-1/2 rounded-lg p-3 w-28 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ml-2 z-[60] border ${isDark
+              ? "bg-[#1A1A1A] border-[#2A2A2A]"
+              : "bg-white border-gray-200"
+              }`}
           >
             <div
               className={`text-xs font-bold ${isDark ? "text-white" : "text-gray-900"}`}
@@ -234,11 +233,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
               Messenger
             </div>
             <div
-              className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 border-l border-b rotate-45 ${
-                isDark
-                  ? "bg-[#1A1A1A] border-[#2A2A2A]"
-                  : "bg-white border-gray-200"
-              }`}
+              className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 border-l border-b rotate-45 ${isDark
+                ? "bg-[#1A1A1A] border-[#2A2A2A]"
+                : "bg-white border-gray-200"
+                }`}
             ></div>
           </div>
         </div>
@@ -249,21 +247,19 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
           onClick={() => setShowProfilePopup(!showProfilePopup)}
         >
           <div
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer border-2 ${
-              isDark
-                ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
-                : "bg-emerald-50 border-emerald-100 text-emerald-600"
-            }`}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all cursor-pointer border-2 ${isDark
+              ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+              : "bg-emerald-50 border-emerald-100 text-emerald-600"
+              }`}
           >
             <Users size={18} strokeWidth={2.5} />
           </div>
           {/* Tooltip */}
           <div
-            className={`absolute left-14 top-1/2 -translate-y-1/2 rounded-lg p-3 w-28 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ml-2 z-[60] border ${
-              isDark
-                ? "bg-[#1A1A1A] border-[#2A2A2A]"
-                : "bg-white border-gray-200"
-            }`}
+            className={`absolute left-14 top-1/2 -translate-y-1/2 rounded-lg p-3 w-28 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity ml-2 z-[60] border ${isDark
+              ? "bg-[#1A1A1A] border-[#2A2A2A]"
+              : "bg-white border-gray-200"
+              }`}
           >
             <div
               className={`text-xs font-bold ${isDark ? "text-white" : "text-gray-900"}`}
@@ -271,11 +267,10 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
               My Profile
             </div>
             <div
-              className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 border-l border-b rotate-45 ${
-                isDark
-                  ? "bg-[#1A1A1A] border-[#2A2A2A]"
-                  : "bg-white border-gray-200"
-              }`}
+              className={`absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1 w-2 h-2 border-l border-b rotate-45 ${isDark
+                ? "bg-[#1A1A1A] border-[#2A2A2A]"
+                : "bg-white border-gray-200"
+                }`}
             ></div>
           </div>
           <AnimatePresence>
@@ -366,13 +361,12 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
                       return (
                         <>
                           <span
-                            className={`text-[8px] font-black px-1.5 py-0.5 rounded-[6px] uppercase tracking-widest ${
-                              isAlpha
-                                ? "bg-amber-500/10 text-amber-500"
-                                : isBeta
-                                  ? "bg-blue-500/10 text-blue-500"
-                                  : "bg-emerald-500/10 text-emerald-500"
-                            }`}
+                            className={`text-[8px] font-black px-1.5 py-0.5 rounded-[6px] uppercase tracking-widest ${isAlpha
+                              ? "bg-amber-500/10 text-amber-500"
+                              : isBeta
+                                ? "bg-blue-500/10 text-blue-500"
+                                : "bg-emerald-500/10 text-emerald-500"
+                              }`}
                           >
                             {isAlpha ? "Alpha" : isBeta ? "Beta" : "Stable"}
                           </span>

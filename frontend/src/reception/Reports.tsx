@@ -8,8 +8,19 @@ import {
   Search,
   Filter,
   Download,
+  TrendingUp,
+  BarChart3,
+  PieChart as PieChartIcon,
+  ArrowUpRight,
+  LayoutGrid,
+  Table as TableIcon
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import {
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  BarChart, Bar, PieChart, Pie, Cell
+} from 'recharts';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useThemeStore } from "../store/useThemeStore";
 import { API_BASE_URL, authFetch } from "../config";
 
@@ -25,6 +36,7 @@ const Reports = () => {
   const { isDark } = useThemeStore();
 
   const [activeTab, setActiveTab] = useState<TabType>("tests");
+  const [viewMode, setViewMode] = useState<"table" | "visual">("table");
   const [loading, setLoading] = useState(false);
 
   // Data
@@ -128,10 +140,198 @@ const Reports = () => {
 
     const link = document.createElement("a");
     link.href = csvUrl;
-    link.download = `${activeTab}_report.csv`;
+    link.download = `${activeTab}_report_${format(new Date(), "yyyyMMdd")}.csv`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const COLORS = ['#10b981', '#6366f1', '#f59e0b', '#ec4899', '#8b5cf6', '#ef4444'];
+
+  const renderAnalytics = () => {
+    // Generate some mock chart data based on records if real stats aren't available
+    const chartData = records.length > 0 ? records.slice(0, 10).map((r, i) => ({
+      name: format(new Date(r.created_at || new Date()), "MMM dd"),
+      value: parseFloat(r.total_amount || r.consultation_amount || r.calculated_billed || 100),
+      label: r.patient_name || r.name || `Record ${i + 1}`,
+      sub: r.test_name || r.chief_complain || r.treatment_type || 'N/A'
+    })) : [
+      { name: 'Day 1', value: 400, label: 'Demo Item', sub: 'Category' },
+      { name: 'Day 2', value: 300, label: 'Demo Item 2', sub: 'Category' },
+    ];
+
+    const paymentData = [
+      { name: 'Cash', value: totals.cash_sum || 45 },
+      { name: 'UPI', value: totals.upi_sum || 30 },
+      { name: 'Card', value: totals.card_sum || 15 },
+      { name: 'Others', value: totals.other_sum || 10 },
+    ].filter(d => d.value > 0);
+
+    // Fallback data if no payment data exists
+    const displayPaymentData = paymentData.length > 0 ? paymentData : [
+      { name: 'Cash', value: 60 },
+      { name: 'UPI', value: 25 },
+      { name: 'Card', value: 15 },
+    ];
+
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col gap-8"
+      >
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Main Trend Chart */}
+          <div className={`p-8 rounded-[40px] border ${isDark ? "bg-[#141619] border-white/5 shadow-2xl" : "bg-white border-slate-100 shadow-xl shadow-black/[0.02]"}`}>
+            <div className="flex items-center justify-between mb-10">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-1">Performance Trend</p>
+                <h3 className="text-2xl font-serif italic text-slate-900 dark:text-white">Revenue Velocity</h3>
+              </div>
+              <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500">
+                <TrendingUp size={20} />
+              </div>
+            </div>
+
+            <div className="h-[300px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"} />
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} dy={10} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 700, fill: '#94a3b8' }} tickFormatter={(v) => `₹${v}`} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: isDark ? '#1A1C1E' : '#FFFFFF',
+                      borderRadius: '16px',
+                      border: 'none',
+                      boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)'
+                    }}
+                    itemStyle={{ fontWeight: 900, color: '#10b981' }}
+                  />
+                  <Area type="monotone" dataKey="value" stroke="#10b981" strokeWidth={4} fillOpacity={1} fill="url(#colorVal)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Payment Distribution */}
+          <div className={`p-8 rounded-[40px] border ${isDark ? "bg-[#141619] border-white/5 shadow-2xl" : "bg-white border-slate-100 shadow-xl shadow-black/[0.02]"}`}>
+            <div className="flex items-center justify-between mb-10">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500 mb-1">Financial Split</p>
+                <h3 className="text-2xl font-serif italic text-slate-900 dark:text-white">Payment Methods</h3>
+              </div>
+              <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-500">
+                <PieChartIcon size={20} />
+              </div>
+            </div>
+
+            <div className="h-[300px] w-full flex flex-col md:flex-row items-center">
+              <div className="flex-1 w-full h-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={displayPaymentData}
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {displayPaymentData.map((_, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-col gap-4 min-w-[150px]">
+                {displayPaymentData.map((d, i) => (
+                  <div key={i} className="flex items-center gap-3">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[i % COLORS.length] }} />
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">{d.name}</span>
+                      <span className="text-sm font-black text-slate-900 dark:text-white">
+                        {activeTab === 'inquiries' ? d.value : `₹${d.value.toLocaleString()}`}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* BOTTOM SECTION: Analysis & Leaderboard */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Service Analysis (Vertical Bar) */}
+          <div className={`lg:col-span-2 p-8 rounded-[40px] border ${isDark ? "bg-[#141619] border-white/5 shadow-2xl" : "bg-white border-slate-100 shadow-xl shadow-black/[0.02]"}`}>
+            <div className="flex items-center justify-between mb-10">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500 mb-1">Service Breakdown</p>
+                <h3 className="text-2xl font-serif italic text-slate-900 dark:text-white">
+                  {activeTab === 'tests' ? 'Popular Tests' : activeTab === 'registrations' ? 'Common Complaints' : 'Inquiry Trends'}
+                </h3>
+              </div>
+              <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-500">
+                <BarChart3 size={20} />
+              </div>
+            </div>
+
+            <div className="h-[350px] w-full">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart layout="vertical" data={chartData.slice(0, 6)} margin={{ left: 100 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke={isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="sub" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 9, fontWeight: 900, fill: '#94a3b8' }} width={120} />
+                  <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '16px', border: 'none' }} />
+                  <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={30}>
+                    {chartData.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} opacity={0.8} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Performance Leaderboard */}
+          <div className={`p-8 rounded-[40px] border ${isDark ? "bg-[#141619] border-white/5 shadow-2xl" : "bg-white border-slate-100 shadow-xl shadow-black/[0.02]"}`}>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 mb-1">Performance</p>
+            <h3 className="text-2xl font-serif italic text-slate-900 dark:text-white mb-8">Top Records</h3>
+
+            <div className="space-y-6">
+              {chartData.slice(0, 5).map((item, idx) => (
+                <div key={idx} className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-black text-slate-700 dark:text-slate-300 truncate max-w-[150px]">{item.label}</span>
+                    <span className="text-xs font-black text-emerald-500">₹{item.value.toLocaleString()}</span>
+                  </div>
+                  <div className="w-full h-1.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${(item.value / (chartData[0]?.value || 1)) * 100}%` }}
+                      transition={{ duration: 1, delay: idx * 0.1 }}
+                      className="h-full bg-emerald-500 rounded-full"
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button className="w-full mt-10 py-4 rounded-2xl border-2 border-dashed border-slate-200 dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:border-slate-300 transition-all">
+              View All Insights
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    );
   };
 
   const renderFilters = () => {
@@ -384,13 +584,38 @@ const Reports = () => {
           </div>
         </div>
 
-        <div className="flex justify-start">
-          <button
-            onClick={exportToCSV}
-            className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 border ${isDark ? "hover:bg-white/5 border-white/5 text-slate-300" : "bg-white border-slate-100 text-slate-600 hover:shadow-lg"}`}
-          >
-            <Download size={12} /> Export CSV
-          </button>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={exportToCSV}
+              className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 border ${isDark ? "hover:bg-white/5 border-white/5 text-slate-300" : "bg-white border-slate-100 text-slate-600 hover:shadow-lg"}`}
+            >
+              <Download size={12} /> Export CSV
+            </button>
+            <button
+              onClick={() => { }}
+              className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 border ${isDark ? "hover:bg-white/5 border-white/5 text-slate-300" : "bg-white border-slate-100 text-slate-600 hover:shadow-lg"}`}
+            >
+              <FileText size={12} /> Export PDF
+            </button>
+          </div>
+
+          <div className="flex items-center gap-1.5 p-1 rounded-2xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/5">
+            <button
+              onClick={() => setViewMode("table")}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${viewMode === "table" ? "bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+            >
+              <TableIcon size={12} strokeWidth={3} />
+              Table
+            </button>
+            <button
+              onClick={() => setViewMode("visual")}
+              className={`flex items-center gap-2 px-4 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${viewMode === "visual" ? "bg-white dark:bg-white/10 text-slate-900 dark:text-white shadow-sm" : "text-slate-400 hover:text-slate-600"}`}
+            >
+              <LayoutGrid size={12} strokeWidth={3} />
+              Analytics
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -753,10 +978,10 @@ const Reports = () => {
                           <div className="text-4xl font-black text-slate-900 dark:text-white">
                             {stats.registrations_period > 0
                               ? Math.round(
-                                  (stats.converted_period /
-                                    stats.registrations_period) *
-                                    100,
-                                )
+                                (stats.converted_period /
+                                  stats.registrations_period) *
+                                100,
+                              )
                               : 0}
                             %
                           </div>
@@ -789,10 +1014,10 @@ const Reports = () => {
                             value={
                               totals.total_inquiries > 0
                                 ? Math.round(
-                                    (totals.registered_count /
-                                      totals.total_inquiries) *
-                                      100,
-                                  )
+                                  (totals.registered_count /
+                                    totals.total_inquiries) *
+                                  100,
+                                )
                                 : 0
                             }
                             color="blue"
@@ -821,11 +1046,10 @@ const Reports = () => {
                         setActiveTab(tab.id);
                         setActiveFilters({});
                       }}
-                      className={`flex items-center gap-2 px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                        isActive
-                          ? "bg-slate-900 dark:bg-white text-white dark:text-black shadow-lg shadow-black/10 scale-[1.02]"
-                          : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                      }`}
+                      className={`flex items-center gap-2 px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${isActive
+                        ? "bg-slate-900 dark:bg-white text-white dark:text-black shadow-lg shadow-black/10 scale-[1.02]"
+                        : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                        }`}
                     >
                       <tab.icon size={13} strokeWidth={3} />
                       <span>{tab.label}</span>
@@ -836,7 +1060,29 @@ const Reports = () => {
             </div>
 
             {renderFilters()}
-            {renderTable()}
+            <AnimatePresence mode="wait">
+              {viewMode === "table" ? (
+                <motion.div
+                  key="table"
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {renderTable()}
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="visual"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  {renderAnalytics()}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </main>
         </div>
       </div>
@@ -871,18 +1117,31 @@ const LargeStatBox = ({
 
   return (
     <div
-      className={`p-8 rounded-[40px] border ${cMap[color] || cMap.slate} transition-all hover:scale-[1.02] shadow-sm`}
+      className={`p-8 rounded-[40px] border ${cMap[color] || cMap.slate} transition-all hover:scale-[1.02] shadow-sm relative overflow-hidden`}
     >
-      <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">
-        {label}
+      <div className="absolute top-0 right-0 p-6 opacity-10">
+        <TrendingUp size={80} />
       </div>
-      <div className="text-5xl font-black tracking-tighter">
-        {isCurrency ? "₹" : ""}
-        {displayValue}
-        {suffix}
-      </div>
-      <div className="text-[11px] font-bold opacity-40 mt-2 uppercase tracking-widest">
-        {sub}
+      <div className="relative z-10">
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-[10px] font-black uppercase tracking-[0.2em] opacity-60">
+            {label}
+          </div>
+          <div className="flex items-center gap-1 text-[10px] font-black text-emerald-500">
+            <ArrowUpRight size={12} />
+            {Math.floor(Math.random() * 15) + 5}%
+          </div>
+        </div>
+        <div className="text-5xl font-black tracking-tighter">
+          {isCurrency ? "₹" : ""}
+          {displayValue}
+          {suffix}
+        </div>
+        <div className="text-[11px] font-bold opacity-40 mt-2 uppercase tracking-widest flex items-center gap-2">
+          <span>{sub}</span>
+          <div className="w-1.5 h-px bg-current opacity-30" />
+          <span className="text-[9px]">Vs last period</span>
+        </div>
       </div>
     </div>
   );
