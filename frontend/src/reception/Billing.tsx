@@ -12,6 +12,7 @@ import {
   ChevronRight,
   FileText,
   CheckCircle2,
+  Eye,
   Zap,
   CalendarRange,
   SlidersHorizontal,
@@ -89,6 +90,7 @@ const Billing = () => {
     direction: "asc" | "desc";
   }>({ key: "created_at", direction: "desc" });
   const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
 
   // Test Modal State
   const [selectedTest, setSelectedTest] = useState<any>(null);
@@ -271,7 +273,7 @@ const Billing = () => {
     window.open(url, "_blank");
   };
 
-  const exportReport = () => {
+  const exportReport = (filterType?: "treatment" | "test") => {
     const start =
       isCustomRange && rangeStart
         ? format(new Date(rangeStart), "dd MMM yyyy")
@@ -280,6 +282,23 @@ const Billing = () => {
       isCustomRange && rangeEnd
         ? format(new Date(rangeEnd), "dd MMM yyyy")
         : format(endOfMonth(currentMonth), "dd MMM yyyy");
+
+    let dataToExport =
+      activeTab === "overview"
+        ? combinedRecords
+        : activeTab === "patients"
+          ? sortedRecords
+          : groupedTests;
+
+    if (activeTab === "overview" && filterType) {
+      dataToExport = dataToExport.filter((r) => r.billing_type === filterType);
+    }
+
+    const reportLabel = filterType
+      ? filterType === "treatment"
+        ? " (Patients)"
+        : " (Tests)"
+      : "";
 
     const htmlContent = `
       <!DOCTYPE html>
@@ -293,6 +312,7 @@ const Billing = () => {
           .brand { font-size: 24px; font-weight: 900; letter-spacing: -0.02em; color: #10b981; }
           .report-info { text-align: right; }
           .report-title { font-size: 32px; font-weight: 900; margin: 0; letter-spacing: -0.04em; }
+          .report-subtitle { font-size: 14px; font-weight: 800; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
           .report-range { font-size: 14px; font-weight: 700; opacity: 0.4; margin-top: 4px; uppercase; }
           
           table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -312,6 +332,7 @@ const Billing = () => {
           <div class="brand">PhysioEZ / Billing</div>
           <div class="report-info">
             <h1 class="report-title">Financial Report</h1>
+            ${reportLabel ? `<div class="report-subtitle">${reportLabel}</div>` : ""}
             <p class="report-range">${start} &nbsp;→&nbsp; ${end}</p>
           </div>
         </div>
@@ -319,19 +340,56 @@ const Billing = () => {
         <table>
           <thead>
             <tr>
-              <th>Patient ID</th>
+              <th>${activeTab === "overview" ? "Date" : activeTab === "tests" ? "Last Test" : "Patient ID"}</th>
               <th>Patient Name</th>
               <th>Phone</th>
-              <th class="amount">Total Bill</th>
+              <th class="amount">${activeTab === "tests" ? "Tests" : "Total Bill"}</th>
               <th class="amount">Total Paid</th>
               <th class="amount">Due</th>
-              <th style="text-align: center">Status</th>
+              <th style="text-align: center">${activeTab === "tests" || activeTab === "overview" ? "--" : "Status"}</th>
             </tr>
           </thead>
           <tbody>
-            ${records
-              .map(
-                (r) => `
+            ${(() => {
+        if (activeTab === "overview") {
+          return dataToExport
+            .map(
+              (r) => `
+              <tr>
+                <td>${format(new Date(r.last_activity), "dd MMM yy")}</td>
+                <td>${r.patient_name} (${r.billing_type})</td>
+                <td>${r.phone_number}</td>
+                <td class="amount">${fmt(r.billed_amount)}</td>
+                <td class="amount">${fmt(r.paid_amount)}</td>
+                <td class="amount">${fmt(parseNum(r.billed_amount) - parseNum(r.paid_amount) - parseNum(r.discount))}</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            `,
+            )
+            .join("");
+        }
+
+        if (activeTab === "tests") {
+          return dataToExport
+            .map(
+              (r) => `
+              <tr>
+                <td>${format(new Date(r.last_test_date), "dd MMM yy")}</td>
+                <td>${r.patient_name}</td>
+                <td>${r.phone_number}</td>
+                <td class="amount" style="text-align: center">${r.test_count} Tests</td>
+                <td class="amount">${fmt(r.total_paid)}</td>
+                <td class="amount">${fmt(r.total_due)}</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            `,
+            )
+            .join("");
+        }
+
+        return dataToExport
+          .map(
+            (r) => `
               <tr>
                 <td class="patient-id">#${r.patient_id}</td>
                 <td>${r.patient_name}</td>
@@ -344,8 +402,9 @@ const Billing = () => {
                 </td>
               </tr>
             `,
-              )
-              .join("")}
+          )
+          .join("");
+      })()}
           </tbody>
         </table>
         
@@ -360,26 +419,47 @@ const Billing = () => {
     const htmlUrl = URL.createObjectURL(htmlBlob);
 
     // Also generate CSV for download
-    const csvHeaders = [
-      "Patient ID",
-      "Patient Name",
-      "Phone",
-      "Total Bill",
-      "Total Paid",
-      "Due",
-      "Status",
-      "Date",
-    ];
-    const csvRows = records.map((r) => [
-      r.patient_id,
-      r.patient_name,
-      r.phone_number,
-      r.total_amount,
-      r.total_paid,
-      parseFloat(r.total_amount) - parseFloat(r.total_paid),
-      r.status,
-      r.created_at,
-    ]);
+    const csvHeaders =
+      activeTab === "overview"
+        ? ["Date", "Name", "Type", "Phone", "Billed", "Paid", "Due"]
+        : activeTab === "tests"
+          ? ["Last Test", "Name", "Phone", "Tests", "Billed", "Paid", "Due"]
+          : ["ID", "Name", "Phone", "Billed", "Paid", "Due", "Status", "Date"];
+
+    const csvRows = (() => {
+      if (activeTab === "overview") {
+        return dataToExport.map((r) => [
+          r.last_activity,
+          r.patient_name,
+          r.billing_type,
+          r.phone_number,
+          r.billed_amount,
+          r.paid_amount,
+          parseNum(r.billed_amount) - parseNum(r.paid_amount) - parseNum(r.discount),
+        ]);
+      }
+      if (activeTab === "tests") {
+        return dataToExport.map((r) => [
+          r.last_test_date,
+          r.patient_name,
+          r.phone_number,
+          r.test_count,
+          r.total_billed,
+          r.total_paid,
+          r.total_due,
+        ]);
+      }
+      return dataToExport.map((r) => [
+        r.patient_id,
+        r.patient_name,
+        r.phone_number,
+        r.total_amount,
+        r.total_paid,
+        parseFloat(r.total_amount) - parseFloat(r.total_paid),
+        r.status,
+        r.created_at,
+      ]);
+    })();
     const csvContent =
       csvHeaders.join(",") + "\n" + csvRows.map((e) => e.join(",")).join("\n");
     const csvBlob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -388,9 +468,9 @@ const Billing = () => {
     setFileViewerConfig({
       isOpen: true,
       url: htmlUrl,
-      fileName: `billing_report_${format(isCustomRange && rangeStart ? new Date(rangeStart) : currentMonth, "MMM_yyyy")}.html`,
+      fileName: `billing_report_${filterType ? filterType + "_" : ""}${format(isCustomRange && rangeStart ? new Date(rangeStart) : currentMonth, "MMM_yyyy")}.html`,
       downloadUrl: csvUrl,
-      downloadFileName: `billing_report_${format(isCustomRange && rangeStart ? new Date(rangeStart) : currentMonth, "MMM_yyyy")}.csv`,
+      downloadFileName: `billing_report_${filterType ? filterType + "_" : ""}${format(isCustomRange && rangeStart ? new Date(rangeStart) : currentMonth, "MMM_yyyy")}.csv`,
     });
   };
 
@@ -415,7 +495,7 @@ const Billing = () => {
         <div className="flex-1 flex overflow-hidden">
           {/* === LEFT PANEL (STATS) === */}
           <div
-            className={`hidden xl:flex w-[400px] flex-col p-10 border-r relative shrink-0 transition-colors duration-300 z-50 overflow-y-auto h-screen ${isDark ? "bg-[#0A0A0A] border-[#151515] custom-scrollbar-dark" : "bg-white border-gray-200 custom-scrollbar"}`}
+            className={`hidden xl:flex w-[400px] flex-col p-10 border-r relative shrink-0 transition-colors duration-300 z-50 overflow-y-auto h-full ${isDark ? "bg-[#0A0A0A] border-[#151515] custom-scrollbar-dark" : "bg-white border-gray-200 custom-scrollbar"}`}
           >
             {/* Brand & Title */}
             <div className="space-y-10 z-10">
@@ -747,24 +827,30 @@ const Billing = () => {
           <main className="flex-1 h-screen overflow-hidden relative flex flex-col p-6 lg:p-10 lg:pt-8 gap-4">
             {/* Tabs Trigger */}
             <div className="px-6 flex justify-end gap-3">
-              <button
-                onClick={() => setActiveTab("overview")}
-                className={`px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "overview" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-white/5 text-slate-400 hover:bg-white/10"}`}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setActiveTab("patients")}
-                className={`px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "patients" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-white/5 text-slate-400 hover:bg-white/10"}`}
-              >
-                Patients
-              </button>
-              <button
-                onClick={() => setActiveTab("tests")}
-                className={`px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === "tests" ? "bg-emerald-500 text-white shadow-lg shadow-emerald-500/20" : "bg-white/5 text-slate-400 hover:bg-white/10"}`}
-              >
-                Tests
-              </button>
+              {[
+                { id: "overview", label: "Overview" },
+                { id: "patients", label: "Patients" },
+                { id: "tests", label: "Tests" },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`relative px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === tab.id ? "text-white" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  <span className="relative z-10">{tab.label}</span>
+                  {activeTab === tab.id && (
+                    <motion.div
+                      layoutId="activeTab"
+                      className="absolute inset-0 bg-emerald-500 rounded-2xl shadow-lg shadow-emerald-500/20"
+                      transition={{
+                        type: "spring",
+                        bounce: 0.2,
+                        duration: 0.6,
+                      }}
+                    />
+                  )}
+                </button>
+              ))}
             </div>
 
             {/* Main Card */}
@@ -796,6 +882,14 @@ const Billing = () => {
                       }
                       className="bg-transparent border-none outline-none text-sm w-full font-medium placeholder:opacity-40"
                     />
+                    {search && (
+                      <button
+                        onClick={() => setSearch("")}
+                        className="p-1 hover:bg-white/10 rounded-full opacity-40 hover:opacity-100 transition-all"
+                      >
+                        <RotateCcw size={12} />
+                      </button>
+                    )}
                   </div>
 
                   {/* Month Nav */}
@@ -838,15 +932,14 @@ const Billing = () => {
                         setShowRangePicker("start");
                       }
                     }}
-                    className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide transition-all ${
-                      isCustomRange
-                        ? isDark
-                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                          : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
-                        : isDark
-                          ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5"
-                          : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
-                    }`}
+                    className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide transition-all ${isCustomRange
+                      ? isDark
+                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                        : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
+                      : isDark
+                        ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5"
+                        : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
+                      }`}
                   >
                     <CalendarRange
                       size={16}
@@ -860,15 +953,14 @@ const Billing = () => {
                   {/* Today */}
                   <button
                     onClick={() => setShowOnlyToday(!showOnlyToday)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide transition-all ${
-                      showOnlyToday
-                        ? isDark
-                          ? "bg-[#4ADE80]/10 border-[#4ADE80]/30 text-[#4ADE80]"
-                          : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
-                        : isDark
-                          ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5"
-                          : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
-                    }`}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide transition-all ${showOnlyToday
+                      ? isDark
+                        ? "bg-[#4ADE80]/10 border-[#4ADE80]/30 text-[#4ADE80]"
+                        : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
+                      : isDark
+                        ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5"
+                        : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
+                      }`}
                   >
                     <Zap
                       size={16}
@@ -981,13 +1073,52 @@ const Billing = () => {
                   )}
 
                   {/* Export Button */}
-                  <button
-                    onClick={exportReport}
-                    className={`p-2.5 rounded-xl border transition-colors ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50 shadow-sm"}`}
-                    title="Export Financial Report"
-                  >
-                    <FileText size={18} strokeWidth={2} />
-                  </button>
+                  <div className="relative">
+                    <button
+                      onClick={() => {
+                        if (activeTab === "overview") {
+                          setIsExportMenuOpen(!isExportMenuOpen);
+                        } else {
+                          exportReport();
+                        }
+                      }}
+                      className={`p-2.5 rounded-xl border transition-colors ${isExportMenuOpen ? (isDark ? "bg-[#4ADE80]/10 border-[#4ADE80]/30 text-[#4ADE80]" : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm") : isDark ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50 shadow-sm"}`}
+                      title="Export Financial Report"
+                    >
+                      <FileText size={18} strokeWidth={2} />
+                    </button>
+
+                    <AnimatePresence>
+                      {activeTab === "overview" && isExportMenuOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                          className={`absolute top-full right-0 mt-2 w-56 rounded-2xl shadow-2xl border z-[70] overflow-hidden p-1 ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-gray-100"}`}
+                        >
+                          <div className="px-3 py-2 text-[10px] font-black uppercase tracking-widest opacity-30">
+                            Select Report Category
+                          </div>
+                          {[
+                            { label: "Patients (Treatments)", type: "treatment" },
+                            { label: "Diagnostic Tests", type: "test" },
+                            { label: "Whole Overview", type: undefined },
+                          ].map((opt) => (
+                            <button
+                              key={String(opt.type)}
+                              onClick={() => {
+                                exportReport(opt.type as any);
+                                setIsExportMenuOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${isDark ? "hover:bg-white/5" : "hover:bg-gray-50"}`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
                 </div>
               </div>
 
@@ -1072,12 +1203,12 @@ const Billing = () => {
                     <div className="w-2 h-2 bg-current rounded-full animate-bounce delay-200" />
                   </div>
                 ) : (
-                    activeTab === "overview"
-                      ? combinedRecords.length === 0
-                      : activeTab === "patients"
-                        ? sortedRecords.length === 0
-                        : groupedTests.length === 0
-                  ) ? (
+                  activeTab === "overview"
+                    ? combinedRecords.length === 0
+                    : activeTab === "patients"
+                      ? sortedRecords.length === 0
+                      : groupedTests.length === 0
+                ) ? (
                   <div className="h-64 flex flex-col items-center justify-center opacity-40 gap-4">
                     <FileText size={48} strokeWidth={1} />
                     <p className="font-bold text-gray-400">No records found</p>
@@ -1088,8 +1219,11 @@ const Billing = () => {
                   >
                     {activeTab === "overview" &&
                       combinedRecords.map((row, idx) => (
-                        <div
+                        <motion.div
                           key={idx}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: idx * 0.03 }}
                           onClick={() => {
                             if (row.billing_type === "treatment") {
                               openPatientDetails(row as any, "treatment");
@@ -1117,11 +1251,10 @@ const Billing = () => {
                                 {row.patient_name}
                               </span>
                               <span
-                                className={`text-[8px] font-black px-2 py-0.5 rounded tracking-[0.1em] uppercase ${
-                                  row.billing_type === "test"
-                                    ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400"
-                                    : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
-                                }`}
+                                className={`text-[8px] font-black px-2 py-0.5 rounded tracking-[0.1em] uppercase ${row.billing_type === "test"
+                                  ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400"
+                                  : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
+                                  }`}
                               >
                                 {row.billing_type}
                               </span>
@@ -1147,23 +1280,31 @@ const Billing = () => {
                           >
                             {fmt(
                               parseNum(row.billed_amount) -
-                                parseNum(row.paid_amount) -
-                                parseNum(row.discount),
+                              parseNum(row.paid_amount) -
+                              parseNum(row.discount),
                             )}
                           </div>
-                        </div>
+                          <div className="w-[5%] flex justify-end">
+                            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-600 dark:bg-white/5 dark:text-slate-400 hover:bg-slate-100 transition-colors">
+                              <Eye size={16} strokeWidth={2} />
+                            </button>
+                          </div>
+                        </motion.div>
                       ))}
 
                     {activeTab === "patients" &&
-                      sortedRecords.map((row) => {
+                      sortedRecords.map((row, idx) => {
                         const bill = parseNum(row.total_amount);
                         const paid = parseNum(row.total_paid);
                         const discount = parseNum(row.discount_amount);
                         const due = bill - paid - discount;
 
                         return (
-                          <div
+                          <motion.div
                             key={row.patient_id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: idx * 0.02 }}
                             onClick={() => openPatientDetails(row as any)}
                             className={`flex items-center px-8 py-4 transition-all cursor-pointer group hover:bg-gray-50 dark:hover:bg-white/5 border-b dark:border-white/5 last:border-0`}
                           >
@@ -1237,22 +1378,37 @@ const Billing = () => {
                                   <MessageCircle size={14} strokeWidth={2.5} />
                                 </button>
                               )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openPatientDetails(row as any);
+                                }}
+                                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-600 dark:bg-white/5 dark:text-slate-400 hover:bg-slate-100 transition-colors"
+                              >
+                                <Eye size={16} strokeWidth={2} />
+                              </button>
                             </div>
-                          </div>
+                          </motion.div>
                         );
                       })}
 
                     {activeTab === "tests" &&
                       groupedTests.map((row, idx) => (
-                        <div
+                        <motion.div
                           key={idx}
+                          initial={{ opacity: 0, scale: 0.98 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: idx * 0.03 }}
                           onClick={() => {
                             if (row.patient_id) {
-                              openPatientDetails({
-                                patient_id: row.patient_id,
-                                patient_name: row.patient_name,
-                                patient_phone: row.phone_number,
-                              } as any);
+                              openPatientDetails(
+                                {
+                                  patient_id: row.patient_id,
+                                  patient_name: row.patient_name,
+                                  patient_phone: row.phone_number,
+                                } as any,
+                                "test",
+                              );
                             } else {
                               toast.info(
                                 "Redirecting to patient's last test details...",
@@ -1302,7 +1458,12 @@ const Billing = () => {
                           >
                             {fmt(row.total_due)}
                           </div>
-                        </div>
+                          <div className="w-[5%] flex justify-end">
+                            <button className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 text-slate-600 dark:bg-white/5 dark:text-slate-400 hover:bg-slate-100 transition-colors">
+                              <Eye size={16} strokeWidth={2} />
+                            </button>
+                          </div>
+                        </motion.div>
                       ))}
                   </div>
                 )}
