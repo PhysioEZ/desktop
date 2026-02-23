@@ -12,6 +12,7 @@ import {
   Edit,
   ChevronDown,
   ChevronUp,
+  Activity,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL, authFetch } from "../../config";
@@ -74,6 +75,12 @@ interface FullTestDetails {
   payment_status: string;
   test_status: string;
   test_items: TestItem[];
+  test_payments?: {
+    payment_id: number;
+    amount: number;
+    payment_method: string;
+    created_at: string;
+  }[];
 }
 
 interface TestDetailsModalProps {
@@ -341,7 +348,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: "100%", opacity: 0, transition: { duration: 0.3 } }}
             transition={{ type: "spring", damping: 30, stiffness: 300 }}
-            className="relative w-full sm:w-[95%] md:w-[85%] lg:w-[80%] max-w-7xl h-[100dvh] sm:h-[95vh] sm:mr-4 sm:rounded-3xl bg-slate-50 dark:bg-slate-900 shadow-2xl flex flex-col overflow-hidden border border-black/5 dark:border-white/10"
+            className="relative w-full sm:w-[98%] max-w-[1600px] h-[100dvh] sm:h-[95vh] sm:mr-1 sm:rounded-3xl bg-slate-50 dark:bg-slate-900 shadow-2xl flex flex-col overflow-hidden border border-black/5 dark:border-white/10"
           >
             {/* Header */}
             <div className="px-6 py-4 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-10 shrink-0">
@@ -405,14 +412,19 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
               </div>
             ) : (
               <div className="flex-1 flex flex-col lg:flex-row overflow-hidden min-h-0">
-                {/* Left Panel: Patient & Financials */}
-                <div className="w-full lg:w-[40%] xl:w-[35%] p-6 flex flex-col gap-6 overflow-y-auto no-scrollbar shrink-0 bg-slate-50 dark:bg-slate-900/30 border-r border-slate-200 dark:border-white/5">
+                {/* Left Panel: Patient & Financials & Transactions */}
+                <div className="w-full lg:w-[450px] p-5 flex flex-col gap-5 overflow-y-auto custom-scrollbar bg-slate-50 dark:bg-slate-900/30 border-r border-slate-200 dark:border-white/5 h-full relative">
                   {/* Patient Info Card */}
-                  <div className="bg-white dark:bg-slate-800/80 rounded-[24px] p-6 shadow-sm border border-slate-100 dark:border-white/5 relative overflow-hidden">
+                  <div className="bg-white dark:bg-slate-800/80 rounded-[24px] p-6 shadow-sm border border-slate-100 dark:border-white/5 relative">
                     {/* Abstract bg element */}
                     <div className="absolute top-0 right-0 w-32 h-32 bg-teal-500/5 dark:bg-teal-500/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
 
-                    <div className="flex items-start gap-4 mb-6 relative z-10">
+                    <div
+                      className="flex items-start gap-4 mb-6 relative z-10 cursor-pointer hover:opacity-80 transition-opacity"
+                      onClick={() =>
+                        !isEditing && setShowMoreInfo(!showMoreInfo)
+                      }
+                    >
                       <div className="w-14 h-14 rounded-2xl bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center text-xl font-black shadow-inner">
                         {data.patient_name ? (
                           data.patient_name.charAt(0).toUpperCase()
@@ -421,8 +433,16 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                         )}
                       </div>
                       <div className="flex-1 pt-1">
-                        <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight leading-tight mb-1">
+                        <h4 className="text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight leading-tight mb-1 flex items-center gap-2">
                           {data.patient_name || "Unknown Patient"}
+                          {!isEditing && (
+                            <motion.div
+                              animate={{ rotate: showMoreInfo ? 180 : 0 }}
+                              className="text-slate-400"
+                            >
+                              <ChevronDown size={14} />
+                            </motion.div>
+                          )}
                         </h4>
                         <div className="flex items-center gap-2 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                           <span>{data.gender || "N/A"}</span>
@@ -589,7 +609,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
 
                   {/* Financial Summary Card */}
                   <div
-                    className={`rounded-[24px] p-6 shadow-lg border relative overflow-hidden ${
+                    className={`rounded-[24px] p-5 shadow-lg border relative ${
                       parseFloat(String(data.due_amount || 0)) > 0
                         ? "bg-gradient-to-br from-rose-500/5 to-orange-500/5 border-rose-500/20 dark:from-rose-500/5 dark:to-orange-500/10 dark:border-rose-500/10"
                         : "bg-gradient-to-br from-emerald-500/5 to-teal-500/5 border-emerald-500/20 dark:from-emerald-500/10 dark:to-teal-500/5 dark:border-emerald-500/10"
@@ -668,9 +688,10 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                             <span className="text-slate-500">
                               {Number(data.total_amount) > 0
                                 ? (
-                                    (parseFloat(
+                                    ((parseFloat(
                                       String(data.advance_amount || 0),
-                                    ) /
+                                    ) +
+                                      parseFloat(String(data.discount || 0))) /
                                       parseFloat(
                                         String(data.total_amount || 1),
                                       )) *
@@ -684,7 +705,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                             <motion.div
                               initial={{ width: 0 }}
                               animate={{
-                                width: `${Number(data.total_amount) > 0 ? (parseFloat(String(data.advance_amount || 0)) / parseFloat(String(data.total_amount || 1))) * 100 : 0}%`,
+                                width: `${Number(data.total_amount) > 0 ? ((parseFloat(String(data.advance_amount || 0)) + parseFloat(String(data.discount || 0))) / parseFloat(String(data.total_amount || 1))) * 100 : 0}%`,
                               }}
                               className="h-full bg-emerald-500 rounded-full"
                             />
@@ -718,10 +739,51 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Transaction History Section */}
+                  <div className="bg-white dark:bg-slate-800/80 rounded-[24px] p-5 shadow-sm border border-slate-100 dark:border-white/5 flex flex-col gap-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Activity size={16} className="text-teal-500" />
+                      <h4 className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider">
+                        Payment Transactions
+                      </h4>
+                    </div>
+
+                    <div className="space-y-3">
+                      {data.test_payments && data.test_payments.length > 0 ? (
+                        data.test_payments.map((p, idx) => (
+                          <div
+                            key={p.payment_id || idx}
+                            className="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5 hover:border-teal-500/30 transition-colors"
+                          >
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-xs font-black text-slate-900 dark:text-white">
+                                ₹{parseFloat(String(p.amount)).toFixed(2)}
+                              </span>
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                {p.payment_method} •{" "}
+                                {new Date(p.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <div className="w-7 h-7 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                              <Check size={14} />
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="py-8 flex flex-col items-center justify-center opacity-30">
+                          <Wallet size={32} strokeWidth={1} className="mb-2" />
+                          <p className="text-[10px] font-bold uppercase tracking-widest">
+                            No transactions yet
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Right Panel: Test Items List */}
-                <div className="w-full lg:w-[60%] xl:w-[65%] p-6 flex flex-col gap-4 overflow-y-auto bg-slate-50 dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-white/5 min-h-0 auto-rows-max">
+                <div className="w-full lg:flex-1 p-6 flex flex-col gap-4 overflow-y-auto bg-slate-50 dark:bg-slate-900 border-t lg:border-t-0 border-slate-200 dark:border-white/5 min-h-0 auto-rows-max">
                   <div className="flex items-center gap-2 mb-2">
                     <FlaskConical size={18} className="text-slate-400" />
                     <h3 className="text-sm font-black uppercase text-slate-700 dark:text-slate-300">

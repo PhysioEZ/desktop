@@ -771,7 +771,7 @@ const Tests = () => {
                                       Paid
                                     </p>
                                     <p className="text-xs font-black text-yellow-600">
-                                      ₹0
+                                      ₹{item.advance_amount || 0}
                                     </p>
                                   </div>
                                   <div
@@ -780,7 +780,9 @@ const Tests = () => {
                                     <p className="text-[8px] font-bold uppercase opacity-30 mb-0.5">
                                       Discount
                                     </p>
-                                    <p className="text-xs font-black">₹0</p>
+                                    <p className="text-xs font-black">
+                                      ₹{item.discount || 0}
+                                    </p>
                                   </div>
                                 </div>
                               )}
