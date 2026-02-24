@@ -24,3 +24,4 @@ Thumbs.db
 *.msi
 *.dmg
 CareSyncOS_*
+lock.json

@@ -32,7 +32,8 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function (origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Allow all origins in production or check against environment variable
+        if (!origin || process.env.NODE_ENV === 'production' || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             callback(new Error('Not allowed by CORS'));
@@ -70,9 +71,25 @@ app.get('/health', (req, res) => {
     res.json({ status: 'ok', message: 'PhysioEZ Node Server Running' });
 });
 
-// 404 Handler
+// Serve Frontend Static Files
+const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
+app.use(express.static(frontendBuildPath));
+
+// Handle SPA routing - redirect all non-api routes to index.html
+app.get('*', (req, res, next) => {
+    if (req.url.startsWith('/api')) {
+        return next();
+    }
+    res.sendFile(path.join(frontendBuildPath, 'index.html'));
+});
+
+// 404 Handler (only for /api routes now since others go to index.html)
 app.use((req, res, next) => {
-    res.status(404).json({ status: 'error', message: 'Not found' });
+    if (req.url.startsWith('/api')) {
+        res.status(404).json({ status: 'error', message: 'Not found' });
+    } else {
+        next();
+    }
 });
 
 // Error Handler
