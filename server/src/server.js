@@ -77,7 +77,7 @@ app.use(express.static(frontendBuildPath));
 
 // Handle SPA routing - redirect all non-api routes to index.html
 app.get('*', (req, res, next) => {
-    if (req.url.startsWith('/api')) {
+    if (req.url.startsWith('/api') || req.url.startsWith('/uploads') || req.url.startsWith('/assets')) {
         return next();
     }
     res.sendFile(path.join(frontendBuildPath, 'index.html'));

@@ -25,3 +25,5 @@ Thumbs.db
 *.dmg
 CareSyncOS_*
 lock.json
+database/migration.sql
+database/prospine.sql

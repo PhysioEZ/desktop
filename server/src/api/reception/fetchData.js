@@ -236,16 +236,20 @@ exports.getNotifications = async (req, res) => {
             return res.json({ success: true, status: 'success', unread_count: 0, notifications: [] });
         }
 
-        const [unreadRows] = await pool.query("SELECT COUNT(*) as count FROM notifications WHERE employee_id = ? AND is_read = 0 AND created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)", [employeeId]);
+        const [
+            [unreadRows],
+            [notifRows]
+        ] = await Promise.all([
+            pool.query("SELECT COUNT(*) as count FROM notifications WHERE employee_id = ? AND is_read = 0 AND created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)", [employeeId]),
+            pool.query(`
+                SELECT notification_id, message, link_url, is_read, created_at 
+                FROM notifications 
+                WHERE employee_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)
+                ORDER BY created_at DESC 
+                LIMIT 15
+            `, [employeeId])
+        ]);
         const unreadCount = unreadRows[0].count;
-
-        const [notifRows] = await pool.query(`
-            SELECT notification_id, message, link_url, is_read, created_at 
-            FROM notifications 
-            WHERE employee_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)
-            ORDER BY created_at DESC 
-            LIMIT 15
-        `, [employeeId]);
 
         const notifications = notifRows.map(n => {
             const created = new Date(n.created_at);
@@ -284,42 +288,46 @@ exports.getPendingApprovals = async (req, res) => {
             return res.status(400).json({ success: false, status: 'error', message: "Branch ID required" });
         }
 
-        const [pendingRegistrations] = await pool.query(`
-            SELECT 
-                'registration' as type,
-                registration_id as id,
-                patient_name,
-                phone_number,
-                created_at,
-                consultation_amount as amount,
-                status,
-                approval_status,
-                created_by_employee_id
-            FROM registration 
-            WHERE branch_id = ? 
-            AND (approval_status = 'pending' OR (approval_status = 'approved' AND DATE(created_at) = CURDATE()))
-            ORDER BY created_at DESC
-        `, [branchId]);
-
-        const [pendingTests] = await pool.query(`
-            SELECT 
-                'test' as type,
-                test_id as id,
-                test_uid as uid,
-                patient_name,
-                phone_number,
-                created_at,
-                total_amount as amount,
-                advance_amount,
-                discount as discount,
-                test_name,
-                approval_status,
-                created_by_employee_id
-            FROM tests 
-            WHERE branch_id = ? 
-            AND (approval_status = 'pending' OR (approval_status = 'approved' AND DATE(created_at) = CURDATE()))
-            ORDER BY created_at DESC
-        `, [branchId]);
+        const [
+            [pendingRegistrations],
+            [pendingTests]
+        ] = await Promise.all([
+            pool.query(`
+                SELECT 
+                    'registration' as type,
+                    registration_id as id,
+                    patient_name,
+                    phone_number,
+                    created_at,
+                    consultation_amount as amount,
+                    status,
+                    approval_status,
+                    created_by_employee_id
+                FROM registration 
+                WHERE branch_id = ? 
+                AND (approval_status = 'pending' OR (approval_status = 'approved' AND DATE(created_at) = CURDATE()))
+                ORDER BY created_at DESC
+            `, [branchId]),
+            pool.query(`
+                SELECT 
+                    'test' as type,
+                    test_id as id,
+                    test_uid as uid,
+                    patient_name,
+                    phone_number,
+                    created_at,
+                    total_amount as amount,
+                    advance_amount,
+                    discount as discount,
+                    test_name,
+                    approval_status,
+                    created_by_employee_id
+                FROM tests 
+                WHERE branch_id = ? 
+                AND (approval_status = 'pending' OR (approval_status = 'approved' AND DATE(created_at) = CURDATE()))
+                ORDER BY created_at DESC
+            `, [branchId])
+        ]);
 
         let allPending = [...pendingRegistrations, ...pendingTests];
 

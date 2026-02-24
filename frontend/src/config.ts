@@ -5,7 +5,7 @@
 // API Base URL
 const isProduction = import.meta.env.PROD;
 export const API_BASE_URL = isProduction ? "/api" : "http://localhost:3000/api";  
-export const FILE_BASE_URL = isProduction ? "" : "http://localhost:3000"; // Base for /uploads
+export const FILE_BASE_URL = "https://prospine.in/admin"; // Point to live server for files and uploads
 
 // Example usage: `${API_BASE_URL}/reception/test_connection`
 

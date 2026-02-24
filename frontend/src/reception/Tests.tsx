@@ -13,7 +13,6 @@ import {
   ChevronDown,
   Ban,
   Calendar,
-  Filter,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -40,21 +39,21 @@ interface TestRecord {
   paid_amount: number;
   due_amount: number;
   payment_status:
-  | "Paid"
-  | "Partial"
-  | "Unpaid"
-  | "paid"
-  | "partial"
-  | "pending";
+    | "Paid"
+    | "Partial"
+    | "Unpaid"
+    | "paid"
+    | "partial"
+    | "pending";
   test_status:
-  | "Completed"
-  | "Pending"
-  | "Cancelled"
-  | "In Progress"
-  | "completed"
-  | "pending"
-  | "cancelled"
-  | "in-progress";
+    | "Completed"
+    | "Pending"
+    | "Cancelled"
+    | "In Progress"
+    | "completed"
+    | "pending"
+    | "cancelled"
+    | "in-progress";
   test_uid: string;
 }
 
@@ -73,8 +72,6 @@ const Tests = () => {
   const [paymentFilter, setPaymentFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
   const [showCancelledOnly, setShowCancelledOnly] = useState(false);
-  const [isSearchExpanded, setIsSearchExpanded] = useState(true);
-
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -151,8 +148,12 @@ const Tests = () => {
     // Search Filter (Synced with Server Results)
     const matchesSearch =
       appliedSearchQuery.trim() === "" ||
-      record.patient_name.toLowerCase().includes(appliedSearchQuery.toLowerCase()) ||
-      record.test_uid.toLowerCase().includes(appliedSearchQuery.toLowerCase()) ||
+      record.patient_name
+        .toLowerCase()
+        .includes(appliedSearchQuery.toLowerCase()) ||
+      record.test_uid
+        .toLowerCase()
+        .includes(appliedSearchQuery.toLowerCase()) ||
       record.test_name.toLowerCase().includes(appliedSearchQuery.toLowerCase());
 
     return (
@@ -268,7 +269,9 @@ const Tests = () => {
   const handleSearchClick = () => {
     const trimmed = searchQuery.trim();
     if (trimmed === "") {
-      toast.error("Please enter a patient name, UID, or phone number to search.");
+      toast.error(
+        "Please enter a patient name, UID, or phone number to search.",
+      );
       return;
     }
 
@@ -282,10 +285,6 @@ const Tests = () => {
     setSearchQuery("");
     setAppliedSearchQuery("");
     fetchTests(1, "");
-  };
-
-  const handleTabChange = (tab: string) => {
-    setActiveTab(tab);
   };
 
   return (
@@ -411,7 +410,10 @@ const Tests = () => {
                       </span>
                       <span className="text-xs font-black text-emerald-400">
                         {stats.total_revenue > 0
-                          ? ((stats.total_paid / stats.total_revenue) * 100).toFixed(1)
+                          ? (
+                              (stats.total_paid / stats.total_revenue) *
+                              100
+                            ).toFixed(1)
                           : 0}
                         %
                       </span>
@@ -447,13 +449,15 @@ const Tests = () => {
                     name: "EEG (Brain Test)",
                     count: 24,
                     progress: 65,
-                    color: "bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.3)]",
+                    color:
+                      "bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.3)]",
                   },
                   {
                     name: "NCV (Nerve Test)",
                     count: 18,
                     progress: 45,
-                    color: "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]",
+                    color:
+                      "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]",
                   },
                   {
                     name: "BERA (Hearing Test)",
@@ -467,7 +471,9 @@ const Tests = () => {
                       <span className="text-[9px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">
                         {item.name}
                       </span>
-                      <span className="text-xs font-black tracking-tight">{item.count}</span>
+                      <span className="text-xs font-black tracking-tight">
+                        {item.count}
+                      </span>
                     </div>
                     <div className="h-1.5 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
                       <motion.div
@@ -568,7 +574,9 @@ const Tests = () => {
                     onClick={() => setIsTypeMenuOpen(!isTypeMenuOpen)}
                     className={`flex items-center gap-3 pl-5 pr-4 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest outline-none transition-all ${isDark ? "bg-[#1A1C1A] border-white/5 hover:bg-white/5 text-slate-300" : "bg-white border-gray-200 hover:bg-gray-50 text-slate-500 hover:border-emerald-500/20 shadow-sm"} ${isTypeMenuOpen ? "border-emerald-500/40 ring-4 ring-emerald-500/5" : ""}`}
                   >
-                    <span>{testTypeFilter === "All" ? "Types" : testTypeFilter}</span>
+                    <span>
+                      {testTypeFilter === "All" ? "Types" : testTypeFilter}
+                    </span>
                     <ChevronDown
                       size={14}
                       className={`transition-transform duration-300 ${isTypeMenuOpen ? "rotate-180" : "opacity-30"}`}
@@ -596,10 +604,12 @@ const Tests = () => {
                                   setTestTypeFilter(option);
                                   setIsTypeMenuOpen(false);
                                 }}
-                                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${testTypeFilter === option ? "bg-emerald-500/10 text-emerald-500" : (isDark ? "text-slate-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-600")}`}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${testTypeFilter === option ? "bg-emerald-500/10 text-emerald-500" : isDark ? "text-slate-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-600"}`}
                               >
                                 {option === "All" ? "All Types" : option}
-                                {testTypeFilter === option && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />}
+                                {testTypeFilter === option && (
+                                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                )}
                               </button>
                             ))}
                           </div>
@@ -615,7 +625,9 @@ const Tests = () => {
                     onClick={() => setIsPaymentMenuOpen(!isPaymentMenuOpen)}
                     className={`flex items-center gap-3 pl-5 pr-4 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest outline-none transition-all ${isDark ? "bg-[#1A1C1A] border-white/5 hover:bg-white/5 text-slate-300" : "bg-white border-gray-200 hover:bg-gray-50 text-slate-500 hover:border-emerald-500/20 shadow-sm"} ${isPaymentMenuOpen ? "border-emerald-500/40 ring-4 ring-emerald-500/5" : ""}`}
                   >
-                    <span>{paymentFilter === "All" ? "Payment" : paymentFilter}</span>
+                    <span>
+                      {paymentFilter === "All" ? "Payment" : paymentFilter}
+                    </span>
                     <ChevronDown
                       size={14}
                       className={`transition-transform duration-300 ${isPaymentMenuOpen ? "rotate-180" : "opacity-30"}`}
@@ -636,19 +648,23 @@ const Tests = () => {
                           className={`absolute top-full right-0 mt-3 w-48 rounded-[24px] border shadow-2xl z-50 overflow-hidden backdrop-blur-xl ${isDark ? "bg-black/60 border-white/10" : "bg-white/90 border-gray-100"}`}
                         >
                           <div className="p-2 space-y-1">
-                            {["All", "Paid", "Partial", "Unpaid"].map((option) => (
-                              <button
-                                key={option}
-                                onClick={() => {
-                                  setPaymentFilter(option);
-                                  setIsPaymentMenuOpen(false);
-                                }}
-                                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${paymentFilter === option ? "bg-emerald-500/10 text-emerald-500" : (isDark ? "text-slate-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-600")}`}
-                              >
-                                {option === "All" ? "All Payments" : option}
-                                {paymentFilter === option && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />}
-                              </button>
-                            ))}
+                            {["All", "Paid", "Partial", "Unpaid"].map(
+                              (option) => (
+                                <button
+                                  key={option}
+                                  onClick={() => {
+                                    setPaymentFilter(option);
+                                    setIsPaymentMenuOpen(false);
+                                  }}
+                                  className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${paymentFilter === option ? "bg-emerald-500/10 text-emerald-500" : isDark ? "text-slate-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-600"}`}
+                                >
+                                  {option === "All" ? "All Payments" : option}
+                                  {paymentFilter === option && (
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                  )}
+                                </button>
+                              ),
+                            )}
                           </div>
                         </motion.div>
                       </>
@@ -662,7 +678,9 @@ const Tests = () => {
                     onClick={() => setIsStatusMenuOpen(!isStatusMenuOpen)}
                     className={`flex items-center gap-3 pl-5 pr-4 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest outline-none transition-all ${isDark ? "bg-[#1A1C1A] border-white/5 hover:bg-white/5 text-slate-300" : "bg-white border-gray-200 hover:bg-gray-50 text-slate-500 hover:border-emerald-500/20 shadow-sm"} ${isStatusMenuOpen ? "border-emerald-500/40 ring-4 ring-emerald-500/5" : ""}`}
                   >
-                    <span>{statusFilter === "All" ? "Status" : statusFilter}</span>
+                    <span>
+                      {statusFilter === "All" ? "Status" : statusFilter}
+                    </span>
                     <ChevronDown
                       size={14}
                       className={`transition-transform duration-300 ${isStatusMenuOpen ? "rotate-180" : "opacity-30"}`}
@@ -683,17 +701,25 @@ const Tests = () => {
                           className={`absolute top-full right-0 mt-3 w-48 rounded-[24px] border shadow-2xl z-50 overflow-hidden backdrop-blur-xl ${isDark ? "bg-black/60 border-white/10" : "bg-white/90 border-gray-100"}`}
                         >
                           <div className="p-2 space-y-1">
-                            {["All", "Pending", "Completed", "In Progress", "Cancelled"].map((option) => (
+                            {[
+                              "All",
+                              "Pending",
+                              "Completed",
+                              "In Progress",
+                              "Cancelled",
+                            ].map((option) => (
                               <button
                                 key={option}
                                 onClick={() => {
                                   setStatusFilter(option);
                                   setIsStatusMenuOpen(false);
                                 }}
-                                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === option ? "bg-emerald-500/10 text-emerald-500" : (isDark ? "text-slate-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-600")}`}
+                                className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${statusFilter === option ? "bg-emerald-500/10 text-emerald-500" : isDark ? "text-slate-400 hover:bg-white/5 hover:text-white" : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-600"}`}
                               >
                                 {option === "All" ? "All Status" : option}
-                                {statusFilter === option && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />}
+                                {statusFilter === option && (
+                                  <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                )}
                               </button>
                             ))}
                           </div>
@@ -708,11 +734,13 @@ const Tests = () => {
               <div className="flex items-center gap-2 ml-6">
                 <button
                   onClick={() => setShowCancelledOnly(!showCancelledOnly)}
-                  className={`flex items-center gap-2 px-4 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest transition-all ${showCancelledOnly ? (isDark ? "bg-rose-500/20 border-rose-500/40 text-rose-400" : "bg-rose-50 border-rose-100 text-rose-600 shadow-sm") : (isDark ? "bg-[#1A1C1A] border-white/5 text-slate-400" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50")}`}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest transition-all ${showCancelledOnly ? (isDark ? "bg-rose-500/20 border-rose-500/40 text-rose-400" : "bg-rose-50 border-rose-100 text-rose-600 shadow-sm") : isDark ? "bg-[#1A1C1A] border-white/5 text-slate-400" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"}`}
                 >
                   <Ban
                     size={14}
-                    className={showCancelledOnly ? "text-rose-500" : "opacity-30"}
+                    className={
+                      showCancelledOnly ? "text-rose-500" : "opacity-30"
+                    }
                   />
                   Cancelled
                 </button>
@@ -811,14 +839,15 @@ const Tests = () => {
                               </div>
                               <div>
                                 <span
-                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${record.payment_status.toLowerCase() ===
+                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${
+                                    record.payment_status.toLowerCase() ===
                                     "paid"
-                                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20"
-                                    : record.payment_status.toLowerCase() ===
-                                      "partial"
-                                      ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500 border border-amber-200 dark:border-amber-500/20"
-                                      : "bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-500 border border-rose-200 dark:border-rose-500/20"
-                                    }`}
+                                      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20"
+                                      : record.payment_status.toLowerCase() ===
+                                          "partial"
+                                        ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500 border border-amber-200 dark:border-amber-500/20"
+                                        : "bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-500 border border-rose-200 dark:border-rose-500/20"
+                                  }`}
                                 >
                                   {record.payment_status
                                     .charAt(0)
@@ -830,14 +859,15 @@ const Tests = () => {
                               </div>
                               <div>
                                 <span
-                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${record.test_status.toLowerCase() ===
+                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${
+                                    record.test_status.toLowerCase() ===
                                     "completed"
-                                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20"
-                                    : record.test_status.toLowerCase() ===
-                                      "pending"
-                                      ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500 border border-amber-200 dark:border-amber-500/20"
-                                      : "bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-500 border border-blue-200 dark:border-blue-500/20"
-                                    }`}
+                                      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20"
+                                      : record.test_status.toLowerCase() ===
+                                          "pending"
+                                        ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500 border border-amber-200 dark:border-amber-500/20"
+                                        : "bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-500 border border-blue-200 dark:border-blue-500/20"
+                                  }`}
                                 >
                                   {record.test_status.charAt(0).toUpperCase() +
                                     record.test_status.slice(1).toLowerCase()}
@@ -878,10 +908,11 @@ const Tests = () => {
                               fetchTests(page + 1, appliedSearchQuery)
                             }
                             disabled={isLoadingMore}
-                            className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${isDark
-                              ? "bg-white/5 text-slate-300 hover:bg-white/10"
-                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                              }`}
+                            className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${
+                              isDark
+                                ? "bg-white/5 text-slate-300 hover:bg-white/10"
+                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            }`}
                           >
                             {isLoadingMore ? (
                               <>
@@ -915,14 +946,12 @@ const Tests = () => {
         />
         <NotesDrawer isOpen={showNotes} onClose={() => setShowNotes(false)} />
 
-        {
-          showChatModal && (
-            <ChatModal
-              isOpen={showChatModal}
-              onClose={() => setShowChatModal(false)}
-            />
-          )
-        }
+        {showChatModal && (
+          <ChatModal
+            isOpen={showChatModal}
+            onClose={() => setShowChatModal(false)}
+          />
+        )}
 
         {/* === APPROVALS MODAL === */}
         <AnimatePresence>
@@ -958,10 +987,16 @@ const Tests = () => {
 
                 <div className="px-6 pb-8 overflow-y-auto custom-scrollbar flex-1">
                   {pendingApprovals.filter((a) => a.type === "test").length ===
-                    0 ? (
+                  0 ? (
                     <div className="flex flex-col items-center justify-center py-16 opacity-20">
-                      <CheckCircle2 size={48} strokeWidth={1} className="mb-3" />
-                      <p className="text-sm font-medium">No pending approvals.</p>
+                      <CheckCircle2
+                        size={48}
+                        strokeWidth={1}
+                        className="mb-3"
+                      />
+                      <p className="text-sm font-medium">
+                        No pending approvals.
+                      </p>
                     </div>
                   ) : (
                     <div className="space-y-4">
@@ -1060,23 +1095,21 @@ const Tests = () => {
             <TestDetailsModal
               isOpen={isDetailsModalOpen}
               onClose={() => setIsDetailsModalOpen(false)}
-              testId={parseInt(selectedTest.uid)}
+              test={selectedTest}
             />
           )}
         </AnimatePresence>
 
-        {
-          showTestBill && billTestId && (
-            <TestBillModal
-              isOpen={showTestBill}
-              onClose={() => {
-                setShowTestBill(false);
-                setBillTestId(null);
-              }}
-              testId={billTestId}
-            />
-          )
-        }
+        {showTestBill && billTestId && (
+          <TestBillModal
+            isOpen={showTestBill}
+            onClose={() => {
+              setShowTestBill(false);
+              setBillTestId(null);
+            }}
+            testId={billTestId}
+          />
+        )}
 
         <KeyboardShortcuts
           shortcuts={shortcuts}

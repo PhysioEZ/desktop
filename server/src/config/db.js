@@ -7,9 +7,12 @@ const pool = mysql.createPool({
     password: process.env.DB_PASS,
     database: process.env.DB_NAME,
     waitForConnections: true,
-    connectionLimit: 10,
+    connectionLimit: 20, // Increased limit
     queueLimit: 0,
-    dateStrings: true // Return dates as strings (YYYY-MM-DD) instead of JS Date objects
+    connectTimeout: 20000, // 20 seconds
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000,
+    dateStrings: true
 });
 
 module.exports = pool;

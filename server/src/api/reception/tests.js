@@ -473,7 +473,11 @@ async function fetchTests(req, res, branchId, input) {
         params.push(`%${test_name}%`);
     }
 
-    const [tests] = await pool.query(`
+    const [
+        [tests],
+        [[stats]]
+    ] = await Promise.all([
+        pool.query(`
             SELECT
             test_id as uid, patient_name, test_name, total_amount,
                 advance_amount as paid_amount, due_amount, payment_status,
@@ -482,16 +486,16 @@ async function fetchTests(req, res, branchId, input) {
         WHERE ${whereClauses.join(" AND ")}
         ORDER BY created_at DESC
             LIMIT ? OFFSET ?
-                `, [...params, limit, offset]);
-
-    const [[stats]] = await pool.query(`
+                `, [...params, limit, offset]),
+        pool.query(`
         SELECT
             COUNT(*) as total,
                 SUM(CASE WHEN test_status = 'completed' THEN 1 ELSE 0 END) as completed,
                 SUM(CASE WHEN test_status = 'pending' THEN 1 ELSE 0 END) as pending
         FROM tests
         WHERE branch_id = ? AND test_status != 'cancelled'
-                `, [branchId]);
+                `, [branchId])
+    ]);
 
     res.json({
         success: true,
