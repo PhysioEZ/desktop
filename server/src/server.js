@@ -25,12 +25,22 @@ const authLimiter = rateLimit({
 });
 
 // Middleware
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+];
+
 app.use(cors({
-    origin: true, // Reflect origin
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Employee-ID', 'X-Branch-ID'],
     credentials: true
-    // Note: Rate limiting is applied AFTER CORS so CORS headers are still sent on blocked requests
 }));
 app.use(express.json({ limit: '50mb' })); // Increased limit for photo uploads
 app.use(morgan('dev'));
@@ -74,7 +84,7 @@ app.use((err, req, res, next) => {
     res.status(500).json({ status: 'error', message: err.message });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
     console.log(`Test Health: http://localhost:${PORT}/health`);
     console.log(`Test Login: http://localhost:${PORT}/api/auth/login`);
