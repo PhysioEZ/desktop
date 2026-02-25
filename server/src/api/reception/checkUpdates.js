@@ -25,7 +25,12 @@ exports.checkUpdates = async (req, res) => {
         if (isNaN(lastSyncDate.getTime())) {
             return res.status(400).json({ success: false, message: 'Invalid last_sync timestamp' });
         }
-        const lastSyncIso = lastSyncDate.toISOString();
+
+        // Convert ISO string to local format (YYYY-MM-DD HH:MM:SS)
+        // to compare with SQLite sync_history timestamps strings
+        const tzOffsetMs = lastSyncDate.getTimezoneOffset() * 60000;
+        const localSyncDate = new Date(lastSyncDate.getTime() - tzOffsetMs);
+        const mysqlTimestamp = localSyncDate.toISOString().slice(0, 19).replace('T', ' ');
 
         // Accept optional table filter — if provided, only check those tables.
         // If not provided, check all core tables.
@@ -62,7 +67,7 @@ exports.checkUpdates = async (req, res) => {
 
             // If the table was synced more recently than what the frontend knows,
             // the frontend should refetch that table.
-            if (tableSyncAt > lastSyncIso) {
+            if (tableSyncAt > mysqlTimestamp) {
                 hasChanges = true;
                 changes[table] = { updated: true, last_sync_at: tableSyncAt };
             }

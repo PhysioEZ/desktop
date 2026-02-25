@@ -317,7 +317,7 @@ const ReceptionDashboard = () => {
 
   // Registration form
   const [appointmentDate, setAppointmentDate] = useState(
-    new Date().toISOString().split("T")[0],
+    new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
   );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [activeDateField, setActiveDateField] = useState<
@@ -329,20 +329,20 @@ const ReceptionDashboard = () => {
     | null
   >(null);
   const [testVisitDate, setTestVisitDate] = useState(
-    new Date().toISOString().split("T")[0],
+    new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
   );
   const [testAssignedDate, setTestAssignedDate] = useState(
-    new Date().toISOString().split("T")[0],
+    new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
   );
   const [appointmentTime, setAppointmentTime] = useState("");
   const [showTimePicker, setShowTimePicker] = useState(false);
 
   // Inquiry Dates
   const [inquiryDate, setInquiryDate] = useState(
-    new Date().toISOString().split("T")[0],
+    new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
   );
   const [testInquiryDate, setTestInquiryDate] = useState(
-    new Date().toISOString().split("T")[0],
+    new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0],
   );
 
   // Dropdown States (Controlled)
@@ -1986,7 +1986,7 @@ const ReceptionDashboard = () => {
                     );
                     const height = `${(day.total / max) * 100}%`;
                     const isToday =
-                      day.date === new Date().toISOString().split("T")[0];
+                      day.date === new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0];
 
                     return (
                       <div
@@ -3503,7 +3503,7 @@ const ReceptionDashboard = () => {
           <DatePicker
             minDate={
               activeDateField === "registration"
-                ? new Date().toISOString().split("T")[0]
+                ? new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split("T")[0]
                 : undefined
             }
             value={
