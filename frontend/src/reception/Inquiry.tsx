@@ -458,7 +458,13 @@ const Inquiry = () => {
         }
       }
 
-      setIsLoading(true);
+      const currentData =
+        activeTab === "consultation"
+          ? useInquiryStore.getState().consultations
+          : useInquiryStore.getState().diagnostics;
+      if (!currentData) {
+        setIsLoading(true);
+      }
       try {
         const res = await authFetch(`${API_BASE_URL}/reception/inquiry`, {
           method: "POST",
@@ -510,6 +516,21 @@ const Inquiry = () => {
   });
 
   const handleUpdateStatus = async (id: number, newStatus: string) => {
+    // Optimistic UI Update
+    if (activeTab === "consultation" && consultations) {
+      setConsultations(
+        consultations.map((inq: any) =>
+          inq.inquiry_id === id ? { ...inq, status: newStatus } : inq,
+        ),
+      );
+    } else if (activeTab === "test" && diagnostics) {
+      setDiagnostics(
+        diagnostics.map((inq: any) =>
+          inq.inquiry_id === id ? { ...inq, status: newStatus } : inq,
+        ),
+      );
+    }
+
     try {
       const res = await authFetch(`${API_BASE_URL}/reception/inquiry`, {
         method: "POST",
@@ -525,13 +546,13 @@ const Inquiry = () => {
       const data = await res.json();
       if (data.status === "success") {
         showToast("Status updated successfully", "success");
-        // Clear specific cache after update
-        if (activeTab === "consultation") setConsultations([]);
-        else setDiagnostics([]);
+      } else {
+        // Revert on failure
         fetchInquiries(true);
       }
     } catch (err) {
       showToast("Error updating status", "error");
+      fetchInquiries(true); // Revert on failure
     }
   };
 
@@ -539,6 +560,18 @@ const Inquiry = () => {
 
   const confirmDelete = async () => {
     if (!deleteModal.id) return;
+
+    // Optimistic Delete
+    if (activeTab === "consultation" && consultations) {
+      setConsultations(
+        consultations.filter((inq: any) => inq.inquiry_id !== deleteModal.id),
+      );
+    } else if (activeTab === "test" && diagnostics) {
+      setDiagnostics(
+        diagnostics.filter((inq: any) => inq.inquiry_id !== deleteModal.id),
+      );
+    }
+
     try {
       const res = await authFetch(`${API_BASE_URL}/reception/inquiry`, {
         method: "POST",
@@ -553,13 +586,12 @@ const Inquiry = () => {
       const data = await res.json();
       if (data.status === "success") {
         showToast("Inquiry deleted", "success");
-        // Clear specific cache after delete
-        if (activeTab === "consultation") setConsultations([]);
-        else setDiagnostics([]);
-        fetchInquiries(true);
+      } else {
+        fetchInquiries(true); // Revert on failure
       }
     } catch (err) {
       showToast("Error deleting inquiry", "error");
+      fetchInquiries(true); // Revert on failure
     } finally {
       setDeleteModal({ show: false, id: null });
     }

@@ -236,10 +236,7 @@ exports.getNotifications = async (req, res) => {
             return res.json({ success: true, status: 'success', unread_count: 0, notifications: [] });
         }
 
-        const [
-            [unreadRows],
-            [notifRows]
-        ] = await Promise.all([
+        const [resUnread, resNotifs] = await Promise.all([
             pool.query("SELECT COUNT(*) as count FROM notifications WHERE employee_id = ? AND is_read = 0 AND created_at >= DATE_SUB(NOW(), INTERVAL 3 DAY)", [employeeId]),
             pool.query(`
                 SELECT notification_id, message, link_url, is_read, created_at 
@@ -249,7 +246,8 @@ exports.getNotifications = async (req, res) => {
                 LIMIT 15
             `, [employeeId])
         ]);
-        const unreadCount = unreadRows[0].count;
+        const unreadCount = resUnread[0][0]?.count || 0;
+        const notifRows = resNotifs[0];
 
         const notifications = notifRows.map(n => {
             const created = new Date(n.created_at);
@@ -288,10 +286,7 @@ exports.getPendingApprovals = async (req, res) => {
             return res.status(400).json({ success: false, status: 'error', message: "Branch ID required" });
         }
 
-        const [
-            [pendingRegistrations],
-            [pendingTests]
-        ] = await Promise.all([
+        const [resReg, resTests] = await Promise.all([
             pool.query(`
                 SELECT 
                     'registration' as type,
@@ -328,6 +323,9 @@ exports.getPendingApprovals = async (req, res) => {
                 ORDER BY created_at DESC
             `, [branchId])
         ]);
+
+        const pendingRegistrations = resReg[0];
+        const pendingTests = resTests[0];
 
         let allPending = [...pendingRegistrations, ...pendingTests];
 

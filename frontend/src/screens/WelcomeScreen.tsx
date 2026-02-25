@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
@@ -10,8 +10,20 @@ import {
   LayoutDashboard,
   Activity,
   CheckCircle2,
+  Database,
 } from "lucide-react";
-import { API_BASE_URL } from "../config";
+import { API_BASE_URL, authFetch } from "../config";
+
+// Priority tables shown during loading (matches server-side PRIORITY_TABLES)
+const PRIORITY_TABLES = [
+  "registration",
+  "patients",
+  "tests",
+  "attendance",
+  "payments",
+  "quick_inquiry",
+  "test_inquiry",
+];
 
 const WelcomeScreen = () => {
   const navigate = useNavigate();
@@ -19,58 +31,94 @@ const WelcomeScreen = () => {
   const { isDark } = useThemeStore();
   const [progress, setProgress] = useState(0);
   const [isReady, setIsReady] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string>(
+    "Initializing workspace...",
+  );
+  const [syncDone, setSyncDone] = useState(false);
+  const syncFired = useRef(false); // prevent double-firing in StrictMode
 
-  // Sync theme class on mount
+  // Sync theme
   useEffect(() => {
-    if (isDark) {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
+    document.documentElement.classList.toggle("dark", isDark);
   }, [isDark]);
 
-  // Security Guard
+  // Security guard
   useEffect(() => {
-    if (!user) {
-      navigate("/login");
-    }
+    if (!user) navigate("/login");
   }, [user, navigate]);
 
+  // ────────────────────────────────────────────────────────────────
+  // MAIN: Call init_sync on mount + drive progress bar
+  // ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    const duration = 3000;
-    const intervalTime = 30;
-    const increment = (intervalTime / duration) * 100;
+    if (!user) return;
 
-    const timer = setInterval(() => {
+    if (!syncFired.current) {
+      syncFired.current = true;
+      (async () => {
+        try {
+          setSyncStatus("Connecting to server...");
+          await authFetch(`${API_BASE_URL}/reception/init_sync`, {
+            method: "POST",
+          }).catch(() => {});
+          setSyncDone(true);
+        } catch (err) {
+          setSyncDone(true);
+        }
+      })();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    // --- Visual progress (runs independently at fixed rate) ---
+    const TOTAL_DURATION = 2000; // ms
+    const INTERVAL = 30;
+    const increment = (INTERVAL / TOTAL_DURATION) * 100;
+
+    const ticker = setInterval(() => {
       setProgress((prev) => {
         const next = prev + increment;
         if (next >= 100) {
-          clearInterval(timer);
-          setIsReady(true);
+          clearInterval(ticker);
           return 100;
         }
         return next;
       });
-    }, intervalTime);
+    }, INTERVAL);
 
-    // Redirect after completion - fixed the timeout to be reasonable
+    // Track timeouts to clear them on unmount
+    const tableTimeouts: any[] = [];
+    PRIORITY_TABLES.forEach((table, i) => {
+      const t = setTimeout(
+        () => {
+          setSyncStatus(`Syncing ${table.replace("_", " ")}...`);
+        },
+        (i + 1) * 250,
+      );
+      tableTimeouts.push(t);
+    });
+
+    // Navigate after duration regardless of sync completion
     const redirectTimer = setTimeout(() => {
-      if (
+      setIsReady(true);
+      const dest =
         user?.role === "admin" ||
         user?.role === "superadmin" ||
         user?.role === "developer"
-      ) {
-        navigate("/admin/dashboard");
-      } else {
-        navigate("/reception/dashboard");
-      }
-    }, duration + 800);
+          ? "/admin/dashboard"
+          : "/reception/dashboard";
+
+      navigate(dest, { replace: true });
+    }, TOTAL_DURATION + 500);
 
     return () => {
-      clearInterval(timer);
+      clearInterval(ticker);
       clearTimeout(redirectTimer);
+      tableTimeouts.forEach(clearTimeout);
     };
-  }, [navigate, user]);
+  }, [user, navigate]);
 
   if (!user) return null;
 
@@ -80,7 +128,7 @@ const WelcomeScreen = () => {
         isDark ? "bg-[#050505]" : "bg-[#F8FAFC]"
       }`}
     >
-      {/* Dynamic Ambient Background */}
+      {/* Ambient Background */}
       <div className="absolute inset-0 pointer-events-none z-0">
         <motion.div
           animate={{
@@ -89,9 +137,7 @@ const WelcomeScreen = () => {
             opacity: isDark ? [0.1, 0.15, 0.1] : [0.05, 0.08, 0.05],
           }}
           transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className={`absolute -top-[10%] -left-[10%] w-[800px] h-[800px] rounded-full blur-[120px] ${
-            isDark ? "bg-emerald-500/20" : "bg-emerald-200/40"
-          }`}
+          className={`absolute -top-[10%] -left-[10%] w-[800px] h-[800px] rounded-full blur-[120px] ${isDark ? "bg-emerald-500/20" : "bg-emerald-200/40"}`}
         />
         <motion.div
           animate={{
@@ -100,14 +146,10 @@ const WelcomeScreen = () => {
             opacity: isDark ? [0.08, 0.12, 0.08] : [0.03, 0.06, 0.03],
           }}
           transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-          className={`absolute -bottom-[10%] -right-[10%] w-[800px] h-[800px] rounded-full blur-[120px] ${
-            isDark ? "bg-purple-500/20" : "bg-purple-200/40"
-          }`}
+          className={`absolute -bottom-[10%] -right-[10%] w-[800px] h-[800px] rounded-full blur-[120px] ${isDark ? "bg-purple-500/20" : "bg-purple-200/40"}`}
         />
         <div
-          className={`absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] ${
-            isDark ? "opacity-[0.02]" : "opacity-[0.05]"
-          }`}
+          className={`absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] ${isDark ? "opacity-[0.02]" : "opacity-[0.05]"}`}
         />
       </div>
 
@@ -117,25 +159,16 @@ const WelcomeScreen = () => {
         transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
         className="relative z-10 w-full max-w-[500px] p-8 flex flex-col items-center"
       >
-        {/* Profile Shield Container */}
+        {/* Profile Avatar */}
         <div className="relative mb-12">
-          {/* Rotating Outer Ring */}
           <motion.div
             animate={{ rotate: 360 }}
             transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-            className={`absolute -inset-4 rounded-[50px] border-2 border-dashed ${
-              isDark ? "border-emerald-500/20" : "border-emerald-500/10"
-            }`}
+            className={`absolute -inset-4 rounded-[50px] border-2 border-dashed ${isDark ? "border-emerald-500/20" : "border-emerald-500/10"}`}
           />
-
-          {/* Profile Card */}
           <motion.div
             whileHover={{ y: -5 }}
-            className={`relative w-40 h-40 rounded-[42px] p-2 transition-all duration-500 shadow-2xl ${
-              isDark
-                ? "bg-gradient-to-br from-[#121212] to-[#080808] border border-white/10"
-                : "bg-white border border-slate-200"
-            }`}
+            className={`relative w-40 h-40 rounded-[42px] p-2 shadow-2xl ${isDark ? "bg-gradient-to-br from-[#121212] to-[#080808] border border-white/10" : "bg-white border border-slate-200"}`}
           >
             <div className="w-full h-full rounded-[34px] overflow-hidden relative flex items-center justify-center bg-slate-50 dark:bg-black/20">
               {user.photo ? (
@@ -154,8 +187,6 @@ const WelcomeScreen = () => {
                   className={isDark ? "text-emerald-500/40" : "text-slate-300"}
                 />
               )}
-
-              {/* Status Indicator */}
               <div className="absolute bottom-2 right-2 flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500 text-[8px] font-black text-black uppercase tracking-widest shadow-lg">
                 <span className="w-1.5 h-1.5 rounded-full bg-black animate-pulse" />
                 Online
@@ -163,13 +194,10 @@ const WelcomeScreen = () => {
             </div>
           </motion.div>
 
-          {/* Floaters */}
           <motion.div
             animate={{ y: [0, -10, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-            className={`absolute -top-6 -right-6 w-12 h-12 rounded-2xl flex items-center justify-center shadow-xl ${
-              isDark ? "bg-emerald-500 text-black" : "bg-emerald-600 text-white"
-            }`}
+            className={`absolute -top-6 -right-6 w-12 h-12 rounded-2xl flex items-center justify-center shadow-xl ${isDark ? "bg-emerald-500 text-black" : "bg-emerald-600 text-white"}`}
           >
             <Sparkles size={24} />
           </motion.div>
@@ -182,11 +210,7 @@ const WelcomeScreen = () => {
               ease: "easeInOut",
               delay: 1,
             }}
-            className={`absolute -bottom-4 -left-8 px-4 py-2 rounded-2xl border flex items-center gap-2 shadow-xl ${
-              isDark
-                ? "bg-[#101010] border-white/10 text-white/60"
-                : "bg-white border-slate-200 text-slate-500"
-            }`}
+            className={`absolute -bottom-4 -left-8 px-4 py-2 rounded-2xl border flex items-center gap-2 shadow-xl ${isDark ? "bg-[#101010] border-white/10 text-white/60" : "bg-white border-slate-200 text-slate-500"}`}
           >
             <Activity size={14} className="text-emerald-500" />
             <span className="text-[9px] font-black uppercase tracking-widest">
@@ -195,53 +219,41 @@ const WelcomeScreen = () => {
           </motion.div>
         </div>
 
-        {/* Welcome Typography */}
+        {/* Welcome Text */}
         <div className="text-center space-y-3 mb-16">
           <motion.p
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className={`text-[11px] font-black uppercase tracking-[0.4em] ${
-              isDark ? "text-emerald-500" : "text-emerald-600"
-            }`}
+            className={`text-[11px] font-black uppercase tracking-[0.4em] ${isDark ? "text-emerald-500" : "text-emerald-600"}`}
           >
             System Access Granted
           </motion.p>
-
           <motion.h1
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4 }}
-            className={`text-4xl md:text-5xl font-black tracking-tight ${
-              isDark ? "text-white" : "text-slate-900"
-            }`}
+            className={`text-4xl md:text-5xl font-black tracking-tight ${isDark ? "text-white" : "text-slate-900"}`}
           >
             Welcome,{" "}
             <span className="text-emerald-500">{user.name.split(" ")[0]}</span>
           </motion.h1>
-
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.6 }}
-            className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-[10px] font-bold uppercase tracking-widest transition-colors duration-500 ${
-              isDark
-                ? "bg-white/[0.03] border-white/[0.05] text-white/40"
-                : "bg-slate-50 border-slate-200 text-slate-500"
-            }`}
+            className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full border text-[10px] font-bold uppercase tracking-widest ${isDark ? "bg-white/[0.03] border-white/[0.05] text-white/40" : "bg-slate-50 border-slate-200 text-slate-500"}`}
           >
             <ShieldCheck size={12} className="text-emerald-500/60" />
             {user.role} Identity
           </motion.div>
         </div>
 
-        {/* Premium Progress Section */}
-        <div className="w-full space-y-6">
+        {/* Progress + Sync Status */}
+        <div className="w-full space-y-4">
           <div className="flex items-center justify-between px-2">
             <span
-              className={`text-[10px] font-black uppercase tracking-widest ${
-                isDark ? "text-white/30" : "text-slate-400"
-              }`}
+              className={`text-[10px] font-black uppercase tracking-widest ${isDark ? "text-white/30" : "text-slate-400"}`}
             >
               {isReady ? "Environment Ready" : "Initializing Workspace"}
             </span>
@@ -251,23 +263,19 @@ const WelcomeScreen = () => {
           </div>
 
           <div
-            className={`w-full h-2 rounded-full overflow-hidden relative ${
-              isDark ? "bg-white/5" : "bg-slate-100"
-            }`}
+            className={`w-full h-2 rounded-full overflow-hidden relative ${isDark ? "bg-white/5" : "bg-slate-100"}`}
           >
             <motion.div
               layout
               initial={{ width: 0 }}
               animate={{ width: `${progress}%` }}
-              className={`h-full rounded-full relative ${
-                isDark ? "bg-emerald-500" : "bg-emerald-600"
-              }`}
+              className={`h-full rounded-full relative ${isDark ? "bg-emerald-500" : "bg-emerald-600"}`}
             >
               <div className="absolute top-0 right-0 h-full w-20 bg-white/20 blur-md animate-pulse" />
             </motion.div>
           </div>
 
-          <div className="flex flex-col items-center gap-4">
+          <div className="flex flex-col items-center gap-3">
             <AnimatePresence mode="wait">
               {isReady ? (
                 <motion.div
@@ -285,20 +293,35 @@ const WelcomeScreen = () => {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest ${
-                    isDark ? "text-white/20" : "text-slate-400"
-                  }`}
+                  className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest ${isDark ? "text-white/20" : "text-slate-400"}`}
                 >
                   <LayoutDashboard size={14} className="animate-pulse" />
                   Loading Modules...
                 </motion.div>
               )}
             </AnimatePresence>
+
+            {/* Live Sync Status Line */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className={`flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest ${
+                syncDone
+                  ? "text-emerald-500"
+                  : isDark
+                    ? "text-white/20"
+                    : "text-slate-300"
+              }`}
+            >
+              <Database size={11} className={syncDone ? "" : "animate-pulse"} />
+              {syncStatus}
+            </motion.div>
           </div>
         </div>
       </motion.div>
 
-      {/* Footer Branding */}
+      {/* Footer */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: isDark ? 0.3 : 0.5 }}
@@ -310,9 +333,7 @@ const WelcomeScreen = () => {
             className={`h-px w-12 ${isDark ? "bg-white/20" : "bg-slate-300"}`}
           />
           <p
-            className={`text-[10px] font-black uppercase tracking-[0.6em] ${
-              isDark ? "text-white" : "text-slate-900"
-            }`}
+            className={`text-[10px] font-black uppercase tracking-[0.6em] ${isDark ? "text-white" : "text-slate-900"}`}
           >
             Physio<span className="text-emerald-500">EZ</span> Core
           </p>

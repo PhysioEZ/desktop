@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import {
   TestTube2,
   CreditCard,
-  TrendingUp,
   Activity,
   AlertCircle,
   ArrowRight,
@@ -335,9 +334,6 @@ const Tests = () => {
                     <p className="text-2xl font-black tracking-tighter">
                       {stats.total}
                     </p>
-                    <div className="mt-1 flex items-center gap-0.5 text-[9px] font-bold text-emerald-500">
-                      <TrendingUp size={10} /> +12%
-                    </div>
                   </div>
                   <div className="flex flex-col items-center justify-center">
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
@@ -431,60 +427,6 @@ const Tests = () => {
                 </div>
               </div>
               <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-700" />
-            </div>
-
-            {/* 3. Test Types Distribution Card - Consolidated */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                  Service Distribution
-                </h3>
-              </div>
-
-              <div
-                className={`p-6 rounded-[32px] border ${isDark ? "bg-white/[0.02] border-white/5" : "bg-white border-slate-100 shadow-sm"} space-y-6`}
-              >
-                {[
-                  {
-                    name: "EEG (Brain Test)",
-                    count: 24,
-                    progress: 65,
-                    color:
-                      "bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.3)]",
-                  },
-                  {
-                    name: "NCV (Nerve Test)",
-                    count: 18,
-                    progress: 45,
-                    color:
-                      "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]",
-                  },
-                  {
-                    name: "BERA (Hearing Test)",
-                    count: 12,
-                    progress: 30,
-                    color: "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.3)]",
-                  },
-                ].map((item, idx) => (
-                  <div key={idx} className="group">
-                    <div className="flex justify-between items-center mb-2.5">
-                      <span className="text-[9px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">
-                        {item.name}
-                      </span>
-                      <span className="text-xs font-black tracking-tight">
-                        {item.count}
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${item.progress}%` }}
-                        className={`h-full ${item.color}`}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
 
             {/* Important Info */}

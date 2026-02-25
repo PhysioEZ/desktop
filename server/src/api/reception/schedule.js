@@ -1,12 +1,10 @@
-const pool = require('../../config/db');
+const DbService = require('../../services/DbService');
 
 // Helper to calculate start/end of week
 function getWeekRange(startDateStr) {
     let start = new Date(startDateStr);
     if (isNaN(start.getTime())) start = new Date(); // Fallback to now
 
-    // Adjust to Sunday if strictly enforcing Sunday start, handled by frontend usually
-    // PHP: if (startOfWeek->format('w') != 0) startOfWeek->modify('last sunday');
     const day = start.getDay();
     if (day !== 0) {
         start.setDate(start.getDate() - day);
@@ -33,19 +31,17 @@ exports.fetchSchedule = async (req, res) => {
     const eDate = formatDate(end);
 
     try {
-        const [rows] = await pool.query(`
+        const [rows] = await DbService.query(`
             SELECT
                 r.registration_id,
-                r.patient_name,
+                r.patient_name as patient_name,
                 r.appointment_date,
                 r.appointment_time,
                 r.status,
-                r.approval_status,
-                pm.patient_uid
+                r.approval_status
             FROM registration r
-            LEFT JOIN patient_master pm ON r.master_patient_id = pm.master_patient_id
             WHERE r.branch_id = ?
-              AND r.appointment_date BETWEEN ? AND ?
+              AND date(r.appointment_date) BETWEEN ? AND ?
               AND r.appointment_time IS NOT NULL
               AND r.status NOT IN ('closed', 'cancelled')
         `, [branch_id, sDate, eDate]);
@@ -69,17 +65,17 @@ exports.getSlots = async (req, res) => {
     const selectedDate = req.query.date || new Date().toISOString().split('T')[0];
 
     try {
-        const [rows] = await pool.query(`
+        const [rows] = await DbService.query(`
             SELECT appointment_time 
             FROM registration 
-            WHERE appointment_date = ?
+            WHERE date(appointment_date) = ?
               AND branch_id = ?
               AND appointment_time IS NOT NULL
               AND status NOT IN ('closed', 'cancelled')
         `, [selectedDate, branch_id]);
 
         // Normalize time to HH:MM
-        const filledSlots = rows.map(r => r.appointment_time.substring(0, 5));
+        const filledSlots = rows.map(r => (r.appointment_time || '').substring(0, 5));
 
         const slots = [];
         let start = new Date(`${selectedDate}T09:00:00`);
@@ -114,15 +110,17 @@ exports.reschedule = async (req, res) => {
     }
 
     try {
-        await pool.query(`
+        // Local-first UPDATE
+        await DbService.query(`
             UPDATE registration 
             SET appointment_date = ?, 
-                appointment_time = ? 
+                appointment_time = ?,
+                _sync_status = 'pending'
             WHERE registration_id = ? 
               AND branch_id = ?
         `, [new_date, new_time, registration_id, branch_id]);
 
-        res.json({ success: true, message: 'Appointment rescheduled successfully!' });
+        res.json({ success: true, message: 'Appointment rescheduled locally! Syncing with server...' });
     } catch (error) {
         console.error("Reschedule Error:", error);
         res.status(500).json({ success: false, message: error.message });

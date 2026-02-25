@@ -1,5 +1,7 @@
 const pool = require('../../config/db');
 const { recalculatePatientFinancials } = require('../../utils/financials');
+const SyncService = require('../../services/SyncService');
+
 
 
 exports.handleAddPayment = async (req, res) => {
@@ -28,6 +30,10 @@ exports.handleAddPayment = async (req, res) => {
 
             await connection.commit();
             res.json({ success: true, message: 'Payment added successfully' });
+            // Background sync — don't block the response
+            SyncService.syncTable('payments', req.user.token, req.user.branch_id).catch(() => { });
+            SyncService.syncTable('patients', req.user.token, req.user.branch_id).catch(() => { });
+
         } catch (err) {
             await connection.rollback();
             throw err;

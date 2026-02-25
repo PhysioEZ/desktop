@@ -1,0 +1,8 @@
+-- phpMyAdmin SQL Dump
+-- version 5.2.2
+-- https://www.phpmyadmin.net/
+--
+-- Host: 127.0.0.1:3306
+-- Generation Time: Feb 24, 2026 at 04:33 PM
+-- Server version: 11.8.3-MariaDB-log
+-- PHP Version: 7.2.34

@@ -1,5 +1,7 @@
 const pool = require('../../config/db');
 const { recalculatePatientFinancials } = require('../../utils/financials');
+const SyncService = require('../../services/SyncService');
+
 
 
 exports.handleAttendanceRequest = async (req, res) => {
@@ -60,6 +62,9 @@ async function revertAttendance(req, res, branchId, input) {
             message: 'Attendance reverted successfully',
             new_balance: effectiveBalance.toFixed(2)
         });
+        SyncService.syncTable('attendance', req.user.token, req.user.branch_id).catch(() => { });
+        SyncService.syncTable('patients', req.user.token, req.user.branch_id).catch(() => { });
+
 
     } catch (error) {
         await connection.rollback();
@@ -193,6 +198,9 @@ async function markFullAttendance(req, res, branchId, input) {
             message: status === 'pending' ? 'Attendance request sent for approval' : 'Attendance marked successfully',
             new_balance: financials.effective_balance.toFixed(2)
         });
+        SyncService.syncTable('attendance', req.user.token, req.user.branch_id).catch(() => { });
+        SyncService.syncTable('patients', req.user.token, req.user.branch_id).catch(() => { });
+
 
     } catch (error) {
         await connection.rollback();

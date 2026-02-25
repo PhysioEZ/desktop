@@ -1,9 +1,9 @@
-const pool = require('../../config/db');
+const DbService = require('../../services/DbService');
+const SyncService = require('../../services/SyncService');
 
 // Main Handler
 exports.handleRegistrationRequest = async (req, res) => {
     const input = req.body;
-    // Allow action to come from body or query (for GET compatibility if mixed, though here we generally use POST)
     const action = input.action || req.query.action || 'fetch';
     const branch_id = req.user.branch_id || input.branch_id || req.query.branch_id;
 
@@ -95,7 +95,7 @@ async function fetchRegistrations(req, res, branch_id, input) {
     }
 
     // Count Total
-    const [countRows] = await pool.query(`
+    const [countRows] = await DbService.query(`
         SELECT COUNT(*) as total 
         FROM registration reg 
         LEFT JOIN patient_master pm ON reg.master_patient_id = pm.master_patient_id 
@@ -107,7 +107,7 @@ async function fetchRegistrations(req, res, branch_id, input) {
     query += whereClause + " ORDER BY reg.registration_id DESC LIMIT ? OFFSET ?";
     params.push(limit, offset);
 
-    const [rows] = await pool.query(query, params);
+    const [rows] = await DbService.query(query, params);
 
     res.json({
         status: 'success',
@@ -122,11 +122,11 @@ async function fetchRegistrations(req, res, branch_id, input) {
 }
 
 async function fetchFilterOptions(req, res, branch_id) {
-    const [referred] = await pool.query("SELECT DISTINCT reffered_by FROM registration WHERE branch_id = ? AND reffered_by IS NOT NULL AND reffered_by != '' ORDER BY reffered_by", [branch_id]);
-    const [conditions] = await pool.query("SELECT DISTINCT chief_complain FROM registration WHERE branch_id = ? AND chief_complain IS NOT NULL AND chief_complain != '' ORDER BY chief_complain", [branch_id]);
-    const [types] = await pool.query("SELECT DISTINCT consultation_type FROM registration WHERE branch_id = ? AND consultation_type IS NOT NULL AND consultation_type != '' ORDER BY consultation_type", [branch_id]);
-    const [methods] = await pool.query("SELECT method_name FROM payment_methods WHERE branch_id = ? AND is_active = 1 ORDER BY display_order", [branch_id]);
-    const [serviceTracks] = await pool.query("SELECT * FROM service_tracks WHERE is_active = 1 ORDER BY name ASC");
+    const [referred] = await DbService.query("SELECT DISTINCT reffered_by FROM registration WHERE branch_id = ? AND reffered_by IS NOT NULL AND reffered_by != '' ORDER BY reffered_by", [branch_id]);
+    const [conditions] = await DbService.query("SELECT DISTINCT chief_complain FROM registration WHERE branch_id = ? AND chief_complain IS NOT NULL AND chief_complain != '' ORDER BY chief_complain", [branch_id]);
+    const [types] = await DbService.query("SELECT DISTINCT consultation_type FROM registration WHERE branch_id = ? AND consultation_type IS NOT NULL AND consultation_type != '' ORDER BY consultation_type", [branch_id]);
+    const [methods] = await DbService.query("SELECT method_name FROM payment_methods WHERE branch_id = ? AND is_active = 1 ORDER BY display_order", [branch_id]);
+    const [serviceTracks] = await DbService.query("SELECT * FROM service_tracks WHERE is_active = 1 ORDER BY name ASC");
 
     res.json({
         status: 'success',
@@ -143,7 +143,7 @@ async function fetchFilterOptions(req, res, branch_id) {
 async function fetchRegistrationDetails(req, res, id) {
     if (!id) return res.status(400).json({ status: 'error', message: 'Registration ID required' });
 
-    const [rows] = await pool.query(`
+    const [rows] = await DbService.query(`
         SELECT reg.*, pm.patient_uid, 
                b.branch_name, b.clinic_name, b.address_line_1, b.address_line_2, 
                b.city, b.phone_primary, b.logo_primary_path
@@ -155,7 +155,7 @@ async function fetchRegistrationDetails(req, res, id) {
 
     const data = rows[0];
     if (data) {
-        const [existing] = await pool.query("SELECT service_type, patient_id FROM patients WHERE registration_id = ?", [id]);
+        const [existing] = await DbService.query("SELECT service_type, patient_id FROM patients WHERE registration_id = ?", [id]);
         data.existing_services = existing;
         data.patient_exists_count = existing.length;
     }
@@ -167,7 +167,11 @@ async function updateRegistrationStatus(req, res, input) {
     const { id, status } = input;
     if (!id || !status) return res.status(400).json({ status: 'error', message: 'ID and status required' });
 
-    await pool.query("UPDATE registration SET status = ? WHERE registration_id = ?", [status, id]);
+    await DbService.query("UPDATE registration SET status = ?, _sync_status = 'pending' WHERE registration_id = ?", [status, id]);
+
+    // Background fire-and-forget push
+    SyncService.triggerSync(req.user.token, true).catch(() => { });
+
     res.json({ status: 'success' });
 }
 
@@ -175,14 +179,10 @@ async function updateRegistrationDetails(req, res, input) {
     const { registration_id } = input;
     if (!registration_id) return res.status(400).json({ status: 'error', message: 'Registration ID required' });
 
-    const connection = await pool.getConnection();
     try {
-        await connection.beginTransaction();
-
-        const [regRows] = await connection.query("SELECT branch_id, consultation_amount, approval_status FROM registration WHERE registration_id = ?", [registration_id]);
+        const [regRows] = await DbService.query("SELECT branch_id, consultation_amount, approval_status FROM registration WHERE registration_id = ?", [registration_id]);
         const currentReg = regRows[0];
         if (!currentReg) {
-            await connection.rollback();
             return res.status(404).json({ status: 'error', message: 'Registration not found' });
         }
 
@@ -203,41 +203,18 @@ async function updateRegistrationDetails(req, res, input) {
             }
         });
 
-        // Auto-Approval Logic
-        if (input.consultation_amount !== undefined) {
-            const newAmount = parseFloat(input.consultation_amount);
+        // 5. Build Final Query
+        updates.push("_sync_status = 'pending'");
+        params.push(registration_id);
 
-            const [settings] = await connection.query("SELECT setting_value FROM clinic_settings WHERE branch_id = ? AND setting_key = 'consultation_fee'", [currentReg.branch_id]);
-            const standardFee = (settings.length > 0 && settings[0].setting_value) ? parseFloat(settings[0].setting_value) : 500.00;
+        await DbService.query(`UPDATE registration SET ${updates.join(', ')} WHERE registration_id = ?`, params);
 
-            if (newAmount >= standardFee) {
-                if (currentReg.approval_status !== 'approved') {
-                    updates.push("approval_status = 'approved'");
-                    updates.push("approved_at = NOW()");
-                    if (!input.status) {
-                        updates.push("status = 'pending'");
-                    }
-                }
-            } else {
-                if (currentReg.approval_status === 'rejected') {
-                    updates.push("approval_status = 'pending'");
-                }
-            }
-        }
-
-        if (updates.length > 0) {
-            params.push(registration_id);
-            await connection.query(`UPDATE registration SET ${updates.join(', ')} WHERE registration_id = ?`, params);
-        }
-
-        await connection.commit();
-        res.json({ status: 'success' });
+        SyncService.triggerSync(req.user.token, true).catch(() => { });
+        res.json({ status: 'success', message: 'Updated locally. Syncing...' });
 
     } catch (e) {
-        await connection.rollback();
-        throw e;
-    } finally {
-        connection.release();
+        console.error("Update Registration Error:", e);
+        res.status(500).json({ status: 'error', message: e.message });
     }
 }
 
@@ -247,27 +224,21 @@ async function initiateRegistrationRefund(req, res, branch_id, input) {
         return res.status(400).json({ status: 'error', message: "Missing required fields" });
     }
 
-    const connection = await pool.getConnection();
     try {
-        await connection.beginTransaction();
-
-        const [regRows] = await connection.query("SELECT consultation_amount FROM registration WHERE registration_id = ? AND branch_id = ?", [registration_id, branch_id]);
+        const [regRows] = await DbService.query("SELECT consultation_amount FROM registration WHERE registration_id = ? AND branch_id = ?", [registration_id, branch_id]);
         const reg = regRows[0];
 
         if (!reg || parseFloat(refund_amount) > parseFloat(reg.consultation_amount)) {
-            await connection.rollback();
             return res.json({ status: 'error', message: "Refund amount cannot exceed the amount paid" });
         }
 
-        await connection.query("UPDATE registration SET refund_status = 'initiated' WHERE registration_id = ?", [registration_id]);
+        await DbService.query("UPDATE registration SET refund_status = 'initiated', _sync_status = 'pending' WHERE registration_id = ?", [registration_id]);
 
-        await connection.commit();
-        res.json({ status: 'success', message: "Refund initiated successfully" });
+        SyncService.triggerSync(req.user.token, true).catch(() => { });
+        res.json({ status: 'success', message: "Refund initiated locally. Syncing..." });
     } catch (e) {
-        await connection.rollback();
-        throw e;
-    } finally {
-        connection.release();
+        console.error("Refund Error:", e);
+        res.status(500).json({ status: 'error', message: e.message });
     }
 }
 

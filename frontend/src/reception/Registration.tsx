@@ -497,7 +497,11 @@ const Registration = () => {
       const { registrations: currentRegistrations } =
         useRegistrationStore.getState();
 
-      if (isFirstLoad.current || !currentRegistrations || forceRefresh === true)
+      if (
+        isFirstLoad.current ||
+        !currentRegistrations ||
+        currentRegistrations.length === 0
+      )
         setIsLoading(true);
 
       try {
@@ -911,15 +915,14 @@ const Registration = () => {
       const data = await res.json();
       if (data.status === "success") {
         showToast(`Registration status updated to ${newStatus}`, "success");
-        fetchRegistrations();
       } else {
         showToast(data.message || "Failed to update status", "error");
-        fetchRegistrations(); // Revert on failure
+        fetchRegistrations(true); // Revert on failure
       }
     } catch (err) {
       console.error("Failed to update status:", err);
       showToast("An error occurred while updating status", "error");
-      fetchRegistrations(); // Revert on error
+      fetchRegistrations(true); // Revert on error
     }
   };
 

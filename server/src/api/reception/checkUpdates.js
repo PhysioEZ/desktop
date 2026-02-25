@@ -1,72 +1,70 @@
-const pool = require('../../config/db');
+const sqlite = require('../../config/sqlite');
 
+/**
+ * GET /api/reception/check_updates?last_sync=ISO&tables[]=patients&tables[]=attendance
+ *
+ * Batch 6 optimization: instead of hitting remote MySQL for COUNT(*) on 8 tables,
+ * we answer from the local sync_history table which tracks last_sync_at per table.
+ *
+ * If sync_history.last_sync_at > last_sync sent by the frontend, the table was
+ * refreshed since the client last knew about it — so there may be new data.
+ *
+ * This reduces check_updates from 8 parallel MySQL round-trips to a single
+ * sub-millisecond SQLite read.
+ */
 exports.checkUpdates = async (req, res) => {
     try {
-        const branchId = req.user.branch_id || req.query.branch_id;
+        const branchId = req.user?.branch_id || req.query.branch_id;
         const lastSync = req.query.last_sync; // ISO string
 
         if (!branchId || !lastSync) {
-            return res.status(400).json({ success: false, message: "Branch ID and last_sync timestamp are required" });
+            return res.status(400).json({ success: false, message: 'Branch ID and last_sync timestamp are required' });
         }
 
-        // Convert ISO string to MySQL format (YYYY-MM-DD HH:MM:SS)
         const lastSyncDate = new Date(lastSync);
-        const mysqlTimestamp = lastSyncDate.toISOString().slice(0, 19).replace('T', ' ');
+        if (isNaN(lastSyncDate.getTime())) {
+            return res.status(400).json({ success: false, message: 'Invalid last_sync timestamp' });
+        }
+        const lastSyncIso = lastSyncDate.toISOString();
 
-        // Set session timezone to UTC to match Node.js toISOString comparison
-        await pool.query("SET time_zone = '+00:00'");
-
-        const tables = [
-            'registration',
-            'tests',
-            'patients',
-            'quick_inquiry',
-            'test_inquiry',
-            'attendance',
-            'payments',
-            'notifications'
+        // Accept optional table filter — if provided, only check those tables.
+        // If not provided, check all core tables.
+        const reqTables = req.query.tables; // may be undefined, string, or array
+        const DEFAULT_TABLES = [
+            'registration', 'tests', 'patients', 'quick_inquiry',
+            'test_inquiry', 'attendance', 'payments', 'notifications',
+            'patients_treatment', 'expenses', 'notes'
         ];
 
-        let hasChanges = false;
+        let checkTables;
+        if (reqTables) {
+            checkTables = Array.isArray(reqTables) ? reqTables : [reqTables];
+        } else {
+            checkTables = DEFAULT_TABLES;
+        }
+
+        // Single SQLite query: get last_sync_at for all requested tables at once
+        const placeholders = checkTables.map(() => '?').join(', ');
+        const rows = sqlite.prepare(
+            `SELECT table_name, last_sync_at FROM sync_history WHERE table_name IN (${placeholders})`
+        ).all(...checkTables);
+
+        // Build a map: table -> last_sync_at
+        const syncMap = {};
+        rows.forEach(r => { syncMap[r.table_name] = r.last_sync_at; });
+
         const changes = {};
+        let hasChanges = false;
 
-        // For each table, check if any record was created or updated after mysqlTimestamp
-        // We'll use branch_id where applicable.
+        for (const table of checkTables) {
+            const tableSyncAt = syncMap[table];
+            if (!tableSyncAt) continue; // never synced — nothing to report yet
 
-        // registration, tests, patients, quick_inquiry, test_inquiry, attendance, payments are linked to branch_id
-        // notifications are linked to employee_id (but we can check if any relevant notification appeared)
-
-        for (const table of tables) {
-            let query = '';
-            let params = [];
-
-            if (table === 'notifications') {
-                const employeeId = req.user.employee_id || req.query.employee_id;
-                if (!employeeId) continue;
-                query = `SELECT COUNT(*) as count FROM ${table} WHERE employee_id = ? AND created_at > ?`;
-                params = [employeeId, mysqlTimestamp];
-            } else {
-                // Determine the correct branch_id column and timestamp columns.
-                if (table === 'attendance') {
-                    query = `SELECT COUNT(*) as count FROM attendance a JOIN patients p ON a.patient_id = p.patient_id WHERE p.branch_id = ? AND (a.created_at > ? OR a.approved_at > ?)`;
-                    params = [branchId, mysqlTimestamp, mysqlTimestamp];
-                } else if (table === 'payments') {
-                    // payments table has branch_id directly, checked in previous steps
-                    query = `SELECT COUNT(*) as count FROM payments WHERE branch_id = ? AND created_at > ?`;
-                    params = [branchId, mysqlTimestamp];
-                } else {
-                    const hasUpdatedAt = ['registration', 'tests', 'patients'].includes(table);
-                    const updateCheck = hasUpdatedAt ? ` OR updated_at > ?` : '';
-                    query = `SELECT COUNT(*) as count FROM ${table} WHERE branch_id = ? AND (created_at > ?${updateCheck})`;
-                    params = [branchId, mysqlTimestamp];
-                    if (hasUpdatedAt) params.push(mysqlTimestamp);
-                }
-            }
-
-            const [rows] = await pool.query(query, params);
-            if (rows[0].count > 0) {
+            // If the table was synced more recently than what the frontend knows,
+            // the frontend should refetch that table.
+            if (tableSyncAt > lastSyncIso) {
                 hasChanges = true;
-                changes[table] = rows[0].count;
+                changes[table] = { updated: true, last_sync_at: tableSyncAt };
             }
         }
 
@@ -78,7 +76,7 @@ exports.checkUpdates = async (req, res) => {
         });
 
     } catch (error) {
-        console.error("Check Updates Error:", error);
+        console.error('Check Updates Error:', error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

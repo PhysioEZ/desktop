@@ -1,5 +1,7 @@
 const pool = require('../../config/db');
 const { recalculatePatientFinancials } = require('../../utils/financials');
+const SyncService = require('../../services/SyncService');
+
 
 
 exports.handleTreatmentPlanRequest = async (req, res) => {
@@ -153,6 +155,8 @@ async function editTreatmentPlan(req, res, input) {
 
         await connection.commit();
         res.json({ success: true, message: 'Plan updated successfully' });
+        SyncService.syncTable('patients', req.user.token, req.user.branch_id).catch(() => { });
+
 
     } catch (error) {
         await connection.rollback();
@@ -339,6 +343,9 @@ async function changeTreatmentPlan(req, res, input) {
             message: 'Treatment plan changed successfully',
             carried_over: carryOverBalance
         });
+        SyncService.syncTable('patients', req.user.token, req.user.branch_id).catch(() => { });
+        SyncService.syncTable('payments', req.user.token, req.user.branch_id).catch(() => { });
+
 
     } catch (error) {
         await connection.rollback();

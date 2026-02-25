@@ -1,0 +1,1091 @@
+
+> phsyioez@1.0.0 dev
+> nodemon src/server.js
+
+[33m[nodemon] 3.1.14[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): *.*[39m
+[33m[nodemon] watching extensions: js,mjs,cjs,json[39m
+[32m[nodemon] starting `node src/server.js`[39m
+PRAGMA journal_mode = WAL
+Server running on port 3000
+Test Health: http://localhost:3000/health
+Test Login: http://localhost:3000/api/auth/login
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+UPDATE registration SET status = 'consulted', _sync_status = 'pending' WHERE registration_id = 229.0
+[Sync] Auto-sync started...
+SELECT count(*) as count FROM pragma_table_info('registration') WHERE name='_sync_status'
+SELECT * FROM registration WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('patients') WHERE name='_sync_status'
+SELECT * FROM patients WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('tests') WHERE name='_sync_status'
+SELECT * FROM tests WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('attendance') WHERE name='_sync_status'
+SELECT * FROM attendance WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('payments') WHERE name='_sync_status'
+SELECT * FROM payments WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('quick_inquiry') WHERE name='_sync_status'
+SELECT * FROM quick_inquiry WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('test_inquiry') WHERE name='_sync_status'
+SELECT * FROM test_inquiry WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('patients_treatment') WHERE name='_sync_status'
+SELECT * FROM patients_treatment WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('patient_master') WHERE name='_sync_status'
+SELECT * FROM patient_master WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('employees') WHERE name='_sync_status'
+SELECT * FROM employees WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('roles') WHERE name='_sync_status'
+SELECT * FROM roles WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('branches') WHERE name='_sync_status'
+SELECT * FROM branches WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('payment_methods') WHERE name='_sync_status'
+SELECT * FROM payment_methods WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('service_tracks') WHERE name='_sync_status'
+SELECT * FROM service_tracks WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('notifications') WHERE name='_sync_status'
+SELECT * FROM notifications WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('expenses') WHERE name='_sync_status'
+SELECT * FROM expenses WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('system_settings') WHERE name='_sync_status'
+SELECT * FROM system_settings WHERE _sync_status = 'pending'
+[0mPOST /api/reception/registration [32m200[0m 10.144 ms - 20[0m
+UPDATE registration SET _sync_status = 'synced', _last_synced_at = CURRENT_TIMESTAMP WHERE registration_id = 229.0
+[Sync] Pushed 1 pending changes.
+SELECT MIN(last_sync_at) as last_sync FROM sync_history
+Bridge Service Error [sync.php]: Request failed with status code 500
+[Sync] Delta pull failed: Request failed with status code 500
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+UPDATE registration SET status = 'consulted', _sync_status = 'pending' WHERE registration_id = 230.0
+[Sync] Auto-sync started...
+SELECT count(*) as count FROM pragma_table_info('registration') WHERE name='_sync_status'
+SELECT * FROM registration WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('patients') WHERE name='_sync_status'
+SELECT * FROM patients WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('tests') WHERE name='_sync_status'
+SELECT * FROM tests WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('attendance') WHERE name='_sync_status'
+SELECT * FROM attendance WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('payments') WHERE name='_sync_status'
+SELECT * FROM payments WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('quick_inquiry') WHERE name='_sync_status'
+SELECT * FROM quick_inquiry WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('test_inquiry') WHERE name='_sync_status'
+SELECT * FROM test_inquiry WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('patients_treatment') WHERE name='_sync_status'
+SELECT * FROM patients_treatment WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('patient_master') WHERE name='_sync_status'
+SELECT * FROM patient_master WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('employees') WHERE name='_sync_status'
+SELECT * FROM employees WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('roles') WHERE name='_sync_status'
+SELECT * FROM roles WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('branches') WHERE name='_sync_status'
+SELECT * FROM branches WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('payment_methods') WHERE name='_sync_status'
+SELECT * FROM payment_methods WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('service_tracks') WHERE name='_sync_status'
+SELECT * FROM service_tracks WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('notifications') WHERE name='_sync_status'
+SELECT * FROM notifications WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('expenses') WHERE name='_sync_status'
+SELECT * FROM expenses WHERE _sync_status = 'pending'
+SELECT count(*) as count FROM pragma_table_info('system_settings') WHERE name='_sync_status'
+SELECT * FROM system_settings WHERE _sync_status = 'pending'
+[0mPOST /api/reception/registration [32m200[0m 3.954 ms - 20[0m
+UPDATE registration SET _sync_status = 'synced', _last_synced_at = CURRENT_TIMESTAMP WHERE registration_id = 230.0
+[Sync] Pushed 1 pending changes.
+SELECT MIN(last_sync_at) as last_sync FROM sync_history
+Bridge Service Error [sync.php]: Request failed with status code 500
+[Sync] Delta pull failed: Request failed with status code 500
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+SELECT table_name, last_sync_at FROM sync_history WHERE table_name IN ('registration', 'tests', 'patients', 'quick_inquiry', 'test_inquiry', 'attendance', 'payments', 'notifications')
+[0mGET /api/reception/check_updates?branch_id=1&last_sync=2026-02-25T17:33:37.732Z&tables[]=registration&tables[]=tests&tables[]=patients&tables[]=quick_inquiry&tables[]=test_inquiry&tables[]=attendance&tables[]=payments&tables[]=notifications [32m200[0m 1.487 ms - 88[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+SELECT table_name, last_sync_at FROM sync_history WHERE table_name IN ('registration', 'tests', 'patients', 'quick_inquiry', 'test_inquiry', 'attendance', 'payments', 'notifications')
+[0mGET /api/reception/check_updates?branch_id=1&last_sync=2026-02-25T17:33:37.732Z&tables[]=registration&tables[]=tests&tables[]=patients&tables[]=quick_inquiry&tables[]=test_inquiry&tables[]=attendance&tables[]=payments&tables[]=notifications [32m200[0m 0.695 ms - 88[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+SELECT DISTINCT reffered_by AS name FROM registration WHERE branch_id = 1.0 AND reffered_by IS NOT NULL AND reffered_by != ''
+SELECT DISTINCT reffered_by AS name FROM test_inquiry WHERE branch_id = 1.0 AND reffered_by IS NOT NULL AND reffered_by != ''
+SELECT DISTINCT referred_by AS name FROM tests WHERE branch_id = 1.0 AND referred_by IS NOT NULL AND referred_by != ''
+SELECT method_code, method_name FROM payment_methods WHERE branch_id = 1.0 AND is_active = 1 ORDER BY display_order
+SELECT employee_id, (first_name || ' ' || COALESCE(last_name, '')) as first_name, '' as last_name, job_title FROM employees WHERE branch_id = 1.0 AND is_active = 1 ORDER BY first_name ASC
+Bridge Service Error [query.php]: 
+Bridge Proxy Query Error: 
+Form Options Error: Error
+    at BridgeService._request (/srv/http/admin/desktop/server/src/services/BridgeService.js:44:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async Object.query (/srv/http/admin/desktop/server/src/config/db.js:12:30)
+    at async Promise.all (index 3)
+    at async exports.getFormOptions (/srv/http/admin/desktop/server/src/api/reception/formOptions.js:74:13)
+[0mGET /api/reception/form_options [31m500[0m 535.338 ms - 52[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+SELECT DISTINCT reffered_by AS name FROM registration WHERE branch_id = 1.0 AND reffered_by IS NOT NULL AND reffered_by != ''
+SELECT DISTINCT reffered_by AS name FROM test_inquiry WHERE branch_id = 1.0 AND reffered_by IS NOT NULL AND reffered_by != ''
+SELECT DISTINCT referred_by AS name FROM tests WHERE branch_id = 1.0 AND referred_by IS NOT NULL AND referred_by != ''
+SELECT method_code, method_name FROM payment_methods WHERE branch_id = 1.0 AND is_active = 1 ORDER BY display_order
+SELECT employee_id, (first_name || ' ' || COALESCE(last_name, '')) as first_name, '' as last_name, job_title FROM employees WHERE branch_id = 1.0 AND is_active = 1 ORDER BY first_name ASC
+SELECT appointment_time as time_slot FROM registration WHERE branch_id = 1.0 AND appointment_date = '2026-02-25' AND status != 'Cancelled'
+[0mGET /api/reception/form_options [32m200[0m 319.402 ms - 6542[0m
+[0mPOST /api/reception/expenses [32m200[0m 860.040 ms - 683[0m
+[0mPOST /api/reception/expenses [32m200[0m 1029.398 ms - 683[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+[0mPOST /api/reception/support [32m200[0m 128.549 ms - 30[0m
+[0mPOST /api/reception/support [32m200[0m 127.644 ms - 30[0m
+[0mPOST /api/reception/support [32m200[0m 230.558 ms - 3620[0m
+[0mPOST /api/reception/support [32m200[0m 261.701 ms - 3620[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+SELECT DISTINCT reffered_by AS name FROM registration WHERE branch_id = 1.0 AND reffered_by IS NOT NULL AND reffered_by != ''
+SELECT DISTINCT reffered_by AS name FROM test_inquiry WHERE branch_id = 1.0 AND reffered_by IS NOT NULL AND reffered_by != ''
+SELECT DISTINCT referred_by AS name FROM tests WHERE branch_id = 1.0 AND referred_by IS NOT NULL AND referred_by != ''
+SELECT method_code, method_name FROM payment_methods WHERE branch_id = 1.0 AND is_active = 1 ORDER BY display_order
+SELECT employee_id, (first_name || ' ' || COALESCE(last_name, '')) as first_name, '' as last_name, job_title FROM employees WHERE branch_id = 1.0 AND is_active = 1 ORDER BY first_name ASC
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+SELECT appointment_time as time_slot FROM registration WHERE branch_id = 1.0 AND appointment_date = '2026-02-25' AND status != 'Cancelled'
+[0mGET /api/reception/form_options [36m304[0m 140.861 ms - -[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+SELECT DISTINCT reffered_by AS name FROM registration WHERE branch_id = 1.0 AND reffered_by IS NOT NULL AND reffered_by != ''
+SELECT DISTINCT reffered_by AS name FROM test_inquiry WHERE branch_id = 1.0 AND reffered_by IS NOT NULL AND reffered_by != ''
+SELECT DISTINCT referred_by AS name FROM tests WHERE branch_id = 1.0 AND referred_by IS NOT NULL AND referred_by != ''
+SELECT method_code, method_name FROM payment_methods WHERE branch_id = 1.0 AND is_active = 1 ORDER BY display_order
+SELECT employee_id, (first_name || ' ' || COALESCE(last_name, '')) as first_name, '' as last_name, job_title FROM employees WHERE branch_id = 1.0 AND is_active = 1 ORDER BY first_name ASC
+SELECT appointment_time as time_slot FROM registration WHERE branch_id = 1.0 AND appointment_date = '2026-02-25' AND status != 'Cancelled'
+[0mGET /api/reception/form_options [36m304[0m 421.379 ms - -[0m
+[0mPOST /api/reception/expenses [32m200[0m 765.228 ms - 683[0m
+[0mPOST /api/reception/expenses [32m200[0m 957.592 ms - 683[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+[0mPOST /api/reception/support [32m200[0m 95.793 ms - 30[0m
+[0mPOST /api/reception/support [32m200[0m 104.631 ms - 30[0m
+[0mPOST /api/reception/support [32m200[0m 198.792 ms - 3620[0m
+[0mPOST /api/reception/support [32m200[0m 218.844 ms - 3620[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT
+                p.patient_id,
+                r.patient_name,
+                p.treatment_type,
+                p.treatment_days,
+                a.attendance_id,
+                a.attendance_date,
+                a.remarks,
+                a.status,
+                (SELECT COUNT(*) FROM attendance WHERE patient_id = p.patient_id AND status = 'present') AS attendance_count,
+                (SELECT MAX(attendance_date) FROM attendance WHERE patient_id = p.patient_id AND status = 'present') AS last_attendance_date
+            FROM patients p
+            JOIN registration r ON p.registration_id = r.registration_id
+            LEFT JOIN attendance a ON a.attendance_id = (
+                SELECT MAX(attendance_id) FROM attendance
+                WHERE patient_id = p.patient_id AND attendance_date = '2026-02-26'
+            )
+            WHERE p.branch_id = 1.0
+            ORDER BY (a.attendance_id IS NOT NULL) DESC, r.patient_name ASC
+        
+SELECT branch_name FROM branches WHERE branch_id = 1.0 LIMIT 1
+[0mGET /api/reception/attendance_data?date=2026-02-26 [32m200[0m 1.273 ms - 28061[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT
+                p.patient_id,
+                r.patient_name,
+                p.treatment_type,
+                p.treatment_days,
+                a.attendance_id,
+                a.attendance_date,
+                a.remarks,
+                a.status,
+                (SELECT COUNT(*) FROM attendance WHERE patient_id = p.patient_id AND status = 'present') AS attendance_count,
+                (SELECT MAX(attendance_date) FROM attendance WHERE patient_id = p.patient_id AND status = 'present') AS last_attendance_date
+            FROM patients p
+            JOIN registration r ON p.registration_id = r.registration_id
+            LEFT JOIN attendance a ON a.attendance_id = (
+                SELECT MAX(attendance_id) FROM attendance
+                WHERE patient_id = p.patient_id AND attendance_date = '2026-02-26'
+            )
+            WHERE p.branch_id = 1.0
+            ORDER BY (a.attendance_id IS NOT NULL) DESC, r.patient_name ASC
+        
+SELECT branch_name FROM branches WHERE branch_id = 1.0 LIMIT 1
+[0mGET /api/reception/attendance_data?date=2026-02-26 [36m304[0m 1.679 ms - -[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT p.patient_id, r.patient_name, p.treatment_type, p.treatment_days, p.package_cost, p.start_date
+            FROM patients p
+            JOIN registration r ON p.registration_id = r.registration_id
+            WHERE p.patient_id = '93' AND p.branch_id = 1.0
+            LIMIT 1
+        
+
+            SELECT attendance_id, patient_id, attendance_date, status, remarks, created_at, approval_request_at
+            FROM attendance
+            WHERE patient_id = '93'
+            ORDER BY attendance_id DESC
+        
+SELECT COUNT(*) as count FROM attendance WHERE patient_id = '93' AND status = 'present'
+[0mGET /api/reception/get_attendance_history?patient_id=93 [32m200[0m 1.138 ms - 151[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT p.patient_id, r.patient_name, p.treatment_type, p.treatment_days, p.package_cost, p.start_date
+            FROM patients p
+            JOIN registration r ON p.registration_id = r.registration_id
+            WHERE p.patient_id = '118' AND p.branch_id = 1.0
+            LIMIT 1
+        
+
+            SELECT attendance_id, patient_id, attendance_date, status, remarks, created_at, approval_request_at
+            FROM attendance
+            WHERE patient_id = '118'
+            ORDER BY attendance_id DESC
+        
+SELECT COUNT(*) as count FROM attendance WHERE patient_id = '118' AND status = 'present'
+[0mGET /api/reception/get_attendance_history?patient_id=118 [32m200[0m 0.642 ms - 155[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT p.patient_id, r.patient_name, p.treatment_type, p.treatment_days, p.package_cost, p.start_date
+            FROM patients p
+            JOIN registration r ON p.registration_id = r.registration_id
+            WHERE p.patient_id = '93' AND p.branch_id = 1.0
+            LIMIT 1
+        
+
+            SELECT attendance_id, patient_id, attendance_date, status, remarks, created_at, approval_request_at
+            FROM attendance
+            WHERE patient_id = '93'
+            ORDER BY attendance_id DESC
+        
+SELECT COUNT(*) as count FROM attendance WHERE patient_id = '93' AND status = 'present'
+[0mGET /api/reception/get_attendance_history?patient_id=93 [36m304[0m 0.885 ms - -[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT
+                p.patient_id,
+                r.patient_name,
+                p.treatment_type,
+                p.treatment_days,
+                a.attendance_id,
+                a.attendance_date,
+                a.remarks,
+                a.status,
+                (SELECT COUNT(*) FROM attendance WHERE patient_id = p.patient_id AND status = 'present') AS attendance_count,
+                (SELECT MAX(attendance_date) FROM attendance WHERE patient_id = p.patient_id AND status = 'present') AS last_attendance_date
+            FROM patients p
+            JOIN registration r ON p.registration_id = r.registration_id
+            LEFT JOIN attendance a ON a.attendance_id = (
+                SELECT MAX(attendance_id) FROM attendance
+                WHERE patient_id = p.patient_id AND attendance_date = '2026-02-25'
+            )
+            WHERE p.branch_id = 1.0
+            ORDER BY (a.attendance_id IS NOT NULL) DESC, r.patient_name ASC
+        
+SELECT branch_name FROM branches WHERE branch_id = 1.0 LIMIT 1
+[0mGET /api/reception/attendance_data?date=2026-02-25 [32m200[0m 1.232 ms - 28061[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT p.patient_id, r.patient_name, p.treatment_type, p.treatment_days, p.package_cost, p.start_date
+            FROM patients p
+            JOIN registration r ON p.registration_id = r.registration_id
+            WHERE p.patient_id = '119' AND p.branch_id = 1.0
+            LIMIT 1
+        
+
+            SELECT attendance_id, patient_id, attendance_date, status, remarks, created_at, approval_request_at
+            FROM attendance
+            WHERE patient_id = '119'
+            ORDER BY attendance_id DESC
+        
+SELECT COUNT(*) as count FROM attendance WHERE patient_id = '119' AND status = 'present'
+[0mGET /api/reception/get_attendance_history?patient_id=119 [32m200[0m 0.807 ms - 166[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT p.patient_id, r.patient_name, p.treatment_type, p.treatment_days, p.package_cost, p.start_date
+            FROM patients p
+            JOIN registration r ON p.registration_id = r.registration_id
+            WHERE p.patient_id = '119' AND p.branch_id = 1.0
+            LIMIT 1
+        
+
+            SELECT attendance_id, patient_id, attendance_date, status, remarks, created_at, approval_request_at
+            FROM attendance
+            WHERE patient_id = '119'
+            ORDER BY attendance_id DESC
+        
+SELECT COUNT(*) as count FROM attendance WHERE patient_id = '119' AND status = 'present'
+[0mGET /api/reception/get_attendance_history?patient_id=119&date=2026-02-26 [32m200[0m 0.776 ms - 166[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT p.patient_id, r.patient_name, p.treatment_type, p.treatment_days, p.package_cost, p.start_date
+            FROM patients p
+            JOIN registration r ON p.registration_id = r.registration_id
+            WHERE p.patient_id = '119' AND p.branch_id = 1.0
+            LIMIT 1
+        
+
+            SELECT attendance_id, patient_id, attendance_date, status, remarks, created_at, approval_request_at
+            FROM attendance
+            WHERE patient_id = '119'
+            ORDER BY attendance_id DESC
+        
+SELECT COUNT(*) as count FROM attendance WHERE patient_id = '119' AND status = 'present'
+[0mGET /api/reception/get_attendance_history?patient_id=119&date=2026-02-25 [32m200[0m 0.862 ms - 166[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+[0mPOST /api/reception/tests?action=fetch [32m200[0m 398.412 ms - 3606[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+[0mGET /api/reception/get_pending_approvals?branch_id=1 [36m304[0m 105.324 ms - -[0m
+[0mPOST /api/reception/tests?action=fetch [32m200[0m 527.138 ms - 3606[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+[0mGET /api/reception/get_pending_approvals?branch_id=1 [36m304[0m 85.796 ms - -[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+[0mGET /api/reception/get_payment_methods [36m304[0m 79.955 ms - -[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+[0mGET /api/reception/get_payment_methods [36m304[0m 85.434 ms - -[0m
+[0mPOST /api/reception/tests?action=fetch_details&test_id=428 [32m200[0m 241.430 ms - 1406[0m
+[0mPOST /api/reception/tests?action=fetch_details&test_id=428 [32m200[0m 254.294 ms - 1406[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+[0mGET /api/reception/feedback?page=1&limit=15 [36m304[0m 1413.246 ms - -[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+[0mPOST /api/reception/tests?action=fetch [32m200[0m 634.988 ms - 3606[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+[0mGET /api/reception/get_pending_approvals?branch_id=1 [36m304[0m 87.859 ms - -[0m
+[0mGET /api/reception/feedback?page=1&limit=15 [36m304[0m 294.331 ms - -[0m
+[0mPOST /api/reception/tests?action=fetch [32m200[0m 5287.276 ms - 3606[0m
+
+            SELECT at.*, e.employee_id, e.branch_id, r.role_name
+            FROM api_tokens at
+            JOIN employees e ON at.employee_id = e.employee_id
+            JOIN roles r ON e.role_id = r.role_id
+            WHERE at.token = '22f1d4bb1d8f7d7d655aafb6ce8d2d85'/*+32 bytes*/ 
+            AND (at._last_synced_at > datetime('now', '-1 hour'))
+            AND (at.expires_at > datetime('now') OR at.expires_at IS NULL)
+            AND (at.is_revoked = 0 OR at.is_revoked IS NULL)
+            LIMIT 1
+        
+[0mGET /api/reception/get_pending_approvals?branch_id=1 [36m304[0m 265.241 ms - -[0m

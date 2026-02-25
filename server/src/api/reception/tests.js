@@ -1,4 +1,6 @@
 const pool = require('../../config/db');
+const SyncService = require('../../services/SyncService');
+
 
 exports.submitTest = async (req, res) => {
     const data = req.body;
@@ -396,6 +398,8 @@ exports.addTestForPatient = async (req, res) => {
 
         await connection.commit();
         res.json({ success: true, message: 'Test added successfully' });
+        SyncService.syncTable('tests', req.user.token, req.user.branch_id).catch(() => { });
+
 
     } catch (error) {
         await connection.rollback();
@@ -598,6 +602,8 @@ async function updateTestMetadata(req, res, branchId, input) {
     }
 
     res.json({ success: true, message: "Metadata updated" });
+    SyncService.syncTable('tests', req.user.token, req.user.branch_id).catch(() => { });
+
 }
 
 async function updateTestItem(req, res, branchId, input) {
@@ -637,6 +643,8 @@ async function updateTestItem(req, res, branchId, input) {
 
         await connection.commit();
         res.json({ success: true, message: "Item updated" });
+        SyncService.syncTable('tests', req.user.token, req.user.branch_id).catch(() => { });
+
     } catch (e) {
         await connection.rollback();
         throw e;
@@ -708,6 +716,8 @@ async function addTestPayment(req, res, branchId, input) {
 
         await connection.commit();
         res.json({ success: true, message: "Payment(s) recorded" });
+        SyncService.syncTable('tests', req.user.token, req.user.branch_id).catch(() => { });
+
     } catch (e) {
         await connection.rollback();
         throw e;

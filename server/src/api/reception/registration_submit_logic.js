@@ -1,6 +1,8 @@
 const pool = require('../../config/db');
 const fs = require('fs');
 const path = require('path');
+const SyncService = require('../../services/SyncService');
+
 
 exports.submitRegistration = async (req, res) => {
     const connection = await pool.getConnection();
@@ -168,6 +170,10 @@ exports.submitRegistration = async (req, res) => {
             patient_uid: patientUID,
             registration_id: newRegistrationId
         });
+        // Background sync after successful registration
+        SyncService.syncTable('registration', req.user.token, req.user.branch_id).catch(() => { });
+        SyncService.syncTable('patient_master', req.user.token, req.user.branch_id).catch(() => { });
+
 
     } catch (error) {
         await connection.rollback();

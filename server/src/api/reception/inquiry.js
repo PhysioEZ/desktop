@@ -1,4 +1,8 @@
 const pool = require('../../config/db');
+const SyncService = require('../../services/SyncService');
+const sqlite = require('../../config/sqlite');
+
+
 
 // Main Controller Function
 exports.handleInquiryRequest = async (req, res) => {
@@ -45,32 +49,33 @@ async function fetchInquiries(req, res, branch_id, input) {
     const type = input.type || 'consultation';
     const search = input.search || '';
     const status = input.status || '';
-    let query, params = [branch_id];
 
-    if (type === 'consultation') {
-        query = "SELECT *, expected_visit_date as next_followup_date FROM quick_inquiry WHERE branch_id = ?";
-        if (search) {
-            query += " AND (name LIKE ? OR phone_number LIKE ?)";
-            params.push(`%${search}%`, `%${search}%`);
-        }
-    } else {
-        query = "SELECT *, expected_visit_date as next_followup_date FROM test_inquiry WHERE branch_id = ?";
-        if (search) {
-            query += " AND (name LIKE ? OR mobile_number LIKE ?)";
-            params.push(`%${search}%`, `%${search}%`);
-        }
+    // Read from local SQLite cache
+    const table = type === 'consultation' ? 'quick_inquiry' : 'test_inquiry';
+    let sql = `SELECT *, expected_visit_date as next_followup_date FROM ${table} WHERE branch_id = ?`;
+    const params = [branch_id];
+
+    if (search) {
+        const searchCol = type === 'consultation' ? 'phone_number' : 'mobile_number';
+        sql += ` AND (name LIKE ? OR ${searchCol} LIKE ?)`;
+        params.push(`%${search}%`, `%${search}%`);
     }
-
     if (status) {
-        query += " AND status = ?";
+        sql += ` AND status = ?`;
         params.push(status);
     }
+    sql += ` ORDER BY created_at DESC LIMIT 100`;
 
-    query += " ORDER BY created_at DESC LIMIT 100";
-
-    const [rows] = await pool.query(query, params);
-    res.json({ status: 'success', data: rows });
+    try {
+        const rows = sqlite.prepare(sql).all(...params);
+        res.json({ status: 'success', data: rows });
+    } catch (localErr) {
+        console.error('[Inquiry] Local read failed, falling back to remote:', localErr.message);
+        const [rows] = await pool.query(sql.replace(/\?/g, () => '?'), params);
+        res.json({ status: 'success', data: rows });
+    }
 }
+
 
 async function fetchOptions(req, res, branch_id) {
     const [complaints] = await pool.query("SELECT complaint_code as value, complaint_name as label FROM chief_complaints WHERE branch_id = ? AND is_active = 1 ORDER BY display_order", [branch_id]);
@@ -92,6 +97,11 @@ async function updateStatus(req, res, branch_id, input) {
     const table = (type === 'consultation') ? 'quick_inquiry' : 'test_inquiry';
 
     await pool.query(`UPDATE ${table} SET status = ? WHERE inquiry_id = ? AND branch_id = ?`, [new_status, id, branch_id]);
+
+    try {
+        sqlite.prepare(`UPDATE ${table} SET status = ? WHERE inquiry_id = ? AND branch_id = ?`).run(new_status, id, branch_id);
+    } catch (err) { }
+
     res.json({ status: 'success', message: 'Status updated' });
 }
 
@@ -101,6 +111,11 @@ async function deleteInquiry(req, res, branch_id, input) {
     const table = (type === 'consultation') ? 'quick_inquiry' : 'test_inquiry';
 
     await pool.query(`DELETE FROM ${table} WHERE inquiry_id = ? AND branch_id = ?`, [id, branch_id]);
+
+    try {
+        sqlite.prepare(`DELETE FROM ${table} WHERE inquiry_id = ? AND branch_id = ?`).run(id, branch_id);
+    } catch (err) { }
+
     res.json({ status: 'success', message: 'Inquiry deleted' });
 }
 
@@ -137,6 +152,9 @@ async function addFollowup(req, res, branch_id, employee_id, input) {
         if (next_date) {
             const table = (type === 'consultation') ? 'quick_inquiry' : 'test_inquiry';
             await connection.query(`UPDATE ${table} SET expected_visit_date = ? WHERE inquiry_id = ? AND branch_id = ?`, [next_date, inquiry_id, branch_id]);
+            try {
+                sqlite.prepare(`UPDATE ${table} SET expected_visit_date = ? WHERE inquiry_id = ? AND branch_id = ?`).run(next_date, inquiry_id, branch_id);
+            } catch (err) { }
         }
 
         await connection.commit();
@@ -195,6 +213,8 @@ exports.submitInquiry = async (req, res) => {
         ]);
 
         res.json({ success: true, message: "Inquiry saved successfully.", inquiry_id: result.insertId });
+        SyncService.syncTable('quick_inquiry', req.user.token, req.user.branch_id).catch(() => { });
+
     } catch (error) {
         console.error("Submit Inquiry Error:", error);
         res.status(500).json({ success: false, message: error.message });
@@ -228,6 +248,8 @@ exports.submitTestInquiry = async (req, res) => {
         ]);
 
         res.json({ success: true, message: "Test inquiry saved successfully.", test_inquiry_id: result.insertId });
+        SyncService.syncTable('test_inquiry', req.user.token, req.user.branch_id).catch(() => { });
+
     } catch (error) {
         console.error("Submit Test Inquiry Error:", error);
         res.status(500).json({ success: false, message: error.message });

@@ -62,6 +62,11 @@ router.get("/dashboard", dashboardController.getDashboardData);
 const checkUpdatesController = require("./checkUpdates");
 router.get("/check_updates", checkUpdatesController.checkUpdates);
 
+// Sync Endpoints (Bootstrap + Event-Driven)
+const syncController = require("./syncController");
+router.post("/init_sync", authenticate, syncController.initSync);
+router.post("/sync_table", authenticate, syncController.syncTable);
+
 // GET /api/reception/form_options
 router.get("/form_options", formOptionsController.getFormOptions);
 router.get("/daily_intelligence", insightsController.getDailyIntelligence);
