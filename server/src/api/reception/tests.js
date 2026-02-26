@@ -438,6 +438,12 @@ exports.handleTestsRequest = async (req, res) => {
             case 'fetch_schedule':
                 await fetchTestSchedule(req, res, branchId, input);
                 break;
+            case 'update_status':
+                await updateTestStatus(req, res, branchId, input);
+                break;
+            case 'refund':
+                await initiateTestRefund(req, res, branchId, input);
+                break;
             default:
                 res.status(400).json({ success: false, message: 'Invalid action' });
         }
@@ -456,7 +462,7 @@ async function fetchTests(req, res, branchId, input) {
     const limit = parseInt(input.limit) || 15;
     const offset = (page - 1) * limit;
 
-    let whereClauses = ["branch_id = ?", "test_status != 'cancelled'"];
+    let whereClauses = ["branch_id = ?"];
     let params = [branchId];
 
     if (search) {
@@ -464,10 +470,17 @@ async function fetchTests(req, res, branchId, input) {
         const p = `%${search}%`;
         params.push(p, p, p);
     }
+
     if (status) {
         whereClauses.push("test_status = ?");
-        params.push(status);
+        params.push(status.toLowerCase());
+    } else if (!search) {
+        // If no specific status and no search, we default to excluding cancelled for the "General" view
+        // But if searching, we might want to see cancelled too?
+        // For now, let's keep it as is UNLESS status is provided.
+        whereClauses.push("test_status != 'cancelled'");
     }
+
     if (payment_status) {
         whereClauses.push("payment_status = ?");
         params.push(payment_status);
@@ -495,9 +508,10 @@ async function fetchTests(req, res, branchId, input) {
         SELECT
             COUNT(*) as total,
                 SUM(CASE WHEN test_status = 'completed' THEN 1 ELSE 0 END) as completed,
-                SUM(CASE WHEN test_status = 'pending' THEN 1 ELSE 0 END) as pending
+                SUM(CASE WHEN test_status = 'pending' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN test_status = 'cancelled' THEN 1 ELSE 0 END) as cancelled
         FROM tests
-        WHERE branch_id = ? AND test_status != 'cancelled'
+        WHERE branch_id = ?
                 `, [branchId])
     ]);
 
@@ -507,7 +521,8 @@ async function fetchTests(req, res, branchId, input) {
         stats: {
             total: stats.total || 0,
             completed: stats.completed || 0,
-            pending: stats.pending || 0
+            pending: stats.pending || 0,
+            cancelled: stats.cancelled || 0
         }
     });
 }
@@ -762,4 +777,14 @@ async function fetchTestSchedule(req, res, branchId, input) {
         console.error("Fetch Test Schedule Error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
+async function updateTestStatus(req, res, branchId, input) {
+    const { test_id, status } = input;
+    if (!test_id || !status) throw new Error("Test ID and Status required");
+
+    await pool.query(
+        "UPDATE tests SET test_status = ? WHERE test_id = ? AND branch_id = ?",
+        [status.toLowerCase(), test_id, branchId]
+    );
+
+    res.json({ success: true, message: "Status updated" });
 }

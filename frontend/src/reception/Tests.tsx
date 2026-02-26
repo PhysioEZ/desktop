@@ -15,6 +15,7 @@ import {
   Ban,
   Calendar,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useThemeStore } from "../store/useThemeStore";
@@ -73,7 +74,6 @@ const Tests = () => {
   const [testTypeFilter, setTestTypeFilter] = useState("All");
   const [paymentFilter, setPaymentFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [showCancelledOnly, setShowCancelledOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -82,6 +82,7 @@ const Tests = () => {
     total: 0,
     completed: 0,
     pending: 0,
+    cancelled: 0,
     total_revenue: 0,
     total_paid: 0,
     total_due: 0,
@@ -122,11 +123,6 @@ const Tests = () => {
 
   // Filter Logic
   const filteredRecords = records.filter((record) => {
-    // Tab Filter (All, Pending, Completed)
-    const matchesTab =
-      activeTab === "All" ||
-      record.test_status.toLowerCase() === activeTab.toLowerCase();
-
     // Type Filter
     const matchesType =
       testTypeFilter === "All" ||
@@ -142,10 +138,8 @@ const Tests = () => {
       statusFilter === "All" ||
       record.test_status.toLowerCase() === statusFilter.toLowerCase();
 
-    // Cancelled Only Filter
-    const matchesCancelled = showCancelledOnly
-      ? record.test_status.toLowerCase() === "cancelled"
-      : true;
+    // Cancelled Only Filter (Removed, handled by separate page)
+    const matchesCancelled = true;
 
     // Search Filter (Synced with Server Results)
     const matchesSearch =
@@ -159,7 +153,6 @@ const Tests = () => {
       record.test_name.toLowerCase().includes(appliedSearchQuery.toLowerCase());
 
     return (
-      matchesTab &&
       matchesType &&
       matchesPayment &&
       matchesStatus &&
@@ -194,11 +187,25 @@ const Tests = () => {
       const params = new URLSearchParams();
       params.append("action", "fetch");
 
-      const bodyData: any = { action: "fetch", page: pageNum, limit: 15 };
-      if (searchParam) {
-        bodyData.search = searchParam;
+      const bodyData: any = {
+        action: "fetch",
+        page: pageNum,
+        limit: 15,
+        search: searchParam,
+      };
+
+      // Set status based on statusFilter
+      if (statusFilter !== "All") {
+        bodyData.status = statusFilter;
       }
-      // Note: we do not send status filter to backend so it always returns everything
+
+      if (paymentFilter !== "All") {
+        bodyData.payment_status = paymentFilter;
+      }
+
+      if (testTypeFilter !== "All") {
+        bodyData.test_name = testTypeFilter;
+      }
 
       const response = await authFetch(
         `${API_BASE_URL}/reception/tests?${params.toString()}`,
@@ -217,12 +224,13 @@ const Tests = () => {
         setHasMore(res.data.length === 15);
         setPage(pageNum);
 
-        // Update stats only on initial fetch so we don't mess up aggregated stats for the page
+        // Update stats only on initial fetch
         if (pageNum === 1) {
           setStats({
             total: res.stats.total || 0,
             completed: res.stats.completed || 0,
             pending: res.stats.pending || 0,
+            cancelled: res.stats.cancelled || 0,
             total_revenue: res.data.reduce(
               (acc: number, curr: TestRecord) =>
                 acc + (Number(curr.total_amount) || 0),
@@ -253,7 +261,7 @@ const Tests = () => {
 
   useEffect(() => {
     fetchTests(1, appliedSearchQuery);
-  }, []);
+  }, [statusFilter, paymentFilter, testTypeFilter]);
 
   useEffect(() => {
     if (refreshCooldown > 0) {
@@ -329,7 +337,7 @@ const Tests = () => {
               <div
                 className={`p-6 rounded-[32px] border relative overflow-hidden transition-all ${isDark ? "bg-white/[0.02] border-white/5" : "bg-white border-slate-100 shadow-2xl shadow-slate-200/20"}`}
               >
-                <div className="grid grid-cols-3 gap-2 relative z-10 divide-x dark:divide-white/5 divide-slate-100">
+                <div className="grid grid-cols-4 gap-2 relative z-10 divide-x dark:divide-white/5 divide-slate-100">
                   <div className="flex flex-col items-center justify-center">
                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
                       Total
@@ -361,6 +369,17 @@ const Tests = () => {
                     </p>
                     <div className="mt-1 flex items-center gap-0.5 text-[9px] font-bold text-slate-400 opacity-40 uppercase">
                       Wait
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center justify-center group">
+                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5 grayscale group-hover:grayscale-0 transition-all">
+                      Cancelled
+                    </p>
+                    <p className="text-2xl font-black tracking-tighter text-rose-500/50 group-hover:text-rose-500 transition-colors">
+                      {stats.cancelled}
+                    </p>
+                    <div className="mt-1 flex items-center gap-0.5 text-[9px] font-bold text-slate-400 opacity-20 uppercase">
+                      Void
                     </div>
                   </div>
                 </div>
@@ -735,15 +754,10 @@ const Tests = () => {
               {/* Action Buttons with larger gap */}
               <div className="flex items-center gap-2 ml-6">
                 <button
-                  onClick={() => setShowCancelledOnly(!showCancelledOnly)}
-                  className={`flex items-center gap-2 px-4 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest transition-all ${showCancelledOnly ? (isDark ? "bg-rose-500/20 border-rose-500/40 text-rose-400" : "bg-rose-50 border-rose-100 text-rose-600 shadow-sm") : isDark ? "bg-[#1A1C1A] border-white/5 text-slate-400" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"}`}
+                  onClick={() => navigate("/reception/tests/cancelled")}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest transition-all ${isDark ? "bg-[#1A1C1A] border-white/5 text-slate-400" : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"}`}
                 >
-                  <Ban
-                    size={14}
-                    className={
-                      showCancelledOnly ? "text-rose-500" : "opacity-30"
-                    }
-                  />
+                  <Ban size={14} className="opacity-30" />
                   Cancelled
                 </button>
 

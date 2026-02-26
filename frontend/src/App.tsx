@@ -18,6 +18,7 @@ import GlobalSearchOverlay from "./components/GlobalSearchOverlay";
 import Inquiry from "./reception/Inquiry";
 import Registration from "./reception/Registration";
 import CancelledRegistrations from "./reception/CancelledRegistrations";
+import CancelledTests from "./reception/CancelledTests";
 import Patients from "./reception/Patients";
 import Billing from "./reception/Billing";
 import Profile from "./reception/Profile";
@@ -96,10 +97,14 @@ function App() {
           path="/reception/registration/cancelled"
           element={<CancelledRegistrations />}
         />
+        <Route path="/reception/tests/cancelled" element={<CancelledTests />} />
         <Route path="/reception/patients" element={<Patients />} />
         <Route path="/reception/billing" element={<Billing />} />
         <Route path="/reception/profile" element={<Profile />} />
-        <Route path="/reception/reception-analytics" element={<ReceptionAnalytics />} />
+        <Route
+          path="/reception/reception-analytics"
+          element={<ReceptionAnalytics />}
+        />
 
         {/* Admin Routes */}
         <Route path="/admin/dashboard" element={<AdminDashboard />} />

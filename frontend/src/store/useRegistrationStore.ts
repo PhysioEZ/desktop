@@ -13,6 +13,7 @@ interface RegistrationStore {
   serviceSlotsCache: Record<string, any[]>;
   registrationsCache: Record<string, { data: any[]; pagination: any }>;
   cancelledRegistrationsCache: any[] | null;
+  cancelledTestsCache: any[] | null;
   setRegistrations: (data: any[]) => void;
   setOptions: (options: any) => void;
   setServiceTracks: (tracks: any[]) => void;
@@ -24,6 +25,7 @@ interface RegistrationStore {
   setServiceSlotsCache: (key: string, data: any[]) => void;
   setRegistrationsCache: (key: string, data: any[], pagination: any) => void;
   setCancelledRegistrationsCache: (data: any[]) => void;
+  setCancelledTestsCache: (data: any[]) => void;
   clearCache: () => void;
 }
 
@@ -41,6 +43,7 @@ export const useRegistrationStore = create<RegistrationStore>()(
       serviceSlotsCache: {},
       registrationsCache: {},
       cancelledRegistrationsCache: null,
+      cancelledTestsCache: null,
       setRegistrations: (registrations) => set({ registrations }),
       setOptions: (options) => set({ options }),
       setServiceTracks: (serviceTracks) => set({ serviceTracks }),
@@ -64,6 +67,7 @@ export const useRegistrationStore = create<RegistrationStore>()(
           },
         })),
       setCancelledRegistrationsCache: (cancelledRegistrationsCache) => set({ cancelledRegistrationsCache }),
+      setCancelledTestsCache: (cancelledTestsCache) => set({ cancelledTestsCache }),
       clearCache: () =>
         set({
           registrations: null,
@@ -77,6 +81,7 @@ export const useRegistrationStore = create<RegistrationStore>()(
           serviceSlotsCache: {},
           registrationsCache: {},
           cancelledRegistrationsCache: null,
+          cancelledTestsCache: null,
         }),
     }),
     {
