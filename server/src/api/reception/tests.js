@@ -435,6 +435,9 @@ exports.handleTestsRequest = async (req, res) => {
             case 'add_payment':
                 await addTestPayment(req, res, branchId, input);
                 break;
+            case 'fetch_schedule':
+                await fetchTestSchedule(req, res, branchId, input);
+                break;
             case 'update_status':
                 await updateTestStatus(req, res, branchId, input);
                 break;
@@ -732,6 +735,48 @@ async function addTestPayment(req, res, branchId, input) {
     }
 }
 
+async function fetchTestSchedule(req, res, branchId, input) {
+    const weekStartStr = input.week_start;
+    let start = new Date(weekStartStr);
+    if (isNaN(start.getTime())) start = new Date();
+    const day = start.getDay();
+    if (day !== 0) start.setDate(start.getDate() - day);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    end.setHours(23, 59, 59, 999);
+
+    const sDate = start.toISOString().split('T')[0];
+    const eDate = end.toISOString().split('T')[0];
+
+    try {
+        const [rows] = await pool.query(`
+            SELECT 
+                test_id,
+                test_uid,
+                patient_name,
+                assigned_test_date,
+                test_status as status,
+                payment_status,
+                test_name,
+                total_amount
+            FROM tests
+            WHERE branch_id = ?
+              AND assigned_test_date BETWEEN ? AND ?
+              AND test_status != 'cancelled'
+        `, [branchId, sDate, eDate]);
+
+        res.json({
+            success: true,
+            week_start: sDate,
+            week_end: eDate,
+            tests: rows
+        });
+    } catch (error) {
+        console.error("Fetch Test Schedule Error:", error);
+        res.status(500).json({ success: false, message: error.message });
+    }
 async function updateTestStatus(req, res, branchId, input) {
     const { test_id, status } = input;
     if (!test_id || !status) throw new Error("Test ID and Status required");

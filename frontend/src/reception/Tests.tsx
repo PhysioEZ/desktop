@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   TestTube2,
   CreditCard,
@@ -40,21 +41,21 @@ interface TestRecord {
   paid_amount: number;
   due_amount: number;
   payment_status:
-    | "Paid"
-    | "Partial"
-    | "Unpaid"
-    | "paid"
-    | "partial"
-    | "pending";
+  | "Paid"
+  | "Partial"
+  | "Unpaid"
+  | "paid"
+  | "partial"
+  | "pending";
   test_status:
-    | "Completed"
-    | "Pending"
-    | "Cancelled"
-    | "In Progress"
-    | "completed"
-    | "pending"
-    | "cancelled"
-    | "in-progress";
+  | "Completed"
+  | "Pending"
+  | "Cancelled"
+  | "In Progress"
+  | "completed"
+  | "pending"
+  | "cancelled"
+  | "in-progress";
   test_uid: string;
 }
 
@@ -68,6 +69,7 @@ const Tests = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [appliedSearchQuery, setAppliedSearchQuery] = useState("");
+  const [activeTab] = useState("All");
 
   const [testTypeFilter, setTestTypeFilter] = useState("All");
   const [paymentFilter, setPaymentFilter] = useState("All");
@@ -430,9 +432,9 @@ const Tests = () => {
                       <span className="text-xs font-black text-emerald-400">
                         {stats.total_revenue > 0
                           ? (
-                              (stats.total_paid / stats.total_revenue) *
-                              100
-                            ).toFixed(1)
+                            (stats.total_paid / stats.total_revenue) *
+                            100
+                          ).toFixed(1)
                           : 0}
                         %
                       </span>
@@ -760,6 +762,7 @@ const Tests = () => {
                 </button>
 
                 <button
+                  onClick={() => navigate("/reception/test-schedule")}
                   className={`flex items-center gap-2 px-5 py-3 rounded-[18px] border font-black text-[9px] uppercase tracking-widest transition-all bg-[#009b7c] text-white hover:bg-[#008268] shadow-lg shadow-[#009b7c]/20`}
                 >
                   <Calendar size={14} />
@@ -853,15 +856,14 @@ const Tests = () => {
                               </div>
                               <div>
                                 <span
-                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${
-                                    record.payment_status.toLowerCase() ===
+                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${record.payment_status.toLowerCase() ===
                                     "paid"
-                                      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20"
-                                      : record.payment_status.toLowerCase() ===
-                                          "partial"
-                                        ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500 border border-amber-200 dark:border-amber-500/20"
-                                        : "bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-500 border border-rose-200 dark:border-rose-500/20"
-                                  }`}
+                                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20"
+                                    : record.payment_status.toLowerCase() ===
+                                      "partial"
+                                      ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500 border border-amber-200 dark:border-amber-500/20"
+                                      : "bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-500 border border-rose-200 dark:border-rose-500/20"
+                                    }`}
                                 >
                                   {record.payment_status
                                     .charAt(0)
@@ -873,15 +875,14 @@ const Tests = () => {
                               </div>
                               <div>
                                 <span
-                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${
-                                    record.test_status.toLowerCase() ===
+                                  className={`px-3 py-1.5 rounded-full text-[10px] font-bold ${record.test_status.toLowerCase() ===
                                     "completed"
-                                      ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20"
-                                      : record.test_status.toLowerCase() ===
-                                          "pending"
-                                        ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500 border border-amber-200 dark:border-amber-500/20"
-                                        : "bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-500 border border-blue-200 dark:border-blue-500/20"
-                                  }`}
+                                    ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-500 border border-emerald-200 dark:border-emerald-500/20"
+                                    : record.test_status.toLowerCase() ===
+                                      "pending"
+                                      ? "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-500 border border-amber-200 dark:border-amber-500/20"
+                                      : "bg-blue-50 text-blue-500 dark:bg-blue-500/10 dark:text-blue-500 border border-blue-200 dark:border-blue-500/20"
+                                    }`}
                                 >
                                   {record.test_status.charAt(0).toUpperCase() +
                                     record.test_status.slice(1).toLowerCase()}
@@ -922,11 +923,10 @@ const Tests = () => {
                               fetchTests(page + 1, appliedSearchQuery)
                             }
                             disabled={isLoadingMore}
-                            className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${
-                              isDark
-                                ? "bg-white/5 text-slate-300 hover:bg-white/10"
-                                : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                            }`}
+                            className={`px-6 py-2.5 rounded-full text-xs font-bold transition-all flex items-center gap-2 ${isDark
+                              ? "bg-white/5 text-slate-300 hover:bg-white/10"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                              }`}
                           >
                             {isLoadingMore ? (
                               <>
@@ -1001,7 +1001,7 @@ const Tests = () => {
 
                 <div className="px-6 pb-8 overflow-y-auto custom-scrollbar flex-1">
                   {pendingApprovals.filter((a) => a.type === "test").length ===
-                  0 ? (
+                    0 ? (
                     <div className="flex flex-col items-center justify-center py-16 opacity-20">
                       <CheckCircle2
                         size={48}
