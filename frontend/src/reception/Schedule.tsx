@@ -206,10 +206,10 @@ const DroppableSlot = ({
     <div
       ref={setNodeRef}
       className={`min-h-[110px] p-2 border-b border-r transition-all duration-300 relative ${isOver
-          ? "bg-emerald-500/10 dark:bg-emerald-500/20 ring-2 ring-emerald-500/20 ring-inset"
-          : isTodaySlot
-            ? "bg-slate-50/80 dark:bg-white/[0.02]"
-            : "bg-transparent"
+        ? "bg-emerald-500/10 dark:bg-emerald-500/20 ring-2 ring-emerald-500/20 ring-inset"
+        : isTodaySlot
+          ? "bg-slate-50/80 dark:bg-white/[0.02]"
+          : "bg-transparent"
         } ${isDark ? "border-white/5" : "border-gray-50"}`}
     >
       <div className="flex flex-col gap-1.5 h-full">{children}</div>
@@ -710,8 +710,8 @@ const Schedule = () => {
                           />
                           <div
                             className={`absolute -left-[8px] top-[14px] w-1.5 h-1.5 rounded-full ${appt.status === "consulted"
-                                ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
-                                : "bg-orange-400 opacity-60"
+                              ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                              : "bg-orange-400 opacity-60"
                               } group-hover:scale-150 transition-transform duration-300`}
                           />
 
@@ -739,8 +739,8 @@ const Schedule = () => {
                                 </div>
                                 <span
                                   className={`text-[10px] font-black uppercase px-3 py-1 rounded-full shrink-0 ${appt.status === "consulted"
-                                      ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                                      : "bg-orange-500/10 text-orange-500 border border-orange-500/20"
+                                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                                    : "bg-orange-500/10 text-orange-500 border border-orange-500/20"
                                     }`}
                                 >
                                   {appt.status}
@@ -1078,8 +1078,8 @@ const RescheduleModal = ({
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.95, y: 20 }}
         className={`w-full max-w-4xl max-h-[90vh] rounded-[32px] overflow-hidden shadow-2xl flex flex-col border transition-colors ${isDark
-            ? "bg-[#121412] border-white/5 shadow-black/50"
-            : "bg-white border-gray-100 shadow-xl"
+          ? "bg-[#121412] border-white/5 shadow-black/50"
+          : "bg-white border-gray-100 shadow-xl"
           }`}
       >
         {/* Header Enhancement */}
@@ -1101,8 +1101,8 @@ const RescheduleModal = ({
           <button
             onClick={onClose}
             className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isDark
-                ? "bg-white/5 hover:bg-white/10"
-                : "bg-gray-100 hover:bg-gray-200"
+              ? "bg-white/5 hover:bg-white/10"
+              : "bg-gray-100 hover:bg-gray-200"
               }`}
           >
             <X size={20} />
@@ -1113,8 +1113,8 @@ const RescheduleModal = ({
           {/* Left Panel: Date Selection */}
           <div
             className={`md:w-[350px] flex flex-col border-r ${isDark
-                ? "bg-black/20 border-white/5"
-                : "bg-[#F9FAFB] border-gray-100"
+              ? "bg-black/20 border-white/5"
+              : "bg-[#F9FAFB] border-gray-100"
               }`}
           >
             <div className="p-8 flex flex-col h-full">
@@ -1123,8 +1123,8 @@ const RescheduleModal = ({
               </label>
               <div
                 className={`p-4 rounded-[24px] border transition-all ${isDark
-                    ? "bg-white/5 border-white/5"
-                    : "bg-white border-gray-100 shadow-sm"
+                  ? "bg-white/5 border-white/5"
+                  : "bg-white border-gray-100 shadow-sm"
                   }`}
               >
                 <div className="flex items-center justify-between mb-4">
@@ -1167,8 +1167,8 @@ const RescheduleModal = ({
                 {selectedSlot && (
                   <div
                     className={`px-5 py-2 rounded-full text-[10px] font-black tracking-[0.1em] shadow-xl flex items-center gap-2 ${isDark
-                        ? "bg-emerald-500 text-black shadow-emerald-500/20"
-                        : "bg-emerald-500 text-white shadow-emerald-500/30"
+                      ? "bg-emerald-500 text-black shadow-emerald-500/20"
+                      : "bg-emerald-500 text-white shadow-emerald-500/30"
                       }`}
                   >
                     SELECTED:{" "}
@@ -1204,25 +1204,25 @@ const RescheduleModal = ({
                           disabled={isBooked}
                           onClick={() => setSelectedSlot(slot.time)}
                           className={`group relative p-4 rounded-[24px] border transition-all duration-300 ${isSelected
-                              ? isDark
-                                ? "bg-emerald-500/10 border-emerald-500 shadow-lg shadow-emerald-500/10"
-                                : "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20"
-                              : isBooked
-                                ? "opacity-10 grayscale border-transparent cursor-not-allowed"
-                                : isDark
-                                  ? "bg-white/5 border-white/5 hover:border-emerald-500/30 hover:bg-white/10"
-                                  : "bg-white border-gray-100 hover:border-emerald-200 shadow-sm"
+                            ? isDark
+                              ? "bg-emerald-500/10 border-emerald-500 shadow-lg shadow-emerald-500/10"
+                              : "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                            : isBooked
+                              ? "opacity-10 grayscale border-transparent cursor-not-allowed"
+                              : isDark
+                                ? "bg-white/5 border-white/5 hover:border-emerald-500/30 hover:bg-white/10"
+                                : "bg-white border-gray-100 hover:border-emerald-200 shadow-sm"
                             }`}
                         >
                           <div className="flex flex-col items-start gap-1">
                             <span
                               className={`text-[9px] font-black uppercase tracking-[0.15em] px-2 py-0.5 rounded-md ${isSelected
-                                  ? isDark
-                                    ? "bg-emerald-500/20 text-emerald-400"
-                                    : "bg-white/20 text-white"
-                                  : isDark
-                                    ? "bg-white/5 text-white/30"
-                                    : "bg-gray-100 text-gray-400"
+                                ? isDark
+                                  ? "bg-emerald-500/20 text-emerald-400"
+                                  : "bg-white/20 text-white"
+                                : isDark
+                                  ? "bg-white/5 text-white/30"
+                                  : "bg-gray-100 text-gray-400"
                                 }`}
                             >
                               {slot.time < "12:00"
@@ -1275,8 +1275,8 @@ const RescheduleModal = ({
             <button
               onClick={onClose}
               className={`flex-1 sm:flex-none px-8 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${isDark
-                  ? "hover:bg-white/5 text-white/40 hover:text-white"
-                  : "hover:bg-gray-200 text-gray-500 hover:text-gray-900"
+                ? "hover:bg-white/5 text-white/40 hover:text-white"
+                : "hover:bg-gray-200 text-gray-500 hover:text-gray-900"
                 }`}
             >
               Cancel
@@ -1285,8 +1285,8 @@ const RescheduleModal = ({
               onClick={handleSave}
               disabled={isSaving || !selectedSlot}
               className={`flex-1 sm:flex-none px-8 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl transition-all flex items-center justify-center gap-3 ${isSaving || !selectedSlot
-                  ? "opacity-50 grayscale cursor-not-allowed bg-gray-400 text-white shadow-none"
-                  : "bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20 active:scale-95"
+                ? "opacity-50 grayscale cursor-not-allowed bg-gray-400 text-white shadow-none"
+                : "bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20 active:scale-95"
                 }`}
             >
               {isSaving ? (

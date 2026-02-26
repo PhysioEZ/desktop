@@ -12,6 +12,7 @@ import WelcomeScreen from "./screens/WelcomeScreen";
 import ReceptionDashboard from "./reception/Dashboard";
 import DashboardNew from "./reception/Dashboard";
 import Schedule from "./reception/Schedule";
+import TestSchedule from "./reception/TestSchedule";
 import GlobalSearchOverlay from "./components/GlobalSearchOverlay";
 
 import Inquiry from "./reception/Inquiry";
@@ -82,6 +83,7 @@ function App() {
         <Route path="/reception/dashboard" element={<ReceptionDashboard />} />
         <Route path="/reception/dashboard-new" element={<DashboardNew />} />
         <Route path="/reception/schedule" element={<Schedule />} />
+        <Route path="/reception/test-schedule" element={<TestSchedule />} />
         <Route path="/reception/inquiry" element={<Inquiry />} />
         <Route path="/reception/registration" element={<Registration />} />
         <Route path="/reception/attendance" element={<Attendance />} />

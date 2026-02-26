@@ -17,6 +17,8 @@ interface DashboardStore {
   branchUsers: any[] | null;
   scheduleAppointments: any[] | null;
   scheduleWeekStart: string | null;
+  testSchedule: any[] | null;
+  testScheduleWeekStart: string | null;
   searchCache: Record<string, any[]>;
   notesPagination: {
     public: { hasMore: boolean; offset: number };
@@ -39,6 +41,8 @@ interface DashboardStore {
   setBranchUsers: (users: any[]) => void;
   setScheduleAppointments: (appointments: any[]) => void;
   setScheduleWeekStart: (weekStart: string | null) => void;
+  setTestSchedule: (tests: any[]) => void;
+  setTestScheduleWeekStart: (weekStart: string | null) => void;
   setSearchCache: (query: string, results: any[]) => void;
   setNotesPagination: (type: "public" | "private", pagination: { hasMore: boolean; offset: number }) => void;
   setGlobalSearchQuery: (query: string) => void;
@@ -67,6 +71,8 @@ export const useDashboardStore = create<DashboardStore>()(
       branchUsers: null,
       scheduleAppointments: null,
       scheduleWeekStart: null,
+      testSchedule: null,
+      testScheduleWeekStart: null,
       searchCache: {},
       notesPagination: {
         public: { hasMore: true, offset: 0 },
@@ -89,9 +95,11 @@ export const useDashboardStore = create<DashboardStore>()(
       setBranchUsers: (branchUsers) => set({ branchUsers }),
       setScheduleAppointments: (scheduleAppointments) => set({ scheduleAppointments }),
       setScheduleWeekStart: (scheduleWeekStart) => set({ scheduleWeekStart }),
-      setSearchCache: (query, results) => 
-        set((state) => ({ 
-          searchCache: { ...state.searchCache, [query]: results } 
+      setTestSchedule: (testSchedule) => set({ testSchedule }),
+      setTestScheduleWeekStart: (testScheduleWeekStart) => set({ testScheduleWeekStart }),
+      setSearchCache: (query, results) =>
+        set((state) => ({
+          searchCache: { ...state.searchCache, [query]: results }
         })),
       setNotesPagination: (type, pagination) =>
         set((state) => ({
@@ -122,6 +130,8 @@ export const useDashboardStore = create<DashboardStore>()(
           branchUsers: null,
           scheduleAppointments: null,
           scheduleWeekStart: null,
+          testSchedule: null,
+          testScheduleWeekStart: null,
           searchCache: {},
           notesPagination: {
             public: { hasMore: true, offset: 0 },
