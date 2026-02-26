@@ -15,7 +15,6 @@ import {
   Ban,
   Calendar,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { useThemeStore } from "../store/useThemeStore";

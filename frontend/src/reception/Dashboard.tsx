@@ -2828,9 +2828,6 @@ const ReceptionDashboard = () => {
                               className="!gap-1"
                             >
                               <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
-                                  ₹
-                                </span>
                                 <input
                                   type="number"
                                   name="amount"

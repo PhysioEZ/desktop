@@ -206,21 +206,49 @@ async function updateRegistrationDetails(req, res, input) {
         // Auto-Approval Logic
         if (input.consultation_amount !== undefined) {
             const newAmount = parseFloat(input.consultation_amount);
+            const oldAmount = parseFloat(currentReg.consultation_amount || 0);
 
-            const [settings] = await connection.query("SELECT setting_value FROM clinic_settings WHERE branch_id = ? AND setting_key = 'consultation_fee'", [currentReg.branch_id]);
-            const standardFee = (settings.length > 0 && settings[0].setting_value) ? parseFloat(settings[0].setting_value) : 500.00;
+            // Check if amount has changed
+            if (newAmount !== oldAmount) {
+                // Fetch consultation_fee from settings key (JSON) in clinic_settings
+                const [settingsData] = await connection.query("SELECT setting_value FROM clinic_settings WHERE branch_id = ? AND setting_key = 'settings'", [currentReg.branch_id]);
+                
+                let standardFee = 500.00; // default fallout
+                let foundInSettings = false;
 
-            if (newAmount >= standardFee) {
-                if (currentReg.approval_status !== 'approved') {
-                    updates.push("approval_status = 'approved'");
-                    updates.push("approved_at = NOW()");
-                    if (!input.status) {
-                        updates.push("status = 'pending'");
+                if (settingsData.length > 0 && settingsData[0].setting_value) {
+                    try {
+                        const settings = JSON.parse(settingsData[0].setting_value);
+                        if (settings.consultation_fee !== undefined) {
+                            standardFee = parseFloat(settings.consultation_fee);
+                            foundInSettings = true;
+                        }
+                    } catch (e) {
+                        console.error("Error parsing clinic settings JSON:", e);
                     }
                 }
-            } else {
-                if (currentReg.approval_status === 'rejected') {
-                    updates.push("approval_status = 'pending'");
+
+                // Fallback if not found in JSON settings
+                if (!foundInSettings) {
+                    const [feeRows] = await connection.query("SELECT setting_value FROM clinic_settings WHERE branch_id = ? AND setting_key = 'consultation_fee'", [currentReg.branch_id]);
+                    if (feeRows.length > 0 && feeRows[0].setting_value) {
+                        standardFee = parseFloat(feeRows[0].setting_value);
+                    }
+                }
+
+                if (newAmount >= standardFee) {
+                    if (currentReg.approval_status !== 'approved') {
+                        updates.push("approval_status = 'approved'");
+                        // Ensure status is at least pending for next steps
+                        if (input.status === undefined) {
+                            updates.push("status = 'pending'");
+                        }
+                    }
+                } else {
+                    // If updated amount is less than standard fee, move to pending
+                    if (currentReg.approval_status === 'approved' || currentReg.approval_status === 'rejected') {
+                         updates.push("approval_status = 'pending'");
+                    }
                 }
             }
         }
