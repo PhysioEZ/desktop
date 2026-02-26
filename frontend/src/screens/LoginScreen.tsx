@@ -4,15 +4,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowRight,
   AlertCircle,
-  CheckCircle2,
   Eye,
   EyeOff,
   KeyRound,
+  LayoutGrid,
   Lock,
   Moon,
   RefreshCw,
   ShieldCheck,
-  Sparkles,
   Sun,
   User,
 } from "lucide-react";
@@ -26,12 +25,6 @@ interface SystemStatus {
   message: string;
   version: string;
 }
-
-const securityPillars = [
-  "Role-aware access policies",
-  "Real-time session protection",
-  "Branch-scoped data boundaries",
-];
 
 const LoginScreen = () => {
   const navigate = useNavigate();
@@ -50,7 +43,7 @@ const LoginScreen = () => {
     maintenance: false,
     forceLogout: false,
     message: "",
-    version: "...",
+    version: "0.6.2.5-ALPHA",
   });
 
   const reason = searchParams.get("reason");
@@ -152,118 +145,89 @@ const LoginScreen = () => {
 
   return (
     <div
-      className={`relative min-h-screen overflow-hidden transition-colors duration-500 ${
-        isDark ? "bg-[#05070B]" : "bg-[#F4F7FB]"
-      }`}
+      className={`relative min-h-screen overflow-hidden flex items-center justify-center p-4 transition-colors duration-500 dark:bg-[#05060A] bg-slate-50`}
     >
-      <div className="pointer-events-none absolute inset-0">
-        <motion.div
-          animate={{ x: [0, 80, 0], y: [0, -30, 0], opacity: [0.2, 0.35, 0.2] }}
-          transition={{ duration: 16, repeat: Infinity, ease: "linear" }}
-          className={`absolute -top-32 -left-20 h-[28rem] w-[28rem] rounded-full blur-3xl ${
-            isDark ? "bg-emerald-500/20" : "bg-emerald-300/35"
-          }`}
-        />
-        <motion.div
-          animate={{ x: [0, -70, 0], y: [0, 50, 0], opacity: [0.18, 0.3, 0.18] }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className={`absolute -bottom-40 -right-24 h-[30rem] w-[30rem] rounded-full blur-3xl ${
-            isDark ? "bg-cyan-500/15" : "bg-cyan-300/30"
-          }`}
-        />
+      {/* Background Glows */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#00B884]/10 blur-[120px] rounded-full dark:opacity-100 opacity-50" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#3b82f6]/5 blur-[120px] rounded-full dark:opacity-100 opacity-30" />
       </div>
 
-      <div className="absolute right-6 top-6 z-30">
+      <div className="absolute right-8 top-8 z-30">
         <button
           onClick={toggleTheme}
           type="button"
-          className={`flex h-11 w-11 items-center justify-center rounded-2xl border backdrop-blur-md transition-all hover:scale-105 ${
-            isDark
-              ? "border-white/10 bg-white/5 text-amber-300"
-              : "border-slate-200 bg-white/80 text-slate-700"
-          }`}
+          className="flex h-12 w-12 items-center justify-center rounded-2xl border dark:border-white/5 border-slate-200 dark:bg-white/5 bg-white dark:text-slate-400 text-slate-600 shadow-sm backdrop-blur-md transition-all hover:scale-105 dark:hover:bg-white/10 hover:bg-slate-50"
         >
-          {isDark ? <Sun size={18} /> : <Moon size={18} />}
+          {isDark ? <Sun size={20} className="text-amber-300" /> : <Moon size={20} className="text-slate-600" />}
         </button>
       </div>
 
-      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1300px] items-center p-4 sm:p-8">
-        <div className="grid w-full items-stretch overflow-hidden rounded-[2rem] border border-white/20 bg-white/40 shadow-[0_32px_80px_-30px_rgba(14,25,40,0.35)] backdrop-blur-xl dark:border-white/10 dark:bg-[#0B1018]/70 lg:grid-cols-[1.1fr_0.9fr]">
-          <section className="relative hidden flex-col justify-between overflow-hidden p-10 lg:flex">
-            <motion.div
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="space-y-7"
-            >
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-600 dark:text-emerald-300">
-                <Sparkles size={14} />
-                PhysioEZ OS
+      <main className="relative z-10 w-full max-w-[1024px] flex items-center justify-center">
+        <div className="grid w-full grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] overflow-hidden rounded-[32px] border dark:border-white/10 border-slate-200 dark:bg-[#0B0D11] bg-white shadow-[0_40px_100px_-20px_rgba(0,0,0,0.3)] dark:shadow-[0_40px_100px_-20px_rgba(0,0,0,0.8)]">
+
+          {/* Left Column: Branding & Illustration */}
+          <section className="relative flex flex-col justify-between p-8 lg:p-10 border-b dark:border-white/5 border-slate-100 lg:border-b-0 lg:border-r dark:border-white/5 border-slate-100 dark:bg-gradient-to-br dark:from-[#101318] dark:to-[#0B0D11] bg-slate-50/50">
+            <div className="space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-[#00B884]">
+                <LayoutGrid size={12} className="text-[#00B884]" />
+                PHYSIOEZ OS
               </div>
-              <div className="space-y-4">
-                <h1 className="max-w-lg text-5xl font-black leading-tight tracking-tight text-slate-900 dark:text-white">
-                  Reception workflows.
-                  <br />
-                  <span className="text-emerald-500">Enterprise clarity.</span>
+
+              <div className="space-y-3">
+                <h1 className="text-3xl lg:text-[40px] font-black leading-[1.1] tracking-tight dark:text-white text-slate-900">
+                  Reception workflows.<br />
+                  <span className="text-[#00B884]">Enterprise clarity.</span>
                 </h1>
-                <p className="max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                  Securely operate registrations, billing, tests, and support in
-                  one focused command center designed for high-volume clinics.
+                <p className="max-w-[340px] text-[13px] font-medium leading-relaxed dark:text-slate-400 text-slate-600">
+                  Securely operate registrations, billing, tests, and support in one focused command center designed for high-volume clinics.
                 </p>
               </div>
-              <div className="space-y-3">
-                {securityPillars.map((item) => (
-                  <div
-                    key={item}
-                    className="flex items-center gap-3 rounded-2xl border border-slate-200/60 bg-white/70 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
-                  >
-                    <CheckCircle2 size={16} className="text-emerald-500" />
-                    <span className="font-medium">{item}</span>
-                  </div>
-                ))}
+
+              <div className="pt-4">
+                <img
+                  src="/images/login_page_final.png"
+                  alt="Medical Illustration"
+                  className="w-full h-auto max-w-[340px] object-contain drop-shadow-[0_20px_50px_rgba(0,184,132,0.1)]"
+                />
               </div>
-            </motion.div>
-            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
-              Version {systemStatus.version}
+            </div>
+
+            <div className="mt-12 text-[11px] font-black uppercase tracking-[0.25em] text-slate-500/60">
+              VERSION {systemStatus.version}
             </div>
           </section>
 
-          <section className="relative flex items-center justify-center p-6 sm:p-10">
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-              className="w-full max-w-md space-y-6"
-            >
-              <div className="space-y-2 text-center lg:text-left">
-                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-                  <ShieldCheck size={13} className="text-emerald-500" />
+          {/* Right Column: Login Form */}
+          <section className="flex items-center justify-center p-8 lg:p-10 dark:bg-[#0B0D11] bg-white">
+            <div className="w-full max-w-[340px] space-y-6">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-2 rounded-full border dark:border-white/5 border-slate-100 dark:bg-white/5 bg-slate-50 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.15em] dark:text-slate-400 text-slate-600">
+                  <ShieldCheck size={12} className="text-[#00B884]" />
                   Secure Login
                 </div>
-                <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                <h2 className="text-2xl lg:text-3xl font-black tracking-tight dark:text-white text-slate-900">
                   Sign in to continue
                 </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400">
-                  Use your receptionist credentials to access your workspace.
+                <p className="text-[13px] font-medium dark:text-slate-400 text-slate-600">
+                  Use your credentials to access your workspace.
                 </p>
               </div>
 
               <AnimatePresence mode="wait">
                 {(statusMessage || error) && (
                   <motion.div
-                    key={`${statusMessage}-${error}`}
-                    initial={{ opacity: 0, y: -8 }}
+                    initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -8 }}
-                    className={`rounded-2xl border px-4 py-3 text-sm ${
-                      error
-                        ? "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
-                        : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
-                    }`}
+                    exit={{ opacity: 0, y: -10 }}
+                    className={`rounded-2xl border px-5 py-4 text-sm ${error
+                      ? "border-red-500/20 bg-red-500/5 text-red-400"
+                      : "border-amber-500/20 bg-amber-500/5 text-amber-400"
+                      }`}
                   >
-                    <div className="flex items-start gap-2">
-                      <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                      <span>{error || statusMessage}</span>
+                    <div className="flex items-start gap-3">
+                      <AlertCircle size={18} className="shrink-0" />
+                      <span className="font-medium leading-relaxed">{error || statusMessage}</span>
                     </div>
                   </motion.div>
                 )}
@@ -271,63 +235,64 @@ const LoginScreen = () => {
 
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                  <label className="ml-1 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">
                     Username
                   </label>
-                  <div className="relative">
-                    <User className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                  <div className="relative group">
+                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-[#00B884] transition-colors">
+                      <User size={18} />
+                    </div>
                     <input
                       type="text"
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Enter username"
-                      className="h-13 w-full rounded-2xl border border-slate-200 bg-white/80 pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-emerald-500/80 dark:focus:ring-emerald-500/10"
+                      placeholder="Username"
+                      className="h-14 w-full rounded-[24px] border dark:border-white/5 border-slate-200 dark:bg-[#1A1D23] bg-slate-50 pl-14 pr-6 text-sm font-bold dark:text-white text-slate-900 outline-none transition-all focus:border-[#00B884]/50 dark:focus:bg-[#1C2027] focus:bg-white focus:ring-4 focus:ring-[#00B884]/5"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                  <label className="ml-1 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">
                     Password
                   </label>
-                  <div className="relative">
-                    <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                  <div className="relative group">
+                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within:text-[#00B884] transition-colors">
+                      <Lock size={18} />
+                    </div>
                     <input
                       type={showPassword ? "text" : "password"}
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter password"
-                      className="h-13 w-full rounded-2xl border border-slate-200 bg-white/80 pl-11 pr-11 text-sm font-medium text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-emerald-500/80 dark:focus:ring-emerald-500/10"
+                      placeholder="Password"
+                      className="h-14 w-full rounded-[24px] border dark:border-white/5 border-slate-200 dark:bg-[#1A1D23] bg-slate-50 pl-14 pr-14 text-sm font-bold dark:text-white text-slate-900 outline-none transition-all focus:border-[#00B884]/50 dark:focus:bg-[#1C2027] focus:bg-white focus:ring-4 focus:ring-[#00B884]/5"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 rounded-xl p-2 text-slate-500 transition-all hover:bg-white/5 hover:text-white"
                     >
-                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                     </button>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center justify-between px-1">
                   <button
                     type="button"
                     onClick={fetchSystemStatus}
                     disabled={isCheckingSystem}
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                    className="flex items-center gap-2 rounded-xl border dark:border-white/5 border-slate-200 dark:bg-white/5 bg-slate-50 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400 transition-all dark:hover:bg-white/10 hover:bg-slate-100 dark:hover:text-white hover:text-slate-900"
                   >
-                    <RefreshCw
-                      size={14}
-                      className={isCheckingSystem ? "animate-spin" : ""}
-                    />
+                    <RefreshCw size={14} className={isCheckingSystem ? "animate-spin" : ""} />
                     Recheck System
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowForgotPopup(true)}
-                    className="text-xs font-semibold text-slate-500 transition hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300"
+                    className="text-[10px] font-medium text-slate-500 hover:text-slate-400 transition-colors"
                   >
                     Forgot password?
                   </button>
@@ -337,56 +302,49 @@ const LoginScreen = () => {
                   whileTap={{ scale: 0.98 }}
                   type="submit"
                   disabled={isLoading || isBlocked}
-                  className={`mt-2 inline-flex h-13 w-full items-center justify-center gap-2 rounded-2xl text-sm font-bold uppercase tracking-[0.15em] transition ${
-                    isLoading || isBlocked
-                      ? "cursor-not-allowed bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-300"
-                      : "bg-emerald-500 text-black shadow-lg shadow-emerald-500/30 hover:bg-emerald-400"
-                  }`}
+                  className={`relative mt-2 flex h-14 w-full items-center justify-center gap-3 rounded-[24px] text-xs font-black uppercase tracking-[0.25em] transition-all ${isLoading || isBlocked
+                    ? "cursor-not-allowed bg-slate-800 text-slate-500"
+                    : "bg-[#00B884] text-black shadow-[0_20px_40px_-10px_rgba(0,184,132,0.4)] hover:bg-[#00D196] hover:shadow-[0_20px_50px_-5px_rgba(0,184,132,0.5)] hover:scale-[1.01] active:scale-[0.99]"
+                    }`}
                 >
                   {isLoading ? (
-                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
+                    <div className="h-5 w-5 animate-spin rounded-full border-[3px] border-black/20 border-t-black" />
                   ) : (
                     <>
-                      Continue
-                      <ArrowRight size={16} />
+                      CONTINUE
+                      <ArrowRight size={18} />
                     </>
                   )}
                 </motion.button>
               </form>
-            </motion.div>
+            </div>
           </section>
         </div>
       </main>
 
+      {/* Forgot Password Popup */}
       <AnimatePresence>
         {showForgotPopup && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setShowForgotPopup(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            />
-            <motion.div
-              initial={{ opacity: 0, y: 14, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 12, scale: 0.96 }}
-              className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 shadow-2xl dark:border-white/10 dark:bg-[#0F1722]"
+              initial={{ opacity: 0, scale: 0.9, y: 30 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 30 }}
+              className="relative w-full max-w-md rounded-[32px] border dark:border-white/10 border-slate-200 dark:bg-[#10141D] bg-white p-10 shadow-2xl"
             >
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
-                <KeyRound size={24} />
+              <div className="mb-6 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-[#00B884]/10 text-[#00B884]">
+                <KeyRound size={28} />
               </div>
-              <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
+              <h3 className="text-2xl font-black tracking-tight dark:text-white text-slate-900">
                 Password recovery
               </h3>
-              <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+              <p className="mt-4 text-sm font-medium leading-relaxed dark:text-slate-400 text-slate-600">
                 Password resets are restricted to administrators for security.
-                Contact your system administrator to regain access.
+                Contact your system administrator to regain access to your workspace.
               </p>
               <button
                 onClick={() => setShowForgotPopup(false)}
-                className="mt-6 h-11 w-full rounded-2xl bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                className="mt-8 h-14 w-full rounded-2xl dark:bg-white bg-slate-900 text-sm font-black uppercase tracking-widest dark:text-[#05060A] text-white transition-all hover:bg-slate-800 dark:hover:bg-slate-200"
               >
                 Understood
               </button>
@@ -394,6 +352,13 @@ const LoginScreen = () => {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Star Shape in Bottom Right as seen in image */}
+      <div className="absolute bottom-10 right-10 dark:opacity-20 opacity-10 hidden lg:block dark:text-white text-slate-400">
+        <svg width="60" height="60" viewBox="0 0 60 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M30 0L33.7 26.3L60 30L33.7 33.7L30 60L26.3 33.7L0 30L26.3 26.3L30 0Z" fill="currentColor" />
+        </svg>
+      </div>
     </div>
   );
 };
