@@ -4,10 +4,12 @@ import { useAuthStore } from "../store/useAuthStore";
 import { API_BASE_URL, authFetch } from "../config";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { format } from "date-fns";
 
 import ActionFAB from "../components/ActionFAB";
 import {
   Users,
+  User,
   ClipboardList,
   TestTube2,
   Wallet,
@@ -23,7 +25,6 @@ import {
   Search,
   Bell,
   ChevronDown,
-  ChevronUp,
   CheckCircle2,
   Hourglass,
   Phone,
@@ -35,6 +36,14 @@ import {
   FlaskConical,
   PhoneCall,
   Beaker,
+  Stethoscope,
+  Activity,
+  CreditCard,
+  Heart,
+  Navigation,
+  ClipboardCheck,
+  Sparkles,
+  Percent,
 } from "lucide-react";
 import { useThemeStore } from "../store/useThemeStore";
 import CustomSelect from "../components/ui/CustomSelect";
@@ -124,12 +133,13 @@ const TimePicker = ({
                 key={slot.time}
                 disabled={slot.disabled}
                 onClick={() => setSelected(slot.time)}
-                className={`py-2 px-1 text-sm rounded-lg border transition-all ${selected === slot.time
+                className={`py-2 px-1 text-sm rounded-lg border transition-all ${
+                  selected === slot.time
                     ? "bg-[#6750a4] dark:bg-[#d0bcff] text-white dark:text-[#381e72] border-[#6750a4] dark:border-[#d0bcff]"
                     : slot.disabled
                       ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed"
                       : "bg-transparent border-[#79747e] text-[#49454f] dark:text-[#cac4d0] hover:bg-[#6750a4]/10"
-                  }`}
+                }`}
               >
                 <span
                   className={slot.disabled ? "line-through decoration-2" : ""}
@@ -169,6 +179,54 @@ const TimePicker = ({
   );
 };
 
+// --- PRE-COMPONENTS FOR MODERN FORMS ---
+const FormSection = ({
+  title,
+  icon: Icon,
+  children,
+  className = "",
+  description = "",
+}: any) => (
+  <div className={`space-y-5 ${className}`}>
+    <div className="flex items-center gap-3 border-b border-slate-200/60 dark:border-white/5 pb-3 mb-1 px-1">
+      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400 shadow-sm border border-emerald-100/50 dark:border-emerald-500/10">
+        <Icon size={16} strokeWidth={2.5} />
+      </div>
+      <div>
+        <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400 leading-tight">
+          {title}
+        </h3>
+        {description && (
+          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium">
+            {description}
+          </p>
+        )}
+      </div>
+    </div>
+    <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-2">
+      {children}
+    </div>
+  </div>
+);
+
+const FormField = ({
+  label,
+  children,
+  className = "",
+  required = false,
+  icon: Icon,
+}: any) => (
+  <div className={`flex flex-col gap-2 ${className}`}>
+    <div className="flex items-center justify-between px-1">
+      <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5 group-focus-within:text-emerald-500 transition-colors">
+        {Icon && <Icon size={12} className="opacity-70" />}
+        {label} {required && <span className="text-rose-500">*</span>}
+      </label>
+    </div>
+    <div className="relative group transition-all">{children}</div>
+  </div>
+);
+
 const ReceptionDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -199,7 +257,13 @@ const ReceptionDashboard = () => {
   // ... other state ...
   const notifList = notifications || [];
   const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const [approvalRefreshCooldown, setApprovalRefreshCooldown] = useState(0);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
+  const [formViewMode, setFormViewMode] = useState<"chunked" | "all">(
+    "chunked",
+  );
+  const [registrationStep, setRegistrationStep] = useState(1);
+  const [testStep, setTestStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitMessage, setSubmitMessage] = useState<{
     type: "success" | "error";
@@ -217,6 +281,15 @@ const ReceptionDashboard = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
+
+  useEffect(() => {
+    if (activeModal === "registration") {
+      setRegistrationStep(1);
+    }
+    if (activeModal === "test") {
+      setTestStep(1);
+    }
+  }, [activeModal]);
 
   // Mark animation as complete on mount
   useEffect(() => {
@@ -305,6 +378,7 @@ const ReceptionDashboard = () => {
   const [advanceAmount, setAdvanceAmount] = useState("");
   const [discountAmount, setDiscountAmount] = useState("");
   const [dueAmount, setDueAmount] = useState("");
+  const [regAmount, setRegAmount] = useState("");
 
   // Split Payment States
   const [regPaymentSplits, setRegPaymentSplits] = useState<{
@@ -368,19 +442,22 @@ const ReceptionDashboard = () => {
   const currentSlots = storeTimeSlots?.slots || [];
 
   const fetchApprovals = useCallback(async () => {
-    if (!user?.branch_id) return;
+    if (!user?.branch_id) return [];
     try {
       const res = await authFetch(
         `${API_BASE_URL}/reception/get_pending_approvals?branch_id=${user.branch_id}`,
       );
-      const data = await res.json();
-      if (data.success) {
-        setPendingApprovals(data.data || []);
+      const resData = await res.json();
+      if (resData.success) {
+        setPendingApprovals(resData.data || []);
+        return resData.data || [];
       }
+      return [];
     } catch (e) {
       console.error("Error fetching approvals", e);
+      return [];
     }
-  }, [user?.branch_id]);
+  }, [user?.branch_id, setPendingApprovals]);
 
   // Theme Logic from store
   const { isDark, toggleTheme } = useThemeStore();
@@ -410,6 +487,56 @@ const ReceptionDashboard = () => {
       console.error("Error fetching dashboard stats:", e);
     }
   }, [user?.branch_id, setData, setLastSync]);
+
+  const performAutoApprovals = useCallback(
+    async (listOverride?: any[]) => {
+      const listToProcess = listOverride || pendingList;
+      if (!listToProcess || !listToProcess.length || !user?.branch_id) return;
+
+      // Filter qualifying requests: e.g., low-amount registrations or standard tests
+      const qualifying = listToProcess.filter((item: any) => {
+        // Only auto-approve if still pending
+        if (item.approval_status !== "pending") return false;
+
+        const amt = parseFloat(item.amount) || 0;
+        if (item.type === "registration") return amt > 0 && amt <= 1000;
+        if (item.type === "test") return amt > 0 && amt <= 2000;
+        return false;
+      });
+
+      if (qualifying.length === 0) return;
+
+      let approvedCount = 0;
+      for (const item of qualifying) {
+        try {
+          const res = await authFetch(
+            `${API_BASE_URL}/reception/approve_request`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                request_id: item.id,
+                request_type: item.type,
+                branch_id: user.branch_id,
+                status: "approved",
+                approved_by: "System Auto-Approve",
+              }),
+            },
+          );
+          if (res.ok) approvedCount++;
+        } catch (e) {
+          console.error("Auto approval failed for item:", item.id, e);
+        }
+      }
+
+      // Refresh data after processing if any were approved
+      if (approvedCount > 0) {
+        await fetchApprovals();
+        await fetchMainDashboard();
+      }
+    },
+    [pendingList, user?.branch_id, fetchApprovals, fetchMainDashboard],
+  );
 
   const fetchFormOptionsData = useCallback(async () => {
     if (!user?.branch_id) return;
@@ -472,6 +599,8 @@ const ReceptionDashboard = () => {
           fetchNotifs(),
           fetchApprovals(),
         ]);
+        // Trigger auto-approvals after data is loaded
+        performAutoApprovals();
         isInitialLoad.current = false;
       } catch (e) {
         console.error("Error fetching data:", e);
@@ -498,6 +627,34 @@ const ReceptionDashboard = () => {
       return () => clearInterval(timer);
     }
   }, [refreshCooldown]);
+
+  useEffect(() => {
+    if (approvalRefreshCooldown > 0) {
+      const timer = setInterval(() => {
+        setApprovalRefreshCooldown((prev) => prev - 1);
+      }, 1000);
+      return () => clearInterval(timer);
+    }
+  }, [approvalRefreshCooldown]);
+
+  const handleManualApprovalRefresh = async () => {
+    if (approvalRefreshCooldown > 0 || isLoading) return;
+
+    setIsLoading(true);
+    const toastId = toast.loading("Checking for auto-approvals...");
+
+    try {
+      const latestList = await fetchApprovals();
+      await performAutoApprovals(latestList);
+      toast.success("Approvals synchronized", { id: toastId });
+      setApprovalRefreshCooldown(20);
+    } catch (err) {
+      console.error("Manual Approval Refresh Error:", err);
+      toast.error("Failed to sync approvals", { id: toastId });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleRefresh = async () => {
     if (refreshCooldown > 0 || isLoading) return;
@@ -557,6 +714,13 @@ const ReceptionDashboard = () => {
 
           if (syncTasks.length > 0) {
             await Promise.all(syncTasks);
+            // Trigger auto-approvals if relevant data changed
+            if (
+              updateData.changes["registration"] ||
+              updateData.changes["tests"]
+            ) {
+              performAutoApprovals();
+            }
             // Clear search cache if patients or related records changed
             if (hasMainChanges) {
               useDashboardStore.setState({ searchCache: {} });
@@ -705,7 +869,10 @@ const ReceptionDashboard = () => {
   useEffect(() => {
     // Run smart update check on mount/opening
     if (user?.branch_id) {
-      handleSmartUpdate();
+      handleSmartUpdate().then(() => {
+        // Run auto-approvals after initial data sync
+        performAutoApprovals();
+      });
     }
     // Click outside handler for popups
     const handleClickOutside = (e: MouseEvent) => {
@@ -932,7 +1099,11 @@ const ReceptionDashboard = () => {
   // --- LOGIC: SUBMIT ---
   const closeModal = () => {
     setActiveModal(null);
+    setFormViewMode("chunked");
+    setRegistrationStep(1);
+    setTestStep(1);
     setAdvanceAmount("");
+    setRegAmount("");
     setDiscountAmount("");
     setDueAmount("");
     setSubmitMessage(null);
@@ -971,8 +1142,146 @@ const ReceptionDashboard = () => {
     }
   };
 
+  const isRegistrationFlow = activeModal === "registration";
+  const isTestFlow = activeModal === "test";
+  const isChunkedFlow =
+    formViewMode === "chunked" && (isRegistrationFlow || isTestFlow);
+
+  const currentFlowStep = isRegistrationFlow ? registrationStep : testStep;
+  const totalFlowSteps = isRegistrationFlow || isTestFlow ? 3 : 1;
+
+  const isRegStepVisible = (step: number) =>
+    formViewMode === "all" || registrationStep === step;
+  const isTestStepVisible = (step: number) =>
+    formViewMode === "all" || testStep === step;
+
+  const validateCurrentStep = (validateAll = false) => {
+    if (!formRef.current) return true;
+
+    let elementsToValidate: HTMLElement[] = [];
+
+    if (validateAll || formViewMode === "all") {
+      // Validate everything in the form
+      elementsToValidate = Array.from(
+        formRef.current.querySelectorAll<HTMLElement>(
+          "input[required], textarea[required], select[required]",
+        ),
+      );
+    } else if (isChunkedFlow) {
+      const stepAttr = isRegistrationFlow
+        ? `[data-reg-step="${registrationStep}"]`
+        : `[data-test-step="${testStep}"]`;
+      const stepContainer = formRef.current.querySelector(stepAttr);
+      if (!stepContainer) return true;
+      elementsToValidate = Array.from(
+        stepContainer.querySelectorAll<HTMLElement>(
+          "input[required], textarea[required], select[required]",
+        ),
+      );
+    } else {
+      // For inquiries or other single-step modals that aren't 'chunked'
+      elementsToValidate = Array.from(
+        formRef.current.querySelectorAll<HTMLElement>(
+          "input[required], textarea[required], select[required]",
+        ),
+      );
+    }
+
+    const requiredInputs = elementsToValidate.filter(
+      (el) => !(el as HTMLInputElement).disabled,
+    );
+
+    for (const field of requiredInputs) {
+      const input = field as HTMLInputElement;
+      if (!input.value?.trim()) {
+        if (input.type === "hidden") {
+          // Find the label or parent FormField to give context
+          const parentField = input.closest(".group");
+          const label =
+            parentField
+              ?.querySelector("label")
+              ?.textContent?.replace("*", "")
+              .trim() || input.name;
+          toast.error(`Please fill the required field: ${label}`);
+        } else {
+          input.reportValidity();
+          input.focus();
+        }
+        return false;
+      }
+    }
+
+    if (
+      isTestFlow &&
+      (validateAll || formViewMode === "all" || testStep === 2)
+    ) {
+      const hasTests = Object.values(selectedTests).some((t) => t.checked);
+      if (!hasTests) {
+        toast.error("Select at least one test to continue.");
+        return false;
+      }
+    }
+
+    // Special check for Payment Methods split
+    if (
+      isRegistrationFlow &&
+      (validateAll || formViewMode === "all" || registrationStep === 3)
+    ) {
+      const regAmt = parseFloat(regAmount) || 0;
+      if (regAmt > 0) {
+        const methodsCount = Object.keys(regPaymentSplits).length;
+        if (methodsCount === 0) {
+          toast.error(
+            "Please select at least one payment method for Registration.",
+          );
+          return false;
+        }
+      }
+    }
+
+    if (
+      isTestFlow &&
+      (validateAll || formViewMode === "all" || testStep === 3)
+    ) {
+      const adv = parseFloat(advanceAmount) || 0;
+      if (adv > 0) {
+        const methodsCount = Object.keys(testPaymentSplits).length;
+        if (methodsCount === 0) {
+          toast.error("Please select a payment method for the Advance Amount.");
+          return false;
+        }
+      }
+    }
+
+    return true;
+  };
+
+  const handleNextStep = () => {
+    setSubmitMessage(null);
+    if (!validateCurrentStep()) return;
+    if (isRegistrationFlow && registrationStep < 3) {
+      setRegistrationStep((prev) => prev + 1);
+      return;
+    }
+    if (isTestFlow && testStep < 3) {
+      setTestStep((prev) => prev + 1);
+    }
+  };
+
+  const handlePrevStep = () => {
+    setSubmitMessage(null);
+    if (isRegistrationFlow && registrationStep > 1) {
+      setRegistrationStep((prev) => prev - 1);
+      return;
+    }
+    if (isTestFlow && testStep > 1) {
+      setTestStep((prev) => prev - 1);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formRef.current || !user?.branch_id || !user?.employee_id) return;
+    if (!validateCurrentStep(true)) return;
     const formData = new FormData(formRef.current);
     const formObject: Record<string, string> = {};
     formData.forEach((value, key) => {
@@ -1188,11 +1497,14 @@ const ReceptionDashboard = () => {
     },
   ];
 
-  // Modernize Styled Inputs
-  const inputClass =
-    "w-full px-4 py-3 bg-white border border-blue-100 dark:border-blue-900/30 focus:border-blue-500 dark:focus:border-blue-500/50 focus:ring-4 focus:ring-blue-500/20 rounded-xl text-[#1a1c1e] dark:text-[#e3e2e6] text-sm focus:outline-none transition-all duration-300 placeholder:text-gray-400 dark:placeholder:text-gray-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 shadow-sm";
-  const labelClass =
-    "block text-[10px] font-bold text-gray-500 dark:text-gray-400 mb-1.5 ml-1 uppercase tracking-widest";
+  // Shadcn-like form tokens (modal forms only)
+  const formCardClass = isDark
+    ? "bg-white/5 border border-white/5 p-6 rounded-2xl"
+    : "bg-white border border-slate-200/60 p-6 rounded-2xl shadow-sm";
+
+  const inputClass = isDark
+    ? "w-full bg-white/5 border border-white/5 text-white p-2.5 rounded-xl text-sm outline-none focus:border-emerald-500 transition-all font-medium"
+    : "w-full bg-slate-50 border border-slate-200 text-slate-900 p-2.5 rounded-xl text-sm outline-none focus:border-emerald-500 transition-all font-medium";
 
   // Keyboard Shortcuts with Grouping
   const shortcuts: ShortcutItem[] = [
@@ -1502,7 +1814,7 @@ const ReceptionDashboard = () => {
         >
           {/* HEADER SECTION (Search, Refresh, Notif) */}
           <div
-            className={`flex flex-wrap lg:flex-nowrap justify-between items-center gap-4 bg-transparent backdrop-blur-sm sticky top-0 py-3 transition-all duration-300 z-[45]`}
+            className={`flex flex-wrap lg:flex-nowrap justify-between items-center gap-4 bg-transparent backdrop-blur-sm sticky top-0 py-3 transition-all duration-300 z-[100]`}
           >
             <div
               className={`flex flex-nowrap lg:flex-wrap items-center gap-2 transition-all duration-300 ${showGlobalSearch ? "opacity-20 blur-[2px] pointer-events-none scale-98" : "opacity-100"} overflow-x-auto lg:overflow-visible pb-2 lg:pb-0 scrollbar-hide max-w-full`}
@@ -1511,10 +1823,11 @@ const ReceptionDashboard = () => {
                 <button
                   key={btn.id}
                   onClick={() => setActiveModal(btn.id)}
-                  className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full transition-all duration-300 shadow-sm border shrink-0 ${isDark
+                  className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full transition-all duration-300 shadow-sm border shrink-0 ${
+                    isDark
                       ? "bg-[#1A1C1A] text-white/70 hover:text-white hover:bg-[#252825] border-white/5"
                       : "bg-white text-gray-600 hover:text-gray-900 border-gray-100 hover:shadow-md"
-                    }`}
+                  }`}
                 >
                   <btn.icon size={16} strokeWidth={2} />
                   <span className="text-[10px] sm:text-xs font-bold tracking-tight whitespace-nowrap">
@@ -1531,10 +1844,11 @@ const ReceptionDashboard = () => {
               >
                 <div
                   onClick={() => setShowGlobalSearch(true)}
-                  className={`flex items-center px-4 py-2.5 sm:py-3 rounded-[24px] border transition-all duration-300 cursor-text ${isDark
+                  className={`flex items-center px-4 py-2.5 sm:py-3 rounded-[24px] border transition-all duration-300 cursor-text ${
+                    isDark
                       ? "bg-[#121412]/80 border-[#2A2D2A] hover:bg-[#121412] shadow-2xl shadow-black/20"
                       : "bg-white border-gray-100 shadow-xl shadow-black/[0.03] hover:bg-white"
-                    } backdrop-blur-md`}
+                  } backdrop-blur-md`}
                 >
                   <Search size={18} className="opacity-30 flex-shrink-0" />
                   <div className="bg-transparent px-3 text-sm sm:text-base w-full opacity-30 font-medium select-none truncate">
@@ -1611,14 +1925,15 @@ const ReceptionDashboard = () => {
                           {notifList.map((n: any) => (
                             <div
                               key={n.notification_id}
-                              className={`p-3 rounded-xl transition-all cursor-pointer group mb-1 ${n.is_read === 0
+                              className={`p-3 rounded-xl transition-all cursor-pointer group mb-1 ${
+                                n.is_read === 0
                                   ? isDark
                                     ? "bg-[#CCEBC4]/5 hover:bg-[#CCEBC4]/10"
                                     : "bg-green-50 hover:bg-green-100/50"
                                   : isDark
                                     ? "hover:bg-white/5"
                                     : "hover:bg-gray-50"
-                                }`}
+                              }`}
                             >
                               <p
                                 className={`text-xs leading-snug ${n.is_read === 0 ? "font-bold" : ""} ${isDark ? "text-gray-200" : "text-gray-800"}`}
@@ -2082,11 +2397,11 @@ const ReceptionDashboard = () => {
                 >
                   {data?.weekly
                     ? fmt(
-                      data.weekly.reduce(
-                        (a: number, b: { total: number }) => a + b.total,
-                        0,
-                      ),
-                    )
+                        data.weekly.reduce(
+                          (a: number, b: { total: number }) => a + b.total,
+                          0,
+                        ),
+                      )
                     : fmt(0)}
                 </div>
               </div>
@@ -2104,50 +2419,97 @@ const ReceptionDashboard = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
             onClick={(e) => e.target === e.currentTarget && closeModal()}
           >
             <motion.div
+              layout
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              className="bg-[#fdfcff] dark:bg-[#111315] w-full max-w-[1400px] max-h-[90vh] overflow-y-auto rounded-[32px] shadow-2xl overflow-hidden transition-colors duration-300 relative"
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className={`relative w-full ${isChunkedFlow ? "max-w-[980px]" : "max-w-[1500px]"} max-h-[90vh] overflow-y-auto overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50 shadow-2xl transition-all duration-300 dark:border-slate-700 dark:bg-slate-950`}
             >
-              {activeModal === "registration" && (
-                <div
-                  className="absolute inset-0 z-0  dark:opacity-20 pointer-events-none blur-lg bg-cover bg-center bg-no-repeat"
-                  style={{ backgroundImage: "url('/bg.jpg')" }}
-                />
-              )}
-              <div className="px-8 py-6 border-b border-[#e0e2ec]/80 dark:border-[#43474e]/80 flex items-center justify-between bg-white/70 dark:bg-[#111315]/70 backdrop-blur-xl sticky top-0 z-10 transition-colors">
+              <div className="sticky top-0 z-999 flex items-center justify-between border-b border-slate-200/80 bg-white/90 px-8 py-5 backdrop-blur-xl transition-colors dark:border-slate-700 dark:bg-slate-950/90">
                 <div>
-                  <h2
-                    className="text-2xl text-[#1a1c1e] dark:text-[#e3e2e6]"
-                    style={{ fontFamily: "serif" }}
-                  >
+                  <h2 className="text-2xl font-semibold tracking-tight text-slate-900 dark:text-slate-100">
                     {activeModal === "registration" &&
                       "New Patient Registration"}
                     {activeModal === "test" && "Book Lab Test"}
                     {activeModal === "inquiry" && "New Inquiry"}
                     {activeModal === "test_inquiry" && "Test Inquiry"}
                   </h2>
-                  <p className="text-sm text-[#43474e] dark:text-[#c4c7c5]">
+                  <p className="text-sm text-slate-500 dark:text-slate-400">
                     Enter details below
                   </p>
                 </div>
                 <button
                   onClick={closeModal}
-                  className="w-10 h-10 rounded-full hover:bg-[#e0e2ec] dark:hover:bg-[#43474e] flex items-center justify-center transition-colors"
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
                 >
-                  <X size={24} className="text-[#43474e] dark:text-[#c4c7c5]" />
+                  <X size={20} />
                 </button>
               </div>
-              <div className="p-8 relative z-10">
+              <motion.div
+                layout
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+                className={`relative z-10 ${activeModal === "registration" ? "space-y-4 p-6" : "space-y-6 p-8"}`}
+              >
+                {(isRegistrationFlow || isTestFlow) && (
+                  <div className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 md:flex-row md:items-center md:justify-between mb-2">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                        Form View Mode
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                        Switch between guided chunks and full form.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormViewMode("chunked")}
+                        className={`rounded-lg px-3 py-2 text-xs font-medium transition ${formViewMode === "chunked" ? "bg-emerald-600 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"}`}
+                      >
+                        Chunked
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormViewMode("all")}
+                        className={`rounded-lg px-3 py-2 text-xs font-medium transition ${formViewMode === "all" ? "bg-emerald-600 text-white" : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-200 dark:hover:bg-slate-800"}`}
+                      >
+                        Show All Fields
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {isChunkedFlow && (
+                  <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                    {[1, 2, 3].map((step) => (
+                      <div
+                        key={step}
+                        className={`flex items-center gap-2 ${step !== 3 ? "pr-2" : ""}`}
+                      >
+                        <span
+                          className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${currentFlowStep >= step ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"}`}
+                        >
+                          {step}
+                        </span>
+                        {step !== 3 && (
+                          <span className="h-px w-8 bg-slate-300 dark:bg-slate-700" />
+                        )}
+                      </div>
+                    ))}
+                    <span className="ml-2 text-xs font-medium text-slate-600 dark:text-slate-300">
+                      Step {currentFlowStep} of {totalFlowSteps}
+                    </span>
+                  </div>
+                )}
                 {activeModal === "registration" && (
                   <form
                     ref={formRef}
                     onSubmit={(e) => e.preventDefault()}
-                    className="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-6"
+                    className="grid grid-cols-1 gap-6 xl:grid-cols-12"
                   >
                     <input
                       type="hidden"
@@ -2155,421 +2517,481 @@ const ReceptionDashboard = () => {
                       value={photoData || ""}
                     />
 
-                    {/* Column 1: Patient Details */}
-                    <div className="space-y-6">
-                      <div className="pb-2 border-b border-[#74777f]/10 mb-4">
-                        <h3 className="text-sm font-bold text-[#006e1c] uppercase tracking-wider">
-                          Patient Information
-                        </h3>
-                      </div>
-                      <div>
-                        <label className={labelClass}>Patient Name *</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            name="patient_name"
+                    {/* Left Column (Main Info) */}
+                    <div
+                      className={`space-y-6 ${isChunkedFlow ? "xl:col-span-12" : "xl:col-span-8"}`}
+                    >
+                      {/* Section 1: Identity */}
+                      <div
+                        data-reg-step="1"
+                        className={`${formCardClass} ${!isRegStepVisible(1) ? "hidden" : ""}`}
+                      >
+                        <FormSection
+                          title="Patient Identity"
+                          icon={User}
+                          description="Primary persona data"
+                        >
+                          <FormField
+                            label="Full Name"
                             required
-                            className={inputClass}
-                            placeholder="Full Name"
-                          />
-                          <button
-                            type="button"
-                            onClick={openPhotoModal}
-                            className="w-12 h-12 flex items-center justify-center bg-[#ccebc4] rounded-xl text-[#0c200e] hover:bg-[#b0d8a4] transition-colors shadow-sm"
+                            icon={User}
+                            className="lg:col-span-2"
                           >
-                            <Camera size={20} />
-                          </button>
-                        </div>
-                        {photoData && (
-                          <div className="mt-2 text-xs text-green-600 flex items-center gap-1 font-bold">
-                            <Check size={12} /> Photo captured
-                          </div>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 items-center ">
-                        <div>
-                          <label className={labelClass}>Age *</label>
-                          <input
-                            type="text"
-                            name="age"
-                            required
-                            className={inputClass}
-                            placeholder="25"
-                          />
-                        </div>
-                        <div>
-                          <CustomSelect
-                            label="Gender *"
-                            value={regGender}
-                            onChange={setRegGender}
-                            options={[
-                              { label: "Male", value: "Male" },
-                              { label: "Female", value: "Female" },
-                              { label: "Other", value: "Other" },
-                            ]}
-                            placeholder="Select"
-                          />
-                          <input
-                            type="hidden"
-                            name="gender"
-                            value={regGender}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className={labelClass}>Referred By *</label>
-                        <input
-                          list="referrers"
-                          name="referred_by"
-                          required
-                          className={inputClass}
-                          placeholder="Type or select"
-                        />
-                        <datalist id="referrers">
-                          {formOptions?.referrers.map((r: string) => (
-                            <option key={r} value={r} />
-                          ))}
-                        </datalist>
-                      </div>
-                      <div>
-                        <CustomSelect
-                          label="Chief Complaint *"
-                          value={regComplaint}
-                          onChange={setRegComplaint}
-                          options={[
-                            ...(formOptions?.chiefComplaints.map(
-                              (c: {
-                                complaint_name: string;
-                                complaint_code: string;
-                              }) => ({
-                                label: c.complaint_name,
-                                value: c.complaint_code,
-                              }),
-                            ) || []),
-                            { label: "Other", value: "other" },
-                          ]}
-                          placeholder="Select Complaint"
-                        />
-                        <input
-                          type="hidden"
-                          name="conditionType"
-                          value={regComplaint}
-                        />
-                        {regComplaint === "other" && (
-                          <div className="mt-2">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                name="patient_name"
+                                required
+                                className={inputClass}
+                                placeholder="Enter full name"
+                              />
+                              <button
+                                type="button"
+                                onClick={openPhotoModal}
+                                className={`flex h-11 w-11 items-center justify-center rounded-xl border transition-all ${photoData ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"}`}
+                                title="Capture Patient Photo"
+                              >
+                                {photoData ? (
+                                  <CheckCircle2 size={20} />
+                                ) : (
+                                  <Camera size={20} />
+                                )}
+                              </button>
+                            </div>
+                          </FormField>
+                          <FormField label="Age" required icon={Calendar}>
                             <input
                               type="text"
-                              name="conditionType_other"
+                              name="age"
+                              required
                               className={inputClass}
-                              placeholder="Specify other complaint"
+                              placeholder="Years"
                             />
-                          </div>
-                        )}
+                          </FormField>
+                          <FormField label="Gender" required icon={Users}>
+                            <CustomSelect
+                              value={regGender}
+                              onChange={setRegGender}
+                              options={[
+                                { label: "Male", value: "Male" },
+                                { label: "Female", value: "Female" },
+                                { label: "Other", value: "Other" },
+                              ]}
+                              placeholder="Select"
+                            />
+                            <input
+                              type="hidden"
+                              name="gender"
+                              value={regGender}
+                              required
+                            />
+                          </FormField>
+                        </FormSection>
                       </div>
-                      <div>
-                        <label className={labelClass}>Occupation</label>
-                        <input
-                          type="text"
-                          name="occupation"
-                          className={inputClass}
-                        />
+
+                      {/* Section 2: Clinical Context */}
+                      <div
+                        data-reg-step="1"
+                        className={`${formCardClass} ${!isRegStepVisible(1) ? "hidden" : ""}`}
+                      >
+                        <FormSection
+                          title="Clinical Referral"
+                          icon={Stethoscope}
+                          description="Context of the visit"
+                        >
+                          <FormField
+                            label="Referred By"
+                            required
+                            icon={UserPlus}
+                          >
+                            <input
+                              list="referrers"
+                              name="referred_by"
+                              required
+                              className={inputClass}
+                              placeholder="Doctor or Clinic"
+                            />
+                            <datalist id="referrers">
+                              {formOptions?.referrers.map((r: string) => (
+                                <option key={r} value={r} />
+                              ))}
+                            </datalist>
+                          </FormField>
+                          <FormField label="Occupation" icon={ClipboardList}>
+                            <input
+                              type="text"
+                              name="occupation"
+                              className={inputClass}
+                              placeholder="Job title"
+                            />
+                          </FormField>
+                          <FormField
+                            label="Chief Complaint"
+                            required
+                            icon={Activity}
+                            className="lg:col-span-2"
+                          >
+                            <CustomSelect
+                              value={regComplaint}
+                              onChange={setRegComplaint}
+                              options={[
+                                ...(formOptions?.chiefComplaints.map(
+                                  (c: any) => ({
+                                    label: c.complaint_name,
+                                    value: c.complaint_code,
+                                  }),
+                                ) || []),
+                                { label: "Other", value: "other" },
+                              ]}
+                              placeholder="Select Primary Complaint"
+                            />
+                            <input
+                              type="hidden"
+                              name="conditionType"
+                              value={regComplaint}
+                              required
+                            />
+                            {regComplaint === "other" && (
+                              <div className="mt-2 animate-in fade-in slide-in-from-top-1">
+                                <input
+                                  type="text"
+                                  name="conditionType_other"
+                                  className={inputClass}
+                                  placeholder="Specify complaint"
+                                />
+                              </div>
+                            )}
+                          </FormField>
+                        </FormSection>
                       </div>
-                      <div>
-                        <label className={labelClass}>Phone No *</label>
-                        <input
-                          type="tel"
-                          name="phone"
-                          required
-                          maxLength={10}
-                          className={inputClass}
-                          placeholder="1234567890"
-                        />
+
+                      {/* Section 3: Contact & Address */}
+                      <div
+                        data-reg-step="1"
+                        className={`${formCardClass} ${!isRegStepVisible(1) ? "hidden" : ""}`}
+                      >
+                        <FormSection
+                          title="Contact Information"
+                          icon={Phone}
+                          description="Communication channels"
+                        >
+                          <FormField label="Phone Number" required icon={Phone}>
+                            <input
+                              type="tel"
+                              name="phone"
+                              required
+                              maxLength={10}
+                              className={inputClass}
+                              placeholder="10-digit mobile"
+                            />
+                          </FormField>
+                          <FormField label="Email Address" icon={Bell}>
+                            <input
+                              type="email"
+                              name="email"
+                              className={inputClass}
+                              placeholder="patient@domain.com"
+                            />
+                          </FormField>
+                          <FormField
+                            label="Residential Address"
+                            icon={LayoutGrid}
+                            className="lg:col-span-2"
+                          >
+                            <input
+                              type="text"
+                              name="address"
+                              className={inputClass}
+                              placeholder="House No, Street, Landmark"
+                            />
+                          </FormField>
+                        </FormSection>
                       </div>
-                      <div>
-                        <label className={labelClass}>Email</label>
-                        <input
-                          type="email"
-                          name="email"
-                          className={inputClass}
-                          placeholder="patient@example.com"
-                        />
+
+                      {/* Section 4: Schedule (Step 2 in Chunked) */}
+                      <div
+                        data-reg-step="2"
+                        className={`${formCardClass} ${!isRegStepVisible(2) ? "hidden" : ""}`}
+                      >
+                        <FormSection
+                          title="Appointment Schedule"
+                          icon={Calendar}
+                          description="Visit timing"
+                        >
+                          <FormField label="Appointment Date" icon={Calendar}>
+                            <div
+                              onClick={() => {
+                                setActiveDateField("registration");
+                                setShowDatePicker(true);
+                              }}
+                              className={`${inputClass} cursor-pointer flex items-center justify-between group-hover:border-emerald-500`}
+                            >
+                              <span className="font-medium">
+                                {format(
+                                  new Date(appointmentDate),
+                                  "EEE, MMM dd, yyyy",
+                                )}
+                              </span>
+                              <Calendar size={16} className="text-slate-400" />
+                            </div>
+                            <input
+                              type="hidden"
+                              name="appointment_date"
+                              value={appointmentDate}
+                              required
+                            />
+                          </FormField>
+
+                          <FormField label="Time Slot" required icon={Clock}>
+                            <div
+                              onClick={() => setShowTimePicker(true)}
+                              className={`${inputClass} cursor-pointer flex items-center justify-between group-hover:border-emerald-500`}
+                            >
+                              <span className="font-medium">
+                                {currentSlots.find(
+                                  (t: any) => t.time === appointmentTime,
+                                )?.label || "Select Slot"}
+                              </span>
+                              <Clock size={16} className="text-slate-400" />
+                            </div>
+                            <input
+                              type="hidden"
+                              name="appointment_time"
+                              value={appointmentTime}
+                              required
+                            />
+                          </FormField>
+
+                          <FormField
+                            label="Consultation Type"
+                            required
+                            icon={ClipboardList}
+                          >
+                            <CustomSelect
+                              value={regConsultType}
+                              onChange={setRegConsultType}
+                              options={
+                                formOptions?.consultationTypes.map(
+                                  (t: any) => ({
+                                    label: t.consultation_name,
+                                    value: t.consultation_code,
+                                  }),
+                                ) || []
+                              }
+                              placeholder="Select Type"
+                            />
+                            <input
+                              type="hidden"
+                              name="inquiry_type"
+                              value={regConsultType}
+                              required
+                            />
+                          </FormField>
+
+                          <FormField label="Referral Source" icon={Search}>
+                            <CustomSelect
+                              value={regSource}
+                              onChange={setRegSource}
+                              options={
+                                formOptions?.referralSources.map((s: any) => ({
+                                  label: s.source_name,
+                                  value: s.source_code,
+                                })) || []
+                              }
+                              placeholder="How did they hear?"
+                            />
+                            <input
+                              type="hidden"
+                              name="referralSource"
+                              value={regSource}
+                            />
+                          </FormField>
+                        </FormSection>
                       </div>
                     </div>
 
-                    {/* Column 2: Administrative & Payment */}
-                    <div className="space-y-6">
-                      <div className="pb-2 border-b border-[#74777f]/10 mb-4">
-                        <h3 className="text-sm font-bold text-[#006e1c] uppercase tracking-wider">
-                          Administrative Details
-                        </h3>
-                      </div>
-                      <div>
-                        <label className={labelClass}>Address</label>
-                        <input
-                          type="text"
-                          name="address"
-                          className={inputClass}
-                          placeholder="Full Address"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className={labelClass}>Appointment Date</label>
-                          <div
-                            onClick={() => {
-                              setActiveDateField("registration");
-                              setShowDatePicker(true);
-                            }}
-                            className={`${inputClass} cursor-pointer flex items-center justify-between`}
-                          >
-                            <span>
-                              {new Date(appointmentDate).toLocaleDateString(
-                                "en-US",
-                                {
-                                  weekday: "short",
-                                  month: "short",
-                                  day: "numeric",
-                                },
-                              )}
-                            </span>
-                            <Calendar
-                              size={18}
-                              className="text-[#43474e] dark:text-[#c4c7c5]"
-                            />
+                    {/* Financial & Summary (Step 3 in Chunked, Right Column in All) */}
+                    <div
+                      className={`space-y-6 ${isChunkedFlow ? "xl:col-span-12" : "xl:col-span-4"}`}
+                    >
+                      <div
+                        data-reg-step="3"
+                        className={`${!isRegStepVisible(3) ? "hidden" : ""} space-y-6 self-start`}
+                      >
+                        <div className={`${formCardClass}`}>
+                          <div className="flex items-center gap-2 mb-6 border-b border-white/5 pb-3">
+                            <Wallet size={16} className="text-emerald-400" />
+                            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                              Transaction Summary
+                            </h3>
                           </div>
-                          <input
-                            type="hidden"
-                            name="appointment_date"
-                            value={appointmentDate}
-                          />
-                        </div>
-                        <div>
-                          <label className={labelClass}>Time Slot *</label>
-                          <div
-                            onClick={() => setShowTimePicker(true)}
-                            className={`${inputClass} cursor-pointer flex items-center justify-between`}
-                          >
-                            <span>
-                              {currentSlots.find(
-                                (t: any) => t.time === appointmentTime,
-                              )?.label || "Select Time"}
-                            </span>
-                            <Clock
-                              size={18}
-                              className="text-[#43474e] dark:text-[#c4c7c5]"
-                            />
-                          </div>
-                          <input
-                            type="hidden"
-                            name="appointment_time"
-                            value={appointmentTime}
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <CustomSelect
-                          label="Consultation Type *"
-                          value={regConsultType}
-                          onChange={setRegConsultType}
-                          options={
-                            formOptions?.consultationTypes.map(
-                              (t: {
-                                consultation_name: string;
-                                consultation_code: string;
-                              }) => ({
-                                label: t.consultation_name,
-                                value: t.consultation_code,
-                              }),
-                            ) || []
-                          }
-                          placeholder="Select"
-                        />
-                        <input
-                          type="hidden"
-                          name="inquiry_type"
-                          value={regConsultType}
-                        />
-                      </div>
-
-                      <div>
-                        <CustomSelect
-                          label="How did you hear?"
-                          value={regSource}
-                          onChange={setRegSource}
-                          options={
-                            formOptions?.referralSources.map(
-                              (s: {
-                                source_name: string;
-                                source_code: string;
-                              }) => ({
-                                label: s.source_name,
-                                value: s.source_code,
-                              }),
-                            ) || []
-                          }
-                          placeholder="Select source"
-                        />
-                        <input
-                          type="hidden"
-                          name="referralSource"
-                          value={regSource}
-                        />
-                      </div>
-
-                      <div>
-                        <label className={labelClass}>Amount (₹) *</label>
-                        <input
-                          type="number"
-                          name="amount"
-                          required
-                          className={`${inputClass} font-bold text-lg`}
-                          placeholder="0.00"
-                        />
-                      </div>
-
-                      <div>
-                        <div
-                          onClick={() => setShowRegPayment(!showRegPayment)}
-                          className="flex items-center justify-between cursor-pointer p-3 bg-[#f2f6fa] dark:bg-[#1a1c1e] rounded-2xl hover:bg-[#e0e4e9] dark:hover:bg-[#25282c] transition-all border border-transparent hover:border-[#006e1c]/20"
-                        >
-                          <div>
-                            <label className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6] cursor-pointer">
-                              Payment Method *
-                            </label>
-                            <p className="text-[10px] text-[#43474e] dark:text-[#c4c7c5] font-medium uppercase tracking-wider mt-0.5">
-                              Select one or more methods
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            {Object.keys(regPaymentSplits).length > 0 && (
-                              <span className="text-xs font-bold text-white bg-[#006e1c] px-3 py-1 rounded-full shadow-lg">
-                                {Object.keys(regPaymentSplits).length} selected
-                              </span>
-                            )}
-                            {showRegPayment ? (
-                              <ChevronUp size={20} className="text-[#006e1c]" />
-                            ) : (
-                              <ChevronDown
-                                size={20}
-                                className="text-[#43474e] dark:text-[#c4c7c5]"
-                              />
-                            )}
-                          </div>
-                        </div>
-                        <AnimatePresence>
-                          {showRegPayment && (
-                            <motion.div
-                              initial={{ height: 0, opacity: 0 }}
-                              animate={{ height: "auto", opacity: 1 }}
-                              exit={{ height: 0, opacity: 0 }}
-                              transition={{ duration: 0.3, ease: "easeInOut" }}
-                              className="overflow-hidden"
+                          <div className="space-y-6">
+                            <FormField
+                              label="Consultation Amount"
+                              icon={Banknote}
+                              className="!gap-1"
                             >
-                              <div className="bg-white dark:bg-[#111315] rounded-2xl p-2 border border-[#e0e2ec] dark:border-[#43474e] shadow-inner mt-2 space-y-1">
-                                {formOptions?.paymentMethods.map(
-                                  (m: {
-                                    method_code: string;
-                                    method_name: string;
-                                  }) => (
-                                    <div
-                                      key={m.method_code}
-                                      className={`flex items-center gap-2 p-1.5 rounded-xl transition-all ${regPaymentSplits[m.method_code] !== undefined ? "bg-[#ccebc4]/20 border border-[#006e1c]" : "bg-[#e0e2ec]/30 border border-transparent hover:bg-[#e0e2ec]/50"}`}
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                                  ₹
+                                </span>
+                                <input
+                                  type="number"
+                                  name="amount"
+                                  value={regAmount}
+                                  onChange={(e) => setRegAmount(e.target.value)}
+                                  required
+                                  className={inputClass}
+                                  placeholder="0.00"
+                                />
+                              </div>
+                            </FormField>
+
+                            {(parseFloat(regAmount) || 0) > 0 && (
+                              <>
+                                <div className="space-y-3">
+                                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 px-1">
+                                    Payment Method *
+                                  </label>
+                                  <div
+                                    onClick={() =>
+                                      setShowRegPayment(!showRegPayment)
+                                    }
+                                    className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 p-4 transition hover:bg-slate-200 dark:hover:bg-white/10"
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <CreditCard
+                                        size={18}
+                                        className="text-emerald-400"
+                                      />
+                                      <div>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                          Methods
+                                        </p>
+                                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                          {Object.keys(regPaymentSplits)
+                                            .length || "Select"}{" "}
+                                          methods
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <ChevronDown
+                                      size={18}
+                                      className={`text-slate-500 transition-transform ${showRegPayment ? "rotate-180" : ""}`}
+                                    />
+                                  </div>
+                                </div>
+
+                                <AnimatePresence>
+                                  {showRegPayment && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: "auto", opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      className="overflow-hidden space-y-2 pt-1"
                                     >
-                                      <div
-                                        onClick={() => {
-                                          const newSplits = {
-                                            ...regPaymentSplits,
-                                          };
-                                          if (
-                                            newSplits[m.method_code] !==
-                                            undefined
-                                          )
-                                            delete newSplits[m.method_code];
-                                          else newSplits[m.method_code] = 0;
-                                          setRegPaymentSplits(newSplits);
-                                        }}
-                                        className="flex items-center gap-3 cursor-pointer flex-1"
-                                      >
-                                        <div
-                                          className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${regPaymentSplits[m.method_code] !== undefined ? "bg-[#006e1c] border-[#006e1c] shadow-md shadow-green-500/20" : "border-[#74777f]"}`}
-                                        >
-                                          {regPaymentSplits[m.method_code] !==
-                                            undefined && (
-                                              <Check
-                                                size={14}
-                                                className="text-white"
-                                                strokeWidth={4}
+                                      {formOptions?.paymentMethods.map(
+                                        (m: any) => (
+                                          <div
+                                            key={m.method_code}
+                                            onClick={() => {
+                                              const newSplits = {
+                                                ...regPaymentSplits,
+                                              };
+                                              if (
+                                                newSplits[m.method_code] !==
+                                                undefined
+                                              )
+                                                delete newSplits[m.method_code];
+                                              else newSplits[m.method_code] = 0;
+                                              setRegPaymentSplits(newSplits);
+                                            }}
+                                            className={`flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 transition-colors ${regPaymentSplits[m.method_code] !== undefined ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-slate-100 dark:bg-white/5 border border-transparent hover:bg-slate-200 dark:hover:bg-white/10"}`}
+                                          >
+                                            <div className="flex items-center gap-3">
+                                              <div
+                                                className={`h-4 w-4 rounded border flex items-center justify-center ${regPaymentSplits[m.method_code] !== undefined ? "bg-emerald-500 border-emerald-500" : "border-slate-300 dark:border-white/20"}`}
+                                              >
+                                                {regPaymentSplits[
+                                                  m.method_code
+                                                ] !== undefined && (
+                                                  <Check
+                                                    size={10}
+                                                    className="text-white"
+                                                  />
+                                                )}
+                                              </div>
+                                              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                {m.method_name}
+                                              </span>
+                                            </div>
+                                            {regPaymentSplits[m.method_code] !==
+                                              undefined && (
+                                              <input
+                                                type="number"
+                                                value={
+                                                  regPaymentSplits[
+                                                    m.method_code
+                                                  ] || ""
+                                                }
+                                                onClick={(e) =>
+                                                  e.stopPropagation()
+                                                }
+                                                onChange={(e) =>
+                                                  setRegPaymentSplits({
+                                                    ...regPaymentSplits,
+                                                    [m.method_code]:
+                                                      parseFloat(
+                                                        e.target.value,
+                                                      ) || 0,
+                                                  })
+                                                }
+                                                className="w-20 bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-md px-2 py-1 text-xs font-bold text-slate-900 dark:text-white text-right outline-none focus:border-emerald-500"
+                                                placeholder="0.00"
                                               />
                                             )}
-                                        </div>
-                                        <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">
-                                          {m.method_name}
-                                        </span>
-                                      </div>
-                                      {regPaymentSplits[m.method_code] !==
-                                        undefined &&
-                                        Object.keys(regPaymentSplits).length >
-                                        1 && (
-                                          <div className="flex items-center gap-2 bg-white dark:bg-black/40 px-3 py-2 rounded-xl border border-[#006e1c]/30 min-w-[140px]">
-                                            <span className="text-xs font-black text-[#006e1c]">
-                                              ₹
-                                            </span>
-                                            <input
-                                              type="number"
-                                              value={
-                                                regPaymentSplits[
-                                                m.method_code
-                                                ] || ""
-                                              }
-                                              onChange={(e) =>
-                                                setRegPaymentSplits({
-                                                  ...regPaymentSplits,
-                                                  [m.method_code]:
-                                                    parseFloat(
-                                                      e.target.value,
-                                                    ) || 0,
-                                                })
-                                              }
-                                              className="flex-1 bg-transparent border-none text-sm font-black text-right outline-none appearance-none text-[#1a1c1e] dark:text-[#e3e2e6]"
-                                              placeholder="0.00"
-                                              onClick={(e) =>
-                                                e.stopPropagation()
-                                              }
-                                            />
                                           </div>
-                                        )}
-                                    </div>
-                                  ),
-                                )}
-                                <div className="mt-2 pt-2 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center px-1">
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-[#43474e] dark:text-[#c4c7c5]">
-                                    {Object.keys(regPaymentSplits).length === 1
-                                      ? "Selected"
-                                      : "Total Allocation"}
-                                  </span>
-                                  <span className="text-base font-black text-[#006e1c] dark:text-[#88d99d]">
-                                    {Object.keys(regPaymentSplits).length === 1
-                                      ? `Single Method`
-                                      : `₹${Object.values(regPaymentSplits)
-                                        .reduce((a, b) => a + b, 0)
-                                        .toLocaleString()}`}
-                                  </span>
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </div>
+                                        ),
+                                      )}
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </>
+                            )}
 
-                      <div>
-                        <label className={labelClass}>Remarks</label>
-                        <textarea
-                          name="remarks"
-                          className={`${inputClass} min-h-[100px] resize-none pt-3`}
-                          placeholder="Additional clinical or administrative remarks..."
-                        ></textarea>
+                            <FormField
+                              label="Clinical Notes"
+                              icon={StickyNote}
+                              className="!gap-1"
+                            >
+                              <textarea
+                                name="remarks"
+                                rows={4}
+                                className={inputClass}
+                                placeholder="Initial assessment notes..."
+                              />
+                            </FormField>
+                          </div>
+                        </div>
+
+                        {/* Summary Stats */}
+                        <div
+                          className={`${formCardClass} bg-emerald-500/5 border-emerald-500/20 shadow-inner`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600/70 dark:text-emerald-400/50">
+                              Submission Ready
+                            </span>
+                            <CheckCircle2
+                              size={16}
+                              className="text-emerald-500"
+                            />
+                          </div>
+                          <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">
+                            Patient profile will be automatically synced with
+                            the registry.
+                          </p>
+                        </div>
                       </div>
                     </div>
                   </form>
@@ -2578,573 +3000,630 @@ const ReceptionDashboard = () => {
                   <form
                     ref={formRef}
                     onSubmit={(e) => e.preventDefault()}
-                    className="space-y-6"
+                    className="grid grid-cols-1 gap-6 xl:grid-cols-12"
                   >
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div>
-                        <label className={labelClass}>Patient Name *</label>
-                        <input
-                          type="text"
-                          name="patient_name"
-                          required
-                          className={inputClass}
-                          placeholder="Full Name"
-                        />
+                    {/* Left Column: Patient & Tests */}
+                    <div
+                      className={`space-y-6 ${isChunkedFlow ? "xl:col-span-12" : "xl:col-span-8"}`}
+                    >
+                      {/* Step 1: Identity & Contact */}
+                      <div
+                        data-test-step="1"
+                        className={`${formCardClass} ${!isTestStepVisible(1) ? "hidden" : ""}`}
+                      >
+                        <FormSection
+                          title="Patient Identity"
+                          icon={User}
+                          description="Primary persona and contact"
+                        >
+                          <FormField
+                            label="Patient Name"
+                            required
+                            icon={User}
+                            className="lg:col-span-2"
+                          >
+                            <input
+                              type="text"
+                              name="patient_name"
+                              required
+                              className={inputClass}
+                              placeholder="Full Name"
+                            />
+                          </FormField>
+                          <FormField label="Age" required icon={Calendar}>
+                            <input
+                              type="text"
+                              name="age"
+                              required
+                              className={inputClass}
+                              placeholder="e.g. 25"
+                            />
+                          </FormField>
+                          <FormField label="Gender" required icon={Users}>
+                            <CustomSelect
+                              value={testGender}
+                              onChange={setTestGender}
+                              options={[
+                                { label: "Male", value: "Male" },
+                                { label: "Female", value: "Female" },
+                                { label: "Other", value: "Other" },
+                              ]}
+                              placeholder="Select"
+                            />
+                            <input
+                              type="hidden"
+                              name="gender"
+                              value={testGender}
+                              required
+                            />
+                          </FormField>
+                          <FormField label="Parent/Guardian" icon={Heart}>
+                            <input
+                              type="text"
+                              name="parents"
+                              className={inputClass}
+                              placeholder="Name"
+                            />
+                          </FormField>
+                          <FormField label="Relation" icon={Users}>
+                            <input
+                              type="text"
+                              name="relation"
+                              className={inputClass}
+                              placeholder="e.g. Father"
+                            />
+                          </FormField>
+                          <FormField label="Phone Number" icon={Phone}>
+                            <input
+                              type="tel"
+                              name="phone_number"
+                              maxLength={10}
+                              className={inputClass}
+                              placeholder="10-digit mobile"
+                            />
+                          </FormField>
+                          <FormField label="Alternate Phone" icon={PhoneCall}>
+                            <input
+                              type="tel"
+                              name="alternate_phone_no"
+                              maxLength={10}
+                              className={inputClass}
+                              placeholder="Optional"
+                            />
+                          </FormField>
+                        </FormSection>
                       </div>
-                      <div>
-                        <label className={labelClass}>Age *</label>
-                        <input
-                          type="text"
-                          name="age"
-                          required
-                          className={inputClass}
-                          placeholder="25"
-                        />
-                      </div>
-                      <div>
-                        <CustomSelect
-                          label="Gender *"
-                          value={testGender}
-                          onChange={setTestGender}
-                          options={[
-                            { label: "Male", value: "Male" },
-                            { label: "Female", value: "Female" },
-                            { label: "Other", value: "Other" },
-                          ]}
-                          placeholder="Select"
-                        />
-                        <input type="hidden" name="gender" value={testGender} />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Date of Birth</label>
-                        <input type="date" name="dob" className={inputClass} />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div>
-                        <label className={labelClass}>Parents/Guardian</label>
-                        <input
-                          type="text"
-                          name="parents"
-                          className={inputClass}
-                          placeholder="Name"
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Relation</label>
-                        <input
-                          type="text"
-                          name="relation"
-                          className={inputClass}
-                          placeholder="e.g. Father"
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Phone</label>
-                        <input
-                          type="tel"
-                          name="phone_number"
-                          maxLength={10}
-                          className={inputClass}
-                          placeholder="1234567890"
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Alt. Phone</label>
-                        <input
-                          type="tel"
-                          name="alternate_phone_no"
-                          maxLength={10}
-                          className={inputClass}
-                          placeholder="Optional"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className={labelClass}>Address</label>
-                      <input
-                        type="text"
-                        name="address"
-                        className={inputClass}
-                        placeholder="Full Address"
-                      />
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className={labelClass}>Referred By *</label>
-                        <input
-                          list="test_referrers"
-                          name="referred_by"
-                          required
-                          className={inputClass}
-                          placeholder="Type or select"
-                        />
-                        <datalist id="test_referrers">
-                          {formOptions?.referrers.map((r: string) => (
-                            <option key={r} value={r} />
-                          ))}
-                        </datalist>
-                      </div>
-                      <div>
-                        <CustomSelect
-                          label="Limb"
-                          value={testLimb}
-                          onChange={setTestLimb}
-                          options={
-                            formOptions?.limbTypes.map(
-                              (l: {
-                                limb_code: string;
-                                limb_name: string;
-                              }) => ({
-                                label: l.limb_name,
-                                value: l.limb_code,
-                              }),
-                            ) || []
-                          }
-                          placeholder="Select Limb"
-                        />
-                        <input type="hidden" name="limb" value={testLimb} />
-                      </div>
-                    </div>
 
-                    <div>
-                      <label className={labelClass}>Select Tests *</label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
-                        {formOptions?.testTypes
-                          ?.filter(
-                            (t: { test_code: string }) =>
-                              t.test_code !== "other",
-                          )
-                          .map(
-                            (test: {
-                              test_code: string;
-                              test_name: string;
-                            }) => (
-                              <div
-                                key={test.test_code}
-                                onClick={() =>
-                                  handleTestCheckChange(
-                                    test.test_code,
-                                    !selectedTests[test.test_code]?.checked,
-                                  )
-                                }
-                                className={`p-3 border rounded-xl cursor-pointer transition-all flex flex-col gap-2 ${selectedTests[test.test_code]?.checked ? "border-[#006e1c] bg-[#ccebc4]/30 dark:bg-[#0c3b10]/30" : "border-transparent bg-[#e0e2ec]/50 dark:bg-[#1a1c1e] hover:bg-[#e0e2ec] dark:hover:bg-[#30333b]"}`}
-                              >
-                                <div className="flex items-center gap-2">
-                                  <div
-                                    className={`w-4 h-4 rounded border flex items-center justify-center ${selectedTests[test.test_code]?.checked ? "bg-[#006e1c] border-[#006e1c]" : "border-[#43474e]"}`}
-                                  >
-                                    {selectedTests[test.test_code]?.checked && (
-                                      <Check size={10} className="text-white" />
-                                    )}
-                                  </div>
-                                  <span className="text-sm font-medium text-[#1a1c1e] dark:text-[#e3e2e6]">
-                                    {test.test_name}
-                                  </span>
-                                </div>
-                                {selectedTests[test.test_code]?.checked && (
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    value={
-                                      selectedTests[test.test_code]?.amount ||
-                                      ""
-                                    }
-                                    onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) =>
-                                      handleTestAmountChange(
-                                        test.test_code,
-                                        e.target.value,
-                                      )
-                                    }
-                                    className="w-full bg-white/50 dark:bg-[#111315]/50 border border-gray-200 dark:border-white/10 rounded-xl px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
-                                    placeholder="Amount"
-                                  />
-                                )}
-                              </div>
-                            ),
-                          )}
-                      </div>
-                      {/* Other Test */}
-                      {formOptions?.testTypes
-                        ?.filter(
-                          (t: { test_code: string }) => t.test_code === "other",
-                        )
-                        .map(
-                          (test: { test_code: string; test_name: string }) => (
-                            <div
-                              key={test.test_code}
-                              className={`mt-3 p-3 border rounded-xl transition-all ${selectedTests[test.test_code]?.checked ? "border-[#006e1c] bg-[#ccebc4]/30" : "border-transparent bg-[#e0e2ec]/50 dark:bg-[#1a1c1e]"}`}
-                            >
-                              <div className="flex items-center gap-4">
+                      {/* Step 2: Clinical & Tests */}
+                      <div
+                        data-test-step="2"
+                        className={`${formCardClass} ${!isTestStepVisible(2) ? "hidden" : ""}`}
+                      >
+                        <FormSection
+                          title="Clinical Context"
+                          icon={Stethoscope}
+                          description="Referral and testing scope"
+                        >
+                          <FormField
+                            label="Referred By"
+                            required
+                            icon={UserPlus}
+                          >
+                            <input
+                              list="test_referrers"
+                              name="referred_by"
+                              required
+                              className={inputClass}
+                              placeholder="Type or select"
+                            />
+                            <datalist id="test_referrers">
+                              {formOptions?.referrers.map((r: string) => (
+                                <option key={r} value={r} />
+                              ))}
+                            </datalist>
+                          </FormField>
+                          <FormField label="Limb" icon={LayoutGrid}>
+                            <CustomSelect
+                              value={testLimb}
+                              onChange={setTestLimb}
+                              options={
+                                formOptions?.limbTypes.map((l: any) => ({
+                                  label: l.limb_name,
+                                  value: l.limb_code,
+                                })) || []
+                              }
+                              placeholder="Select"
+                            />
+                            <input
+                              type="hidden"
+                              name="limb"
+                              value={testLimb}
+                              required
+                            />
+                          </FormField>
+                          <FormField
+                            label="Full Address"
+                            icon={Navigation}
+                            className="lg:col-span-2"
+                          >
+                            <input
+                              type="text"
+                              name="address"
+                              className={inputClass}
+                              placeholder="Contact address"
+                            />
+                          </FormField>
+                        </FormSection>
+
+                        <div className="mt-8 border-t border-slate-100 dark:border-white/5 pt-6">
+                          <div className="flex items-center gap-2 mb-4 px-1">
+                            <FlaskConical
+                              size={14}
+                              className="text-emerald-500"
+                            />
+                            <h4 className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                              Available Test Panels
+                            </h4>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {formOptions?.testTypes
+                              ?.filter((t: any) => t.test_code !== "other")
+                              .map((test: any) => (
                                 <div
+                                  key={test.test_code}
                                   onClick={() =>
                                     handleTestCheckChange(
                                       test.test_code,
                                       !selectedTests[test.test_code]?.checked,
                                     )
                                   }
+                                  className={`group flex flex-col gap-3 rounded-xl border p-4 transition-all cursor-pointer ${selectedTests[test.test_code]?.checked ? "border-emerald-500 bg-emerald-50/50 shadow-sm" : "border-slate-100 bg-white hover:border-slate-200"}`}
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span
+                                      className={`text-xs font-bold ${selectedTests[test.test_code]?.checked ? "text-emerald-700 font-black" : "text-slate-700"}`}
+                                    >
+                                      {test.test_name}
+                                    </span>
+                                    <div
+                                      className={`h-4 w-4 rounded-full border flex items-center justify-center transition-colors ${selectedTests[test.test_code]?.checked ? "bg-emerald-500 border-emerald-500 text-white" : "border-slate-300"}`}
+                                    >
+                                      {selectedTests[test.test_code]
+                                        ?.checked && <Check size={10} />}
+                                    </div>
+                                  </div>
+                                  {selectedTests[test.test_code]?.checked && (
+                                    <div className="relative animate-in zoom-in-95">
+                                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                                        ₹
+                                      </span>
+                                      <input
+                                        type="number"
+                                        value={
+                                          selectedTests[test.test_code]
+                                            ?.amount || ""
+                                        }
+                                        onClick={(e) => e.stopPropagation()}
+                                        onChange={(e) =>
+                                          handleTestAmountChange(
+                                            test.test_code,
+                                            e.target.value,
+                                          )
+                                        }
+                                        className="w-full bg-white border border-emerald-200 rounded-lg pl-6 pr-3 py-1.5 text-xs font-bold text-emerald-700 outline-none"
+                                        placeholder="0.00"
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                          </div>
+
+                          {/* Other Test Section */}
+                          {formOptions?.testTypes?.find(
+                            (t: any) => t.test_code === "other",
+                          ) && (
+                            <div
+                              className={`mt-4 rounded-xl border p-4 transition-all ${selectedTests["other"]?.checked ? "border-emerald-500 bg-emerald-50/50" : "border-slate-100 bg-slate-50/50"}`}
+                            >
+                              <div className="flex items-center gap-3 mb-3">
+                                <div
+                                  onClick={() =>
+                                    handleTestCheckChange(
+                                      "other",
+                                      !selectedTests["other"]?.checked,
+                                    )
+                                  }
                                   className="flex items-center gap-2 cursor-pointer"
                                 >
                                   <div
-                                    className={`w-4 h-4 rounded border flex items-center justify-center ${selectedTests[test.test_code]?.checked ? "bg-[#006e1c] border-[#006e1c]" : "border-[#43474e]"}`}
+                                    className={`h-4 w-4 rounded border flex items-center justify-center ${selectedTests["other"]?.checked ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-slate-300"}`}
                                   >
-                                    {selectedTests[test.test_code]?.checked && (
-                                      <Check size={10} className="text-white" />
+                                    {selectedTests["other"]?.checked && (
+                                      <Check size={10} />
                                     )}
                                   </div>
-                                  <span className="text-sm font-medium text-[#1a1c1e] dark:text-[#e3e2e6]">
-                                    {test.test_name}
+                                  <span className="text-xs font-bold text-slate-700">
+                                    Custom / Other Test
                                   </span>
                                 </div>
-                                {selectedTests[test.test_code]?.checked && (
-                                  <>
-                                    <input
-                                      type="text"
-                                      value={otherTestName}
-                                      onChange={(e) =>
-                                        setOtherTestName(e.target.value)
-                                      }
-                                      placeholder="Test Name"
-                                      className="flex-1 bg-white/50 dark:bg-[#111315]/50 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
-                                    />
+                              </div>
+                              {selectedTests["other"]?.checked && (
+                                <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-2">
+                                  <input
+                                    type="text"
+                                    value={otherTestName}
+                                    onChange={(e) =>
+                                      setOtherTestName(e.target.value)
+                                    }
+                                    placeholder="Test Name"
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:border-emerald-500"
+                                  />
+                                  <div className="relative">
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                                      ₹
+                                    </span>
                                     <input
                                       type="number"
-                                      step="0.01"
                                       value={
-                                        selectedTests[test.test_code]?.amount ||
-                                        ""
+                                        selectedTests["other"]?.amount || ""
                                       }
                                       onChange={(e) =>
                                         handleTestAmountChange(
-                                          test.test_code,
+                                          "other",
                                           e.target.value,
                                         )
                                       }
-                                      className="w-32 bg-white/50 dark:bg-[#111315]/50 border border-gray-200 dark:border-white/10 rounded-xl px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all shadow-sm"
-                                      placeholder="Amount"
+                                      className="w-full bg-white border border-slate-200 rounded-lg pl-6 pr-3 py-1.5 text-xs font-bold outline-none focus:border-emerald-500"
+                                      placeholder="0.00"
                                     />
-                                  </>
-                                )}
-                              </div>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          ),
-                        )}
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div>
-                        <label className={labelClass}>Date of Visit *</label>
-                        <div
-                          onClick={() => {
-                            setActiveDateField("test_visit");
-                            setShowDatePicker(true);
-                          }}
-                          className={`${inputClass} cursor-pointer flex items-center justify-between`}
-                        >
-                          <span>
-                            {new Date(testVisitDate).toLocaleDateString(
-                              "en-US",
-                              {
-                                weekday: "short",
-                                month: "short",
-                                day: "numeric",
-                              },
-                            )}
-                          </span>
-                          <Calendar
-                            size={18}
-                            className="text-[#43474e] dark:text-[#c4c7c5]"
-                          />
+                          )}
                         </div>
-                        <input
-                          type="hidden"
-                          name="visit_date"
-                          value={testVisitDate}
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Assigned Date *</label>
-                        <div
-                          onClick={() => {
-                            setActiveDateField("test_assigned");
-                            setShowDatePicker(true);
-                          }}
-                          className={`${inputClass} cursor-pointer flex items-center justify-between`}
-                        >
-                          <span>
-                            {new Date(testAssignedDate).toLocaleDateString(
-                              "en-US",
-                              {
-                                weekday: "short",
-                                month: "short",
-                                day: "numeric",
-                              },
-                            )}
-                          </span>
-                          <Calendar
-                            size={18}
-                            className="text-[#43474e] dark:text-[#c4c7c5]"
-                          />
-                        </div>
-                        <input
-                          type="hidden"
-                          name="assigned_test_date"
-                          value={testAssignedDate}
-                        />
-                      </div>
-                      <div>
-                        <CustomSelect
-                          label="Test Done By *"
-                          value={testDoneBy}
-                          onChange={setTestDoneBy}
-                          options={
-                            formOptions?.staffMembers?.map(
-                              (s: {
-                                employee_id: number;
-                                staff_name: string;
-                              }) => ({
-                                label: s.staff_name,
-                                value: s.staff_name,
-                              }),
-                            ) || []
-                          }
-                          placeholder="Select"
-                        />
-                        <input
-                          type="hidden"
-                          name="test_done_by"
-                          value={testDoneBy}
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Receipt No</label>
-                        <input
-                          type="text"
-                          name="receipt_no"
-                          className={inputClass}
-                          placeholder="Optional"
-                        />
-                      </div>
-                    </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-[#f2f6fa] dark:bg-[#1a1c1e] p-4 rounded-xl">
-                      <div>
-                        <label className={labelClass}>Total Amount *</label>
-                        <input
-                          type="number"
-                          name="total_amount"
-                          required
-                          className={`${inputClass} font-bold`}
-                          value={totalAmount}
-                          onChange={(e) => setTotalAmount(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Advance</label>
-                        <input
-                          type="number"
-                          name="advance_amount"
-                          className={inputClass}
-                          value={advanceAmount}
-                          onChange={(e) => setAdvanceAmount(e.target.value)}
-                          placeholder="0.00"
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Discount</label>
-                        <input
-                          type="number"
-                          name="discount"
-                          className={inputClass}
-                          value={discountAmount}
-                          onChange={(e) => setDiscountAmount(e.target.value)}
-                          placeholder="0.00"
-                        />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Due Amount</label>
-                        {parseFloat(advanceAmount) <= 0 ||
-                          parseFloat(discountAmount) > 200 ? (
-                          <div
-                            className={`${inputClass} flex items-center gap-1 text-yellow-600 bg-yellow-50 dark:bg-yellow-900/10`}
+                        {/* Scheduling Section */}
+                        <div className="mt-8 border-t border-slate-100 dark:border-white/5 pt-6">
+                          <FormSection
+                            title="Assignment & Schedule"
+                            icon={Clock}
+                            className="!space-y-4"
                           >
-                            <Hourglass size={14} />{" "}
-                            <span className="text-xs font-bold uppercase">
-                              Pending Approval
-                            </span>
-                          </div>
-                        ) : (
-                          <input
-                            type="text"
-                            name="due_amount"
-                            readOnly
-                            className={`${inputClass} bg-transparent border border-[#ffdad6] text-[#b3261e] dark:text-[#ffb4ab] font-bold`}
-                            value={dueAmount}
-                          />
-                        )}
+                            <FormField label="Date of Visit" icon={Calendar}>
+                              <div
+                                onClick={() => {
+                                  setActiveDateField("test_visit");
+                                  setShowDatePicker(true);
+                                }}
+                                className={`${inputClass} cursor-pointer flex items-center justify-between`}
+                              >
+                                <span className="font-medium">
+                                  {format(
+                                    new Date(testVisitDate),
+                                    "MMM dd, yyyy",
+                                  )}
+                                </span>
+                                <Calendar
+                                  size={14}
+                                  className="text-slate-400"
+                                />
+                              </div>
+                              <input
+                                type="hidden"
+                                name="visit_date"
+                                value={testVisitDate}
+                              />
+                            </FormField>
+                            <FormField
+                              label="Assigned Date"
+                              icon={ClipboardCheck}
+                            >
+                              <div
+                                onClick={() => {
+                                  setActiveDateField("test_assigned");
+                                  setShowDatePicker(true);
+                                }}
+                                className={`${inputClass} cursor-pointer flex items-center justify-between`}
+                              >
+                                <span className="font-medium">
+                                  {format(
+                                    new Date(testAssignedDate),
+                                    "MMM dd, yyyy",
+                                  )}
+                                </span>
+                                <ClipboardCheck
+                                  size={14}
+                                  className="text-slate-400"
+                                />
+                              </div>
+                              <input
+                                type="hidden"
+                                name="assigned_test_date"
+                                value={testAssignedDate}
+                              />
+                            </FormField>
+                            <FormField label="Technician / Staff" icon={Users}>
+                              <CustomSelect
+                                value={testDoneBy}
+                                onChange={setTestDoneBy}
+                                options={
+                                  formOptions?.staffMembers?.map((s: any) => ({
+                                    label: s.staff_name,
+                                    value: s.staff_name,
+                                  })) || []
+                                }
+                                placeholder="Select Staff"
+                              />
+                              <input
+                                type="hidden"
+                                name="test_done_by"
+                                value={testDoneBy}
+                              />
+                            </FormField>
+                            <FormField label="Receipt Number" icon={StickyNote}>
+                              <input
+                                type="text"
+                                name="receipt_no"
+                                className={inputClass}
+                                placeholder="Optional"
+                              />
+                            </FormField>
+                          </FormSection>
+                        </div>
                       </div>
                     </div>
 
-                    {/* Payment Method Section - Moved to end */}
+                    {/* Right Column: Billing & Approval (Step 3 in Chunked) */}
                     <div
-                      className={
-                        parseFloat(advanceAmount || "0") > 0 ? "" : "hidden"
-                      }
+                      className={`space-y-6 ${isChunkedFlow ? "xl:col-span-12" : "xl:col-span-4"}`}
                     >
                       <div
-                        onClick={() => setShowTestPayment(!showTestPayment)}
-                        className="flex items-center justify-between cursor-pointer p-3 bg-[#e8eaed] dark:bg-[#28282a] rounded-xl hover:bg-[#dadae2] dark:hover:bg-[#30333b] transition-colors mb-3"
+                        data-test-step="3"
+                        className={`${!isTestStepVisible(3) ? "hidden" : ""} space-y-6 self-start`}
                       >
-                        <label className="text-sm font-bold text-[#1a1c1e] dark:text-[#e3e2e6] cursor-pointer">
-                          Payment Method *
-                        </label>
-                        <div className="flex items-center gap-2">
-                          {Object.keys(testPaymentSplits).length > 0 && (
-                            <span className="text-xs font-bold text-[#006e1c] dark:text-[#88d99d] bg-[#ccebc4] dark:bg-[#0c3b10] px-2 py-1 rounded-full">
-                              {Object.keys(testPaymentSplits).length} selected
-                            </span>
-                          )}
-                          {showTestPayment ? (
-                            <ChevronUp
-                              size={20}
-                              className="text-[#43474e] dark:text-[#c4c7c5]"
-                            />
-                          ) : (
-                            <ChevronDown
-                              size={20}
-                              className="text-[#43474e] dark:text-[#c4c7c5]"
-                            />
-                          )}
-                        </div>
-                      </div>
-                      <AnimatePresence>
-                        {showTestPayment && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.3, ease: "easeInOut" }}
-                            className="overflow-hidden"
-                          >
-                            <div className="bg-[#f8f9fa] dark:bg-[#1e1e20] rounded-xl p-3 border border-[#e0e2ec] dark:border-[#43474e]">
-                              <div className="grid grid-cols-2 gap-3">
-                                {formOptions?.paymentMethods.map(
-                                  (m: {
-                                    method_code: string;
-                                    method_name: string;
-                                  }) => (
-                                    <div
-                                      key={m.method_code}
-                                      className={`flex items-center gap-2 p-2 rounded-lg transition-all ${testPaymentSplits[m.method_code] !== undefined ? "bg-white dark:bg-[#2c2c2e] shadow-sm border border-[#006e1c]" : "bg-[#e8eaed] dark:bg-[#28282a] border border-transparent hover:border-[#006e1c]/30"}`}
-                                    >
-                                      <div
-                                        onClick={() => {
-                                          const newSplits = {
-                                            ...testPaymentSplits,
-                                          };
-                                          if (
-                                            newSplits[m.method_code] !==
-                                            undefined
-                                          )
-                                            delete newSplits[m.method_code];
-                                          else newSplits[m.method_code] = 0;
-                                          setTestPaymentSplits(newSplits);
-                                        }}
-                                        className="flex items-center gap-2 cursor-pointer flex-1"
-                                      >
-                                        <div
-                                          className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${testPaymentSplits[m.method_code] !== undefined ? "bg-[#006e1c] border-[#006e1c]" : "border-[#74777f]"}`}
-                                        >
-                                          {testPaymentSplits[m.method_code] !==
-                                            undefined && (
-                                              <Check
-                                                size={14}
-                                                className="text-white"
-                                                strokeWidth={3}
-                                              />
-                                            )}
-                                        </div>
-                                        <span className="text-sm font-semibold text-[#1a1c1e] dark:text-[#e3e2e6]">
-                                          {m.method_name}
-                                        </span>
-                                      </div>
-                                      {testPaymentSplits[m.method_code] !==
-                                        undefined &&
-                                        Object.keys(testPaymentSplits).length >
-                                        1 && (
-                                          <div className="flex items-center gap-1.5 bg-[#f0f0f0] dark:bg-[#3a3a3c] px-3 py-1.5 rounded-lg min-w-[120px]">
-                                            <span className="text-xs font-bold text-[#43474e] dark:text-[#c4c7c5]">
-                                              ₹
-                                            </span>
-                                            <input
-                                              type="number"
-                                              value={
-                                                testPaymentSplits[
-                                                m.method_code
-                                                ] || ""
-                                              }
-                                              onChange={(e) =>
-                                                setTestPaymentSplits({
-                                                  ...testPaymentSplits,
-                                                  [m.method_code]:
-                                                    parseFloat(
-                                                      e.target.value,
-                                                    ) || 0,
-                                                })
-                                              }
-                                              className="flex-1 bg-transparent border-none text-sm font-semibold text-right outline-none appearance-none text-[#1a1c1e] dark:text-[#e3e2e6]"
-                                              placeholder="0.00"
-                                              onClick={(e) =>
-                                                e.stopPropagation()
-                                              }
-                                            />
-                                          </div>
-                                        )}
-                                    </div>
-                                  ),
-                                )}
+                        <div className={`${formCardClass}`}>
+                          <div className="flex items-center gap-2 mb-6 border-b border-white/5 pb-3">
+                            <Banknote size={16} className="text-emerald-400" />
+                            <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400">
+                              Billing Information
+                            </h3>
+                          </div>
+
+                          <div className="space-y-5">
+                            <FormField
+                              label="Total Bill Amount"
+                              icon={Wallet}
+                              className="!gap-1"
+                            >
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                                  ₹
+                                </span>
+                                <input
+                                  type="number"
+                                  name="total_amount"
+                                  required
+                                  value={totalAmount}
+                                  onChange={(e) =>
+                                    setTotalAmount(e.target.value)
+                                  }
+                                  className={inputClass}
+                                />
                               </div>
-                              <div className="mt-3 pt-2 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center">
-                                <span className="text-[10px] font-black uppercase tracking-wide text-[#43474e] dark:text-[#c4c7c5]">
-                                  {Object.keys(testPaymentSplits).length === 1
-                                    ? "Payment Method Selected"
-                                    : "Advance Split"}
+                            </FormField>
+
+                            <div className="grid grid-cols-2 gap-4">
+                              <FormField
+                                label="Advance Paid"
+                                icon={Sparkles}
+                                className="!gap-1"
+                              >
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                                    ₹
+                                  </span>
+                                  <input
+                                    type="number"
+                                    name="advance_amount"
+                                    value={advanceAmount}
+                                    onChange={(e) =>
+                                      setAdvanceAmount(e.target.value)
+                                    }
+                                    className={inputClass}
+                                    placeholder="0"
+                                  />
+                                </div>
+                              </FormField>
+                              <FormField
+                                label="Discount"
+                                icon={Percent}
+                                className="!gap-1"
+                              >
+                                <div className="relative">
+                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                                    ₹
+                                  </span>
+                                  <input
+                                    type="number"
+                                    name="discount"
+                                    value={discountAmount}
+                                    onChange={(e) =>
+                                      setDiscountAmount(e.target.value)
+                                    }
+                                    className={inputClass}
+                                    placeholder="0"
+                                  />
+                                </div>
+                              </FormField>
+                            </div>
+
+                            <div className="rounded-xl bg-slate-100 dark:bg-white/5 p-4 border border-slate-200 dark:border-white/5">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                  Balance Due
                                 </span>
-                                <span className="text-sm font-black text-[#006e1c] dark:text-[#88d99d]">
-                                  {Object.keys(testPaymentSplits).length === 1
-                                    ? `.`
-                                    : `₹${Object.values(testPaymentSplits)
-                                      .reduce((a, b) => a + b, 0)
-                                      .toLocaleString()}`}
+                                <span className="text-[10px] font-black px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                  OUTSTANDING
                                 </span>
+                              </div>
+                              <div className="text-3xl font-black text-slate-900 dark:text-white font-mono">
+                                ₹{dueAmount}
                               </div>
                             </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                      <input
-                        type="hidden"
-                        name="payment_method"
-                        value={
-                          parseFloat(advanceAmount || "0") > 0 ? "cash" : "none"
-                        }
-                      />
+
+                            {/* Payment Methods for Test */}
+                            {(parseFloat(advanceAmount) || 0) > 0 && (
+                              <div className="space-y-3 pt-2">
+                                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 px-1">
+                                  Advance Payment Method *
+                                </label>
+                                <div
+                                  onClick={() =>
+                                    setShowTestPayment(!showTestPayment)
+                                  }
+                                  className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 p-4 transition hover:bg-slate-200 dark:hover:bg-white/10"
+                                >
+                                  <div className="flex items-center gap-3">
+                                    <CreditCard
+                                      size={18}
+                                      className="text-emerald-400"
+                                    />
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                      {Object.keys(testPaymentSplits).length ||
+                                        "Select"}{" "}
+                                      Methods
+                                    </p>
+                                  </div>
+                                  <ChevronDown
+                                    size={18}
+                                    className={`text-slate-500 transition-transform ${showTestPayment ? "rotate-180" : ""}`}
+                                  />
+                                </div>
+
+                                <AnimatePresence>
+                                  {showTestPayment && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: "auto", opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      className="overflow-hidden space-y-2 pt-1"
+                                    >
+                                      {formOptions?.paymentMethods.map(
+                                        (m: any) => (
+                                          <div
+                                            key={m.method_code}
+                                            onClick={() => {
+                                              const newSplits = {
+                                                ...testPaymentSplits,
+                                              };
+                                              if (
+                                                newSplits[m.method_code] !==
+                                                undefined
+                                              )
+                                                delete newSplits[m.method_code];
+                                              else newSplits[m.method_code] = 0;
+                                              setTestPaymentSplits(newSplits);
+                                            }}
+                                            className={`flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 transition-colors ${testPaymentSplits[m.method_code] !== undefined ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-slate-100 dark:bg-white/5 border border-transparent hover:bg-slate-200 dark:hover:bg-white/10"}`}
+                                          >
+                                            <div className="flex items-center gap-3">
+                                              <div
+                                                className={`h-4 w-4 rounded border flex items-center justify-center ${testPaymentSplits[m.method_code] !== undefined ? "bg-emerald-500 border-emerald-500" : "border-slate-300 dark:border-white/20"}`}
+                                              >
+                                                {testPaymentSplits[
+                                                  m.method_code
+                                                ] !== undefined && (
+                                                  <Check
+                                                    size={10}
+                                                    className="text-white"
+                                                  />
+                                                )}
+                                              </div>
+                                              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                {m.method_name}
+                                              </span>
+                                            </div>
+                                            {testPaymentSplits[
+                                              m.method_code
+                                            ] !== undefined && (
+                                              <input
+                                                type="number"
+                                                value={
+                                                  testPaymentSplits[
+                                                    m.method_code
+                                                  ] || ""
+                                                }
+                                                onClick={(e) =>
+                                                  e.stopPropagation()
+                                                }
+                                                onChange={(e) =>
+                                                  setTestPaymentSplits({
+                                                    ...testPaymentSplits,
+                                                    [m.method_code]:
+                                                      parseFloat(
+                                                        e.target.value,
+                                                      ) || 0,
+                                                  })
+                                                }
+                                                className="w-20 bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-md px-2 py-1 text-xs font-bold text-slate-900 dark:text-white text-right outline-none focus:border-emerald-500"
+                                                placeholder="0"
+                                              />
+                                            )}
+                                          </div>
+                                        ),
+                                      )}
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Status Widget */}
+                        <div
+                          className={`${formCardClass} bg-amber-500/5 border-amber-500/20`}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-amber-600/70">
+                              Approval Logic
+                            </span>
+                            <Hourglass size={16} className="text-amber-500" />
+                          </div>
+                          <p className="text-[11px] font-medium text-slate-500 leading-relaxed">
+                            {parseFloat(advanceAmount) <= 0 ||
+                            parseFloat(discountAmount) > 200
+                              ? "This booking requires administrative approval due to the current financial structure."
+                              : "Booking is within standard limits and will be processed immediately."}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </form>
                 )}
                 {(activeModal === "inquiry" ||
                   activeModal === "test_inquiry") && (
-                    <form
-                      ref={formRef}
-                      onSubmit={(e) => e.preventDefault()}
-                      className="space-y-6"
-                    >
-                      {activeModal === "inquiry" && (
-                        <>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className={labelClass}>Patient Name *</label>
+                  <form
+                    ref={formRef}
+                    onSubmit={(e) => e.preventDefault()}
+                    className="grid grid-cols-1 gap-6"
+                  >
+                    {activeModal === "inquiry" && (
+                      <div className="space-y-6">
+                        <div className={formCardClass}>
+                          <FormSection
+                            title="Inquiry Profile"
+                            icon={PhoneCall}
+                            description="Initial lead details"
+                          >
+                            <FormField
+                              label="Patient Name"
+                              required
+                              icon={User}
+                              className="lg:col-span-2"
+                            >
                               <input
                                 type="text"
                                 name="patient_name"
@@ -3152,9 +3631,8 @@ const ReceptionDashboard = () => {
                                 className={inputClass}
                                 placeholder="Full Name"
                               />
-                            </div>
-                            <div>
-                              <label className={labelClass}>Age *</label>
+                            </FormField>
+                            <FormField label="Age" required icon={Calendar}>
                               <input
                                 type="text"
                                 name="age"
@@ -3162,11 +3640,9 @@ const ReceptionDashboard = () => {
                                 className={inputClass}
                                 placeholder="e.g. 25 years"
                               />
-                            </div>
-
-                            <div>
+                            </FormField>
+                            <FormField label="Gender" required icon={Users}>
                               <CustomSelect
-                                label="Gender *"
                                 value={inqGender}
                                 onChange={setInqGender}
                                 options={[
@@ -3180,19 +3656,20 @@ const ReceptionDashboard = () => {
                                 type="hidden"
                                 name="gender"
                                 value={inqGender}
+                                required
                               />
-                            </div>
-                            <div>
+                            </FormField>
+                            <FormField
+                              label="Inquiry Service"
+                              required
+                              icon={Beaker}
+                            >
                               <CustomSelect
-                                label="Inquiry Service *"
                                 value={inqService}
                                 onChange={setInqService}
                                 options={
                                   formOptions?.inquiryServiceTypes.map(
-                                    (s: {
-                                      service_code: string;
-                                      service_name: string;
-                                    }) => ({
+                                    (s: any) => ({
                                       label: s.service_name,
                                       value: s.service_code,
                                     }),
@@ -3204,22 +3681,22 @@ const ReceptionDashboard = () => {
                                 type="hidden"
                                 name="inquiry_type"
                                 value={inqService}
+                                required
                               />
-                            </div>
-
-                            <div>
+                            </FormField>
+                            <FormField
+                              label="Chief Complaint"
+                              required
+                              icon={Activity}
+                            >
                               <CustomSelect
-                                label="How did you hear? *"
-                                value={inqSource}
-                                onChange={setInqSource}
+                                value={inqComplaint}
+                                onChange={setInqComplaint}
                                 options={
-                                  formOptions?.referralSources.map(
-                                    (s: {
-                                      source_code: string;
-                                      source_name: string;
-                                    }) => ({
-                                      label: s.source_name,
-                                      value: s.source_code,
+                                  formOptions?.chiefComplaints.map(
+                                    (c: any) => ({
+                                      label: c.complaint_name,
+                                      value: c.complaint_code,
                                     }),
                                   ) || []
                                 }
@@ -3227,13 +3704,40 @@ const ReceptionDashboard = () => {
                               />
                               <input
                                 type="hidden"
-                                name="referralSource"
-                                value={inqSource}
+                                name="conditionType"
+                                value={inqComplaint}
+                                required
                               />
-                            </div>
-                            <div>
+                            </FormField>
+                          </FormSection>
+                        </div>
+
+                        <div className={formCardClass}>
+                          <FormSection
+                            title="Communication"
+                            icon={Phone}
+                            description="How to reach them"
+                          >
+                            <FormField
+                              label="Mobile Number"
+                              required
+                              icon={Phone}
+                            >
+                              <input
+                                type="tel"
+                                name="phone"
+                                required
+                                maxLength={10}
+                                className={inputClass}
+                                placeholder="10-digit mobile"
+                              />
+                            </FormField>
+                            <FormField
+                              label="Comm. Channel"
+                              required
+                              icon={Bell}
+                            >
                               <CustomSelect
-                                label="Communication Type *"
                                 value={inqCommType}
                                 onChange={setInqCommType}
                                 options={[
@@ -3250,59 +3754,32 @@ const ReceptionDashboard = () => {
                                 name="communication_type"
                                 value={inqCommType}
                               />
-                            </div>
-
-                            <div>
+                            </FormField>
+                            <FormField
+                              label="Lead Source"
+                              required
+                              icon={Search}
+                            >
                               <CustomSelect
-                                label="Chief Complaint *"
-                                value={inqComplaint}
-                                onChange={setInqComplaint}
+                                value={inqSource}
+                                onChange={setInqSource}
                                 options={
-                                  formOptions?.chiefComplaints.map(
-                                    (c: {
-                                      complaint_code: string;
-                                      complaint_name: string;
-                                    }) => ({
-                                      label: c.complaint_name,
-                                      value: c.complaint_code,
+                                  formOptions?.referralSources.map(
+                                    (s: any) => ({
+                                      label: s.source_name,
+                                      value: s.source_code,
                                     }),
                                   ) || []
                                 }
-                                placeholder="Select"
+                                placeholder="Select Source"
                               />
                               <input
                                 type="hidden"
-                                name="conditionType"
-                                value={inqComplaint}
+                                name="referralSource"
+                                value={inqSource}
                               />
-                              {inqComplaint === "other" && (
-                                <div className="mt-2">
-                                  <input
-                                    type="text"
-                                    name="conditionType_other"
-                                    className={inputClass}
-                                    placeholder="Specify other complaint"
-                                  />
-                                </div>
-                              )}
-                            </div>
-                            <div>
-                              <label className={labelClass}>Mobile No. *</label>
-                              <input
-                                type="tel"
-                                name="phone"
-                                required
-                                maxLength={10}
-                                className={inputClass}
-                                placeholder="1234567890"
-                              />
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className={labelClass}>
-                                Plan to Visit Date *
-                              </label>
+                            </FormField>
+                            <FormField label="Next Step / Plan" icon={Calendar}>
                               <div
                                 onClick={() => {
                                   setActiveDateField("inquiry");
@@ -3310,44 +3787,53 @@ const ReceptionDashboard = () => {
                                 }}
                                 className={`${inputClass} cursor-pointer flex items-center justify-between`}
                               >
-                                <span>
-                                  {new Date(inquiryDate).toLocaleDateString(
-                                    "en-US",
-                                    {
-                                      weekday: "short",
-                                      month: "short",
-                                      day: "numeric",
-                                    },
+                                <span className="font-medium">
+                                  {format(
+                                    new Date(inquiryDate),
+                                    "MMM dd, yyyy",
                                   )}
                                 </span>
                                 <Calendar
-                                  size={18}
-                                  className="text-[#43474e] dark:text-[#c4c7c5]"
+                                  size={14}
+                                  className="text-slate-400"
                                 />
                               </div>
                               <input
                                 type="hidden"
-                                name="expected_date"
+                                name="plan_to_visit_date"
                                 value={inquiryDate}
                               />
-                            </div>
-                            <div>
-                              <label className={labelClass}>Remarks</label>
+                            </FormField>
+                            <FormField
+                              label="Administrative Remarks"
+                              icon={StickyNote}
+                              className="lg:col-span-2"
+                            >
                               <textarea
                                 name="remarks"
-                                className={`${inputClass} min-h-[50px] resize-none pt-3`}
-                                placeholder="Notes..."
-                              ></textarea>
-                            </div>
-                          </div>
-                        </>
-                      )}
+                                rows={3}
+                                className={inputClass}
+                                placeholder="Initial assessment notes..."
+                              />
+                            </FormField>
+                          </FormSection>
+                        </div>
+                      </div>
+                    )}
 
-                      {activeModal === "test_inquiry" && (
-                        <>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                              <label className={labelClass}>Patient Name *</label>
+                    {activeModal === "test_inquiry" && (
+                      <div className="space-y-6">
+                        <div className={formCardClass}>
+                          <FormSection
+                            title="Test Inquiry Profile"
+                            icon={FlaskConical}
+                            description="Lab test lead details"
+                          >
+                            <FormField
+                              label="Patient Name"
+                              required
+                              icon={User}
+                            >
                               <input
                                 type="text"
                                 name="patient_name"
@@ -3355,99 +3841,106 @@ const ReceptionDashboard = () => {
                                 className={inputClass}
                                 placeholder="Full Name"
                               />
-                            </div>
-                            <div>
+                            </FormField>
+                            <FormField
+                              label="Mobile Number"
+                              required
+                              icon={Phone}
+                            >
+                              <input
+                                type="tel"
+                                name="phone"
+                                required
+                                maxLength={10}
+                                className={inputClass}
+                                placeholder="10-digit mobile"
+                              />
+                            </FormField>
+                            <FormField
+                              label="Requested Test"
+                              required
+                              icon={Beaker}
+                              className="lg:col-span-2"
+                            >
                               <CustomSelect
-                                label="Test Name *"
                                 value={tiTestName}
                                 onChange={setTiTestName}
                                 options={
-                                  formOptions?.testTypes.map(
-                                    (t: {
-                                      test_code: string;
-                                      test_name: string;
-                                    }) => ({
-                                      label: t.test_name,
-                                      value: t.test_code,
-                                    }),
-                                  ) || []
+                                  formOptions?.testTypes.map((t: any) => ({
+                                    label: t.test_name,
+                                    value: t.test_code,
+                                  })) || []
                                 }
-                                placeholder="Select"
+                                placeholder="Select Test"
                               />
                               <input
                                 type="hidden"
                                 name="test_name"
                                 value={tiTestName}
-                              />
-                            </div>
-
-                            <div>
-                              <label className={labelClass}>Referred By *</label>
-                              <input
-                                list="ti_referrers"
-                                name="referred_by"
                                 required
-                                className={inputClass}
-                                placeholder="Type"
                               />
-                              <datalist id="ti_referrers">
-                                {formOptions?.referrers.map((r: string) => (
-                                  <option key={r} value={r} />
-                                ))}
-                              </datalist>
-                            </div>
-                            <div>
-                              <label className={labelClass}>Mobile No. *</label>
+                            </FormField>
+                            <FormField label="Expected Amount" icon={Wallet}>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                                  ₹
+                                </span>
+                                <input
+                                  type="number"
+                                  name="expected_amount"
+                                  className="w-full bg-white border border-slate-200 rounded-lg pl-6 pr-3 py-2 text-sm font-bold outline-none focus:border-emerald-500"
+                                  placeholder="0"
+                                />
+                              </div>
+                            </FormField>
+                            <FormField label="Expected Visit" icon={Calendar}>
+                              <div
+                                onClick={() => {
+                                  setActiveDateField("test_inquiry");
+                                  setShowDatePicker(true);
+                                }}
+                                className={`${inputClass} cursor-pointer flex items-center justify-between`}
+                              >
+                                <span className="font-medium">
+                                  {format(
+                                    new Date(testInquiryDate),
+                                    "MMM dd, yyyy",
+                                  )}
+                                </span>
+                                <Calendar
+                                  size={14}
+                                  className="text-slate-400"
+                                />
+                              </div>
                               <input
-                                type="tel"
-                                name="phone_number"
-                                required
-                                maxLength={10}
-                                className={inputClass}
+                                type="hidden"
+                                name="expected_visit_date"
+                                value={testInquiryDate}
                               />
-                            </div>
-                          </div>
-                          <div>
-                            <label className={labelClass}>
-                              Expected Visit Date *
-                            </label>
-                            <div
-                              onClick={() => {
-                                setActiveDateField("test_inquiry");
-                                setShowDatePicker(true);
-                              }}
-                              className={`${inputClass} cursor-pointer flex items-center justify-between`}
+                            </FormField>
+                            <FormField
+                              label="Remarks / Details"
+                              icon={StickyNote}
+                              className="lg:col-span-2"
                             >
-                              <span>
-                                {new Date(testInquiryDate).toLocaleDateString(
-                                  "en-US",
-                                  {
-                                    weekday: "short",
-                                    month: "short",
-                                    day: "numeric",
-                                  },
-                                )}
-                              </span>
-                              <Calendar
-                                size={18}
-                                className="text-[#43474e] dark:text-[#c4c7c5]"
+                              <input
+                                type="text"
+                                name="remarks"
+                                className={inputClass}
+                                placeholder="Any specific requirements"
                               />
-                            </div>
-                            <input
-                              type="hidden"
-                              name="expected_visit_date"
-                              value={testInquiryDate}
-                            />
-                          </div>
-                        </>
-                      )}
-                    </form>
-                  )}
-              </div>
-              <div className="p-6 border-t border-[#e0e2ec] dark:border-[#43474e] flex justify-between items-center bg-[#fdfcff] dark:bg-[#111315] sticky bottom-0 z-10 transition-colors">
+                            </FormField>
+                          </FormSection>
+                        </div>
+                      </div>
+                    )}
+                  </form>
+                )}
+              </motion.div>
+              <div className="sticky bottom-0 z-10 flex items-center justify-between border-t border-slate-200 bg-white/95 p-6 backdrop-blur transition-colors dark:border-slate-700 dark:bg-slate-950/95">
                 {submitMessage ? (
                   <span
-                    className={`text-sm font-bold px-4 py-2 rounded-lg ${submitMessage?.type === "success" ? "bg-[#ccebc4] text-[#0c200e]" : "bg-[#ffdad6] text-[#410002]"}`}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium ${submitMessage?.type === "success" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300" : "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300"}`}
                   >
                     {submitMessage?.text}
                   </span>
@@ -3457,19 +3950,39 @@ const ReceptionDashboard = () => {
                 <div className="flex gap-4">
                   <button
                     onClick={closeModal}
-                    className="px-6 py-3 text-[#006e1c] dark:text-[#88d99d] font-bold hover:bg-[#ccebc4]/30 rounded-full transition-colors"
+                    className="rounded-lg border border-slate-200 px-6 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
                   >
                     Cancel
                   </button>
+                  {isChunkedFlow && currentFlowStep > 1 && (
+                    <button
+                      onClick={handlePrevStep}
+                      type="button"
+                      className="rounded-lg border border-slate-200 px-6 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                    >
+                      Back
+                    </button>
+                  )}
                   <button
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="px-8 py-3 bg-[#006e1c] text-white font-bold rounded-full shadow-lg hover:shadow-xl hover:bg-[#005313] transition-all disabled:opacity-50 flex items-center gap-2"
+                    onClick={
+                      isChunkedFlow && currentFlowStep < totalFlowSteps
+                        ? handleNextStep
+                        : handleSubmit
+                    }
+                    disabled={
+                      isChunkedFlow && currentFlowStep < totalFlowSteps
+                        ? false
+                        : isSubmitting
+                    }
+                    className="flex items-center gap-2 rounded-lg bg-emerald-600 px-8 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
                   >
-                    {isSubmitting && (
-                      <Loader2 size={18} className="animate-spin" />
-                    )}
-                    Submit
+                    {(!isChunkedFlow || currentFlowStep === totalFlowSteps) &&
+                      isSubmitting && (
+                        <Loader2 size={18} className="animate-spin" />
+                      )}
+                    {isChunkedFlow && currentFlowStep < totalFlowSteps
+                      ? "Next"
+                      : "Submit"}
                   </button>
                 </div>
               </div>
@@ -3610,13 +4123,34 @@ const ReceptionDashboard = () => {
               className={`w-full max-w-3xl rounded-[32px] shadow-2xl overflow-hidden flex flex-col max-h-[85vh] border transition-colors ${isDark ? "bg-[#121412] border-white/5" : "bg-white border-gray-100"}`}
             >
               <div className="px-8 py-6 flex items-center justify-between sticky top-0 z-10 transition-colors">
-                <div>
-                  <h2 className="text-xl font-bold tracking-tight">
-                    Pending Approvals
-                  </h2>
-                  <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest mt-0.5">
-                    Review zero-cost requests
-                  </p>
+                <div className="flex items-center gap-4">
+                  <div>
+                    <h2 className="text-xl font-bold tracking-tight">
+                      Pending Approvals
+                    </h2>
+                    <p className="text-[10px] opacity-40 font-bold uppercase tracking-widest mt-0.5">
+                      Review zero-cost requests
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleManualApprovalRefresh}
+                    disabled={isLoading || approvalRefreshCooldown > 0}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${
+                      approvalRefreshCooldown > 0
+                        ? "opacity-50 grayscale cursor-not-allowed"
+                        : "hover:scale-105 active:scale-95"
+                    } ${isDark ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm"}`}
+                  >
+                    <RefreshCw
+                      size={12}
+                      className={isLoading ? "animate-spin" : ""}
+                    />
+                    <span className="text-[10px] font-black uppercase tracking-tighter">
+                      {approvalRefreshCooldown > 0
+                        ? `${approvalRefreshCooldown}s`
+                        : "Refresh & Auto-Approve"}
+                    </span>
+                  </button>
                 </div>
                 <button
                   onClick={() => setShowApprovals(false)}

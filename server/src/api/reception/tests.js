@@ -4,6 +4,7 @@ exports.submitTest = async (req, res) => {
     const data = req.body;
     const branch_id = req.user.branch_id || data.branch_id;
     const employee_id = req.user.employee_id || data.employee_id;
+    const patient_id = data.patient_id || null;
 
     if (!branch_id || !employee_id) {
         return res.status(400).json({ success: false, message: 'Branch ID and Employee ID required' });

@@ -9,10 +9,21 @@ exports.getDashboardData = async (req, res) => {
             return res.status(400).json({ status: "error", message: "Branch ID required" });
         }
 
-        const today = new Date().toISOString().split('T')[0];
         const now = new Date();
-        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
-        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+        const pad = (n) => (n < 10 ? '0' + n : n);
+        const getLocalDateStr = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+
+        const today = getLocalDateStr(now);
+        const startOfMonth = getLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
+        const endOfMonth = getLocalDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+
+        // Generate dates for the last 7 days for weekly stats
+        const dates = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(now);
+            d.setDate(now.getDate() - i);
+            dates.push(getLocalDateStr(d));
+        }
 
         // -------------------------------------------------------------------------
         // AUTO-DEACTIVATION LOGIC
@@ -193,7 +204,8 @@ exports.getDashboardData = async (req, res) => {
 
         const resultsMap = {};
         weeklyRows.forEach(row => {
-            const dateStr = new Date(row.date).toISOString().split('T')[0];
+            const dateObj = new Date(row.date);
+            const dateStr = getLocalDateStr(dateObj);
             resultsMap[dateStr] = row.total;
         });
 

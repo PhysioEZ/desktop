@@ -122,12 +122,12 @@ const CustomSelect = ({
         type="button"
         className={baseTriggerClass}
       >
-        <span className={!value ? "text-slate-300 dark:text-slate-600" : ""}>
+        <span className={!value ? "text-slate-400 dark:text-slate-500" : ""}>
           {value ? selectedLabel : placeholder}
         </span>
         <ChevronDown
           size={16}
-          className={`text-slate-400 transition-transform duration-300 ease-out ${isOpen ? "rotate-180" : ""}`}
+          className={`text-slate-500 transition-transform duration-300 ease-out ${isOpen ? "rotate-180" : ""}`}
         />
       </button>
 

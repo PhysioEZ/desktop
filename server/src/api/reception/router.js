@@ -62,6 +62,10 @@ router.get("/dashboard", dashboardController.getDashboardData);
 const checkUpdatesController = require("./checkUpdates");
 router.get("/check_updates", checkUpdatesController.checkUpdates);
 
+// POST /api/reception/approve_request
+const approvalsController = require("./approvals");
+router.post("/approve_request", approvalsController.approveRequest);
+
 // GET /api/reception/form_options
 router.get("/form_options", formOptionsController.getFormOptions);
 router.get("/daily_intelligence", insightsController.getDailyIntelligence);

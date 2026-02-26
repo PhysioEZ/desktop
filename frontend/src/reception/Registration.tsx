@@ -834,8 +834,9 @@ const Registration = () => {
     // Cache check
     if (
       storeOptions &&
+      Object.keys(storeOptions).length > 0 &&
       storeServiceTracks &&
-      Object.keys(storeOptions).length > 0
+      storeServiceTracks.length > 0
     ) {
       return;
     }
@@ -848,29 +849,29 @@ const Registration = () => {
       const data = await res.json();
       if (data.status === "success") {
         setOptions(data.data);
-        if (data.data.service_tracks) {
+        if (data.data && data.data.service_tracks) {
           const mappedTracks = data.data.service_tracks.map((track: any) => ({
             id: track.id,
-            name: track.name,
-            buttonLabel: track.button_label,
-            icon: track.icon,
-            themeColor: track.theme_color,
+            name: track.name || "Unnamed Service",
+            buttonLabel: track.button_label || track.name || "Initialize",
+            icon: track.icon || "Zap",
+            themeColor: track.theme_color || "#10b981",
             fields:
               typeof track.fields === "string"
-                ? JSON.parse(track.fields)
-                : track.fields,
+                ? JSON.parse(track.fields || "[]")
+                : track.fields || [],
             pricing:
               typeof track.pricing === "string"
-                ? JSON.parse(track.pricing)
-                : track.pricing,
+                ? JSON.parse(track.pricing || "{}")
+                : track.pricing || {},
             scheduling:
               typeof track.scheduling === "string"
-                ? JSON.parse(track.scheduling)
-                : track.scheduling,
+                ? JSON.parse(track.scheduling || "{}")
+                : track.scheduling || {},
             permissions:
               typeof track.permissions === "string"
-                ? JSON.parse(track.permissions)
-                : track.permissions,
+                ? JSON.parse(track.permissions || "{}")
+                : track.permissions || {},
             isActive: !!track.is_active,
           }));
           setServiceTracks(mappedTracks);

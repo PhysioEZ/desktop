@@ -10,7 +10,7 @@ import SplashScreen from "./components/SplashScreen";
 import LoginScreen from "./screens/LoginScreen";
 import WelcomeScreen from "./screens/WelcomeScreen";
 import ReceptionDashboard from "./reception/Dashboard";
-import DashboardNew from "./reception/DashboardNew";
+import DashboardNew from "./reception/Dashboard";
 import Schedule from "./reception/Schedule";
 import GlobalSearchOverlay from "./components/GlobalSearchOverlay";
 

@@ -1,23 +1,24 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ArrowRight,
+  AlertCircle,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Lock,
+  Moon,
+  RefreshCw,
+  ShieldCheck,
+  Sparkles,
+  Sun,
+  User,
+} from "lucide-react";
 import { API_BASE_URL } from "../config";
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  Lock,
-  User,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  ShieldCheck,
-  KeyRound,
-  ArrowRight,
-  RefreshCw,
-  Sparkles,
-  Sun,
-  Moon,
-} from "lucide-react";
 
 interface SystemStatus {
   maintenance: boolean;
@@ -26,24 +27,42 @@ interface SystemStatus {
   version: string;
 }
 
+const securityPillars = [
+  "Role-aware access policies",
+  "Real-time session protection",
+  "Branch-scoped data boundaries",
+];
+
 const LoginScreen = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const login = useAuthStore((state) => state.login);
   const { isDark, toggleTheme } = useThemeStore();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingSystem, setIsCheckingSystem] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showForgotPopup, setShowForgotPopup] = useState(false);
-  const [isFocused, setIsFocused] = useState<string | null>(null);
   const [systemStatus, setSystemStatus] = useState<SystemStatus>({
     maintenance: false,
     forceLogout: false,
     message: "",
     version: "...",
   });
-  const [isCheckingSystem, setIsCheckingSystem] = useState(false);
+
+  const reason = searchParams.get("reason");
+  const statusMessage = useMemo(() => {
+    if (reason === "forced_logout") {
+      return "Your session was closed by system policy. Sign in again to continue.";
+    }
+    if (systemStatus.maintenance || systemStatus.forceLogout) {
+      return systemStatus.message || "System is temporarily unavailable.";
+    }
+    return "";
+  }, [reason, systemStatus]);
 
   const fetchSystemStatus = async () => {
     setIsCheckingSystem(true);
@@ -58,7 +77,7 @@ const LoginScreen = () => {
           message:
             data.data.maintenance_mode || data.data.force_logout
               ? data.data.maintenance_message
-              : "Checked",
+              : "All systems operational",
         });
       }
     } catch (err) {
@@ -70,19 +89,20 @@ const LoginScreen = () => {
 
   useEffect(() => {
     fetchSystemStatus();
-    // Redirect if already logged in
     const user = useAuthStore.getState().user;
     if (user) {
       navigate("/welcome");
       return;
     }
-    // Sync theme class on mount for login
+  }, [navigate]);
+
+  useEffect(() => {
     if (isDark) {
       document.documentElement.classList.add("dark");
     } else {
       document.documentElement.classList.remove("dark");
     }
-  }, [isDark, navigate]);
+  }, [isDark]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,13 +112,8 @@ const LoginScreen = () => {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          username: email,
-          password: password,
-        }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: email, password }),
       });
 
       if (!response.ok) {
@@ -106,15 +121,13 @@ const LoginScreen = () => {
         if (contentType && contentType.includes("application/json")) {
           const data = await response.json();
           throw new Error(data.message || "Login failed");
-        } else {
-          throw new Error(
-            `Server returned error ${response.status}. Please check backend logs.`,
-          );
         }
+        throw new Error(
+          `Server returned error ${response.status}. Please check backend logs.`,
+        );
       }
 
       const data = await response.json();
-
       login({
         id: data.data.user.employee_id,
         name: data.data.user.full_name,
@@ -135,286 +148,216 @@ const LoginScreen = () => {
     }
   };
 
-  useSearchParams();
+  const isBlocked = systemStatus.maintenance || systemStatus.forceLogout;
 
   return (
     <div
-      className={`min-h-screen flex flex-col overflow-hidden font-sans relative transition-colors duration-700 ${isDark ? "bg-[#050505]" : "bg-[#F8FAFC]"}`}
+      className={`relative min-h-screen overflow-hidden transition-colors duration-500 ${
+        isDark ? "bg-[#05070B]" : "bg-[#F4F7FB]"
+      }`}
     >
-      {/* Theme Toggle in Login */}
-      <div className="absolute top-8 right-8 z-50">
+      <div className="pointer-events-none absolute inset-0">
+        <motion.div
+          animate={{ x: [0, 80, 0], y: [0, -30, 0], opacity: [0.2, 0.35, 0.2] }}
+          transition={{ duration: 16, repeat: Infinity, ease: "linear" }}
+          className={`absolute -top-32 -left-20 h-[28rem] w-[28rem] rounded-full blur-3xl ${
+            isDark ? "bg-emerald-500/20" : "bg-emerald-300/35"
+          }`}
+        />
+        <motion.div
+          animate={{ x: [0, -70, 0], y: [0, 50, 0], opacity: [0.18, 0.3, 0.18] }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          className={`absolute -bottom-40 -right-24 h-[30rem] w-[30rem] rounded-full blur-3xl ${
+            isDark ? "bg-cyan-500/15" : "bg-cyan-300/30"
+          }`}
+        />
+      </div>
+
+      <div className="absolute right-6 top-6 z-30">
         <button
           onClick={toggleTheme}
           type="button"
-          className={`w-12 h-12 flex items-center justify-center rounded-2xl border transition-all hover:scale-105 active:scale-95 ${isDark ? "border-white/10 bg-white/5 text-yellow-400" : "border-gray-200 bg-white text-gray-800 shadow-sm"}`}
+          className={`flex h-11 w-11 items-center justify-center rounded-2xl border backdrop-blur-md transition-all hover:scale-105 ${
+            isDark
+              ? "border-white/10 bg-white/5 text-amber-300"
+              : "border-slate-200 bg-white/80 text-slate-700"
+          }`}
         >
-          {isDark ? <Sun size={20} /> : <Moon size={20} />}
+          {isDark ? <Sun size={18} /> : <Moon size={18} />}
         </button>
       </div>
 
-      {/* Dynamic Background */}
-      <div className="absolute inset-0 pointer-events-none z-0">
-        <motion.div
-          animate={{
-            scale: [1, 1.1, 1],
-            opacity: isDark ? [0.15, 0.25, 0.15] : [0.05, 0.12, 0.05],
-            x: [0, 30, 0],
-            y: [0, -30, 0],
-          }}
-          transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-          className={`absolute -top-[10%] -right-[5%] w-[700px] h-[700px] rounded-full blur-[120px] ${isDark ? "bg-emerald-500/10" : "bg-emerald-200/20"}`}
-        />
-        <motion.div
-          animate={{
-            scale: [1.1, 1, 1.1],
-            opacity: isDark ? [0.1, 0.2, 0.1] : [0.03, 0.1, 0.03],
-            x: [0, -30, 0],
-            y: [0, 30, 0],
-          }}
-          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-          className={`absolute -bottom-[10%] -left-[5%] w-[700px] h-[700px] rounded-full blur-[120px] ${isDark ? "bg-emerald-900/10" : "bg-green-100/10"}`}
-        />
-        <div
-          className={`absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] ${isDark ? "opacity-[0.02]" : "opacity-[0.05]"}`}
-        />
-      </div>
-
-      <div className="relative z-10 flex-1 flex flex-col items-center justify-center p-6 mt-[-20px]">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-[440px]"
-        >
-          {/* Header Identity */}
-          <div className="text-center mb-8">
+      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-[1300px] items-center p-4 sm:p-8">
+        <div className="grid w-full items-stretch overflow-hidden rounded-[2rem] border border-white/20 bg-white/40 shadow-[0_32px_80px_-30px_rgba(14,25,40,0.35)] backdrop-blur-xl dark:border-white/10 dark:bg-[#0B1018]/70 lg:grid-cols-[1.1fr_0.9fr]">
+          <section className="relative hidden flex-col justify-between overflow-hidden p-10 lg:flex">
             <motion.div
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className={`inline-flex items-center justify-center w-20 h-20 rounded-[30px] border shadow-[0_20px_40px_-12px_rgba(0,0,0,0.2)] mb-8 relative group cursor-default transition-colors duration-500 ${isDark ? "bg-gradient-to-br from-[#121212] to-[#080808] border-white/10 text-[#4ADE80]" : "bg-white border-gray-100 text-[#16a34a]"}`}
+              initial={{ opacity: 0, y: 14 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+              className="space-y-7"
             >
-              <div
-                className={`absolute inset-0 rounded-[30px] opacity-0 group-hover:opacity-100 transition-opacity blur-xl ${isDark ? "bg-emerald-500/10" : "bg-emerald-500/5"}`}
-              />
-              <ShieldCheck
-                size={40}
-                strokeWidth={1.5}
-                className="relative transition-transform group-hover:rotate-12"
-              />
-              <div className="absolute -top-1 -right-1">
-                <Sparkles
-                  size={16}
-                  className={
-                    isDark ? "text-emerald-500/40" : "text-emerald-500/30"
-                  }
-                />
+              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-600 dark:text-emerald-300">
+                <Sparkles size={14} />
+                PhysioEZ OS
+              </div>
+              <div className="space-y-4">
+                <h1 className="max-w-lg text-5xl font-black leading-tight tracking-tight text-slate-900 dark:text-white">
+                  Reception workflows.
+                  <br />
+                  <span className="text-emerald-500">Enterprise clarity.</span>
+                </h1>
+                <p className="max-w-xl text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                  Securely operate registrations, billing, tests, and support in
+                  one focused command center designed for high-volume clinics.
+                </p>
+              </div>
+              <div className="space-y-3">
+                {securityPillars.map((item) => (
+                  <div
+                    key={item}
+                    className="flex items-center gap-3 rounded-2xl border border-slate-200/60 bg-white/70 px-4 py-3 text-sm text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"
+                  >
+                    <CheckCircle2 size={16} className="text-emerald-500" />
+                    <span className="font-medium">{item}</span>
+                  </div>
+                ))}
               </div>
             </motion.div>
-
-            <h1
-              className={`text-3xl font-black tracking-widest uppercase mb-2 transition-colors duration-500 ${isDark ? "text-white" : "text-slate-900"}`}
-            >
-              Physio
-              <span className={isDark ? "text-[#4ADE80]" : "text-[#16a34a]"}>
-                EZ
-              </span>
-            </h1>
-            <p
-              className={`text-[11px] font-bold tracking-[0.3em] uppercase transition-colors duration-500 ${isDark ? "text-white/60" : "text-slate-500"}`}
-            >
-              Management Portal
-            </p>
-          </div>
-
-          {/* Login Card (Premium Glass) */}
-          <div
-            className={`p-10 md:p-12 rounded-[48px] border shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] relative overflow-hidden transition-all duration-500 backdrop-blur-3xl ${isDark ? "bg-[#0A0A0A]/40 border-white/[0.05] shadow-black/60" : "bg-white border-slate-200/60"}`}
-          >
-            {/* System Restriction Banner */}
-            <AnimatePresence>
-              {(systemStatus.maintenance || systemStatus.forceLogout) && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="mb-8 p-4 rounded-3xl bg-red-500/5 border border-red-500/10 text-red-600 dark:text-red-400 text-xs font-bold text-center"
-                >
-                  <div className="flex items-center justify-center gap-2 uppercase tracking-widest text-[10px] mb-1">
-                    <AlertCircle size={14} />
-                    <span>Access Restricted</span>
-                  </div>
-                  <p className="font-semibold leading-relaxed">
-                    {systemStatus.message || "System is temporarily offline."}
-                  </p>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <div className="flex items-center justify-between mb-10">
-              <h2
-                className={`text-2xl font-bold tracking-tight transition-colors duration-500 ${isDark ? "text-white" : "text-slate-900"}`}
-              >
-                Sign In
-              </h2>
-              <button
-                type="button"
-                onClick={fetchSystemStatus}
-                disabled={isCheckingSystem}
-                className={`p-2 rounded-xl border transition-all ${isDark ? "bg-white/[0.03] border-white/[0.05] hover:bg-white/[0.08] text-white/40" : "bg-slate-50 border-slate-200 hover:bg-slate-100 text-slate-400"} ${isCheckingSystem ? "animate-spin text-emerald-500" : ""}`}
-              >
-                <RefreshCw size={18} />
-              </button>
+            <div className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">
+              Version {systemStatus.version}
             </div>
+          </section>
 
-            <form onSubmit={handleLogin} className="space-y-8">
-              {/* Username Input */}
-              <div className="space-y-2">
-                <label
-                  className={`text-[10px] font-black uppercase tracking-[0.2em] ml-4 transition-colors duration-500 ${isDark ? "text-white/50" : "text-slate-500"}`}
-                >
-                  Username
-                </label>
-                <div
-                  className={`relative flex items-center border rounded-[22px] transition-all duration-300 ${isFocused === "email" ? "border-emerald-500/60 bg-white/[0.05] shadow-[0_0_30px_rgba(74,222,128,0.05)]" : isDark ? "bg-white/[0.03] border-white/[0.05]" : "bg-slate-50 border-slate-200"}`}
-                >
-                  <User
-                    size={18}
-                    className={`absolute left-5 transition-colors ${isFocused === "email" ? "text-emerald-500" : isDark ? "text-white/30" : "text-slate-400"}`}
-                  />
-                  <input
-                    type="text"
-                    required
-                    value={email}
-                    onFocus={() => setIsFocused("email")}
-                    onBlur={() => setIsFocused(null)}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className={`w-full bg-transparent pl-14 pr-6 py-5 text-sm font-bold outline-none placeholder:opacity-100 ${isDark ? "text-white placeholder:text-white/20" : "text-slate-900 placeholder:text-slate-400"}`}
-                    placeholder="Enter Username"
-                  />
+          <section className="relative flex items-center justify-center p-6 sm:p-10">
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="w-full max-w-md space-y-6"
+            >
+              <div className="space-y-2 text-center lg:text-left">
+                <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/70 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                  <ShieldCheck size={13} className="text-emerald-500" />
+                  Secure Login
                 </div>
+                <h2 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">
+                  Sign in to continue
+                </h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  Use your receptionist credentials to access your workspace.
+                </p>
               </div>
 
-              {/* Password Input */}
-              <div className="space-y-2">
-                <label
-                  className={`text-[10px] font-black uppercase tracking-[0.2em] ml-4 transition-colors duration-500 ${isDark ? "text-white/50" : "text-slate-500"}`}
-                >
-                  Password
-                </label>
-                <div
-                  className={`relative flex items-center border rounded-[22px] transition-all duration-300 ${isFocused === "password" ? "border-emerald-500/60 bg-white/[0.05] shadow-[0_0_30px_rgba(74,222,128,0.05)]" : isDark ? "bg-white/[0.03] border-white/[0.05]" : "bg-slate-50 border-slate-200"}`}
-                >
-                  <Lock
-                    size={18}
-                    className={`absolute left-5 transition-colors ${isFocused === "password" ? "text-emerald-500" : isDark ? "text-white/30" : "text-slate-400"}`}
-                  />
-                  <input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={password}
-                    onFocus={() => setIsFocused("password")}
-                    onBlur={() => setIsFocused(null)}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className={`w-full bg-transparent pl-14 pr-14 py-5 text-sm font-bold outline-none placeholder:opacity-100 ${isDark ? "text-white placeholder:text-white/20" : "text-slate-900 placeholder:text-slate-400"}`}
-                    placeholder="••••••••"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className={`absolute right-5 transition-colors ${isDark ? "text-white/40 hover:text-emerald-500" : "text-slate-400 hover:text-emerald-600"}`}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-              </div>
-
-              {/* Error Callout */}
               <AnimatePresence mode="wait">
-                {error && (
+                {(statusMessage || error) && (
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="p-4 bg-red-500/5 border border-red-500/10 rounded-2xl flex items-center gap-3 text-red-600 dark:text-red-400 text-[11px] font-bold"
+                    key={`${statusMessage}-${error}`}
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className={`rounded-2xl border px-4 py-3 text-sm ${
+                      error
+                        ? "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+                        : "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+                    }`}
                   >
-                    <AlertCircle size={16} className="shrink-0" />
-                    {error}
+                    <div className="flex items-start gap-2">
+                      <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                      <span>{error || statusMessage}</span>
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              {/* Recovery Action */}
-              <div className="flex justify-center flex-col items-center gap-4 pt-2">
-                <button
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    Username
+                  </label>
+                  <div className="relative">
+                    <User className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                    <input
+                      type="text"
+                      required
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter username"
+                      className="h-13 w-full rounded-2xl border border-slate-200 bg-white/80 pl-11 pr-4 text-sm font-medium text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-emerald-500/80 dark:focus:ring-emerald-500/10"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Enter password"
+                      className="h-13 w-full rounded-2xl border border-slate-200 bg-white/80 pl-11 pr-11 text-sm font-medium text-slate-900 outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-emerald-500/80 dark:focus:ring-emerald-500/10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-white/10 dark:hover:text-slate-200"
+                    >
+                      {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={fetchSystemStatus}
+                    disabled={isCheckingSystem}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                  >
+                    <RefreshCw
+                      size={14}
+                      className={isCheckingSystem ? "animate-spin" : ""}
+                    />
+                    Recheck System
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotPopup(true)}
+                    className="text-xs font-semibold text-slate-500 transition hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-300"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
                   type="submit"
-                  disabled={
-                    isLoading ||
-                    systemStatus.maintenance ||
-                    systemStatus.forceLogout
-                  }
-                  className={`w-full h-16 rounded-[22px] flex items-center justify-center gap-3 transition-all duration-300 font-black uppercase tracking-[0.2em] text-[11px] shadow-2xl ${
-                    isLoading ||
-                    systemStatus.maintenance ||
-                    systemStatus.forceLogout
-                      ? "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
-                      : "bg-emerald-500 text-black hover:bg-emerald-400 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20"
+                  disabled={isLoading || isBlocked}
+                  className={`mt-2 inline-flex h-13 w-full items-center justify-center gap-2 rounded-2xl text-sm font-bold uppercase tracking-[0.15em] transition ${
+                    isLoading || isBlocked
+                      ? "cursor-not-allowed bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-300"
+                      : "bg-emerald-500 text-black shadow-lg shadow-emerald-500/30 hover:bg-emerald-400"
                   }`}
                 >
                   {isLoading ? (
-                    <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
+                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
                   ) : (
                     <>
-                      <span>Sign In</span>
-                      <ArrowRight size={16} strokeWidth={2.5} />
+                      Continue
+                      <ArrowRight size={16} />
                     </>
                   )}
-                </button>
+                </motion.button>
+              </form>
+            </motion.div>
+          </section>
+        </div>
+      </main>
 
-                <button
-                  type="button"
-                  onClick={() => setShowForgotPopup(true)}
-                  className={`text-[10px] font-black uppercase tracking-[0.2em] transition-colors ${isDark ? "text-white/40 hover:text-white/70" : "text-slate-400 hover:text-slate-600"}`}
-                >
-                  Forgot Password?
-                </button>
-              </div>
-            </form>
-          </div>
-        </motion.div>
-
-        {/* Global Footer Meta */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6 }}
-          className="mt-12 text-center space-y-6"
-        >
-          <div
-            className={`inline-flex items-center gap-3 px-6 py-2.5 rounded-full border text-[10px] font-black uppercase tracking-[0.2em] transition-colors duration-500 ${isDark ? "bg-white/[0.02] border-white/[0.05] text-white/50" : "bg-slate-100 border-slate-200 text-slate-500"}`}
-          >
-            <ShieldCheck size={12} className="text-emerald-500/50" />
-            Version {systemStatus.version}
-          </div>
-
-          <div
-            className={`flex items-center justify-center gap-4 transition-opacity duration-500 ${isDark ? "opacity-20" : "opacity-40"}`}
-          >
-            <div
-              className={`h-px w-10 ${isDark ? "bg-white" : "bg-slate-900"}`}
-            />
-            <p
-              className={`text-[10px] font-black uppercase tracking-widest leading-none ${isDark ? "text-white" : "text-slate-900"}`}
-            >
-              PhysioEZ Core Console
-            </p>
-            <div
-              className={`h-px w-10 ${isDark ? "bg-white" : "bg-slate-900"}`}
-            />
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Modern MD3 Dialog for Recovery */}
       <AnimatePresence>
         {showForgotPopup && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6">
@@ -423,44 +366,27 @@ const LoginScreen = () => {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowForgotPopup(false)}
-              className="absolute inset-0 bg-black/60 backdrop-blur-md"
+              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 10 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 10 }}
-              className={`relative border rounded-[40px] shadow-2xl max-w-sm w-full p-10 text-center overflow-hidden transition-colors duration-500 ${isDark ? "bg-[#101010] border-white/[0.05]" : "bg-white border-slate-200"}`}
+              initial={{ opacity: 0, y: 14, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 12, scale: 0.96 }}
+              className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white p-7 shadow-2xl dark:border-white/10 dark:bg-[#0F1722]"
             >
-              <div className="absolute top-0 inset-x-0 h-1 bg-gradient-to-r from-transparent via-emerald-500 to-transparent" />
-
-              <div
-                className={`w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-6 ${isDark ? "bg-emerald-500/10 text-emerald-500" : "bg-emerald-50 text-emerald-600"}`}
-              >
-                <KeyRound size={32} strokeWidth={1.5} />
+              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
+                <KeyRound size={24} />
               </div>
-
-              <h3
-                className={`text-2xl font-bold mb-4 transition-colors duration-500 ${isDark ? "text-white" : "text-slate-900"}`}
-              >
-                Forgot Password?
+              <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
+                Password recovery
               </h3>
-              <p
-                className={`text-sm mb-10 leading-relaxed font-medium transition-colors duration-500 ${isDark ? "text-white/60" : "text-slate-600"}`}
-              >
-                For security reasons, password resets are handled by the system
-                administrator.
-                <br />
-                <br />
-                Please contact the{" "}
-                <span className="text-emerald-500 font-bold">
-                  Administrator
-                </span>{" "}
-                to reset your credentials.
+              <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                Password resets are restricted to administrators for security.
+                Contact your system administrator to regain access.
               </p>
-
               <button
                 onClick={() => setShowForgotPopup(false)}
-                className={`w-full py-5 px-6 rounded-3xl font-black text-[11px] uppercase tracking-[0.2em] transition-all border ${isDark ? "bg-white/[0.05] hover:bg-white/[0.08] text-white border-white/[0.05]" : "bg-slate-900 hover:bg-slate-800 text-white border-transparent"}`}
+                className="mt-6 h-11 w-full rounded-2xl bg-slate-900 text-sm font-semibold text-white transition hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
               >
                 Understood
               </button>

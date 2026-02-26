@@ -343,14 +343,16 @@ async function fetchDetails(req, res, patientId) {
             "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE patient_id = ?",
             [patientId],
         );
+        totalPaid = parseFloat(paidRows[0].total || 0);
+
         const [testPaidRows] = await pool.query(
-            "SELECT COALESCE(SUM(tp.amount), 0) as total FROM test_payments tp JOIN tests t ON tp.test_id = t.test_id WHERE t.patient_id = ?",
+            "SELECT COALESCE(SUM(tp.amount), 0) as total FROM test_payments tp JOIN tests t ON tp.test_id = t.test_id WHERE t.patient_id = ? AND t.refund_status = 'no'",
             [patientId]
         );
-        totalPaid = parseFloat(paidRows[0].total || 0) + parseFloat(testPaidRows[0].total || 0);
+        p.test_paid_amount = parseFloat(testPaidRows[0].total || 0);
 
         const [testBilledRows] = await pool.query(
-            "SELECT COALESCE(SUM(total_amount), 0) as total FROM tests WHERE patient_id = ?",
+            "SELECT COALESCE(SUM(total_amount), 0) as total FROM tests WHERE patient_id = ? AND refund_status = 'no'",
             [patientId]
         );
         p.test_billed_amount = parseFloat(testBilledRows[0].total || 0);
@@ -448,7 +450,7 @@ async function fetchDetails(req, res, patientId) {
         treatmentHistory = historyRows;
 
         const [testRows] = await pool.query(
-            "SELECT test_id, test_uid, test_name, total_amount, test_status, payment_status, created_at FROM tests WHERE patient_id = ? ORDER BY created_at DESC",
+            "SELECT test_id, test_uid, test_name, total_amount, test_status, payment_status, refund_status, created_at FROM tests WHERE patient_id = ? ORDER BY created_at DESC",
             [patientId]
         );
         tests = testRows;

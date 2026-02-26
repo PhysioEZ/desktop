@@ -22,12 +22,12 @@ import {
   CheckCircle2,
   AlertTriangle,
   ArrowRight,
-  ExternalLink,
   History,
   Clock,
   Hash,
   FlaskConical,
   UserPlus,
+  RefreshCw,
 } from "lucide-react";
 import { usePatientStore } from "../../store/usePatientStore";
 import { format } from "date-fns";
@@ -251,8 +251,8 @@ const PatientDetailsModal = () => {
   const dueAmount = parseFloat(String(data.due_amount || "0"));
   const walletBalance =
     (data.payments?.reduce(
-      (acc: number, p: { amount: string | number }) =>
-        acc + parseFloat(String(p.amount)),
+      (acc: number, p: { amount: string | number; type?: string }) =>
+        acc + (p.type === "test" ? 0 : parseFloat(String(p.amount))),
       0,
     ) || 0) - parseFloat(String(data.total_consumed || "0"));
 
@@ -408,6 +408,17 @@ const PatientDetailsModal = () => {
                   label="Print"
                   onClick={handlePrintBill}
                 />
+                <button
+                  onClick={handleRefresh}
+                  disabled={isLoadingDetails}
+                  className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 active:scale-95 transition-all flex items-center justify-center border border-emerald-500/10"
+                  title="Refresh Data"
+                >
+                  <RefreshCw
+                    size={18}
+                    className={isLoadingDetails ? "animate-spin" : ""}
+                  />
+                </button>
                 <QuickAction
                   icon={CreditCard}
                   label="Change Plan"
@@ -504,13 +515,13 @@ const PatientDetailsModal = () => {
                         </div>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                           <StatCard
-                            label="Total Consumed"
+                            label="Treatment Consumed"
                             value={`₹${parseFloat(String(data.total_consumed || 0)).toLocaleString()}`}
                             icon={Activity}
                             color="blue"
                           />
                           <StatCard
-                            label="Total Paid"
+                            label="Treatment Paid"
                             value={`₹${parseFloat(String(data.total_paid || 0)).toLocaleString()}`}
                             icon={Wallet}
                             color="emerald"
@@ -577,6 +588,64 @@ const PatientDetailsModal = () => {
                           />
                         </div>
                       </div>
+
+                      {/* Panel 3: Test Financials (Separated from Treatment) */}
+                      {(patientData.test_billed_amount > 0 ||
+                        patientData.test_paid_amount > 0) && (
+                        <div className="bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 rounded-[32px] p-8 shadow-sm">
+                          <div className="flex items-center gap-2 mb-6 opacity-50">
+                            <FlaskConical size={16} />
+                            <span className="text-xs font-black uppercase tracking-widest">
+                              Lab / Diagnostics Financials
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                            <StatCard
+                              label="Test Billed"
+                              value={`₹${parseFloat(String(patientData.test_billed_amount || 0)).toLocaleString()}`}
+                              icon={FlaskConical}
+                              color="amber"
+                            />
+                            <StatCard
+                              label="Test Paid"
+                              value={`₹${parseFloat(String(patientData.test_paid_amount || 0)).toLocaleString()}`}
+                              icon={Wallet}
+                              color="blue"
+                            />
+                            <StatCard
+                              label="Test Due"
+                              value={`₹${Math.max(0, parseFloat(String(patientData.test_billed_amount || 0)) - parseFloat(String(patientData.test_paid_amount || 0))).toLocaleString()}`}
+                              icon={AlertTriangle}
+                              color={
+                                Math.max(
+                                  0,
+                                  parseFloat(
+                                    String(patientData.test_billed_amount || 0),
+                                  ) -
+                                    parseFloat(
+                                      String(patientData.test_paid_amount || 0),
+                                    ),
+                                ) > 0
+                                  ? "rose"
+                                  : "emerald"
+                              }
+                              subtext={
+                                Math.max(
+                                  0,
+                                  parseFloat(
+                                    String(patientData.test_billed_amount || 0),
+                                  ) -
+                                    parseFloat(
+                                      String(patientData.test_paid_amount || 0),
+                                    ),
+                                ) > 0
+                                  ? "Diagnostics Pending"
+                                  : "Lab Clear"
+                              }
+                            />
+                          </div>
+                        </div>
+                      )}
 
                       {/* Plan Progress & Quick Actions */}
                       <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
@@ -736,7 +805,11 @@ const PatientDetailsModal = () => {
                               .map((t: any, idx: number) => (
                                 <div
                                   key={idx}
-                                  className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5 flex flex-col gap-2"
+                                  className={`p-4 rounded-2xl border flex flex-col gap-2 transition-all ${
+                                    t.refund_status === "initiated"
+                                      ? "bg-slate-100 dark:bg-white/5 border-slate-200 dark:border-white/10 opacity-60 grayscale"
+                                      : "bg-slate-50 dark:bg-slate-900/50 border-slate-100 dark:border-white/5"
+                                  }`}
                                 >
                                   <div className="flex justify-between items-start">
                                     <div>
@@ -747,17 +820,24 @@ const PatientDetailsModal = () => {
                                         {t.test_uid}
                                       </p>
                                     </div>
-                                    <span
-                                      className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${
-                                        t.test_status === "completed"
-                                          ? "bg-emerald-500/10 text-emerald-500"
-                                          : t.test_status === "cancelled"
-                                            ? "bg-rose-500/10 text-rose-500"
-                                            : "bg-amber-500/10 text-amber-500"
-                                      }`}
-                                    >
-                                      {t.test_status}
-                                    </span>
+                                    <div className="flex flex-col items-end gap-1">
+                                      <span
+                                        className={`px-2 py-1 rounded-md text-[9px] font-black uppercase tracking-widest ${
+                                          t.test_status === "completed"
+                                            ? "bg-emerald-500/10 text-emerald-500"
+                                            : t.test_status === "cancelled"
+                                              ? "bg-rose-500/10 text-rose-500"
+                                              : "bg-amber-500/10 text-amber-500"
+                                        }`}
+                                      >
+                                        {t.test_status}
+                                      </span>
+                                      {t.refund_status === "initiated" && (
+                                        <span className="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-500 text-[8px] font-bold uppercase tracking-tighter animate-pulse">
+                                          Refund Initiated
+                                        </span>
+                                      )}
+                                    </div>
                                   </div>
                                   <div className="flex justify-between items-end mt-2 pt-2 border-t border-slate-100 dark:border-white/5">
                                     <p className="text-[10px] font-medium text-slate-400">
@@ -766,7 +846,9 @@ const PatientDetailsModal = () => {
                                         "dd MMM, yyyy",
                                       )}
                                     </p>
-                                    <p className="text-xs font-black text-slate-700 dark:text-slate-300">
+                                    <p
+                                      className={`text-xs font-black ${t.refund_status === "initiated" ? "text-slate-400 line-through" : "text-slate-700 dark:text-slate-300"}`}
+                                    >
                                       ₹
                                       {parseFloat(
                                         t.total_amount,
