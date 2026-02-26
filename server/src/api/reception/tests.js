@@ -777,6 +777,8 @@ async function fetchTestSchedule(req, res, branchId, input) {
         console.error("Fetch Test Schedule Error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
+}
+
 async function updateTestStatus(req, res, branchId, input) {
     const { test_id, status } = input;
     if (!test_id || !status) throw new Error("Test ID and Status required");
