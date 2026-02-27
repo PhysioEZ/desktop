@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   TestTube2,
@@ -21,6 +21,7 @@ import { useThemeStore } from "../store/useThemeStore";
 import Sidebar from "../components/Sidebar";
 import PageHeader from "../components/PageHeader";
 import { useAuthStore } from "../store/useAuthStore";
+import { useTestStore } from "../store/useTestStore";
 import { API_BASE_URL, authFetch } from "../config";
 import { toast } from "sonner";
 
@@ -62,13 +63,17 @@ const Tests = () => {
   const navigate = useNavigate();
   const { isDark } = useThemeStore();
   const { user: _user } = useAuthStore();
+  const { tests: cachedTests, stats: cachedStats } = useTestStore();
 
   // State
-  const [records, setRecords] = useState<TestRecord[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [records, setRecords] = useState<TestRecord[]>(
+    cachedTests && cachedTests.length > 0 ? (cachedTests as any) : [],
+  );
+  const [isLoading, setIsLoading] = useState(
+    cachedTests && cachedTests.length > 0 ? false : true,
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [appliedSearchQuery, setAppliedSearchQuery] = useState("");
-  const [activeTab] = useState("All");
 
   const [testTypeFilter, setTestTypeFilter] = useState("All");
   const [paymentFilter, setPaymentFilter] = useState("All");
@@ -77,15 +82,19 @@ const Tests = () => {
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
 
-  const [stats, setStats] = useState({
-    total: 0,
-    completed: 0,
-    pending: 0,
-    cancelled: 0,
-    total_revenue: 0,
-    total_paid: 0,
-    total_due: 0,
-  });
+  const [stats, setStats] = useState(
+    cachedStats && cachedStats.total > 0
+      ? cachedStats
+      : {
+          total: 0,
+          completed: 0,
+          pending: 0,
+          cancelled: 0,
+          total_revenue: 0,
+          total_paid: 0,
+          total_due: 0,
+        },
+  );
 
   const [refreshCooldown, setRefreshCooldown] = useState(0);
 
@@ -258,7 +267,22 @@ const Tests = () => {
     }
   };
 
+  const isFirstMount = useRef(true);
+
   useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      if (
+        records.length > 0 &&
+        statusFilter === "All" &&
+        paymentFilter === "All" &&
+        testTypeFilter === "All" &&
+        appliedSearchQuery === ""
+      ) {
+        fetchApprovals();
+        return;
+      }
+    }
     fetchTests(1, appliedSearchQuery);
   }, [statusFilter, paymentFilter, testTypeFilter]);
 

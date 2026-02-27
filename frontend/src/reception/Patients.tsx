@@ -76,11 +76,27 @@ const Patients = () => {
     if (user?.branch_id) fetchMetaData(user.branch_id);
   }, [user?.branch_id]);
 
+  const isFirstMount = useRef(true);
+
   // Fetch Patients on Filter/Page Change
   useEffect(() => {
     if (!user?.branch_id) return;
 
-    const runFetch = () => fetchPatients(user.branch_id);
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      if (
+        patients.length > 0 &&
+        filters.search === "" &&
+        filters.service_type === "" &&
+        filters.doctor === "" &&
+        filters.treatment === "" &&
+        filters.status === ""
+      ) {
+        return;
+      }
+    }
+
+    const runFetch = () => fetchPatients(user.branch_id as number);
 
     if (patients.length === 0) {
       runFetch();

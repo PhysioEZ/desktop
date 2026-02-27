@@ -9,9 +9,13 @@ import {
   Sparkles,
   User as UserIcon,
 } from "lucide-react";
-import { API_BASE_URL } from "../config";
+import { API_BASE_URL, authFetch } from "../config";
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
+import { useDashboardStore } from "../store/useDashboardStore";
+import { useRegistrationStore } from "../store/useRegistrationStore";
+import { usePatientStore } from "../store/usePatientStore";
+import { useTestStore } from "../store/useTestStore";
 
 const bootSteps = [
   "Verifying identity and role claims",
@@ -47,81 +51,160 @@ const WelcomeScreen = () => {
   }, [user, navigate]);
 
   useEffect(() => {
-    const duration = 3000;
-    const intervalTime = 30;
-    const increment = (intervalTime / duration) * 100;
+    // We want the progress bar to hit 100% when both minimum time has passed AND API calls are done.
+    let isApiDone = false;
+    let currentProgress = 0;
+    const minDuration = 1500; // minimum visual duration
+    const startTime = Date.now();
 
-    const timer = setInterval(() => {
-      setProgress((prev) => {
-        const next = prev + increment;
-        if (next >= 100) {
-          clearInterval(timer);
-          setIsReady(true);
-          return 100;
-        }
-        return next;
-      });
-    }, intervalTime);
+    const doPrefetches = async () => {
+      try {
+        if (!user?.branch_id) return;
 
-    const redirectTimer = setTimeout(() => {
-      if (
-        user?.role === "admin" ||
-        user?.role === "superadmin" ||
-        user?.role === "developer"
-      ) {
-        navigate("/admin/dashboard");
-      } else {
-        navigate("/reception/dashboard");
+        // Parallel API fetches
+        await Promise.allSettled([
+          // Dashboard
+          authFetch(
+            `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
+          )
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.status === "success" || data.success) {
+                useDashboardStore.getState().setData(data.data);
+                if (data.data.serverTime) {
+                  useDashboardStore
+                    .getState()
+                    .setLastSync(data.data.serverTime);
+                }
+              }
+            }),
+
+          // Registrations
+          authFetch(`${API_BASE_URL}/reception/registration`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "fetch",
+              branch_id: user.branch_id,
+              limit: 1000,
+              page: 1,
+            }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.status === "success" || data.success) {
+                useRegistrationStore
+                  .getState()
+                  .setRegistrations(data.data || []);
+                useRegistrationStore.getState().setLastFetched(Date.now());
+                useRegistrationStore.getState().setLastParams({
+                  action: "fetch",
+                  branch_id: user.branch_id,
+                  limit: 1000,
+                  page: 1,
+                });
+              }
+            }),
+
+          // Patients Data & Metadata
+          usePatientStore.getState().fetchMetaData(user.branch_id),
+          usePatientStore.getState().fetchPatients(user.branch_id),
+
+          // Tests
+          useTestStore.getState().fetchTests(user.branch_id, 1, 15),
+        ]);
+      } catch (e) {
+        console.error("Prefetch errors: ", e);
+      } finally {
+        isApiDone = true;
       }
-    }, duration + 800);
-
-    return () => {
-      clearInterval(timer);
-      clearTimeout(redirectTimer);
     };
+
+    doPrefetches();
+
+    const updateInterval = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+
+      // Calculate fake visual progress out of 80% based on minDuration
+      let visualProgress = (elapsed / minDuration) * 80;
+      if (visualProgress > 80) visualProgress = 80;
+
+      // Make progress jump to 100% when API is done and visual minimum passed
+      if (isApiDone && elapsed > minDuration) {
+        currentProgress += 5; // Animate smoothly to 100
+        if (currentProgress >= 100) {
+          setProgress(100);
+          setIsReady(true);
+          clearInterval(updateInterval);
+
+          setTimeout(() => {
+            if (
+              user?.role === "admin" ||
+              user?.role === "superadmin" ||
+              user?.role === "developer"
+            ) {
+              navigate("/admin/dashboard");
+            } else {
+              navigate("/reception/dashboard");
+            }
+          }, 800);
+          return;
+        }
+      } else {
+        // Just use visual progress, maxing out at 80% if API is slow
+        currentProgress = visualProgress;
+      }
+      setProgress(currentProgress);
+    }, 30);
+
+    return () => clearInterval(updateInterval);
   }, [navigate, user]);
 
   if (!user) return null;
 
   return (
     <div
-      className={`relative min-h-screen overflow-hidden transition-colors duration-700 ${
-        isDark ? "bg-[#060A12]" : "bg-[#F2F7FB]"
-      }`}
+      className={`relative min-h-screen overflow-hidden flex items-center justify-center p-4 transition-colors duration-700 dark:bg-[#05060A] bg-slate-50`}
     >
-      <div className="pointer-events-none absolute inset-0">
-        <motion.div
-          animate={{ x: [0, 70, 0], y: [0, -40, 0], opacity: [0.22, 0.34, 0.22] }}
-          transition={{ duration: 18, repeat: Infinity, ease: "linear" }}
-          className={`absolute -left-20 -top-24 h-[26rem] w-[26rem] rounded-full blur-3xl ${
-            isDark ? "bg-emerald-500/20" : "bg-emerald-300/35"
-          }`}
-        />
-        <motion.div
-          animate={{ x: [0, -50, 0], y: [0, 35, 0], opacity: [0.16, 0.28, 0.16] }}
-          transition={{ duration: 16, repeat: Infinity, ease: "linear" }}
-          className={`absolute -bottom-24 -right-16 h-[28rem] w-[28rem] rounded-full blur-3xl ${
-            isDark ? "bg-cyan-500/20" : "bg-cyan-300/35"
-          }`}
-        />
+      {/* Background Glows (matching Login) */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#00B884]/10 blur-[120px] rounded-full dark:opacity-100 opacity-50" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#3b82f6]/5 blur-[120px] rounded-full dark:opacity-100 opacity-30" />
       </div>
 
-      <main className="relative z-10 mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center p-5 sm:p-10">
+      <main className="relative z-10 w-full max-w-[1200px] flex items-center justify-center p-4">
         <motion.div
-          initial={{ opacity: 0, y: 20, scale: 0.98 }}
+          initial={{ opacity: 0, y: 30, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="grid w-full overflow-hidden rounded-[2rem] border border-white/20 bg-white/50 shadow-[0_28px_72px_-30px_rgba(15,30,50,0.42)] backdrop-blur-xl dark:border-white/10 dark:bg-[#0A1220]/70 lg:grid-cols-[0.95fr_1.05fr]"
+          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          className="grid w-full min-h-[600px] lg:min-h-[700px] grid-cols-1 md:grid-cols-[0.8fr_1.2fr] overflow-hidden rounded-[32px] border dark:border-white/10 border-slate-200 dark:bg-[#0B0D11] bg-white shadow-[0_20px_50px_-20px_rgba(0,0,0,0.1)] dark:shadow-[0_40px_100px_-20px_rgba(0,0,0,0.8)] hover:shadow-2xl transition-[box-shadow,transform] duration-700 hover:-translate-y-1"
         >
-          <section className="border-b border-white/20 p-7 sm:p-10 dark:border-white/10 lg:border-b-0 lg:border-r">
-            <div className="mb-7 inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-300">
-              <Sparkles size={14} />
-              Session Handoff
-            </div>
+          {/* Left Column: User Context */}
+          <section className="relative flex flex-col justify-center p-8 lg:p-14 border-b dark:border-white/5 border-slate-100 md:border-b-0 md:border-r dark:bg-gradient-to-br dark:from-[#101318] dark:to-[#0B0D11] bg-slate-50/50 overflow-hidden">
+            <motion.div
+              animate={{ opacity: [0.1, 0.2, 0.1], scale: [1, 1.1, 1] }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+              className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"
+            />
 
-            <div className="space-y-5">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="mb-10 inline-flex items-center gap-2 w-fit rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-[#00B884] relative z-10"
+            >
+              <Sparkles size={12} className="text-[#00B884]" />
+              Authenticating
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.5 }}
+              className="space-y-8 relative z-10"
+            >
               <div className="relative w-fit">
-                <div className="h-28 w-28 overflow-hidden rounded-[1.6rem] border-2 border-white/60 bg-white shadow-xl dark:border-white/10 dark:bg-white/5">
+                <div className="h-24 w-24 overflow-hidden rounded-[24px] border-2 border-white dark:border-white/10 bg-white dark:bg-[#1A1D23] shadow-lg">
                   {user.photo ? (
                     <img
                       src={`${API_BASE_URL.replace("/api", "")}/${user.photo}`}
@@ -129,123 +212,142 @@ const WelcomeScreen = () => {
                       className="h-full w-full object-cover"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src =
-                          `https://ui-avatars.com/api/?name=${user.name}&background=10b981&color=fff&bold=true`;
+                          `https://ui-avatars.com/api/?name=${user.name}&background=00B884&color=fff&bold=true`;
                       }}
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center">
                       <UserIcon
-                        size={44}
+                        size={36}
                         className="text-slate-400 dark:text-slate-500"
                       />
                     </div>
                   )}
                 </div>
-                <div className="absolute -bottom-2 -right-2 inline-flex items-center gap-1 rounded-full bg-emerald-500 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-black">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-black" />
+                <div className="absolute -bottom-2 -right-2 inline-flex items-center gap-1.5 rounded-full bg-[#00B884] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-black shadow-sm">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
+                  </span>
                   Active
                 </div>
               </div>
 
               <div>
-                <h1 className="text-3xl font-black tracking-tight text-slate-900 dark:text-white">
-                  Welcome back,{" "}
-                  <span className="text-emerald-500">
-                    {user.name.split(" ")[0]}
-                  </span>
+                <h1 className="text-3xl font-black tracking-tight dark:text-white text-slate-900 leading-tight">
+                  Welcome back,
+                  <br />
+                  <span className="text-[#00B884]">{user.name}</span>
                 </h1>
-                <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-                  We are preparing your secured workspace and personalized
-                  reception controls.
+                <p className="mt-3 text-sm font-medium leading-relaxed dark:text-slate-400 text-slate-600 max-w-[240px]">
+                  Preparing your secured workspace and operational modules.
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-4 dark:border-white/10 dark:bg-white/5">
-                <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-300">
-                  <ShieldCheck size={13} className="text-emerald-500" />
+              <div className="mt-8 pt-6 border-t dark:border-white/5 border-slate-200/60">
+                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                  <ShieldCheck size={14} className="opacity-60" />
                   Role Profile
                 </div>
-                <p className="mt-2 text-sm font-semibold capitalize text-slate-900 dark:text-white">
+                <p className="mt-2 text-sm font-bold capitalize text-slate-900 dark:text-white">
                   {user.role}
                 </p>
               </div>
-            </div>
+            </motion.div>
           </section>
 
-          <section className="p-7 sm:p-10">
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-300">
-                  Workspace Initialization
-                </p>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-300">
-                  {Math.round(progress)}%
-                </p>
+          {/* Right Column: Loading Sequence */}
+          <section className="flex flex-col justify-center p-8 lg:p-16 dark:bg-[#0B0D11] bg-white">
+            <div className="w-full space-y-10">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">
+                    System Initialization
+                  </p>
+                  <p className="text-lg font-black tracking-tight text-[#00B884]">
+                    {Math.round(progress)}%
+                  </p>
+                </div>
+
+                <div className="h-2 w-full overflow-hidden rounded-full dark:bg-white/5 bg-slate-100">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    className="relative h-full rounded-full bg-[#00B884] shadow-[0_0_15px_rgba(0,184,132,0.8)]"
+                  >
+                    <div className="absolute right-0 top-0 h-full w-24 bg-white/30 blur-md" />
+                  </motion.div>
+                </div>
               </div>
 
-              <div className="h-2.5 overflow-hidden rounded-full bg-slate-200 dark:bg-white/10">
-                <motion.div
-                  initial={{ width: 0 }}
-                  animate={{ width: `${progress}%` }}
-                  className="relative h-full rounded-full bg-emerald-500"
-                >
-                  <div className="absolute right-0 top-0 h-full w-24 bg-white/30 blur-md" />
-                </motion.div>
-              </div>
-
-              <div className="space-y-3">
+              <div className="space-y-5">
                 {bootSteps.map((step, index) => {
                   const isComplete = progress >= (index + 1) * 33;
                   const isCurrent = index === currentStep && !isComplete;
 
                   return (
-                    <div
+                    <motion.div
                       key={step}
-                      className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition ${
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.5 + index * 0.1, duration: 0.5 }}
+                      className={`flex items-center gap-4 rounded-2xl border px-6 py-4 transition-all duration-300 ${
                         isComplete
-                          ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                          ? "border-[#00B884]/20 bg-[#00B884]/5 text-[#00B884]"
                           : isCurrent
-                            ? "border-cyan-300 bg-cyan-50 text-cyan-700 dark:border-cyan-500/30 dark:bg-cyan-500/10 dark:text-cyan-300"
-                            : "border-slate-200 bg-white/70 text-slate-500 dark:border-white/10 dark:bg-white/5 dark:text-slate-400"
+                            ? "dark:border-white/10 border-slate-200 dark:bg-[#1A1D23] bg-slate-50 text-slate-900 dark:text-white"
+                            : "border-transparent text-slate-400 dark:text-slate-500 opacity-60"
                       }`}
                     >
                       {isComplete ? (
-                        <CheckCircle2 size={16} />
+                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#00B884]/10">
+                          <CheckCircle2 size={16} />
+                        </div>
                       ) : (
-                        <Activity
-                          size={16}
-                          className={isCurrent ? "animate-pulse" : ""}
-                        />
+                        <div
+                          className={`flex h-8 w-8 items-center justify-center rounded-full ${isCurrent ? "dark:bg-white/10 bg-slate-200" : "dark:bg-white/5 bg-slate-100"}`}
+                        >
+                          <Activity
+                            size={14}
+                            className={
+                              isCurrent
+                                ? "animate-[spin_3s_linear_infinite]"
+                                : ""
+                            }
+                          />
+                        </div>
                       )}
-                      <span className="text-sm font-medium">{step}</span>
-                    </div>
+                      <span className="text-[14px] font-bold tracking-wide">
+                        {step}
+                      </span>
+                    </motion.div>
                   );
                 })}
               </div>
 
-              <div className="pt-2">
+              <div className="pt-4 flex justify-end">
                 <AnimatePresence mode="wait">
                   {isReady ? (
                     <motion.div
                       key="ready"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      className="inline-flex items-center gap-2 rounded-full border border-[#00B884]/20 bg-[#00B884]/10 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-[#00B884]"
                     >
                       <CheckCircle2 size={14} />
-                      Launching your dashboard
+                      Dashboard Ready
                     </motion.div>
                   ) : (
                     <motion.div
                       key="loading"
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: 20 }}
+                      className="inline-flex items-center gap-2 rounded-full border dark:border-white/10 border-slate-200 dark:bg-white/5 bg-slate-50 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500"
                     >
                       <LayoutDashboard size={14} className="animate-pulse" />
-                      Finalizing modules
+                      Loading App
                     </motion.div>
                   )}
                 </AnimatePresence>

@@ -5,3 +5,4 @@ export * from "./usePatientStore";
 export * from "./useInquiryStore";
 export * from "./useRegistrationStore";
 export * from "./useConfigStore";
+export * from "./useTestStore";
