@@ -26,6 +26,9 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 import Sidebar from "../components/Sidebar";
 import { toast } from "sonner";
+import DailyIntelligence from "../components/DailyIntelligence";
+import NotesDrawer from "../components/NotesDrawer";
+import ChatModal from "../components/Chat/ChatModal";
 
 interface ExpenseRecord {
   id: number;
@@ -137,6 +140,7 @@ const Expenses = () => {
   });
   const [loading, setLoading] = useState(false);
   const [currentDate] = useState(new Date());
+  const [showChatModal, setShowChatModal] = useState(false);
 
   // Pagination & Filter
   const [page, setPage] = useState(1);
@@ -334,7 +338,10 @@ const Expenses = () => {
             `,
         }}
       />
-      <Sidebar />
+      <Sidebar
+        onShowChat={() => setShowChatModal(true)}
+        onShowShortcuts={() => setShowShortcuts(true)}
+      />
 
       {/* === LEFT PANEL (STATS) === */}
       <div
@@ -1253,6 +1260,11 @@ const Expenses = () => {
           </div>
         )}
       </AnimatePresence>
+
+      <ChatModal
+        isOpen={showChatModal}
+        onClose={() => setShowChatModal(false)}
+      />
 
       {/* === BILL PREVIEW MODAL (GLOBAL) === */}
       <AnimatePresence>

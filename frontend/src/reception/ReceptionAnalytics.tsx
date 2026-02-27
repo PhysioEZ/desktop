@@ -18,9 +18,13 @@ import { motion } from "framer-motion";
 import { useThemeStore } from "../store/useThemeStore";
 import Sidebar from "../components/Sidebar";
 import PageHeader from "../components/PageHeader";
+import DailyIntelligence from "../components/DailyIntelligence";
+import NotesDrawer from "../components/NotesDrawer";
 
 const ReceptionAnalytics: React.FC = () => {
     const { isDark } = useThemeStore();
+    const [showIntelligence, setShowIntelligence] = React.useState(false);
+    const [showNotes, setShowNotes] = React.useState(false);
 
     const containerVariants = {
         hidden: { opacity: 0 },
@@ -41,6 +45,8 @@ const ReceptionAnalytics: React.FC = () => {
                     title="Reception Analytics"
                     subtitle="Operational real-time monitoring"
                     icon={Activity}
+                    onShowIntelligence={() => setShowIntelligence(true)}
+                    onShowNotes={() => setShowNotes(true)}
                 />
 
                 <motion.div
@@ -180,6 +186,12 @@ const ReceptionAnalytics: React.FC = () => {
                     </div>
                 </motion.div>
             </main>
+
+            <DailyIntelligence
+                isOpen={showIntelligence}
+                onClose={() => setShowIntelligence(false)}
+            />
+            <NotesDrawer isOpen={showNotes} onClose={() => setShowNotes(false)} />
         </div>
     );
 };
