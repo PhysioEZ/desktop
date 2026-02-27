@@ -121,7 +121,7 @@ const TokenPreviewModal = ({
               {/* Token Preview Card */}
               <div className="bg-white border-2 border-dashed border-slate-300 p-6 rounded-[4px] relative overflow-hidden shadow-sm mx-auto max-w-[300px] text-black font-mono text-xs">
                 {/* Reprint Watermark */}
-                {data.has_token_today && (
+                {data.print_count > 2 && (
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none select-none overflow-hidden opacity-[0.08]">
                     <span className="text-8xl font-black -rotate-45 uppercase tracking-[0.2em] whitespace-nowrap">
                       REPRINT

@@ -48,7 +48,7 @@ export const printToken = (data: any) => {
 
     const htmlContent = `
         <div id="token-print-area">
-            ${data.has_token_today ? '<div class="watermark">REPRINT</div>' : ''}
+            ${data.print_count > 1 ? '<div class="watermark">REPRINT</div>' : ''}
             <div class="text-center mb-2">
                 <h1 class="font-black text-xl uppercase tracking-wider mb-1">${(data.clinic_name || 'PROSPINE').toUpperCase()}</h1>
                 <p class="text-[10px] uppercase font-bold text-center w-full">${(data.branch_address || 'Swami Vivika Nand Road').toUpperCase()}</p>
