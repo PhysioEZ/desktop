@@ -26,8 +26,11 @@ import { API_BASE_URL, authFetch } from "../config";
 
 import Sidebar from "../components/Sidebar";
 import PageHeader from "../components/PageHeader";
+import DailyIntelligence from "../components/DailyIntelligence";
+import NotesDrawer from "../components/NotesDrawer";
 import ActionFAB from "../components/ActionFAB";
 import CustomSelect from "../components/ui/CustomSelect";
+import ChatModal from "../components/Chat/ChatModal";
 
 type TabType = "tests" | "registrations" | "patients" | "inquiries";
 
@@ -38,11 +41,16 @@ const Reports = () => {
   const [activeTab, setActiveTab] = useState<TabType>("tests");
   const [viewMode, setViewMode] = useState<"table" | "visual">("table");
   const [loading, setLoading] = useState(false);
+  const [showChatModal, setShowChatModal] = useState(false);
+
 
   // Data
   const [records, setRecords] = useState<any[]>([]);
   const [totals, setTotals] = useState<any>({});
   const [stats, setStats] = useState<any>({});
+  const [showIntelligence, setShowIntelligence] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
 
   // Filters
   const [dateRange, setDateRange] = useState({
@@ -111,6 +119,19 @@ const Reports = () => {
       setLoading(false);
     }
   };
+
+  const handleRefresh = async () => {
+    if (refreshCooldown > 0) return;
+    await fetchData();
+    setRefreshCooldown(30);
+  };
+
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(() => setRefreshCooldown((p) => p - 1), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [refreshCooldown]);
 
   const handleFilterChange = (key: string, value: string) => {
     setActiveFilters((prev: any) => ({ ...prev, [key]: value }));
@@ -859,15 +880,21 @@ const Reports = () => {
     <div
       className={`flex h-screen overflow-hidden font-sans transition-colors duration-300 ${isDark ? "bg-[#050505] text-slate-200" : "bg-[#FAFAFA] text-slate-900"}`}
     >
-      <Sidebar />
+      <Sidebar
+        onShowChat={() => setShowChatModal(true)}
+        onShowShortcuts={() => setShowShortcuts(true)}
+      />
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <PageHeader
           title="Reports"
-          subtitle="Enterprise Insights"
-          icon={FileText}
-          onRefresh={fetchData}
+          subtitle="Analytical Insights"
+          icon={Activity}
+          onRefresh={handleRefresh}
+          refreshCooldown={refreshCooldown}
           isLoading={loading}
+          onShowIntelligence={() => setShowIntelligence(true)}
+          onShowNotes={() => setShowNotes(true)}
         />
 
         <div className="flex-1 flex overflow-hidden">
@@ -1091,6 +1118,16 @@ const Reports = () => {
         onAction={(act) =>
           navigate("/reception/dashboard", { state: { openModal: act } })
         }
+      />
+
+      <DailyIntelligence
+        isOpen={showIntelligence}
+        onClose={() => setShowIntelligence(false)}
+      />
+      <NotesDrawer isOpen={showNotes} onClose={() => setShowNotes(false)} />
+      <ChatModal
+        isOpen={showChatModal}
+        onClose={() => setShowChatModal(false)}
       />
     </div>
   );

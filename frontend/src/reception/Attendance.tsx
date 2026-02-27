@@ -34,6 +34,8 @@ import Sidebar from "../components/Sidebar";
 import DatePicker from "../components/ui/DatePicker";
 import PageHeader from "../components/PageHeader";
 import { motion, AnimatePresence } from "framer-motion";
+import DailyIntelligence from "../components/DailyIntelligence";
+import NotesDrawer from "../components/NotesDrawer";
 
 // Interfaces
 interface AttendanceRecord {
@@ -80,6 +82,8 @@ const Attendance = () => {
   const [records, setRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const [showIntelligence, setShowIntelligence] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
 
   // Filters & Search
   const [search, setSearch] = useState("");
@@ -183,12 +187,12 @@ const Attendance = () => {
           },
           attendance_history: Array.isArray(data.history)
             ? data.history.map((item: any) => ({
-                date: item.attendance_date
-                  ? format(new Date(item.attendance_date), "yyyy-MM-dd")
-                  : "",
-                status: item.status || "present",
-                remarks: item.remarks || "",
-              }))
+              date: item.attendance_date
+                ? format(new Date(item.attendance_date), "yyyy-MM-dd")
+                : "",
+              status: item.status || "present",
+              remarks: item.remarks || "",
+            }))
             : [],
         };
         setSelectedPatientHistory(transformed);
@@ -217,12 +221,12 @@ const Attendance = () => {
       if (data.success) {
         const history = Array.isArray(data.history)
           ? data.history.map((item: any) => ({
-              date: item.attendance_date
-                ? format(new Date(item.attendance_date), "yyyy-MM-dd")
-                : "",
-              status: item.status || "present",
-              remarks: item.remarks || "",
-            }))
+            date: item.attendance_date
+              ? format(new Date(item.attendance_date), "yyyy-MM-dd")
+              : "",
+            status: item.status || "present",
+            remarks: item.remarks || "",
+          }))
           : [];
         setSelectedDateHistory(history);
       }
@@ -287,6 +291,8 @@ const Attendance = () => {
           onRefresh={handleRefresh}
           refreshCooldown={refreshCooldown}
           isLoading={loading}
+          onShowIntelligence={() => setShowIntelligence(true)}
+          onShowNotes={() => setShowNotes(true)}
         />
 
         <div className="flex-1 flex overflow-hidden">
@@ -726,14 +732,13 @@ const Attendance = () => {
                         onClick={() =>
                           fetchAttendanceHistory(record.id || record.patient_id)
                         }
-                        className={`grid grid-cols-12 px-10 py-6 items-center group cursor-pointer transition-all ${
-                          selectedPatientHistory?.patient.id ===
-                          (record.id || record.patient_id)
+                        className={`grid grid-cols-12 px-10 py-6 items-center group cursor-pointer transition-all ${selectedPatientHistory?.patient.id ===
+                            (record.id || record.patient_id)
                             ? isDark
                               ? "bg-white/[0.02]"
                               : "bg-slate-50"
                             : "hover:bg-slate-50/50 dark:hover:bg-white/5"
-                        }`}
+                          }`}
                       >
                         <div className="col-span-1 font-mono text-[11px] font-semibold text-slate-400">
                           #{record.id || record.patient_id}
@@ -780,8 +785,7 @@ const Attendance = () => {
 
                         <div className="col-span-3 flex justify-end">
                           <div
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-semibold transition-all border ${
-                              record.status === "Present"
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-semibold transition-all border ${record.status === "Present"
                                 ? isDark
                                   ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
                                   : "bg-emerald-50 border-emerald-100 text-emerald-600"
@@ -790,7 +794,7 @@ const Attendance = () => {
                                     ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
                                     : "bg-amber-50 border-amber-100 text-amber-600"
                                   : "bg-slate-100 dark:bg-white/5 border-transparent text-slate-400"
-                            }`}
+                              }`}
                           >
                             {record.status === "Present" && (
                               <CheckCircle2 size={14} />
@@ -828,6 +832,12 @@ const Attendance = () => {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <DailyIntelligence
+          isOpen={showIntelligence}
+          onClose={() => setShowIntelligence(false)}
+        />
+        <NotesDrawer isOpen={showNotes} onClose={() => setShowNotes(false)} />
       </div>
     </div>
   );

@@ -9,7 +9,6 @@ import {
   RefreshCw,
   ChevronLeft,
   ChevronRight,
-  ChevronDown,
   Eye,
   Plus,
   PieChart,
@@ -22,10 +21,16 @@ import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { API_BASE_URL, authFetch } from "../config";
-import { useAuthStore, useThemeStore } from "../store";
+import {
+  useDashboardStore,
+  useThemeStore,
+} from "../store";
 import PageHeader from "../components/PageHeader";
 import Sidebar from "../components/Sidebar";
 import FileViewer from "../components/FileViewer/FileViewer";
+import DailyIntelligence from "../components/DailyIntelligence";
+import NotesDrawer from "../components/NotesDrawer";
+import ChatModal from "../components/Chat/ChatModal";
 
 interface FeedbackRecord {
   id: number;
@@ -43,7 +48,6 @@ interface FeedbackRecord {
 }
 
 const Feedback = () => {
-  const { user } = useAuthStore();
   const { isDark } = useThemeStore();
 
   // State
@@ -57,6 +61,11 @@ const Feedback = () => {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [currentDate] = useState(new Date());
+  const [showIntelligence, setShowIntelligence] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const [showChatModal, setShowChatModal] = useState(false);
+
 
   // Pagination & Filters
   const [page, setPage] = useState(1);
@@ -100,6 +109,19 @@ const Feedback = () => {
       setLoading(false);
     }
   }, [page, limit]);
+
+  const handleRefresh = async () => {
+    if (refreshCooldown > 0) return;
+    await fetchFeedback();
+    setRefreshCooldown(30);
+  };
+
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(() => setRefreshCooldown((p) => p - 1), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [refreshCooldown]);
 
   useEffect(() => {
     fetchFeedback();
@@ -281,15 +303,21 @@ const Feedback = () => {
     <div
       className={`flex h-screen overflow-hidden font-sans transition-colors duration-300 ${isDark ? "bg-[#050505] text-slate-200" : "bg-[#FAFAFA] text-slate-900"}`}
     >
-      <Sidebar />
+      <Sidebar
+        onShowChat={() => setShowChatModal(true)}
+        onShowShortcuts={() => setShowShortcuts(true)}
+      />
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <PageHeader
           title="Feedback"
-          subtitle="Customer Reviews"
+          subtitle="Patient Experience Quality"
           icon={MessageSquare}
-          onRefresh={fetchFeedback}
+          onRefresh={handleRefresh}
+          refreshCooldown={refreshCooldown}
           isLoading={loading}
+          onShowIntelligence={() => setShowIntelligence(true)}
+          onShowNotes={() => setShowNotes(true)}
         />
 
         <div className="flex-1 flex overflow-hidden">
@@ -1244,7 +1272,17 @@ const Feedback = () => {
           downloadUrl={fileViewerConfig.downloadUrl}
           downloadFileName={fileViewerConfig.downloadFileName}
         />
-      </div >
+
+        <DailyIntelligence
+          isOpen={showIntelligence}
+          onClose={() => setShowIntelligence(false)}
+        />
+        <NotesDrawer isOpen={showNotes} onClose={() => setShowNotes(false)} />
+        <ChatModal
+          isOpen={showChatModal}
+          onClose={() => setShowChatModal(false)}
+        />
+      </div>
     </div >
   );
 };

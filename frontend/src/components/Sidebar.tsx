@@ -23,6 +23,8 @@ import {
   User,
   LogOut,
   Activity,
+  CalendarCheck,
+  Wallet,
 } from "lucide-react";
 
 import pack from "../../package.json";
@@ -90,7 +92,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
       path: "/reception/billing",
     },
     {
-      icon: Users,
+      icon: CalendarCheck,
       label: "Attendance",
       desc: "Daily Track",
       path: "/reception/attendance",
@@ -113,14 +115,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
       desc: "Analytics",
       path: "/reception/reports",
     },
+    // {
+    //   icon: Activity,
+    //   label: "Ops Analytics",
+    //   desc: "Reception Insights",
+    //   path: "/reception/reception-analytics",
+    // },
     {
-      icon: Activity,
-      label: "Ops Analytics",
-      desc: "Reception Insights",
-      path: "/reception/reception-analytics",
-    },
-    {
-      icon: PieChart,
+      icon: Wallet,
       label: "Expenses",
       desc: "Clinic Exp",
       path: "/reception/expenses",

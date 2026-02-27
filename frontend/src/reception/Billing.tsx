@@ -35,6 +35,11 @@ import { usePatientStore } from "../store/usePatientStore";
 import PageHeader from "../components/PageHeader";
 import Sidebar from "../components/Sidebar";
 import TestDetailsModal from "../components/reception/TestDetailsModal";
+import DailyIntelligence from "../components/DailyIntelligence";
+import NotesDrawer from "../components/NotesDrawer";
+import LogoutConfirmation from "../components/LogoutConfirmation";
+import ChatModal from "../components/Chat/ChatModal";
+import KeyboardShortcuts from "../components/KeyboardShortcuts";
 
 interface BillingRecord {
   patient_id: number;
@@ -75,6 +80,8 @@ const Billing = () => {
   const [groupedTests, setGroupedTests] = useState<any[]>([]);
 
   const [statsData, setStatsData] = useState<any>({ methods: [], trends: [] });
+  const [showChatModal, setShowChatModal] = useState(false);
+
 
   // Custom Range States
   const [isCustomRange, setIsCustomRange] = useState(false);
@@ -103,7 +110,11 @@ const Billing = () => {
     fileName: string;
     downloadUrl?: string;
     downloadFileName?: string;
-  }>({ isOpen: false, url: "", fileName: "" });
+  }>({ isOpen: false, url: "", fileName: "", downloadUrl: "", downloadFileName: "" });
+
+  const [showIntelligence, setShowIntelligence] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
 
   const searchRef = useRef<HTMLDivElement>(null);
 
@@ -191,6 +202,19 @@ const Billing = () => {
       setLoading(false);
     }
   };
+
+  const handleRefresh = async () => {
+    if (refreshCooldown > 0) return;
+    await fetchData();
+    setRefreshCooldown(30);
+  };
+
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(() => setRefreshCooldown((p) => p - 1), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [refreshCooldown]);
 
   // Redundant fetchNotifs removed
 
@@ -481,15 +505,21 @@ const Billing = () => {
     <div
       className={`flex h-screen overflow-hidden font-sans transition-colors duration-300 ${isDark ? "bg-[#050505] text-[#E2E8F0]" : "bg-[#FAFAFA] text-[#1A1A1A]"}`}
     >
-      <Sidebar />
+      <Sidebar
+        onShowChat={() => setShowChatModal(true)}
+        onShowShortcuts={() => setShowShortcuts(true)}
+      />
 
       <div className="flex-1 h-screen overflow-hidden relative flex flex-col">
         <PageHeader
           title="Billing"
           subtitle="Operations Center"
           icon={Banknote}
-          onRefresh={fetchData}
+          onRefresh={handleRefresh}
+          refreshCooldown={refreshCooldown}
           isLoading={loading}
+          onShowIntelligence={() => setShowIntelligence(true)}
+          onShowNotes={() => setShowNotes(true)}
         />
 
         <div className="flex-1 flex overflow-hidden">
@@ -1520,6 +1550,18 @@ const Billing = () => {
           }}
           test={selectedTest}
         />
+
+        <DailyIntelligence
+          isOpen={showIntelligence}
+          onClose={() => setShowIntelligence(false)}
+        />
+        <NotesDrawer isOpen={showNotes} onClose={() => setShowNotes(false)} />
+
+        <ChatModal
+          isOpen={showChatModal}
+          onClose={() => setShowChatModal(false)}
+        />
+
       </div>
     </div>
   );
