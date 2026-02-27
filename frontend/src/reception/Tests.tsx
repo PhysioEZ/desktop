@@ -185,7 +185,11 @@ const Tests = () => {
     }
   };
 
-  const fetchTests = async (pageNum = 1, searchParam = appliedSearchQuery) => {
+  const fetchTests = async (
+    pageNum = 1,
+    searchParam = appliedSearchQuery,
+    forceRefresh = false,
+  ) => {
     if (pageNum === 1) {
       setIsLoading(true);
     } else {
@@ -219,6 +223,10 @@ const Tests = () => {
         `${API_BASE_URL}/reception/tests?${params.toString()}`,
         {
           method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(forceRefresh && { "X-Refresh": "true" }),
+          },
           body: JSON.stringify(bodyData),
         },
       );
@@ -295,7 +303,7 @@ const Tests = () => {
 
   const handleRefresh = () => {
     if (refreshCooldown > 0) return;
-    fetchTests(1, appliedSearchQuery);
+    fetchTests(1, appliedSearchQuery, true);
     setRefreshCooldown(30);
   };
 

@@ -60,7 +60,7 @@ exports.submitRegistration = async (req, res) => {
         // Upsert counter
         await connection.query(`
             INSERT INTO daily_patient_counter (entry_date, counter) VALUES (?, 1)
-            ON DUPLICATE KEY UPDATE counter = counter + 1
+            ON CONFLICT(entry_date) DO UPDATE SET counter = counter + 1
         `, [today]);
 
         const [counterRows] = await connection.query("SELECT counter FROM daily_patient_counter WHERE entry_date = ?", [today]);

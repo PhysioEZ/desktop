@@ -122,8 +122,8 @@ const Patients = () => {
     if (refreshCooldown > 0 || !user?.branch_id) return;
     const loadToast = toast.loading("Refreshing patients...");
     try {
-      await fetchPatients(user.branch_id);
-      await fetchMetaData(user.branch_id);
+      await fetchPatients(user.branch_id, true);
+      await fetchMetaData(user.branch_id, true);
       toast.success("Patient list updated", { id: loadToast });
       setRefreshCooldown(20);
     } catch (e) {

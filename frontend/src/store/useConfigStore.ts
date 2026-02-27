@@ -13,6 +13,7 @@ interface ConfigStore {
   isLoading: boolean;
   fetchPaymentMethods: (force?: boolean) => Promise<void>;
   setPaymentMethods: (methods: PaymentMethod[]) => void;
+  clearStore: () => void;
 }
 
 export const useConfigStore = create<ConfigStore>()(
@@ -50,6 +51,8 @@ export const useConfigStore = create<ConfigStore>()(
 
       setPaymentMethods: (paymentMethods) => 
         set({ paymentMethods, lastUpdated: Date.now() }),
+
+      clearStore: () => set({ paymentMethods: null, lastUpdated: null, isLoading: false }),
     }),
     {
       name: "config-storage",

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const rateLimit = require('express-rate-limit');
 const loginController = require('./login');
+const { clearCache } = require('./clearCache');
 
 // Strict Rate Limit for Login (5 requests per minute)
 const loginLimiter = rateLimit({
@@ -14,5 +15,6 @@ const loginLimiter = rateLimit({
 });
 
 router.post('/login', loginLimiter, loginController.login);
+router.post('/clear-cache', clearCache);
 
 module.exports = router;

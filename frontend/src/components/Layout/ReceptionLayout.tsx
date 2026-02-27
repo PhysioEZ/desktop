@@ -3,9 +3,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Search, Moon, Sun, Bell, User, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "../../store/useAuthStore";
-import { API_BASE_URL, authFetch } from "../../config";
+import { useDashboardStore } from "../../store/useDashboardStore";
 import KeyboardShortcuts, { type ShortcutItem } from "../KeyboardShortcuts";
-import GlobalSearch from "../GlobalSearch";
 import LogoutConfirmation from "../LogoutConfirmation";
 
 import ChatModal from "../Chat/ChatModal";
@@ -27,9 +26,7 @@ const ReceptionLayout: React.FC<ReceptionLayoutProps> = ({
   const [isDark, setIsDark] = useState(false);
 
   // Global Search State
-  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
-  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
-  const [globalSearchResults, setGlobalSearchResults] = useState<any[]>([]);
+  const { setShowGlobalSearch } = useDashboardStore();
 
   // Modals & Popups State
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -70,26 +67,7 @@ const ReceptionLayout: React.FC<ReceptionLayoutProps> = ({
   };
 
   // --- Global Search Logic ---
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (globalSearchQuery.trim().length >= 2) {
-        try {
-          const res = await authFetch(
-            `${API_BASE_URL}/reception/search_patients?q=${encodeURIComponent(globalSearchQuery)}&branch_id=${user?.branch_id}`,
-          );
-          const data = await res.json();
-          if (data.success) {
-            setGlobalSearchResults(data.results || []);
-          }
-        } catch (e) {
-          console.error(e);
-        }
-      } else {
-        setGlobalSearchResults([]);
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [globalSearchQuery, user?.branch_id]);
+  // Operated by DashboardStore in GlobalSearchOverlay
 
   // --- Shortcuts ---
   const globalShortcuts: ShortcutItem[] = [
@@ -389,14 +367,6 @@ const ReceptionLayout: React.FC<ReceptionLayoutProps> = ({
       <ChatModal
         isOpen={showChatModal}
         onClose={() => setShowChatModal(false)}
-      />
-      <GlobalSearch
-        isOpen={showGlobalSearch}
-        onClose={() => setShowGlobalSearch(false)}
-        searchQuery={globalSearchQuery}
-        setSearchQuery={setGlobalSearchQuery}
-        searchResults={globalSearchResults}
-        onSearch={() => {}}
       />
     </div>
   );

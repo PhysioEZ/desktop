@@ -102,11 +102,11 @@ async function fetchFilters(req, res, branchId) {
 
     const [referrers] = await pool.query(
         `
-        (SELECT DISTINCT reffered_by FROM registration WHERE branch_id = ? AND reffered_by IS NOT NULL AND reffered_by != '')
+        SELECT DISTINCT reffered_by FROM registration WHERE branch_id = ? AND reffered_by IS NOT NULL AND reffered_by != ''
         UNION
-        (SELECT DISTINCT reffered_by FROM test_inquiry WHERE branch_id = ? AND reffered_by IS NOT NULL AND reffered_by != '')
+        SELECT DISTINCT reffered_by FROM test_inquiry WHERE branch_id = ? AND reffered_by IS NOT NULL AND reffered_by != ''
         UNION
-        (SELECT DISTINCT referred_by AS reffered_by FROM tests WHERE branch_id = ? AND referred_by IS NOT NULL AND referred_by != '')
+        SELECT DISTINCT referred_by AS reffered_by FROM tests WHERE branch_id = ? AND referred_by IS NOT NULL AND referred_by != ''
         ORDER BY reffered_by ASC
     `,
         [branchId, branchId, branchId],

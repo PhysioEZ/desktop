@@ -205,12 +205,13 @@ const DroppableSlot = ({
   return (
     <div
       ref={setNodeRef}
-      className={`min-h-[110px] p-2 border-b border-r transition-all duration-300 relative ${isOver
-        ? "bg-emerald-500/10 dark:bg-emerald-500/20 ring-2 ring-emerald-500/20 ring-inset"
-        : isTodaySlot
-          ? "bg-slate-50/80 dark:bg-white/[0.02]"
-          : "bg-transparent"
-        } ${isDark ? "border-white/5" : "border-gray-50"}`}
+      className={`min-h-[110px] p-2 border-b border-r transition-all duration-300 relative ${
+        isOver
+          ? "bg-emerald-500/10 dark:bg-emerald-500/20 ring-2 ring-emerald-500/20 ring-inset"
+          : isTodaySlot
+            ? "bg-slate-50/80 dark:bg-white/[0.02]"
+            : "bg-transparent"
+      } ${isDark ? "border-white/5" : "border-gray-50"}`}
     >
       <div className="flex flex-col gap-1.5 h-full">{children}</div>
     </div>
@@ -334,7 +335,14 @@ const Schedule = () => {
         );
         const data = await res.json();
         if (data.success) {
-          setScheduleAppointments(data.appointments);
+          // Normalize appointment_date from ISO UTC to local YYYY-MM-DD
+          const normalized = (data.appointments || []).map((a: any) => ({
+            ...a,
+            appointment_date: a.appointment_date
+              ? format(new Date(a.appointment_date), "yyyy-MM-dd")
+              : a.appointment_date,
+          }));
+          setScheduleAppointments(normalized);
           setScheduleWeekStart(weekStartStr);
         }
       } catch (e) {
@@ -709,10 +717,11 @@ const Schedule = () => {
                             className={`absolute -left-[20px] top-4 w-5 h-0.5 ${isDark ? "bg-white/10" : "bg-gray-200"}`}
                           />
                           <div
-                            className={`absolute -left-[8px] top-[14px] w-1.5 h-1.5 rounded-full ${appt.status === "consulted"
-                              ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
-                              : "bg-orange-400 opacity-60"
-                              } group-hover:scale-150 transition-transform duration-300`}
+                            className={`absolute -left-[8px] top-[14px] w-1.5 h-1.5 rounded-full ${
+                              appt.status === "consulted"
+                                ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                                : "bg-orange-400 opacity-60"
+                            } group-hover:scale-150 transition-transform duration-300`}
                           />
 
                           <div
@@ -724,13 +733,13 @@ const Schedule = () => {
                                   <span className="text-xs font-black tracking-[0.2em] text-emerald-500 uppercase">
                                     {appt.appointment_time
                                       ? format(
-                                        parse(
-                                          appt.appointment_time,
-                                          "HH:mm:ss",
-                                          new Date(),
-                                        ),
-                                        "hh:mm a",
-                                      )
+                                          parse(
+                                            appt.appointment_time,
+                                            "HH:mm:ss",
+                                            new Date(),
+                                          ),
+                                          "hh:mm a",
+                                        )
                                       : "--:--"}
                                   </span>
                                   <p className="text-lg font-black tracking-tight truncate">
@@ -738,10 +747,11 @@ const Schedule = () => {
                                   </p>
                                 </div>
                                 <span
-                                  className={`text-[10px] font-black uppercase px-3 py-1 rounded-full shrink-0 ${appt.status === "consulted"
-                                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                                    : "bg-orange-500/10 text-orange-500 border border-orange-500/20"
-                                    }`}
+                                  className={`text-[10px] font-black uppercase px-3 py-1 rounded-full shrink-0 ${
+                                    appt.status === "consulted"
+                                      ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                                      : "bg-orange-500/10 text-orange-500 border border-orange-500/20"
+                                  }`}
                                 >
                                   {appt.status}
                                 </span>
@@ -1077,15 +1087,17 @@ const RescheduleModal = ({
         initial={{ scale: 0.95, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.95, y: 20 }}
-        className={`w-full max-w-4xl max-h-[90vh] rounded-[32px] overflow-hidden shadow-2xl flex flex-col border transition-colors ${isDark
-          ? "bg-[#121412] border-white/5 shadow-black/50"
-          : "bg-white border-gray-100 shadow-xl"
-          }`}
+        className={`w-full max-w-4xl max-h-[90vh] rounded-[32px] overflow-hidden shadow-2xl flex flex-col border transition-colors ${
+          isDark
+            ? "bg-[#121412] border-white/5 shadow-black/50"
+            : "bg-white border-gray-100 shadow-xl"
+        }`}
       >
         {/* Header Enhancement */}
         <div
-          className={`px-8 py-6 flex items-start justify-between border-b ${isDark ? "border-white/5" : "border-gray-50"
-            }`}
+          className={`px-8 py-6 flex items-start justify-between border-b ${
+            isDark ? "border-white/5" : "border-gray-50"
+          }`}
         >
           <div>
             <div className={`flex items-center gap-3 mb-1`}>
@@ -1100,10 +1112,11 @@ const RescheduleModal = ({
           </div>
           <button
             onClick={onClose}
-            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${isDark
-              ? "bg-white/5 hover:bg-white/10"
-              : "bg-gray-100 hover:bg-gray-200"
-              }`}
+            className={`w-10 h-10 rounded-2xl flex items-center justify-center transition-all ${
+              isDark
+                ? "bg-white/5 hover:bg-white/10"
+                : "bg-gray-100 hover:bg-gray-200"
+            }`}
           >
             <X size={20} />
           </button>
@@ -1112,20 +1125,22 @@ const RescheduleModal = ({
         <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-hidden">
           {/* Left Panel: Date Selection */}
           <div
-            className={`md:w-[350px] flex flex-col border-r ${isDark
-              ? "bg-black/20 border-white/5"
-              : "bg-[#F9FAFB] border-gray-100"
-              }`}
+            className={`md:w-[350px] flex flex-col border-r ${
+              isDark
+                ? "bg-black/20 border-white/5"
+                : "bg-[#F9FAFB] border-gray-100"
+            }`}
           >
             <div className="p-8 flex flex-col h-full">
               <label className="text-[10px] font-black uppercase tracking-[0.3em] opacity-30 mb-4 block">
                 Select Date
               </label>
               <div
-                className={`p-4 rounded-[24px] border transition-all ${isDark
-                  ? "bg-white/5 border-white/5"
-                  : "bg-white border-gray-100 shadow-sm"
-                  }`}
+                className={`p-4 rounded-[24px] border transition-all ${
+                  isDark
+                    ? "bg-white/5 border-white/5"
+                    : "bg-white border-gray-100 shadow-sm"
+                }`}
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex flex-col">
@@ -1166,10 +1181,11 @@ const RescheduleModal = ({
                 </label>
                 {selectedSlot && (
                   <div
-                    className={`px-5 py-2 rounded-full text-[10px] font-black tracking-[0.1em] shadow-xl flex items-center gap-2 ${isDark
-                      ? "bg-emerald-500 text-black shadow-emerald-500/20"
-                      : "bg-emerald-500 text-white shadow-emerald-500/30"
-                      }`}
+                    className={`px-5 py-2 rounded-full text-[10px] font-black tracking-[0.1em] shadow-xl flex items-center gap-2 ${
+                      isDark
+                        ? "bg-emerald-500 text-black shadow-emerald-500/20"
+                        : "bg-emerald-500 text-white shadow-emerald-500/30"
+                    }`}
                   >
                     SELECTED:{" "}
                     {format(
@@ -1196,34 +1212,36 @@ const RescheduleModal = ({
                         slot.isBooked &&
                         (selectedDate !== appointment.appointment_date ||
                           slot.time !==
-                          appointment.appointment_time.slice(0, 5));
+                            appointment.appointment_time.slice(0, 5));
 
                       return (
                         <button
                           key={slot.time}
                           disabled={isBooked}
                           onClick={() => setSelectedSlot(slot.time)}
-                          className={`group relative p-4 rounded-[24px] border transition-all duration-300 ${isSelected
-                            ? isDark
-                              ? "bg-emerald-500/10 border-emerald-500 shadow-lg shadow-emerald-500/10"
-                              : "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20"
-                            : isBooked
-                              ? "opacity-10 grayscale border-transparent cursor-not-allowed"
-                              : isDark
-                                ? "bg-white/5 border-white/5 hover:border-emerald-500/30 hover:bg-white/10"
-                                : "bg-white border-gray-100 hover:border-emerald-200 shadow-sm"
-                            }`}
+                          className={`group relative p-4 rounded-[24px] border transition-all duration-300 ${
+                            isSelected
+                              ? isDark
+                                ? "bg-emerald-500/10 border-emerald-500 shadow-lg shadow-emerald-500/10"
+                                : "bg-emerald-500 border-emerald-500 text-white shadow-lg shadow-emerald-500/20"
+                              : isBooked
+                                ? "opacity-10 grayscale border-transparent cursor-not-allowed"
+                                : isDark
+                                  ? "bg-white/5 border-white/5 hover:border-emerald-500/30 hover:bg-white/10"
+                                  : "bg-white border-gray-100 hover:border-emerald-200 shadow-sm"
+                          }`}
                         >
                           <div className="flex flex-col items-start gap-1">
                             <span
-                              className={`text-[9px] font-black uppercase tracking-[0.15em] px-2 py-0.5 rounded-md ${isSelected
-                                ? isDark
-                                  ? "bg-emerald-500/20 text-emerald-400"
-                                  : "bg-white/20 text-white"
-                                : isDark
-                                  ? "bg-white/5 text-white/30"
-                                  : "bg-gray-100 text-gray-400"
-                                }`}
+                              className={`text-[9px] font-black uppercase tracking-[0.15em] px-2 py-0.5 rounded-md ${
+                                isSelected
+                                  ? isDark
+                                    ? "bg-emerald-500/20 text-emerald-400"
+                                    : "bg-white/20 text-white"
+                                  : isDark
+                                    ? "bg-white/5 text-white/30"
+                                    : "bg-gray-100 text-gray-400"
+                              }`}
                             >
                               {slot.time < "12:00"
                                 ? "Morning"
@@ -1264,8 +1282,9 @@ const RescheduleModal = ({
 
         {/* Global Footer (Outside panels to guarantee visibility) */}
         <div
-          className={`p-6 px-8 border-t flex items-center justify-between gap-4 shrink-0 z-20 ${isDark ? "bg-black/40 border-white/5" : "bg-gray-50 border-gray-100"
-            }`}
+          className={`p-6 px-8 border-t flex items-center justify-between gap-4 shrink-0 z-20 ${
+            isDark ? "bg-black/40 border-white/5" : "bg-gray-50 border-gray-100"
+          }`}
         >
           <div className="hidden sm:flex items-center gap-2 opacity-30 italic text-[11px] font-bold">
             <Info size={14} />
@@ -1274,20 +1293,22 @@ const RescheduleModal = ({
           <div className="flex items-center gap-3 w-full sm:w-auto">
             <button
               onClick={onClose}
-              className={`flex-1 sm:flex-none px-8 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${isDark
-                ? "hover:bg-white/5 text-white/40 hover:text-white"
-                : "hover:bg-gray-200 text-gray-500 hover:text-gray-900"
-                }`}
+              className={`flex-1 sm:flex-none px-8 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${
+                isDark
+                  ? "hover:bg-white/5 text-white/40 hover:text-white"
+                  : "hover:bg-gray-200 text-gray-500 hover:text-gray-900"
+              }`}
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving || !selectedSlot}
-              className={`flex-1 sm:flex-none px-8 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl transition-all flex items-center justify-center gap-3 ${isSaving || !selectedSlot
-                ? "opacity-50 grayscale cursor-not-allowed bg-gray-400 text-white shadow-none"
-                : "bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20 active:scale-95"
-                }`}
+              className={`flex-1 sm:flex-none px-8 py-3.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-2xl transition-all flex items-center justify-center gap-3 ${
+                isSaving || !selectedSlot
+                  ? "opacity-50 grayscale cursor-not-allowed bg-gray-400 text-white shadow-none"
+                  : "bg-emerald-500 text-white hover:bg-emerald-600 shadow-emerald-500/20 active:scale-95"
+              }`}
             >
               {isSaving ? (
                 <Loader2 size={16} className="animate-spin" />

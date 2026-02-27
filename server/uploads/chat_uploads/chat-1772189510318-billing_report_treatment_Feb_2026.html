@@ -1,0 +1,180 @@
+
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+          body { font-family: 'Inter', sans-serif; padding: 40px; color: #1a1a1a; background: #fff; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 40px; border-bottom: 2px solid #f1f5f9; pb-20; }
+          .brand { font-size: 24px; font-weight: 900; letter-spacing: -0.02em; color: #10b981; }
+          .report-info { text-align: right; }
+          .report-title { font-size: 32px; font-weight: 900; margin: 0; letter-spacing: -0.04em; }
+          .report-subtitle { font-size: 14px; font-weight: 800; color: #64748b; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+          .report-range { font-size: 14px; font-weight: 700; opacity: 0.4; margin-top: 4px; uppercase; }
+          
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th { text-align: left; padding: 16px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; border-bottom: 1px solid #f1f5f9; }
+          td { padding: 16px; font-size: 13px; font-weight: 600; color: #334155; border-bottom: 1px solid #f8fafc; }
+          .patient-id { color: #10b981; }
+          .amount { text-align: right; font-variant-numeric: tabular-nums; }
+          .status { display: inline-block; padding: 4px 10px; border-radius: 8px; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+          .status-active { background: #ecfdf5; color: #059669; }
+          .status-completed { background: #f0f9ff; color: #0284c7; }
+          
+          .footer { margin-top: 60px; font-size: 10px; font-weight: 700; opacity: 0.3; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="brand">PhysioEZ / Billing</div>
+          <div class="report-info">
+            <h1 class="report-title">Financial Report</h1>
+            <div class="report-subtitle"> (Patients)</div>
+            <p class="report-range">01 Feb 2026 &nbsp;→&nbsp; 28 Feb 2026</p>
+          </div>
+        </div>
+        
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Patient Name</th>
+              <th>Phone</th>
+              <th class="amount">Total Bill</th>
+              <th class="amount">Total Paid</th>
+              <th class="amount">Due</th>
+              <th style="text-align: center">--</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+              <tr>
+                <td>20 Feb 26</td>
+                <td>Ravi (treatment)</td>
+                <td>1111111111</td>
+                <td class="amount">₹5,000</td>
+                <td class="amount">₹3,500</td>
+                <td class="amount">₹500</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            
+              <tr>
+                <td>20 Feb 26</td>
+                <td>Satyam kumar (treatment)</td>
+                <td>9199596520</td>
+                <td class="amount">₹7,500</td>
+                <td class="amount">₹9,500</td>
+                <td class="amount">-₹2,000</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            
+              <tr>
+                <td>20 Feb 26</td>
+                <td>Avinash (treatment)</td>
+                <td>7393983983</td>
+                <td class="amount">₹950</td>
+                <td class="amount">₹40,000</td>
+                <td class="amount">-₹39,050</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            
+              <tr>
+                <td>19 Feb 26</td>
+                <td>Test patients (treatment)</td>
+                <td>8398434839</td>
+                <td class="amount">₹40,000</td>
+                <td class="amount">₹12,000</td>
+                <td class="amount">₹28,000</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            
+              <tr>
+                <td>19 Feb 26</td>
+                <td>Test (treatment)</td>
+                <td>7789928393</td>
+                <td class="amount">₹5,000</td>
+                <td class="amount">₹500</td>
+                <td class="amount">₹4,490</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            
+              <tr>
+                <td>18 Feb 26</td>
+                <td>Avinash (treatment)</td>
+                <td>7383943849</td>
+                <td class="amount">₹5,700</td>
+                <td class="amount">₹5,550</td>
+                <td class="amount">₹150</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            
+              <tr>
+                <td>17 Feb 26</td>
+                <td>Sakshi (treatment)</td>
+                <td>7839928039</td>
+                <td class="amount">₹2,000</td>
+                <td class="amount">₹17,000</td>
+                <td class="amount">-₹15,000</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            
+              <tr>
+                <td>16 Feb 26</td>
+                <td>Sumit (treatment)</td>
+                <td>1234566789</td>
+                <td class="amount">₹4,000</td>
+                <td class="amount">₹3,500</td>
+                <td class="amount">-₹7,500</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            
+              <tr>
+                <td>15 Feb 26</td>
+                <td>Sagar2 (treatment)</td>
+                <td>8938493437</td>
+                <td class="amount">₹2,000</td>
+                <td class="amount">₹1,80,500</td>
+                <td class="amount">-₹1,78,500</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            
+              <tr>
+                <td>12 Feb 26</td>
+                <td>Ishan Mishra (treatment)</td>
+                <td>737437333</td>
+                <td class="amount">₹600</td>
+                <td class="amount">₹600</td>
+                <td class="amount">₹0</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            
+              <tr>
+                <td>12 Feb 26</td>
+                <td>Sakshi (treatment)</td>
+                <td>7839928039</td>
+                <td class="amount">₹750</td>
+                <td class="amount">₹750</td>
+                <td class="amount">₹0</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            
+              <tr>
+                <td>12 Feb 26</td>
+                <td>test (treatment)</td>
+                <td>1234567890</td>
+                <td class="amount">₹1,200</td>
+                <td class="amount">₹2,400</td>
+                <td class="amount">-₹1,200</td>
+                <td style="text-align: center">--</td>
+              </tr>
+            
+          </tbody>
+        </table>
+        
+        <div class="footer">
+          Generated on 2/27/2026, 4:21:44 PM &bull; Secure Financial Report
+        </div>
+      </body>
+      </html>
+    

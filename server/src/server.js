@@ -3,7 +3,7 @@ const cors = require('cors');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
-
+require('./scripts/syncEngine');
 const authRoutes = require('./api/auth/router');
 
 const app = express();
@@ -12,14 +12,14 @@ const PORT = process.env.PORT || 3000;
 // Rate Turners
 const globalLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
-    limit: 100, // Limit each IP to 100 requests per `window` (here, per 1 minute)
-    standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-    legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+    limit: 1000, // Relaxed limit for navigation
+    standardHeaders: true,
+    legacyHeaders: false,
 });
 
 const authLimiter = rateLimit({
     windowMs: 60 * 1000, // 1 minute
-    limit: 10, // Strict limit for auth routes
+    limit: 50, // More breathing room for login attempts/tabs
     standardHeaders: true,
     legacyHeaders: false,
 });
@@ -27,6 +27,8 @@ const authLimiter = rateLimit({
 // Middleware
 const allowedOrigins = [
     'http://localhost:5173',
+    'http://localhost:5174',
+    'http://localhost:5175',
     'http://localhost:3000',
 ];
 
@@ -40,18 +42,31 @@ app.use(cors({
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Employee-ID', 'X-Branch-ID'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Employee-ID', 'X-Branch-ID', 'X-Refresh', 'X-Force-Remote'],
     credentials: true
 }));
 app.use(express.json({ limit: '50mb' })); // Increased limit for photo uploads
 app.use(morgan('dev'));
+
+const pool = require('./config/db');
+app.use((req, res, next) => {
+    const forceRemote = req.headers['x-force-remote'] === 'true' || req.headers['x-refresh'] === 'true';
+    if (forceRemote) {
+        // Trigger a background sync immediately so the data is fresh for the next query
+        if (global.triggerFastSync) global.triggerFastSync();
+
+        pool.queryContext.run({ forceRemote: true }, next);
+    } else {
+        next();
+    }
+});
 
 // Apply Global Rate Limiter to all requests
 app.use(globalLimiter);
 
 // Static Files - Serve uploads
 const path = require('path');
-app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Routes
 // We mount auth routes at /api/auth

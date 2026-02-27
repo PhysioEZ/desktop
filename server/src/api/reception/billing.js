@@ -328,8 +328,8 @@ async function fetchCombinedOverview(req, res, branchId) {
                 SUM(t.total_amount) as billed_amount, 
                 SUM(t.discount) as discount,
                 SUM(COALESCE((SELECT SUM(amount) FROM test_payments WHERE test_id = t.test_id AND created_at BETWEEN ? AND ?), 0)) as paid_amount,
-                MAX(GREATEST(t.created_at, t.updated_at, COALESCE((SELECT MAX(created_at) FROM test_payments WHERE test_id = t.test_id), t.created_at))) as last_activity,
-                IF(t.patient_id IS NOT NULL AND t.patient_id > 0, 1, 0) as is_registered
+                GREATEST(t.created_at, t.updated_at, COALESCE((SELECT MAX(created_at) FROM test_payments WHERE test_id = t.test_id), t.created_at)) as last_activity,
+                CASE WHEN t.patient_id IS NOT NULL AND t.patient_id > 0 THEN 1 ELSE 0 END as is_registered
             FROM tests t
             WHERE t.branch_id = ? AND (
                 t.created_at BETWEEN ? AND ? 
@@ -342,7 +342,7 @@ async function fetchCombinedOverview(req, res, branchId) {
             testSql += " AND (t.patient_name LIKE ? OR t.phone_number LIKE ?)";
             testParams.push(`%${search}%`, `%${search}%`);
         }
-        testSql += " GROUP BY COALESCE(t.patient_id, CONCAT(t.patient_name, t.phone_number))";
+        testSql += " GROUP BY COALESCE(t.patient_id, t.patient_name || t.phone_number)";
 
         const [tRecords] = await pool.query(treatmentSql, treatmentParams);
         const [testRecords] = await pool.query(testSql, testParams);
@@ -387,7 +387,7 @@ async function fetchGroupedTests(req, res, branchId) {
                 MAX(t.created_at) as last_test_date
             FROM tests t
             WHERE ${whereSql}
-            GROUP BY COALESCE(t.patient_id, CONCAT(t.patient_name, t.phone_number))
+            GROUP BY COALESCE(t.patient_id, t.patient_name || t.phone_number)
             ORDER BY last_test_date DESC
         `;
 

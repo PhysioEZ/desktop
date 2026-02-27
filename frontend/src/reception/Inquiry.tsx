@@ -494,7 +494,7 @@ const Inquiry = () => {
   };
 
   useEffect(() => {
-    fetchInquiries(true);
+    fetchInquiries(false);
   }, [fetchInquiries]);
 
   const inquiries =

@@ -36,6 +36,7 @@ interface TestStore {
   setTests: (tests: TestRecord[]) => void;
   setLastFetched: (time: number) => void;
   fetchTests: (branchId: number, page?: number, limit?: number, forceRefresh?: boolean) => Promise<void>;
+  clearStore: () => void;
 }
 
 export const useTestStore = create<TestStore>()(
@@ -89,7 +90,10 @@ export const useTestStore = create<TestStore>()(
             `${API_BASE_URL}/reception/tests?${params.toString()}`,
             {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { 
+                "Content-Type": "application/json",
+                ...(forceRefresh && { "X-Refresh": "true" })
+              },
               body: JSON.stringify(bodyData),
             }
           );
@@ -128,6 +132,13 @@ export const useTestStore = create<TestStore>()(
           set({ isLoading: false });
         }
       },
+      clearStore: () => set({
+        tests: [],
+        isLoading: false,
+        pagination: { page: 1, limit: 15, total_records: 0, total_pages: 1 },
+        stats: { total: 0, completed: 0, pending: 0, cancelled: 0, total_revenue: 0, total_paid: 0, total_due: 0 },
+        lastFetched: null,
+      }),
     }),
     {
       name: "test-cache",

@@ -327,29 +327,31 @@ const Registration = () => {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const {
-    registrations: storeRegistrations,
-    options: storeOptions,
-    serviceTracks: storeServiceTracks,
-    lastParams,
-    detailsCache,
-    registrationsCache,
-    setRegistrations,
-    setOptions,
-    setServiceTracks,
-    setPagination,
-    setLastParams,
-    setLastFetched,
-    setDetailsCache,
-    setRegistrationsCache,
-  } = useRegistrationStore();
+  // Use selectors for stability
+  const storeRegistrations = useRegistrationStore((s) => s.registrations);
+  const storeOptions = useRegistrationStore((s) => s.options);
+  const storeServiceTracks = useRegistrationStore((s) => s.serviceTracks);
+  const detailsCache = useRegistrationStore((s) => s.detailsCache);
+
+  const setRegistrations = useRegistrationStore((s) => s.setRegistrations);
+  const setOptions = useRegistrationStore((s) => s.setOptions);
+  const setServiceTracks = useRegistrationStore((s) => s.setServiceTracks);
+  const setLastParams = useRegistrationStore((s) => s.setLastParams);
+  const setLastFetched = useRegistrationStore((s) => s.setLastFetched);
+  const setRegistrationsCache = useRegistrationStore(
+    (s) => s.setRegistrationsCache,
+  );
+  const setDetailsCache = useRegistrationStore((s) => s.setDetailsCache);
 
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [referrerFilter, setReferrerFilter] = useState("");
   const [conditionFilter, setConditionFilter] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    const existing = useRegistrationStore.getState().registrations;
+    return !existing || existing.length === 0;
+  });
   const [currentPage, setCurrentPage] = useState(1);
 
   const storeData = storeRegistrations || [];
@@ -440,7 +442,6 @@ const Registration = () => {
   // Initial load ref to prevent multiple spinners
   const isFirstLoad = useRef(true);
 
-  // Background scroll lock
   useEffect(() => {
     if (isDetailsModalOpen || isBillModalOpen || confirmModal.isOpen) {
       document.body.style.overflow = "hidden";
@@ -503,7 +504,10 @@ const Registration = () => {
       try {
         const res = await authFetch(`${API_BASE_URL}/reception/registration`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...(forceRefresh && { "X-Refresh": "true" }),
+          },
           body: JSON.stringify(currentParams),
         });
         const data = await res.json();
@@ -521,7 +525,13 @@ const Registration = () => {
         isFirstLoad.current = false;
       }
     },
-    [user?.branch_id, setLastFetched, setRegistrationsCache],
+    [
+      user?.branch_id,
+      setRegistrations,
+      setLastParams,
+      setLastFetched,
+      setRegistrationsCache,
+    ],
   );
 
   const handleRefresh = async () => {
@@ -529,6 +539,7 @@ const Registration = () => {
 
     const fetchDash = authFetch(
       `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
+      { headers: { "X-Refresh": "true" } },
     )
       .then((res) => res.json())
       .then((data) => {
@@ -825,18 +836,21 @@ const Registration = () => {
   ]);
 
   useEffect(() => {
-    fetchRegistrations(true);
-  }, [fetchRegistrations]);
+    if (!user?.branch_id) return;
+    fetchRegistrations(false);
+  }, [user?.branch_id, fetchRegistrations]);
 
   const fetchOptions = useCallback(async () => {
     if (!user?.branch_id) return;
 
-    // Cache check
+    // Cache check — read from store directly to avoid dependency loop
+    const { options: currentOptions, serviceTracks: currentTracks } =
+      useRegistrationStore.getState();
     if (
-      storeOptions &&
-      Object.keys(storeOptions).length > 0 &&
-      storeServiceTracks &&
-      storeServiceTracks.length > 0
+      currentOptions &&
+      Object.keys(currentOptions).length > 0 &&
+      currentTracks &&
+      currentTracks.length > 0
     ) {
       return;
     }
@@ -880,13 +894,7 @@ const Registration = () => {
     } catch (err) {
       console.error("Failed to fetch options:", err);
     }
-  }, [
-    user?.branch_id,
-    storeOptions,
-    storeServiceTracks,
-    setOptions,
-    setServiceTracks,
-  ]);
+  }, [user?.branch_id, setOptions, setServiceTracks]);
 
   useEffect(() => {
     fetchOptions();

@@ -38,7 +38,7 @@ exports.login = async (req, res) => {
 
         // 1. Standard Login
         const [users] = await pool.query(
-            `${baseQuery} WHERE (e.email = ? OR e.user_email = ? OR e.first_name = ?) AND e.is_active = 1 LIMIT 1`,
+            `${baseQuery} WHERE (LOWER(e.email) = LOWER(?) OR LOWER(e.user_email) = LOWER(?) OR LOWER(e.first_name) = LOWER(?)) AND e.is_active = 1 LIMIT 1`,
             [username, username, username]
         );
 
@@ -46,8 +46,6 @@ exports.login = async (req, res) => {
         let valid = false;
 
         if (user) {
-            // Check password using bcrypt
-            // Note: PHP password_verify works with bcrypt hashes, bcryptjs.compare should be compatible
             const isMatch = await bcrypt.compare(password, user.password_hash);
             if (isMatch) {
                 valid = true;

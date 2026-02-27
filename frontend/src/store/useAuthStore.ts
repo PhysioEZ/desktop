@@ -1,5 +1,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useDashboardStore } from './useDashboardStore';
+import { useRegistrationStore } from './useRegistrationStore';
+import { usePatientStore } from './usePatientStore';
+import { useTestStore } from './useTestStore';
+import { useInquiryStore } from './useInquiryStore';
+import { useConfigStore } from './useConfigStore';
 
 interface User {
   id: number;
@@ -24,11 +30,32 @@ export const useAuthStore = create<AuthState>()(
     (set) => ({
       user: null,
       isAuthenticated: false,
-      login: (user) => set({ user, isAuthenticated: true }),
-      logout: () => set({ user: null, isAuthenticated: false }),
+      login: (user) => {
+        // Clear ALL data caches before setting new user
+        // This forces fresh data fetches on the Welcome screen
+        useDashboardStore.getState().clearStore();
+        useRegistrationStore.getState().clearCache();
+        usePatientStore.getState().clearStore();
+        useTestStore.getState().clearStore();
+        useInquiryStore.getState().clearCache();
+        useConfigStore.getState().clearStore();
+        
+        set({ user, isAuthenticated: true });
+      },
+      logout: () => {
+        // Also clear caches on logout for clean slate
+        useDashboardStore.getState().clearStore();
+        useRegistrationStore.getState().clearCache();
+        usePatientStore.getState().clearStore();
+        useTestStore.getState().clearStore();
+        useInquiryStore.getState().clearCache();
+        useConfigStore.getState().clearStore();
+        
+        set({ user: null, isAuthenticated: false });
+      },
     }),
     {
-      name: 'auth-storage', // name of the item in the storage (must be unique)
+      name: 'auth-storage',
     }
   )
 );
