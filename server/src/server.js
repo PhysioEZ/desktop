@@ -51,7 +51,7 @@ app.use(globalLimiter);
 
 // Static Files - Serve uploads
 const path = require('path');
-app.use('/uploads', express.static(path.join(__dirname, '../../uploads')));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Routes
 // We mount auth routes at /api/auth

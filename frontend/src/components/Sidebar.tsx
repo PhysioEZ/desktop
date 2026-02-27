@@ -14,7 +14,7 @@ import {
   TestTube2,
   MessageSquare,
   FileText,
-  PieChart,
+  // PieChart,
   LifeBuoy,
   MessageCircle,
   Sun,
@@ -22,7 +22,7 @@ import {
   Keyboard,
   User,
   LogOut,
-  Activity,
+  // Activity,
   CalendarCheck,
   Wallet,
 } from "lucide-react";
