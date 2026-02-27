@@ -1,1 +1,0 @@
-const pool = require('./src/config/db'); pool.query('SELECT patient_id FROM patients LIMIT 1').then(([rows]) => { console.log(rows); process.exit(0); }).catch(e => { console.error(e); process.exit(1); })

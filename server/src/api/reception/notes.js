@@ -13,7 +13,7 @@ exports.getNotes = async (req, res) => {
         }
 
         let query = `
-            SELECT n.*, CONCAT(e.first_name, ' ', COALESCE(e.last_name, '')) as author_name 
+            SELECT n.*, (e.first_name || ' ' || COALESCE(e.last_name, '')) as author_name 
             FROM reception_notes n
             JOIN employees e ON n.employee_id = e.employee_id
             WHERE n.branch_id = ? AND n.type = ?
@@ -109,7 +109,7 @@ exports.getBranchUsers = async (req, res) => {
         const [users] = await pool.query(`
             SELECT 
                 employee_id as id, 
-                CONCAT(first_name, ' ', COALESCE(last_name, '')) as full_name,
+                (first_name || ' ' || COALESCE(last_name, '')) as full_name,
                 first_name as username,
                 r.role_name as role
             FROM employees e

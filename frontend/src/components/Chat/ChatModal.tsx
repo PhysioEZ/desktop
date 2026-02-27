@@ -305,7 +305,9 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
   };
 
   const getDateLabel = (dateStr: string) => {
+    if (!dateStr) return "";
     const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return "";
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const yesterday = new Date(today);
@@ -618,7 +620,7 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
 
                       return (
                         <div
-                          key={msg.message_id}
+                          key={msg.message_id || `msg-${index}`}
                           className="flex flex-col gap-4"
                         >
                           {showDateHeader && (

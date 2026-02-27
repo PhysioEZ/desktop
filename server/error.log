@@ -1,0 +1,312 @@
+
+[2026-02-27T14:25:02.302Z] GET /api/system/status
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:02.322Z] GET /api/system/status
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:06.177Z] GET /api/system/status
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:06.178Z] GET /api/system/status
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:06.215Z] OPTIONS /api/reception/dashboard?branch_id=1
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:06.216Z] OPTIONS /api/reception/patients
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:06.217Z] OPTIONS /api/reception/registration
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:06.217Z] OPTIONS /api/reception/patients
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:06.218Z] OPTIONS /api/reception/tests?action=fetch
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:06.218Z] OPTIONS /api/reception/patients
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:06.219Z] OPTIONS /api/reception/patients
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:06.220Z] OPTIONS /api/reception/tests?action=fetch
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:06.220Z] OPTIONS /api/reception/registration
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:06.286Z] OPTIONS /api/reception/dashboard?branch_id=1
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:08.680Z] OPTIONS /api/reception/check_updates?branch_id=1&last_sync=2026-02-17T19:29:44.885Z
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:08.685Z] OPTIONS /api/reception/check_updates?branch_id=1&last_sync=2026-02-17T19:29:44.885Z
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:08.745Z] OPTIONS /api/reception/approve_request
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:08.746Z] OPTIONS /api/reception/approve_request
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:08.760Z] OPTIONS /api/reception/approve_request
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:08.761Z] OPTIONS /api/reception/approve_request
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:08.824Z] OPTIONS /api/reception/approve_request
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:08.825Z] OPTIONS /api/reception/approve_request
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:08.832Z] OPTIONS /api/reception/approve_request
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)
+
+[2026-02-27T14:25:08.832Z] OPTIONS /api/reception/approve_request
+Error: Not allowed by CORS
+    at origin (/srv/http/admin/desktop/server/src/server.js:39:22)
+    at /srv/http/admin/desktop/server/node_modules/cors/lib/index.js:219:13
+    at optionsCallback (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:199:9)
+    at corsMiddleware (/srv/http/admin/desktop/server/node_modules/cors/lib/index.js:204:7)
+    at Layer.handle [as handle_request] (/srv/http/admin/desktop/server/node_modules/express/lib/router/layer.js:95:5)
+    at trim_prefix (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:328:13)
+    at /srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:286:9
+    at router.process_params (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:346:12)
+    at next (/srv/http/admin/desktop/server/node_modules/express/lib/router/index.js:280:10)
+    at expressInit (/srv/http/admin/desktop/server/node_modules/express/lib/middleware/init.js:40:5)

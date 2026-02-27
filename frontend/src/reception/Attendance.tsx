@@ -107,62 +107,67 @@ const Attendance = () => {
 
   // --- Fetchers ---
 
-  const fetchData = useCallback(async () => {
-    setLoading(true);
-    try {
-      const dateStr = format(currentDate, "yyyy-MM-dd");
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/attendance_data?date=${dateStr}`,
-      );
-      const data = await res.json();
-      if (data.success) {
-        const transformed: AttendanceRecord[] =
-          data.data.attendance_records.map((r: any) => ({
-            id: r.patient_id,
-            patient_name: r.patient_name,
-            treatment:
-              r.treatment_type.charAt(0).toUpperCase() +
-              r.treatment_type.slice(1),
-            progress_current: r.attendance_count || 0,
-            progress_total: r.treatment_days || 0,
-            status:
-              r.status === "present"
-                ? "Present"
-                : r.status === "pending"
-                  ? "Pending"
-                  : "Absent",
-            last_active:
-              r.attendance_id && r.status === "present"
-                ? format(currentDate, "dd MMM")
-                : r.last_attendance_date
-                  ? format(new Date(r.last_attendance_date), "dd MMM")
-                  : "Never",
-          }));
+  const fetchData = useCallback(
+    async (forceRefresh = false) => {
+      setLoading(true);
+      try {
+        const dateStr = format(currentDate, "yyyy-MM-dd");
+        const res = await authFetch(
+          `${API_BASE_URL}/reception/attendance_data?date=${dateStr}`,
+          { headers: { ...(forceRefresh && { "X-Refresh": "true" }) } },
+        );
+        const data = await res.json();
+        if (data.success) {
+          const transformed: AttendanceRecord[] =
+            data.data.attendance_records.map((r: any) => ({
+              id: r.patient_id,
+              patient_name: r.patient_name,
+              treatment:
+                r.treatment_type.charAt(0).toUpperCase() +
+                r.treatment_type.slice(1),
+              progress_current: r.attendance_count || 0,
+              progress_total: r.treatment_days || 0,
+              status:
+                r.status === "present"
+                  ? "Present"
+                  : r.status === "pending"
+                    ? "Pending"
+                    : "Absent",
+              last_active:
+                r.attendance_id && r.status === "present"
+                  ? format(currentDate, "dd MMM")
+                  : r.last_attendance_date &&
+                      !isNaN(new Date(r.last_attendance_date).getTime())
+                    ? format(new Date(r.last_attendance_date), "dd MMM")
+                    : "Never",
+            }));
 
-        const presentCount = transformed.filter(
-          (r) => r.status === "Present",
-        ).length;
-        const absentCount = transformed.filter(
-          (r) => r.status === "Absent",
-        ).length;
-        const pendingCount = transformed.filter(
-          (r) => r.status === "Pending",
-        ).length;
+          const presentCount = transformed.filter(
+            (r) => r.status === "Present",
+          ).length;
+          const absentCount = transformed.filter(
+            (r) => r.status === "Absent",
+          ).length;
+          const pendingCount = transformed.filter(
+            (r) => r.status === "Pending",
+          ).length;
 
-        setStats({
-          total: transformed.length,
-          present: presentCount,
-          absent: absentCount,
-          pending: pendingCount,
-        });
-        setRecords(transformed);
+          setStats({
+            total: transformed.length,
+            present: presentCount,
+            absent: absentCount,
+            pending: pendingCount,
+          });
+          setRecords(transformed);
+        }
+      } catch (e) {
+        toast.error("Network error");
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      toast.error("Network error");
-    } finally {
-      setLoading(false);
-    }
-  }, [currentDate]);
+    },
+    [currentDate],
+  );
 
   const fetchAttendanceHistory = async (patientId: number) => {
     if (!patientId) {
@@ -187,12 +192,12 @@ const Attendance = () => {
           },
           attendance_history: Array.isArray(data.history)
             ? data.history.map((item: any) => ({
-              date: item.attendance_date
-                ? format(new Date(item.attendance_date), "yyyy-MM-dd")
-                : "",
-              status: item.status || "present",
-              remarks: item.remarks || "",
-            }))
+                date: item.attendance_date
+                  ? format(new Date(item.attendance_date), "yyyy-MM-dd")
+                  : "",
+                status: item.status || "present",
+                remarks: item.remarks || "",
+              }))
             : [],
         };
         setSelectedPatientHistory(transformed);
@@ -221,12 +226,12 @@ const Attendance = () => {
       if (data.success) {
         const history = Array.isArray(data.history)
           ? data.history.map((item: any) => ({
-            date: item.attendance_date
-              ? format(new Date(item.attendance_date), "yyyy-MM-dd")
-              : "",
-            status: item.status || "present",
-            remarks: item.remarks || "",
-          }))
+              date: item.attendance_date
+                ? format(new Date(item.attendance_date), "yyyy-MM-dd")
+                : "",
+              status: item.status || "present",
+              remarks: item.remarks || "",
+            }))
           : [];
         setSelectedDateHistory(history);
       }
@@ -249,8 +254,8 @@ const Attendance = () => {
 
   const handleRefresh = async () => {
     if (refreshCooldown > 0) return;
-    await fetchData();
-    setRefreshCooldown(10);
+    await fetchData(true);
+    setRefreshCooldown(20);
     toast.success("Data updated");
   };
 
@@ -503,7 +508,10 @@ const Attendance = () => {
                                     {h.status}
                                   </span>
                                   <span className="text-[10px] font-medium text-slate-400">
-                                    {format(new Date(h.date), "dd MMM yyyy")}
+                                    {h.date &&
+                                    !isNaN(new Date(h.date).getTime())
+                                      ? format(new Date(h.date), "dd MMM yyyy")
+                                      : h.date || "—"}
                                   </span>
                                 </div>
                                 <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
@@ -732,13 +740,14 @@ const Attendance = () => {
                         onClick={() =>
                           fetchAttendanceHistory(record.id || record.patient_id)
                         }
-                        className={`grid grid-cols-12 px-10 py-6 items-center group cursor-pointer transition-all ${selectedPatientHistory?.patient.id ===
-                            (record.id || record.patient_id)
+                        className={`grid grid-cols-12 px-10 py-6 items-center group cursor-pointer transition-all ${
+                          selectedPatientHistory?.patient.id ===
+                          (record.id || record.patient_id)
                             ? isDark
                               ? "bg-white/[0.02]"
                               : "bg-slate-50"
                             : "hover:bg-slate-50/50 dark:hover:bg-white/5"
-                          }`}
+                        }`}
                       >
                         <div className="col-span-1 font-mono text-[11px] font-semibold text-slate-400">
                           #{record.id || record.patient_id}
@@ -785,7 +794,8 @@ const Attendance = () => {
 
                         <div className="col-span-3 flex justify-end">
                           <div
-                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-semibold transition-all border ${record.status === "Present"
+                            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-semibold transition-all border ${
+                              record.status === "Present"
                                 ? isDark
                                   ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-500"
                                   : "bg-emerald-50 border-emerald-100 text-emerald-600"
@@ -794,7 +804,7 @@ const Attendance = () => {
                                     ? "bg-amber-500/10 border-amber-500/20 text-amber-500"
                                     : "bg-amber-50 border-amber-100 text-amber-600"
                                   : "bg-slate-100 dark:bg-white/5 border-transparent text-slate-400"
-                              }`}
+                            }`}
                           >
                             {record.status === "Present" && (
                               <CheckCircle2 size={14} />

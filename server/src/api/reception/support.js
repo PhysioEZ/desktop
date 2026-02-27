@@ -153,7 +153,7 @@ async function getTicketDetails(req, res, branchId) {
     const isGlobalAdmin = isGlobalSupportUser(req.user.role);
 
     let query = `
-        SELECT i.*, CONCAT(e.first_name, ' ', e.last_name) as reported_by_name, b.branch_name
+        SELECT i.*, (e.first_name || ' ' || COALESCE(e.last_name, '')) as reported_by_name, b.branch_name
         FROM system_issues i
         LEFT JOIN employees e ON i.reported_by = e.employee_id
         LEFT JOIN branches b ON i.branch_id = b.branch_id

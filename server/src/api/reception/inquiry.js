@@ -109,7 +109,7 @@ async function fetchFollowups(req, res, branch_id, input) {
     const inquiry_id = input.inquiry_id;
 
     const [rows] = await pool.query(`
-        SELECT f.*, CONCAT(e.first_name, ' ', e.last_name) as staff_name 
+        SELECT f.*, (e.first_name || ' ' || COALESCE(e.last_name, '')) as staff_name 
         FROM inquiry_followups f 
         LEFT JOIN employees e ON f.employee_id = e.employee_id 
         WHERE f.inquiry_id = ? AND f.inquiry_type = ? AND f.branch_id = ?

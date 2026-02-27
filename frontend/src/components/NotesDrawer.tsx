@@ -525,7 +525,9 @@ const NotesDrawer: React.FC<NotesDrawerProps> = ({ isOpen, onClose }) => {
                             <div
                               className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold ${noteType === "public" ? (isDark ? "bg-pink-500/10 text-pink-400" : "bg-pink-50 text-pink-600") : isDark ? "bg-indigo-500/10 text-indigo-400" : "bg-indigo-50 text-indigo-600"}`}
                             >
-                              {note.author_name?.charAt(0) || (
+                              {note.author_name ? (
+                                String(note.author_name).charAt(0)
+                              ) : (
                                 <User size={14} />
                               )}
                             </div>
@@ -535,7 +537,7 @@ const NotesDrawer: React.FC<NotesDrawerProps> = ({ isOpen, onClose }) => {
                               >
                                 {noteType === "private"
                                   ? "You"
-                                  : note.author_name}
+                                  : String(note.author_name || "Unknown")}
                               </p>
                               <div className="flex items-center gap-2 opacity-40">
                                 <Calendar size={10} />

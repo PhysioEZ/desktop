@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Activity,
   CheckCircle2,
-  LayoutDashboard,
-  ShieldCheck,
   Sparkles,
   User as UserIcon,
 } from "lucide-react";
@@ -18,9 +16,11 @@ import { usePatientStore } from "../store/usePatientStore";
 import { useTestStore } from "../store/useTestStore";
 
 const bootSteps = [
-  "Verifying identity and role claims",
-  "Loading branch-specific dashboard data",
-  "Preparing secure workspace modules",
+  { key: "cache", label: "Purging stale session cache" },
+  { key: "dashboard", label: "Syncing dashboard analytics" },
+  { key: "registration", label: "Retrieving registration records" },
+  { key: "patients", label: "Preparing patient registry" },
+  { key: "tests", label: "Loading medical test data" },
 ];
 
 const WelcomeScreen = () => {
@@ -28,13 +28,19 @@ const WelcomeScreen = () => {
   const user = useAuthStore((state) => state.user);
   const { isDark } = useThemeStore();
   const [progress, setProgress] = useState(0);
-  const [isReady, setIsReady] = useState(false);
+  const [fetchStatus, setFetchStatus] = useState<{
+    [key: string]: "pending" | "success" | "error";
+  }>({
+    cache: "pending",
+    dashboard: "pending",
+    registration: "pending",
+    patients: "pending",
+    tests: "pending",
+  });
 
-  const currentStep = useMemo(() => {
-    if (progress < 34) return 0;
-    if (progress < 67) return 1;
-    return 2;
-  }, [progress]);
+  const currentStepIndex = useMemo(() => {
+    return bootSteps.findIndex((step) => fetchStatus[step.key] === "pending");
+  }, [fetchStatus]);
 
   useEffect(() => {
     if (isDark) {
@@ -51,17 +57,29 @@ const WelcomeScreen = () => {
   }, [user, navigate]);
 
   useEffect(() => {
-    // We want the progress bar to hit 100% when both minimum time has passed AND API calls are done.
     let isApiDone = false;
     let currentProgress = 0;
-    const minDuration = 1500; // minimum visual duration
+    const minVisualDuration = 1500;
+    const maxWaitTime = 4000;
     const startTime = Date.now();
 
     const doPrefetches = async () => {
       try {
         if (!user?.branch_id) return;
 
-        // Parallel API fetches
+        // Step 1: Clear server-side SQLite cache
+        try {
+          const res = await authFetch(`${API_BASE_URL}/auth/clear-cache`, {
+            method: "POST",
+          });
+          await res.json();
+          setFetchStatus((prev) => ({ ...prev, cache: "success" }));
+        } catch (e) {
+          console.warn("[Welcome] Cache clear fail:", e);
+          setFetchStatus((prev) => ({ ...prev, cache: "error" }));
+        }
+
+        // Step 2: Parallel API fetches
         await Promise.allSettled([
           // Dashboard
           authFetch(
@@ -76,8 +94,12 @@ const WelcomeScreen = () => {
                     .getState()
                     .setLastSync(data.data.serverTime);
                 }
-              }
-            }),
+                setFetchStatus((prev) => ({ ...prev, dashboard: "success" }));
+              } else throw new Error();
+            })
+            .catch(() =>
+              setFetchStatus((prev) => ({ ...prev, dashboard: "error" })),
+            ),
 
           // Registrations
           authFetch(`${API_BASE_URL}/reception/registration`, {
@@ -97,21 +119,38 @@ const WelcomeScreen = () => {
                   .getState()
                   .setRegistrations(data.data || []);
                 useRegistrationStore.getState().setLastFetched(Date.now());
-                useRegistrationStore.getState().setLastParams({
-                  action: "fetch",
-                  branch_id: user.branch_id,
-                  limit: 1000,
-                  page: 1,
-                });
-              }
-            }),
+                setFetchStatus((prev) => ({
+                  ...prev,
+                  registration: "success",
+                }));
+              } else throw new Error();
+            })
+            .catch(() =>
+              setFetchStatus((prev) => ({ ...prev, registration: "error" })),
+            ),
 
-          // Patients Data & Metadata
-          usePatientStore.getState().fetchMetaData(user.branch_id),
+          // Patients
+          usePatientStore
+            .getState()
+            .fetchMetaData(user.branch_id)
+            .then(() =>
+              setFetchStatus((prev) => ({ ...prev, patients: "success" })),
+            )
+            .catch(() =>
+              setFetchStatus((prev) => ({ ...prev, patients: "error" })),
+            ),
           usePatientStore.getState().fetchPatients(user.branch_id),
 
           // Tests
-          useTestStore.getState().fetchTests(user.branch_id, 1, 15),
+          useTestStore
+            .getState()
+            .fetchTests(user.branch_id, 1, 15)
+            .then(() =>
+              setFetchStatus((prev) => ({ ...prev, tests: "success" })),
+            )
+            .catch(() =>
+              setFetchStatus((prev) => ({ ...prev, tests: "error" })),
+            ),
         ]);
       } catch (e) {
         console.error("Prefetch errors: ", e);
@@ -124,38 +163,33 @@ const WelcomeScreen = () => {
 
     const updateInterval = setInterval(() => {
       const elapsed = Date.now() - startTime;
+      let visualProgress = (elapsed / maxWaitTime) * 90;
+      if (visualProgress > 90) visualProgress = 90;
 
-      // Calculate fake visual progress out of 80% based on minDuration
-      let visualProgress = (elapsed / minDuration) * 80;
-      if (visualProgress > 80) visualProgress = 80;
+      const finishedByApi = isApiDone && elapsed >= minVisualDuration;
+      const finishedByTimeout = elapsed >= maxWaitTime;
 
-      // Make progress jump to 100% when API is done and visual minimum passed
-      if (isApiDone && elapsed > minDuration) {
-        currentProgress += 5; // Animate smoothly to 100
+      if (finishedByApi || finishedByTimeout) {
+        currentProgress += 5;
         if (currentProgress >= 100) {
           setProgress(100);
-          setIsReady(true);
           clearInterval(updateInterval);
-
           setTimeout(() => {
-            if (
+            const dest =
               user?.role === "admin" ||
               user?.role === "superadmin" ||
               user?.role === "developer"
-            ) {
-              navigate("/admin/dashboard");
-            } else {
-              navigate("/reception/dashboard");
-            }
-          }, 800);
+                ? "/admin/dashboard"
+                : "/reception/dashboard";
+            navigate(dest);
+          }, 600);
           return;
         }
       } else {
-        // Just use visual progress, maxing out at 80% if API is slow
         currentProgress = visualProgress;
       }
       setProgress(currentProgress);
-    }, 30);
+    }, 40);
 
     return () => clearInterval(updateInterval);
   }, [navigate, user]);
@@ -163,10 +197,7 @@ const WelcomeScreen = () => {
   if (!user) return null;
 
   return (
-    <div
-      className={`relative min-h-screen overflow-hidden flex items-center justify-center p-4 transition-colors duration-700 dark:bg-[#05060A] bg-slate-50`}
-    >
-      {/* Background Glows (matching Login) */}
+    <div className="relative min-h-screen overflow-hidden flex items-center justify-center p-4 transition-colors duration-700 dark:bg-[#05060A] bg-slate-50">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#00B884]/10 blur-[120px] rounded-full dark:opacity-100 opacity-50" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#3b82f6]/5 blur-[120px] rounded-full dark:opacity-100 opacity-30" />
@@ -176,181 +207,111 @@ const WelcomeScreen = () => {
         <motion.div
           initial={{ opacity: 0, y: 30, scale: 0.95 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-          className="grid w-full min-h-[600px] lg:min-h-[700px] grid-cols-1 md:grid-cols-[0.8fr_1.2fr] overflow-hidden rounded-[32px] border dark:border-white/10 border-slate-200 dark:bg-[#0B0D11] bg-white shadow-[0_20px_50px_-20px_rgba(0,0,0,0.1)] dark:shadow-[0_40px_100px_-20px_rgba(0,0,0,0.8)] hover:shadow-2xl transition-[box-shadow,transform] duration-700 hover:-translate-y-1"
+          transition={{ duration: 0.8 }}
+          className="grid w-full min-h-[600px] grid-cols-1 md:grid-cols-[0.8fr_1.2fr] overflow-hidden rounded-[32px] border dark:border-white/10 border-slate-200 dark:bg-[#0B0D11] bg-white shadow-2xl"
         >
-          {/* Left Column: User Context */}
-          <section className="relative flex flex-col justify-center p-8 lg:p-14 border-b dark:border-white/5 border-slate-100 md:border-b-0 md:border-r dark:bg-gradient-to-br dark:from-[#101318] dark:to-[#0B0D11] bg-slate-50/50 overflow-hidden">
-            <motion.div
-              animate={{ opacity: [0.1, 0.2, 0.1], scale: [1, 1.1, 1] }}
-              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none"
-            />
-
+          {/* User Info */}
+          <section className="relative flex flex-col justify-center p-8 lg:p-14 border-b md:border-b-0 md:border-r dark:bg-gradient-to-br dark:from-[#101318] dark:to-[#0B0D11] bg-slate-50/50">
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3, duration: 0.5 }}
-              className="mb-10 inline-flex items-center gap-2 w-fit rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-[#00B884] relative z-10"
+              className="mb-10 inline-flex items-center gap-2 w-fit rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-[#00B884]"
             >
-              <Sparkles size={12} className="text-[#00B884]" />
+              <Sparkles size={12} />
               Authenticating
             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.5 }}
-              className="space-y-8 relative z-10"
-            >
-              <div className="relative w-fit">
-                <div className="h-24 w-24 overflow-hidden rounded-[24px] border-2 border-white dark:border-white/10 bg-white dark:bg-[#1A1D23] shadow-lg">
-                  {user.photo ? (
-                    <img
-                      src={`${API_BASE_URL.replace("/api", "")}/${user.photo}`}
-                      alt={user.name}
-                      className="h-full w-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src =
-                          `https://ui-avatars.com/api/?name=${user.name}&background=00B884&color=fff&bold=true`;
-                      }}
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center">
-                      <UserIcon
-                        size={36}
-                        className="text-slate-400 dark:text-slate-500"
-                      />
-                    </div>
-                  )}
-                </div>
-                <div className="absolute -bottom-2 -right-2 inline-flex items-center gap-1.5 rounded-full bg-[#00B884] px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.18em] text-black shadow-sm">
-                  <span className="relative flex h-1.5 w-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-white"></span>
-                  </span>
-                  Active
-                </div>
+            <div className="space-y-8">
+              <div className="h-24 w-24 overflow-hidden rounded-[24px] border-2 border-white dark:border-white/10 bg-white">
+                {user.photo ? (
+                  <img
+                    src={`${API_BASE_URL.replace("/api", "")}/${user.photo}`}
+                    alt={user.name}
+                    className="h-full w-full object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src =
+                        `https://ui-avatars.com/api/?name=${user.name}&background=00B884&color=fff&bold=true`;
+                    }}
+                  />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center">
+                    <UserIcon size={36} className="text-slate-400" />
+                  </div>
+                )}
               </div>
-
               <div>
-                <h1 className="text-3xl font-black tracking-tight dark:text-white text-slate-900 leading-tight">
-                  Welcome back,
-                  <br />
+                <h1 className="text-3xl font-black dark:text-white text-slate-900">
+                  Welcome back, <br />
                   <span className="text-[#00B884]">{user.name}</span>
                 </h1>
-                <p className="mt-3 text-sm font-medium leading-relaxed dark:text-slate-400 text-slate-600 max-w-[240px]">
+                <p className="mt-3 text-sm dark:text-slate-400 text-slate-600">
                   Preparing your secured workspace and operational modules.
                 </p>
               </div>
-
-              <div className="mt-8 pt-6 border-t dark:border-white/5 border-slate-200/60">
-                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-                  <ShieldCheck size={14} className="opacity-60" />
-                  Role Profile
-                </div>
-                <p className="mt-2 text-sm font-bold capitalize text-slate-900 dark:text-white">
-                  {user.role}
-                </p>
-              </div>
-            </motion.div>
+            </div>
           </section>
 
-          {/* Right Column: Loading Sequence */}
+          {/* Progress */}
           <section className="flex flex-col justify-center p-8 lg:p-16 dark:bg-[#0B0D11] bg-white">
             <div className="w-full space-y-10">
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">
+                  <p className="text-[11px] font-black uppercase text-slate-500">
                     System Initialization
                   </p>
-                  <p className="text-lg font-black tracking-tight text-[#00B884]">
+                  <p className="text-lg font-black text-[#00B884]">
                     {Math.round(progress)}%
                   </p>
                 </div>
-
                 <div className="h-2 w-full overflow-hidden rounded-full dark:bg-white/5 bg-slate-100">
                   <motion.div
-                    initial={{ width: 0 }}
                     animate={{ width: `${progress}%` }}
-                    className="relative h-full rounded-full bg-[#00B884] shadow-[0_0_15px_rgba(0,184,132,0.8)]"
-                  >
-                    <div className="absolute right-0 top-0 h-full w-24 bg-white/30 blur-md" />
-                  </motion.div>
+                    className="h-full bg-[#00B884] shadow-[0_0_15px_rgba(0,184,132,0.5)]"
+                  />
                 </div>
               </div>
 
-              <div className="space-y-5">
+              <div className="space-y-4">
                 {bootSteps.map((step, index) => {
-                  const isComplete = progress >= (index + 1) * 33;
-                  const isCurrent = index === currentStep && !isComplete;
+                  const status = fetchStatus[step.key];
+                  const isComplete = status === "success";
+                  const isError = status === "error";
+                  const isCurrent = index === currentStepIndex;
 
                   return (
                     <motion.div
-                      key={step}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.5 + index * 0.1, duration: 0.5 }}
-                      className={`flex items-center gap-4 rounded-2xl border px-6 py-4 transition-all duration-300 ${
+                      key={step.key}
+                      className={`flex items-center gap-4 rounded-2xl border px-6 py-4 transition-all ${
                         isComplete
                           ? "border-[#00B884]/20 bg-[#00B884]/5 text-[#00B884]"
-                          : isCurrent
-                            ? "dark:border-white/10 border-slate-200 dark:bg-[#1A1D23] bg-slate-50 text-slate-900 dark:text-white"
-                            : "border-transparent text-slate-400 dark:text-slate-500 opacity-60"
+                          : isError
+                            ? "border-red-500/20 bg-red-500/5 text-red-500"
+                            : isCurrent
+                              ? "dark:border-white/10 border-slate-200 dark:bg-[#1A1D23] bg-slate-50"
+                              : "border-transparent opacity-40"
                       }`}
                     >
                       {isComplete ? (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#00B884]/10">
-                          <CheckCircle2 size={16} />
-                        </div>
+                        <CheckCircle2 size={18} />
+                      ) : isError ? (
+                        <Activity size={18} className="text-red-500" />
                       ) : (
-                        <div
-                          className={`flex h-8 w-8 items-center justify-center rounded-full ${isCurrent ? "dark:bg-white/10 bg-slate-200" : "dark:bg-white/5 bg-slate-100"}`}
-                        >
-                          <Activity
-                            size={14}
-                            className={
-                              isCurrent
-                                ? "animate-[spin_3s_linear_infinite]"
-                                : ""
-                            }
-                          />
-                        </div>
+                        <Activity
+                          size={18}
+                          className={isCurrent ? "animate-spin" : ""}
+                        />
                       )}
-                      <span className="text-[14px] font-bold tracking-wide">
-                        {step}
-                      </span>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold">{step.label}</span>
+                        {isError && (
+                          <span className="text-[10px] italic">
+                            Fetch failed, retrying in background...
+                          </span>
+                        )}
+                      </div>
                     </motion.div>
                   );
                 })}
-              </div>
-
-              <div className="pt-4 flex justify-end">
-                <AnimatePresence mode="wait">
-                  {isReady ? (
-                    <motion.div
-                      key="ready"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      className="inline-flex items-center gap-2 rounded-full border border-[#00B884]/20 bg-[#00B884]/10 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-[#00B884]"
-                    >
-                      <CheckCircle2 size={14} />
-                      Dashboard Ready
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="loading"
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      exit={{ opacity: 0, x: 20 }}
-                      className="inline-flex items-center gap-2 rounded-full border dark:border-white/10 border-slate-200 dark:bg-white/5 bg-slate-50 px-5 py-2.5 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500"
-                    >
-                      <LayoutDashboard size={14} className="animate-pulse" />
-                      Loading App
-                    </motion.div>
-                  )}
-                </AnimatePresence>
               </div>
             </div>
           </section>

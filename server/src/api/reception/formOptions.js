@@ -14,11 +14,11 @@ exports.getFormOptions = async (req, res) => {
 
         // 1. Referrers
         const [referrersRes] = await pool.query(`
-            (SELECT DISTINCT reffered_by AS name FROM registration WHERE branch_id = ? AND reffered_by IS NOT NULL AND reffered_by != '')
+            SELECT DISTINCT reffered_by AS name FROM registration WHERE branch_id = ? AND reffered_by IS NOT NULL AND reffered_by != ''
             UNION
-            (SELECT DISTINCT reffered_by AS name FROM test_inquiry WHERE branch_id = ? AND reffered_by IS NOT NULL AND reffered_by != '')
+            SELECT DISTINCT reffered_by AS name FROM test_inquiry WHERE branch_id = ? AND reffered_by IS NOT NULL AND reffered_by != ''
             UNION
-            (SELECT DISTINCT referred_by AS name FROM tests WHERE branch_id = ? AND referred_by IS NOT NULL AND referred_by != '')
+            SELECT DISTINCT referred_by AS name FROM tests WHERE branch_id = ? AND referred_by IS NOT NULL AND referred_by != ''
             ORDER BY name ASC
         `, [branchId, branchId, branchId]);
         const referrers = referrersRes.map(r => r.name);

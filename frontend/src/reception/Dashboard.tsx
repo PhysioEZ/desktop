@@ -133,12 +133,13 @@ const TimePicker = ({
                 key={slot.time}
                 disabled={slot.disabled}
                 onClick={() => setSelected(slot.time)}
-                className={`py-2 px-1 text-sm rounded-lg border transition-all ${selected === slot.time
-                  ? "bg-[#6750a4] dark:bg-[#d0bcff] text-white dark:text-[#381e72] border-[#6750a4] dark:border-[#d0bcff]"
-                  : slot.disabled
-                    ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed"
-                    : "bg-transparent border-[#79747e] text-[#49454f] dark:text-[#cac4d0] hover:bg-[#6750a4]/10"
-                  }`}
+                className={`py-2 px-1 text-sm rounded-lg border transition-all ${
+                  selected === slot.time
+                    ? "bg-[#6750a4] dark:bg-[#d0bcff] text-white dark:text-[#381e72] border-[#6750a4] dark:border-[#d0bcff]"
+                    : slot.disabled
+                      ? "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 border-slate-200 dark:border-slate-700 cursor-not-allowed"
+                      : "bg-transparent border-[#79747e] text-[#49454f] dark:text-[#cac4d0] hover:bg-[#6750a4]/10"
+                }`}
               >
                 <span
                   className={slot.disabled ? "line-through decoration-2" : ""}
@@ -230,25 +231,24 @@ const ReceptionDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuthStore();
-  const {
-    data,
-    setData,
-    formOptions,
-    setFormOptions,
-    lastSync,
-    setLastSync,
-    lastAccessTime,
-    pendingApprovals,
-    setPendingApprovals,
-    timeSlots: storeTimeSlots,
-    setTimeSlots,
-    notifications,
-    setNotifications,
-    unreadCount,
-    setUnreadCount,
-    showGlobalSearch,
-    setShowGlobalSearch,
-  } = useDashboardStore();
+  // Use selectors for stability
+  const data = useDashboardStore((s) => s.data);
+  const setData = useDashboardStore((s) => s.setData);
+  const formOptions = useDashboardStore((s) => s.formOptions);
+  const setFormOptions = useDashboardStore((s) => s.setFormOptions);
+  const lastSync = useDashboardStore((s) => s.lastSync);
+  const setLastSync = useDashboardStore((s) => s.setLastSync);
+  const lastAccessTime = useDashboardStore((s) => s.lastAccessTime);
+  const pendingApprovals = useDashboardStore((s) => s.pendingApprovals);
+  const setPendingApprovals = useDashboardStore((s) => s.setPendingApprovals);
+  const storeTimeSlots = useDashboardStore((s) => s.timeSlots);
+  const setTimeSlots = useDashboardStore((s) => s.setTimeSlots);
+  const notifications = useDashboardStore((s) => s.notifications);
+  const setNotifications = useDashboardStore((s) => s.setNotifications);
+  const unreadCount = useDashboardStore((s) => s.unreadCount);
+  const setUnreadCount = useDashboardStore((s) => s.setUnreadCount);
+  const showGlobalSearch = useDashboardStore((s) => s.showGlobalSearch);
+  const setShowGlobalSearch = useDashboardStore((s) => s.setShowGlobalSearch);
 
   const { hasDashboardAnimated, setHasDashboardAnimated } = useUIStore();
 
@@ -440,23 +440,27 @@ const ReceptionDashboard = () => {
   const pendingList = pendingApprovals || [];
   const currentSlots = storeTimeSlots?.slots || [];
 
-  const fetchApprovals = useCallback(async () => {
-    if (!user?.branch_id) return [];
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/get_pending_approvals?branch_id=${user.branch_id}`,
-      );
-      const resData = await res.json();
-      if (resData.success) {
-        setPendingApprovals(resData.data || []);
-        return resData.data || [];
+  const fetchApprovals = useCallback(
+    async (forceRefresh = false) => {
+      if (!user?.branch_id) return [];
+      try {
+        const res = await authFetch(
+          `${API_BASE_URL}/reception/get_pending_approvals?branch_id=${user.branch_id}`,
+          { headers: { ...(forceRefresh && { "X-Refresh": "true" }) } },
+        );
+        const resData = await res.json();
+        if (resData.success) {
+          setPendingApprovals(resData.data || []);
+          return resData.data || [];
+        }
+        return [];
+      } catch (e) {
+        console.error("Error fetching approvals", e);
+        return [];
       }
-      return [];
-    } catch (e) {
-      console.error("Error fetching approvals", e);
-      return [];
-    }
-  }, [user?.branch_id, setPendingApprovals]);
+    },
+    [user?.branch_id, setPendingApprovals],
+  );
 
   // Theme Logic from store
   const { isDark, toggleTheme } = useThemeStore();
@@ -471,21 +475,25 @@ const ReceptionDashboard = () => {
 
   // --- GRANULAR FETCHERS ---
 
-  const fetchMainDashboard = useCallback(async () => {
-    if (!user?.branch_id) return;
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
-      );
-      const data = await res.json();
-      if (data.status === "success") {
-        setData(data.data);
-        if (data.data.serverTime) setLastSync(data.data.serverTime);
+  const fetchMainDashboard = useCallback(
+    async (forceRefresh = false) => {
+      if (!user?.branch_id) return;
+      try {
+        const res = await authFetch(
+          `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
+          { headers: { ...(forceRefresh && { "X-Refresh": "true" }) } },
+        );
+        const data = await res.json();
+        if (data.status === "success") {
+          setData(data.data);
+          if (data.data.serverTime) setLastSync(data.data.serverTime);
+        }
+      } catch (e) {
+        console.error("Error fetching dashboard stats:", e);
       }
-    } catch (e) {
-      console.error("Error fetching dashboard stats:", e);
-    }
-  }, [user?.branch_id, setData, setLastSync]);
+    },
+    [user?.branch_id, setData, setLastSync],
+  );
 
   const performAutoApprovals = useCallback(
     async (listOverride?: any[]) => {
@@ -569,34 +577,38 @@ const ReceptionDashboard = () => {
   }, [user?.branch_id, appointmentDate, setFormOptions, selectedTests]);
 
   // --- LOGIC: FETCHING ---
-  const fetchNotifs = useCallback(async () => {
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ""}`,
-      );
-      const data = await res.json();
-      if (data.success || data.status === "success") {
-        setNotifications(data.notifications || []);
-        setUnreadCount(data.unread_count || 0);
+  const fetchNotifs = useCallback(
+    async (forceRefresh = false) => {
+      try {
+        const res = await authFetch(
+          `${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ""}`,
+          { headers: { ...(forceRefresh && { "X-Refresh": "true" }) } },
+        );
+        const data = await res.json();
+        if (data.success || data.status === "success") {
+          setNotifications(data.notifications || []);
+          setUnreadCount(data.unread_count || 0);
+        }
+      } catch (err) {
+        console.error(err);
       }
-    } catch (err) {
-      console.error(err);
-    }
-  }, [user?.employee_id, setNotifications, setUnreadCount]);
+    },
+    [user?.employee_id, setNotifications, setUnreadCount],
+  );
 
   const isInitialLoad = useRef(!data);
   const fetchAll = useCallback(
-    async (showLoading = true) => {
+    async (showLoading = true, forceRefresh = false) => {
       if (!user?.branch_id) return;
       if (showLoading) setIsLoading(true);
 
       try {
         window.dispatchEvent(new CustomEvent("trigger-system-status-check"));
         await Promise.all([
-          fetchMainDashboard(),
+          fetchMainDashboard(forceRefresh),
           fetchFormOptionsData(),
-          fetchNotifs(),
-          fetchApprovals(),
+          fetchNotifs(forceRefresh),
+          fetchApprovals(forceRefresh),
         ]);
         // Trigger auto-approvals after data is loaded
         performAutoApprovals();
@@ -661,92 +673,19 @@ const ReceptionDashboard = () => {
     // Trigger system status check manually on refresh
     window.dispatchEvent(new CustomEvent("trigger-system-status-check"));
 
-    if (!lastSync) {
-      await fetchAll();
-      setRefreshCooldown(20);
-      return;
-    }
-
     setIsLoading(true);
     const toastId = toast.loading("Checking for updates...");
 
     try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/check_updates?branch_id=${user?.branch_id}&last_sync=${lastSync}`,
-      );
-      const updateData = await res.json();
-
-      if (updateData.success) {
-        if (updateData.hasChanges) {
-          toast.loading("Changes found, updating...", { id: toastId });
-
-          const syncTasks = [];
-
-          // Granular Sync Logic
-          const mainDataTables = [
-            "registration",
-            "tests",
-            "patients",
-            "quick_inquiry",
-            "test_inquiry",
-            "attendance",
-            "payments",
-          ];
-          const hasMainChanges = mainDataTables.some(
-            (table) => updateData.changes[table],
-          );
-
-          if (hasMainChanges) syncTasks.push(fetchMainDashboard());
-          if (updateData.changes["notifications"])
-            syncTasks.push(fetchNotifs());
-          if (updateData.changes["registration"] || updateData.changes["tests"])
-            syncTasks.push(fetchApprovals());
-
-          // If registration modal is open, always refresh slots if registration changes detected
-          if (
-            activeModal === "registration" &&
-            appointmentDate &&
-            updateData.changes["registration"]
-          ) {
-            syncTasks.push(fetchTimeSlots(appointmentDate));
-          }
-
-          if (syncTasks.length > 0) {
-            await Promise.all(syncTasks);
-            // Trigger auto-approvals if relevant data changed
-            if (
-              updateData.changes["registration"] ||
-              updateData.changes["tests"]
-            ) {
-              performAutoApprovals();
-            }
-            // Clear search cache if patients or related records changed
-            if (hasMainChanges) {
-              useDashboardStore.setState({ searchCache: {} });
-            }
-            toast.success("System updated with latest records", {
-              id: toastId,
-            });
-          } else {
-            toast.success("System is up to date", { id: toastId });
-          }
-
-          if (updateData.serverTime) setLastSync(updateData.serverTime);
-        } else {
-          toast.success("No new changes found", { id: toastId });
-          if (updateData.serverTime) setLastSync(updateData.serverTime);
-        }
-      } else {
-        await fetchAll();
-        toast.info("Full system sync completed", { id: toastId });
-      }
+      // Direct full fetch with X-Refresh header as requested, bypassing check_updates
+      await fetchAll(true, true);
+      toast.success("System updated with latest records", { id: toastId });
+      setRefreshCooldown(30);
     } catch (err) {
       console.error("Refresh Error:", err);
-      await fetchAll();
-      toast.error("Sync failed, fallback complete", { id: toastId });
+      toast.error("Sync failed", { id: toastId });
     } finally {
       setIsLoading(false);
-      setRefreshCooldown(20);
     }
   };
 
@@ -1822,10 +1761,11 @@ const ReceptionDashboard = () => {
                 <button
                   key={btn.id}
                   onClick={() => setActiveModal(btn.id)}
-                  className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full transition-all duration-300 shadow-sm border shrink-0 ${isDark
-                    ? "bg-[#1A1C1A] text-white/70 hover:text-white hover:bg-[#252825] border-white/5"
-                    : "bg-white text-gray-600 hover:text-gray-900 border-gray-100 hover:shadow-md"
-                    }`}
+                  className={`flex items-center gap-2 sm:gap-3 px-4 sm:px-5 py-2.5 sm:py-3 rounded-full transition-all duration-300 shadow-sm border shrink-0 ${
+                    isDark
+                      ? "bg-[#1A1C1A] text-white/70 hover:text-white hover:bg-[#252825] border-white/5"
+                      : "bg-white text-gray-600 hover:text-gray-900 border-gray-100 hover:shadow-md"
+                  }`}
                 >
                   <btn.icon size={16} strokeWidth={2} />
                   <span className="text-[10px] sm:text-xs font-bold tracking-tight whitespace-nowrap">
@@ -1842,10 +1782,11 @@ const ReceptionDashboard = () => {
               >
                 <div
                   onClick={() => setShowGlobalSearch(true)}
-                  className={`flex items-center px-4 py-2.5 sm:py-3 rounded-[24px] border transition-all duration-300 cursor-text ${isDark
-                    ? "bg-[#121412]/80 border-[#2A2D2A] hover:bg-[#121412] shadow-2xl shadow-black/20"
-                    : "bg-white border-gray-100 shadow-xl shadow-black/[0.03] hover:bg-white"
-                    } backdrop-blur-md`}
+                  className={`flex items-center px-4 py-2.5 sm:py-3 rounded-[24px] border transition-all duration-300 cursor-text ${
+                    isDark
+                      ? "bg-[#121412]/80 border-[#2A2D2A] hover:bg-[#121412] shadow-2xl shadow-black/20"
+                      : "bg-white border-gray-100 shadow-xl shadow-black/[0.03] hover:bg-white"
+                  } backdrop-blur-md`}
                 >
                   <Search size={18} className="opacity-30 flex-shrink-0" />
                   <div className="bg-transparent px-3 text-sm sm:text-base w-full opacity-30 font-medium select-none truncate">
@@ -1922,14 +1863,15 @@ const ReceptionDashboard = () => {
                           {notifList.map((n: any) => (
                             <div
                               key={n.notification_id}
-                              className={`p-3 rounded-xl transition-all cursor-pointer group mb-1 ${n.is_read === 0
-                                ? isDark
-                                  ? "bg-[#CCEBC4]/5 hover:bg-[#CCEBC4]/10"
-                                  : "bg-green-50 hover:bg-green-100/50"
-                                : isDark
-                                  ? "hover:bg-white/5"
-                                  : "hover:bg-gray-50"
-                                }`}
+                              className={`p-3 rounded-xl transition-all cursor-pointer group mb-1 ${
+                                n.is_read === 0
+                                  ? isDark
+                                    ? "bg-[#CCEBC4]/5 hover:bg-[#CCEBC4]/10"
+                                    : "bg-green-50 hover:bg-green-100/50"
+                                  : isDark
+                                    ? "hover:bg-white/5"
+                                    : "hover:bg-gray-50"
+                              }`}
                             >
                               <p
                                 className={`text-xs leading-snug ${n.is_read === 0 ? "font-bold" : ""} ${isDark ? "text-gray-200" : "text-gray-800"}`}
@@ -2393,11 +2335,11 @@ const ReceptionDashboard = () => {
                 >
                   {data?.weekly
                     ? fmt(
-                      data.weekly.reduce(
-                        (a: number, b: { total: number }) => a + b.total,
-                        0,
-                      ),
-                    )
+                        data.weekly.reduce(
+                          (a: number, b: { total: number }) => a + b.total,
+                          0,
+                        ),
+                      )
                     : fmt(0)}
                 </div>
               </div>
@@ -2908,11 +2850,11 @@ const ReceptionDashboard = () => {
                                                 {regPaymentSplits[
                                                   m.method_code
                                                 ] !== undefined && (
-                                                    <Check
-                                                      size={10}
-                                                      className="text-white"
-                                                    />
-                                                  )}
+                                                  <Check
+                                                    size={10}
+                                                    className="text-white"
+                                                  />
+                                                )}
                                               </div>
                                               <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                                 {m.method_name}
@@ -2920,29 +2862,29 @@ const ReceptionDashboard = () => {
                                             </div>
                                             {regPaymentSplits[m.method_code] !==
                                               undefined && (
-                                                <input
-                                                  type="number"
-                                                  value={
-                                                    regPaymentSplits[
+                                              <input
+                                                type="number"
+                                                value={
+                                                  regPaymentSplits[
                                                     m.method_code
-                                                    ] || ""
-                                                  }
-                                                  onClick={(e) =>
-                                                    e.stopPropagation()
-                                                  }
-                                                  onChange={(e) =>
-                                                    setRegPaymentSplits({
-                                                      ...regPaymentSplits,
-                                                      [m.method_code]:
-                                                        parseFloat(
-                                                          e.target.value,
-                                                        ) || 0,
-                                                    })
-                                                  }
-                                                  className="w-20 bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-md px-2 py-1 text-xs font-bold text-slate-900 dark:text-white text-right outline-none focus:border-emerald-500"
-                                                  placeholder="0.00"
-                                                />
-                                              )}
+                                                  ] || ""
+                                                }
+                                                onClick={(e) =>
+                                                  e.stopPropagation()
+                                                }
+                                                onChange={(e) =>
+                                                  setRegPaymentSplits({
+                                                    ...regPaymentSplits,
+                                                    [m.method_code]:
+                                                      parseFloat(
+                                                        e.target.value,
+                                                      ) || 0,
+                                                  })
+                                                }
+                                                className="w-20 bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-md px-2 py-1 text-xs font-bold text-slate-900 dark:text-white text-right outline-none focus:border-emerald-500"
+                                                placeholder="0.00"
+                                              />
+                                            )}
                                           </div>
                                         ),
                                       )}
@@ -3216,65 +3158,65 @@ const ReceptionDashboard = () => {
                           {formOptions?.testTypes?.find(
                             (t: any) => t.test_code === "other",
                           ) && (
-                              <div
-                                className={`mt-4 rounded-xl border p-4 transition-all ${selectedTests["other"]?.checked ? "border-emerald-500 bg-emerald-50/50" : "border-slate-100 bg-slate-50/50"}`}
-                              >
-                                <div className="flex items-center gap-3 mb-3">
+                            <div
+                              className={`mt-4 rounded-xl border p-4 transition-all ${selectedTests["other"]?.checked ? "border-emerald-500 bg-emerald-50/50" : "border-slate-100 bg-slate-50/50"}`}
+                            >
+                              <div className="flex items-center gap-3 mb-3">
+                                <div
+                                  onClick={() =>
+                                    handleTestCheckChange(
+                                      "other",
+                                      !selectedTests["other"]?.checked,
+                                    )
+                                  }
+                                  className="flex items-center gap-2 cursor-pointer"
+                                >
                                   <div
-                                    onClick={() =>
-                                      handleTestCheckChange(
-                                        "other",
-                                        !selectedTests["other"]?.checked,
-                                      )
-                                    }
-                                    className="flex items-center gap-2 cursor-pointer"
+                                    className={`h-4 w-4 rounded border flex items-center justify-center ${selectedTests["other"]?.checked ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-slate-300"}`}
                                   >
-                                    <div
-                                      className={`h-4 w-4 rounded border flex items-center justify-center ${selectedTests["other"]?.checked ? "bg-emerald-500 border-emerald-500 text-white" : "bg-white border-slate-300"}`}
-                                    >
-                                      {selectedTests["other"]?.checked && (
-                                        <Check size={10} />
-                                      )}
-                                    </div>
-                                    <span className="text-xs font-bold text-slate-700">
-                                      Custom / Other Test
+                                    {selectedTests["other"]?.checked && (
+                                      <Check size={10} />
+                                    )}
+                                  </div>
+                                  <span className="text-xs font-bold text-slate-700">
+                                    Custom / Other Test
+                                  </span>
+                                </div>
+                              </div>
+                              {selectedTests["other"]?.checked && (
+                                <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-2">
+                                  <input
+                                    type="text"
+                                    value={otherTestName}
+                                    onChange={(e) =>
+                                      setOtherTestName(e.target.value)
+                                    }
+                                    placeholder="Test Name"
+                                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:border-emerald-500"
+                                  />
+                                  <div className="relative">
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                                      ₹
                                     </span>
+                                    <input
+                                      type="number"
+                                      value={
+                                        selectedTests["other"]?.amount || ""
+                                      }
+                                      onChange={(e) =>
+                                        handleTestAmountChange(
+                                          "other",
+                                          e.target.value,
+                                        )
+                                      }
+                                      className="w-full bg-white border border-slate-200 rounded-lg pl-6 pr-3 py-1.5 text-xs font-bold outline-none focus:border-emerald-500"
+                                      placeholder="0.00"
+                                    />
                                   </div>
                                 </div>
-                                {selectedTests["other"]?.checked && (
-                                  <div className="grid grid-cols-2 gap-3 animate-in slide-in-from-top-2">
-                                    <input
-                                      type="text"
-                                      value={otherTestName}
-                                      onChange={(e) =>
-                                        setOtherTestName(e.target.value)
-                                      }
-                                      placeholder="Test Name"
-                                      className="w-full bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-bold outline-none focus:border-emerald-500"
-                                    />
-                                    <div className="relative">
-                                      <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
-                                        ₹
-                                      </span>
-                                      <input
-                                        type="number"
-                                        value={
-                                          selectedTests["other"]?.amount || ""
-                                        }
-                                        onChange={(e) =>
-                                          handleTestAmountChange(
-                                            "other",
-                                            e.target.value,
-                                          )
-                                        }
-                                        className="w-full bg-white border border-slate-200 rounded-lg pl-6 pr-3 py-1.5 text-xs font-bold outline-none focus:border-emerald-500"
-                                        placeholder="0.00"
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            )}
+                              )}
+                            </div>
+                          )}
                         </div>
 
                         {/* Scheduling Section */}
@@ -3534,11 +3476,11 @@ const ReceptionDashboard = () => {
                                                 {testPaymentSplits[
                                                   m.method_code
                                                 ] !== undefined && (
-                                                    <Check
-                                                      size={10}
-                                                      className="text-white"
-                                                    />
-                                                  )}
+                                                  <Check
+                                                    size={10}
+                                                    className="text-white"
+                                                  />
+                                                )}
                                               </div>
                                               <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                                 {m.method_name}
@@ -3547,29 +3489,29 @@ const ReceptionDashboard = () => {
                                             {testPaymentSplits[
                                               m.method_code
                                             ] !== undefined && (
-                                                <input
-                                                  type="number"
-                                                  value={
-                                                    testPaymentSplits[
+                                              <input
+                                                type="number"
+                                                value={
+                                                  testPaymentSplits[
                                                     m.method_code
-                                                    ] || ""
-                                                  }
-                                                  onClick={(e) =>
-                                                    e.stopPropagation()
-                                                  }
-                                                  onChange={(e) =>
-                                                    setTestPaymentSplits({
-                                                      ...testPaymentSplits,
-                                                      [m.method_code]:
-                                                        parseFloat(
-                                                          e.target.value,
-                                                        ) || 0,
-                                                    })
-                                                  }
-                                                  className="w-20 bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-md px-2 py-1 text-xs font-bold text-slate-900 dark:text-white text-right outline-none focus:border-emerald-500"
-                                                  placeholder="0"
-                                                />
-                                              )}
+                                                  ] || ""
+                                                }
+                                                onClick={(e) =>
+                                                  e.stopPropagation()
+                                                }
+                                                onChange={(e) =>
+                                                  setTestPaymentSplits({
+                                                    ...testPaymentSplits,
+                                                    [m.method_code]:
+                                                      parseFloat(
+                                                        e.target.value,
+                                                      ) || 0,
+                                                  })
+                                                }
+                                                className="w-20 bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-md px-2 py-1 text-xs font-bold text-slate-900 dark:text-white text-right outline-none focus:border-emerald-500"
+                                                placeholder="0"
+                                              />
+                                            )}
                                           </div>
                                         ),
                                       )}
@@ -3593,7 +3535,7 @@ const ReceptionDashboard = () => {
                           </div>
                           <p className="text-[11px] font-medium text-slate-500 leading-relaxed">
                             {parseFloat(advanceAmount) <= 0 ||
-                              parseFloat(discountAmount) > 200
+                            parseFloat(discountAmount) > 200
                               ? "This booking requires administrative approval due to the current financial structure."
                               : "Booking is within standard limits and will be processed immediately."}
                           </p>
@@ -3604,337 +3546,337 @@ const ReceptionDashboard = () => {
                 )}
                 {(activeModal === "inquiry" ||
                   activeModal === "test_inquiry") && (
-                    <form
-                      ref={formRef}
-                      onSubmit={(e) => e.preventDefault()}
-                      className="grid grid-cols-1 gap-6"
-                    >
-                      {activeModal === "inquiry" && (
-                        <div className="space-y-6">
-                          <div className={formCardClass}>
-                            <FormSection
-                              title="Inquiry Profile"
-                              icon={PhoneCall}
-                              description="Initial lead details"
+                  <form
+                    ref={formRef}
+                    onSubmit={(e) => e.preventDefault()}
+                    className="grid grid-cols-1 gap-6"
+                  >
+                    {activeModal === "inquiry" && (
+                      <div className="space-y-6">
+                        <div className={formCardClass}>
+                          <FormSection
+                            title="Inquiry Profile"
+                            icon={PhoneCall}
+                            description="Initial lead details"
+                          >
+                            <FormField
+                              label="Patient Name"
+                              required
+                              icon={User}
+                              className="lg:col-span-2"
                             >
-                              <FormField
-                                label="Patient Name"
+                              <input
+                                type="text"
+                                name="patient_name"
                                 required
-                                icon={User}
-                                className="lg:col-span-2"
-                              >
-                                <input
-                                  type="text"
-                                  name="patient_name"
-                                  required
-                                  className={inputClass}
-                                  placeholder="Full Name"
-                                />
-                              </FormField>
-                              <FormField label="Age" required icon={Calendar}>
-                                <input
-                                  type="text"
-                                  name="age"
-                                  required
-                                  className={inputClass}
-                                  placeholder="e.g. 25 years"
-                                />
-                              </FormField>
-                              <FormField label="Gender" required icon={Users}>
-                                <CustomSelect
-                                  value={inqGender}
-                                  onChange={setInqGender}
-                                  options={[
-                                    { label: "Male", value: "Male" },
-                                    { label: "Female", value: "Female" },
-                                    { label: "Other", value: "Other" },
-                                  ]}
-                                  placeholder="Select"
-                                />
-                                <input
-                                  type="hidden"
-                                  name="gender"
-                                  value={inqGender}
-                                  required
-                                />
-                              </FormField>
-                              <FormField
-                                label="Inquiry Service"
+                                className={inputClass}
+                                placeholder="Full Name"
+                              />
+                            </FormField>
+                            <FormField label="Age" required icon={Calendar}>
+                              <input
+                                type="text"
+                                name="age"
                                 required
-                                icon={Beaker}
-                              >
-                                <CustomSelect
-                                  value={inqService}
-                                  onChange={setInqService}
-                                  options={
-                                    formOptions?.inquiryServiceTypes.map(
-                                      (s: any) => ({
-                                        label: s.service_name,
-                                        value: s.service_code,
-                                      }),
-                                    ) || []
-                                  }
-                                  placeholder="Select"
-                                />
-                                <input
-                                  type="hidden"
-                                  name="inquiry_type"
-                                  value={inqService}
-                                  required
-                                />
-                              </FormField>
-                              <FormField
-                                label="Chief Complaint"
+                                className={inputClass}
+                                placeholder="e.g. 25 years"
+                              />
+                            </FormField>
+                            <FormField label="Gender" required icon={Users}>
+                              <CustomSelect
+                                value={inqGender}
+                                onChange={setInqGender}
+                                options={[
+                                  { label: "Male", value: "Male" },
+                                  { label: "Female", value: "Female" },
+                                  { label: "Other", value: "Other" },
+                                ]}
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="gender"
+                                value={inqGender}
                                 required
-                                icon={Activity}
-                              >
-                                <CustomSelect
-                                  value={inqComplaint}
-                                  onChange={setInqComplaint}
-                                  options={
-                                    formOptions?.chiefComplaints.map(
-                                      (c: any) => ({
-                                        label: c.complaint_name,
-                                        value: c.complaint_code,
-                                      }),
-                                    ) || []
-                                  }
-                                  placeholder="Select"
-                                />
-                                <input
-                                  type="hidden"
-                                  name="conditionType"
-                                  value={inqComplaint}
-                                  required
-                                />
-                              </FormField>
-                            </FormSection>
-                          </div>
+                              />
+                            </FormField>
+                            <FormField
+                              label="Inquiry Service"
+                              required
+                              icon={Beaker}
+                            >
+                              <CustomSelect
+                                value={inqService}
+                                onChange={setInqService}
+                                options={
+                                  formOptions?.inquiryServiceTypes.map(
+                                    (s: any) => ({
+                                      label: s.service_name,
+                                      value: s.service_code,
+                                    }),
+                                  ) || []
+                                }
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="inquiry_type"
+                                value={inqService}
+                                required
+                              />
+                            </FormField>
+                            <FormField
+                              label="Chief Complaint"
+                              required
+                              icon={Activity}
+                            >
+                              <CustomSelect
+                                value={inqComplaint}
+                                onChange={setInqComplaint}
+                                options={
+                                  formOptions?.chiefComplaints.map(
+                                    (c: any) => ({
+                                      label: c.complaint_name,
+                                      value: c.complaint_code,
+                                    }),
+                                  ) || []
+                                }
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="conditionType"
+                                value={inqComplaint}
+                                required
+                              />
+                            </FormField>
+                          </FormSection>
+                        </div>
 
-                          <div className={formCardClass}>
-                            <FormSection
-                              title="Communication"
+                        <div className={formCardClass}>
+                          <FormSection
+                            title="Communication"
+                            icon={Phone}
+                            description="How to reach them"
+                          >
+                            <FormField
+                              label="Mobile Number"
+                              required
                               icon={Phone}
-                              description="How to reach them"
                             >
-                              <FormField
-                                label="Mobile Number"
+                              <input
+                                type="tel"
+                                name="phone"
                                 required
-                                icon={Phone}
+                                maxLength={10}
+                                className={inputClass}
+                                placeholder="10-digit mobile"
+                              />
+                            </FormField>
+                            <FormField
+                              label="Comm. Channel"
+                              required
+                              icon={Bell}
+                            >
+                              <CustomSelect
+                                value={inqCommType}
+                                onChange={setInqCommType}
+                                options={[
+                                  "Call",
+                                  "Walk-in",
+                                  "Email",
+                                  "Chat",
+                                  "Whatsapp",
+                                ].map((v) => ({ label: v, value: v }))}
+                                placeholder="Select"
+                              />
+                              <input
+                                type="hidden"
+                                name="communication_type"
+                                value={inqCommType}
+                              />
+                            </FormField>
+                            <FormField
+                              label="Lead Source"
+                              required
+                              icon={Search}
+                            >
+                              <CustomSelect
+                                value={inqSource}
+                                onChange={setInqSource}
+                                options={
+                                  formOptions?.referralSources.map(
+                                    (s: any) => ({
+                                      label: s.source_name,
+                                      value: s.source_code,
+                                    }),
+                                  ) || []
+                                }
+                                placeholder="Select Source"
+                              />
+                              <input
+                                type="hidden"
+                                name="referralSource"
+                                value={inqSource}
+                              />
+                            </FormField>
+                            <FormField label="Next Step / Plan" icon={Calendar}>
+                              <div
+                                onClick={() => {
+                                  setActiveDateField("inquiry");
+                                  setShowDatePicker(true);
+                                }}
+                                className={`${inputClass} cursor-pointer flex items-center justify-between`}
                               >
-                                <input
-                                  type="tel"
-                                  name="phone"
-                                  required
-                                  maxLength={10}
-                                  className={inputClass}
-                                  placeholder="10-digit mobile"
+                                <span className="font-medium">
+                                  {format(
+                                    new Date(inquiryDate),
+                                    "MMM dd, yyyy",
+                                  )}
+                                </span>
+                                <Calendar
+                                  size={14}
+                                  className="text-slate-400"
                                 />
-                              </FormField>
-                              <FormField
-                                label="Comm. Channel"
-                                required
-                                icon={Bell}
-                              >
-                                <CustomSelect
-                                  value={inqCommType}
-                                  onChange={setInqCommType}
-                                  options={[
-                                    "Call",
-                                    "Walk-in",
-                                    "Email",
-                                    "Chat",
-                                    "Whatsapp",
-                                  ].map((v) => ({ label: v, value: v }))}
-                                  placeholder="Select"
-                                />
-                                <input
-                                  type="hidden"
-                                  name="communication_type"
-                                  value={inqCommType}
-                                />
-                              </FormField>
-                              <FormField
-                                label="Lead Source"
-                                required
-                                icon={Search}
-                              >
-                                <CustomSelect
-                                  value={inqSource}
-                                  onChange={setInqSource}
-                                  options={
-                                    formOptions?.referralSources.map(
-                                      (s: any) => ({
-                                        label: s.source_name,
-                                        value: s.source_code,
-                                      }),
-                                    ) || []
-                                  }
-                                  placeholder="Select Source"
-                                />
-                                <input
-                                  type="hidden"
-                                  name="referralSource"
-                                  value={inqSource}
-                                />
-                              </FormField>
-                              <FormField label="Next Step / Plan" icon={Calendar}>
-                                <div
-                                  onClick={() => {
-                                    setActiveDateField("inquiry");
-                                    setShowDatePicker(true);
-                                  }}
-                                  className={`${inputClass} cursor-pointer flex items-center justify-between`}
-                                >
-                                  <span className="font-medium">
-                                    {format(
-                                      new Date(inquiryDate),
-                                      "MMM dd, yyyy",
-                                    )}
-                                  </span>
-                                  <Calendar
-                                    size={14}
-                                    className="text-slate-400"
-                                  />
-                                </div>
-                                <input
-                                  type="hidden"
-                                  name="plan_to_visit_date"
-                                  value={inquiryDate}
-                                />
-                              </FormField>
-                              <FormField
-                                label="Administrative Remarks"
-                                icon={StickyNote}
-                                className="lg:col-span-2"
-                              >
-                                <textarea
-                                  name="remarks"
-                                  rows={3}
-                                  className={inputClass}
-                                  placeholder="Initial assessment notes..."
-                                />
-                              </FormField>
-                            </FormSection>
-                          </div>
+                              </div>
+                              <input
+                                type="hidden"
+                                name="plan_to_visit_date"
+                                value={inquiryDate}
+                              />
+                            </FormField>
+                            <FormField
+                              label="Administrative Remarks"
+                              icon={StickyNote}
+                              className="lg:col-span-2"
+                            >
+                              <textarea
+                                name="remarks"
+                                rows={3}
+                                className={inputClass}
+                                placeholder="Initial assessment notes..."
+                              />
+                            </FormField>
+                          </FormSection>
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {activeModal === "test_inquiry" && (
-                        <div className="space-y-6">
-                          <div className={formCardClass}>
-                            <FormSection
-                              title="Test Inquiry Profile"
-                              icon={FlaskConical}
-                              description="Lab test lead details"
+                    {activeModal === "test_inquiry" && (
+                      <div className="space-y-6">
+                        <div className={formCardClass}>
+                          <FormSection
+                            title="Test Inquiry Profile"
+                            icon={FlaskConical}
+                            description="Lab test lead details"
+                          >
+                            <FormField
+                              label="Patient Name"
+                              required
+                              icon={User}
                             >
-                              <FormField
-                                label="Patient Name"
+                              <input
+                                type="text"
+                                name="patient_name"
                                 required
-                                icon={User}
-                              >
-                                <input
-                                  type="text"
-                                  name="patient_name"
-                                  required
-                                  className={inputClass}
-                                  placeholder="Full Name"
-                                />
-                              </FormField>
-                              <FormField
-                                label="Mobile Number"
+                                className={inputClass}
+                                placeholder="Full Name"
+                              />
+                            </FormField>
+                            <FormField
+                              label="Mobile Number"
+                              required
+                              icon={Phone}
+                            >
+                              <input
+                                type="tel"
+                                name="phone"
                                 required
-                                icon={Phone}
-                              >
-                                <input
-                                  type="tel"
-                                  name="phone"
-                                  required
-                                  maxLength={10}
-                                  className={inputClass}
-                                  placeholder="10-digit mobile"
-                                />
-                              </FormField>
-                              <FormField
-                                label="Requested Test"
+                                maxLength={10}
+                                className={inputClass}
+                                placeholder="10-digit mobile"
+                              />
+                            </FormField>
+                            <FormField
+                              label="Requested Test"
+                              required
+                              icon={Beaker}
+                              className="lg:col-span-2"
+                            >
+                              <CustomSelect
+                                value={tiTestName}
+                                onChange={setTiTestName}
+                                options={
+                                  formOptions?.testTypes.map((t: any) => ({
+                                    label: t.test_name,
+                                    value: t.test_code,
+                                  })) || []
+                                }
+                                placeholder="Select Test"
+                              />
+                              <input
+                                type="hidden"
+                                name="test_name"
+                                value={tiTestName}
                                 required
-                                icon={Beaker}
-                                className="lg:col-span-2"
+                              />
+                            </FormField>
+                            <FormField label="Expected Amount" icon={Wallet}>
+                              <div className="relative">
+                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
+                                  ₹
+                                </span>
+                                <input
+                                  type="number"
+                                  name="expected_amount"
+                                  className="w-full bg-white border border-slate-200 rounded-lg pl-6 pr-3 py-2 text-sm font-bold outline-none focus:border-emerald-500"
+                                  placeholder="0"
+                                />
+                              </div>
+                            </FormField>
+                            <FormField label="Expected Visit" icon={Calendar}>
+                              <div
+                                onClick={() => {
+                                  setActiveDateField("test_inquiry");
+                                  setShowDatePicker(true);
+                                }}
+                                className={`${inputClass} cursor-pointer flex items-center justify-between`}
                               >
-                                <CustomSelect
-                                  value={tiTestName}
-                                  onChange={setTiTestName}
-                                  options={
-                                    formOptions?.testTypes.map((t: any) => ({
-                                      label: t.test_name,
-                                      value: t.test_code,
-                                    })) || []
-                                  }
-                                  placeholder="Select Test"
+                                <span className="font-medium">
+                                  {format(
+                                    new Date(testInquiryDate),
+                                    "MMM dd, yyyy",
+                                  )}
+                                </span>
+                                <Calendar
+                                  size={14}
+                                  className="text-slate-400"
                                 />
-                                <input
-                                  type="hidden"
-                                  name="test_name"
-                                  value={tiTestName}
-                                  required
-                                />
-                              </FormField>
-                              <FormField label="Expected Amount" icon={Wallet}>
-                                <div className="relative">
-                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
-                                    ₹
-                                  </span>
-                                  <input
-                                    type="number"
-                                    name="expected_amount"
-                                    className="w-full bg-white border border-slate-200 rounded-lg pl-6 pr-3 py-2 text-sm font-bold outline-none focus:border-emerald-500"
-                                    placeholder="0"
-                                  />
-                                </div>
-                              </FormField>
-                              <FormField label="Expected Visit" icon={Calendar}>
-                                <div
-                                  onClick={() => {
-                                    setActiveDateField("test_inquiry");
-                                    setShowDatePicker(true);
-                                  }}
-                                  className={`${inputClass} cursor-pointer flex items-center justify-between`}
-                                >
-                                  <span className="font-medium">
-                                    {format(
-                                      new Date(testInquiryDate),
-                                      "MMM dd, yyyy",
-                                    )}
-                                  </span>
-                                  <Calendar
-                                    size={14}
-                                    className="text-slate-400"
-                                  />
-                                </div>
-                                <input
-                                  type="hidden"
-                                  name="expected_visit_date"
-                                  value={testInquiryDate}
-                                />
-                              </FormField>
-                              <FormField
-                                label="Remarks / Details"
-                                icon={StickyNote}
-                                className="lg:col-span-2"
-                              >
-                                <input
-                                  type="text"
-                                  name="remarks"
-                                  className={inputClass}
-                                  placeholder="Any specific requirements"
-                                />
-                              </FormField>
-                            </FormSection>
-                          </div>
+                              </div>
+                              <input
+                                type="hidden"
+                                name="expected_visit_date"
+                                value={testInquiryDate}
+                              />
+                            </FormField>
+                            <FormField
+                              label="Remarks / Details"
+                              icon={StickyNote}
+                              className="lg:col-span-2"
+                            >
+                              <input
+                                type="text"
+                                name="remarks"
+                                className={inputClass}
+                                placeholder="Any specific requirements"
+                              />
+                            </FormField>
+                          </FormSection>
                         </div>
-                      )}
-                    </form>
-                  )}
+                      </div>
+                    )}
+                  </form>
+                )}
               </motion.div>
               <div className="sticky bottom-0 z-10 flex items-center justify-between border-t border-slate-200 bg-white/95 p-6 backdrop-blur transition-colors dark:border-slate-700 dark:bg-slate-950/95">
                 {submitMessage ? (
@@ -4063,12 +4005,14 @@ const ReceptionDashboard = () => {
         {showDatePicker && (
           <DatePicker
             variant={
-              activeDateField === "test_assigned" || activeDateField === "test_visit"
+              activeDateField === "test_assigned" ||
+              activeDateField === "test_visit"
                 ? "premium"
                 : "standard"
             }
             minDate={
-              activeDateField === "registration" || activeDateField === "test_assigned"
+              activeDateField === "registration" ||
+              activeDateField === "test_assigned"
                 ? new Date().toISOString().split("T")[0]
                 : undefined
             }
@@ -4139,10 +4083,11 @@ const ReceptionDashboard = () => {
                   <button
                     onClick={handleManualApprovalRefresh}
                     disabled={isLoading || approvalRefreshCooldown > 0}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${approvalRefreshCooldown > 0
-                      ? "opacity-50 grayscale cursor-not-allowed"
-                      : "hover:scale-105 active:scale-95"
-                      } ${isDark ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm"}`}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${
+                      approvalRefreshCooldown > 0
+                        ? "opacity-50 grayscale cursor-not-allowed"
+                        : "hover:scale-105 active:scale-95"
+                    } ${isDark ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400" : "bg-emerald-50 border-emerald-100 text-emerald-600 shadow-sm"}`}
                   >
                     <RefreshCw
                       size={12}

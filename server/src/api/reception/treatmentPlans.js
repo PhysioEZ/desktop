@@ -83,7 +83,7 @@ async function editTreatmentPlan(req, res, input) {
         }
 
         if (input.edit_remarks) {
-            fields.push("remarks = CONCAT(COALESCE(remarks, ''), ?)");
+            fields.push("remarks = (COALESCE(remarks, '') || ?)");
             params.push(`\n[Edit: ${input.edit_remarks}]`);
         }
 
@@ -274,7 +274,7 @@ async function changeTreatmentPlan(req, res, input) {
                 service_track_id = COALESCE(?, service_track_id),
                 status = 'active',
                 plan_changed = 1,
-                remarks = CONCAT(COALESCE(remarks, ''), ?)
+                remarks = (COALESCE(remarks, '') || ?)
             WHERE patient_id = ?
         `, [
             newType,

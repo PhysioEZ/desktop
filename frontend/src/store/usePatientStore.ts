@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { API_BASE_URL, authFetch } from '../config';
 
 export interface Patient {
@@ -99,8 +100,8 @@ interface PatientState {
     // Actions
     setFilters: (filters: Partial<FilterState>) => void;
     setPage: (page: number) => void;
-    fetchPatients: (branchId: number) => Promise<void>;
-    fetchMetaData: (branchId: number) => Promise<void>;
+    fetchPatients: (branchId: number, forceRefresh?: boolean) => Promise<void>;
+    fetchMetaData: (branchId: number, forceRefresh?: boolean) => Promise<void>;
     fetchPatientDetails: (patientId: number | null, patientName?: string, phone?: string) => Promise<void>;
     billingViewMode: 'treatment' | 'test';
     setBillingViewMode: (mode: 'treatment' | 'test') => void;
@@ -109,9 +110,12 @@ interface PatientState {
     refreshPatients: (branchId: number) => Promise<void>;
     markAttendance: (patientId: number, branchId: number, status?: string) => Promise<boolean>;
     updateLocalPatientStatus: (patientId: number, newStatus: string) => void;
+    clearStore: () => void;
 }
 
-export const usePatientStore = create<PatientState>((set, get) => ({
+export const usePatientStore = create<PatientState>()(
+  persist(
+    (set, get) => ({
     patients: [],
     isLoading: false,
     pagination: {
@@ -161,14 +165,26 @@ export const usePatientStore = create<PatientState>((set, get) => ({
         set((state) => ({ pagination: { ...state.pagination, page } }));
     },
 
-    fetchPatients: async (branchId: number) => {
+    fetchPatients: async (branchId: number, forceRefresh = false) => {
         const { pagination, filters } = get();
+        
+        // If not forced and we have data, skip loading state logic to prevent flash
+        if (!forceRefresh && get().patients.length > 0) {
+            // But we still fetch in background if needed? 
+            // The flow says "once fetch and stored in the sqlite, use this to show."
+            // So if we have data, we might not need to fetch at all unless forceRefresh.
+            return; 
+        }
+
         set({ isLoading: true });
         
         try {
             const response = await authFetch(`${API_BASE_URL}/reception/patients`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(forceRefresh && { 'X-Refresh': 'true' })
+                },
                 body: JSON.stringify({
                     action: 'fetch',
                     branch_id: branchId,
@@ -199,11 +215,16 @@ export const usePatientStore = create<PatientState>((set, get) => ({
         }
     },
 
-    fetchMetaData: async (branchId: number) => {
+    fetchMetaData: async (branchId: number, forceRefresh = false) => {
+        if (!forceRefresh && get().metaData.doctors.length > 0) return;
+
         try {
             const response = await authFetch(`${API_BASE_URL}/reception/patients`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json',
+                    ...(forceRefresh && { 'X-Refresh': 'true' })
+                },
                 body: JSON.stringify({
                     action: 'fetch_filters',
                     branch_id: branchId
@@ -287,5 +308,25 @@ export const usePatientStore = create<PatientState>((set, get) => ({
             selectedPatient: state.selectedPatient?.patient_id === patientId ? { ...state.selectedPatient, patient_status: newStatus } : state.selectedPatient && state.selectedPatient,
             patientDetails: state.patientDetails?.patient_id === patientId ? { ...state.patientDetails, patient_status: newStatus } : state.patientDetails
         }));
+    },
+
+    clearStore: () => set({
+        patients: [],
+        isLoading: false,
+        pagination: { page: 1, limit: 16, total_records: 0, total_pages: 1 },
+        filters: { search: '', service_type: '', doctor: '', treatment: '', status: '' },
+        metaData: {
+            doctors: [], statuses: [], services: [], treatments: [], referrers: [], payment_methods: [],
+            counts: { new_today: 0, active_count: 0, inactive_count: 0, terminated_count: 0, total_count: 0 }
+        },
+        selectedPatient: null,
+        isDetailsModalOpen: false,
+        patientDetails: null,
+        isLoadingDetails: false,
+    }),
+}),
+    {
+      name: 'patient-cache',
     }
-}));
+  )
+);

@@ -53,7 +53,7 @@ async function fetchExpenses(req, res, branchId) {
         // 1. Fetch Expenses
         const [expenses] = await connection.query(`
             SELECT e.*, 
-                   CONCAT(emp.first_name, ' ', emp.last_name) as creator_username
+                   (emp.first_name || ' ' || COALESCE(emp.last_name, '')) as creator_username
             ${sql}
             ORDER BY e.expense_date DESC, e.created_at DESC
             LIMIT ? OFFSET ?

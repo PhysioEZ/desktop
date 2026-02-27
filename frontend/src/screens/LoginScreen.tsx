@@ -246,7 +246,7 @@ const LoginScreen = () => {
                         size={12}
                         className="text-[#fc3b00] dark:text-[#ff7145] transition-transform group-hover:scale-110 group-hover:rotate-6"
                       />
-                      404 Founders
+                      Syntax Sinners
                     </button>
                   </div>
                 </div>
@@ -467,7 +467,7 @@ const LoginScreen = () => {
                   PRODUCT ENGINEERING
                 </span>
                 <h1 className="text-4xl md:text-[48px] font-bold mb-[25px]">
-                  404 Founders
+                  Syntax Sinners
                 </h1>
 
                 <p className="text-[18px] leading-[1.6] opacity-90 mb-5">
@@ -531,7 +531,7 @@ const LoginScreen = () => {
                 <div className="flex gap-[15px] mt-5">
                   <button
                     onClick={() =>
-                      window.open("https://404founders.com", "_blank")
+                      window.open("https://sumit7739.github.io/Portfolio-main/", "_blank")
                     }
                     className="flex-1 bg-gradient-to-r from-[#ff6129] to-[#fc3b00] border-none py-3 rounded-[12px] font-semibold text-white cursor-pointer hover:opacity-90 transition-opacity"
                   >
