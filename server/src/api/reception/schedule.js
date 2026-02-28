@@ -114,13 +114,15 @@ exports.reschedule = async (req, res) => {
     }
 
     try {
-        await pool.query(`
-            UPDATE registration 
-            SET appointment_date = ?, 
-                appointment_time = ? 
-            WHERE registration_id = ? 
-              AND branch_id = ?
-        `, [new_date, new_time, registration_id, branch_id]);
+        await pool.queryContext.run({ forceRemote: true }, async () => {
+            await pool.query(`
+                UPDATE registration 
+                SET appointment_date = ?, 
+                    appointment_time = ? 
+                WHERE registration_id = ? 
+                  AND branch_id = ?
+            `, [new_date, new_time, registration_id, branch_id]);
+        });
 
         res.json({ success: true, message: 'Appointment rescheduled successfully!' });
     } catch (error) {

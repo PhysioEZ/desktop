@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { API_BASE_URL, authFetch } from "../config";
 import { useDashboardStore, useThemeStore, useAuthStore } from "../store";
 import ChatModal from "../components/Chat/ChatModal";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { toast } from "sonner";
 import ActionFAB from "../components/ActionFAB";
 import {
@@ -237,7 +237,7 @@ const Schedule = () => {
   const [activeAppointment, setActiveAppointment] =
     useState<Appointment | null>(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
+  
 
   // States
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -339,7 +339,7 @@ const Schedule = () => {
           const normalized = (data.appointments || []).map((a: any) => ({
             ...a,
             appointment_date: a.appointment_date
-              ? format(new Date(a.appointment_date), "yyyy-MM-dd")
+              ? a.appointment_date.substring(0, 10)
               : a.appointment_date,
           }));
           setScheduleAppointments(normalized);
@@ -583,17 +583,32 @@ const Schedule = () => {
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over) return;
+
     const appointment = active.data.current?.appointment as Appointment;
+    if (!appointment) return;
+
     const { day, time } = over.data.current as { day: Date; time: string };
+    if (!day || !time) return;
+
     const newDate = format(day, "yyyy-MM-dd");
-    const newTime = time;
+    const newTime = `${time}:00`;
+
     if (
       appointment.appointment_date === newDate &&
-      appointment.appointment_time.startsWith(newTime)
-    )
+      appointment.appointment_time === newTime
+    ) {
       return;
+    }
 
-    setIsUpdating(true);
+    const originalAppointments = scheduleAppointments || [];
+
+    const updatedAppointments = (scheduleAppointments || []).map((appt) =>
+      appt.registration_id === appointment.registration_id
+        ? { ...appt, appointment_date: newDate, appointment_time: newTime }
+        : appt,
+    );
+    setScheduleAppointments(updatedAppointments);
+
     try {
       const res = await authFetch(
         `${API_BASE_URL}/reception/schedule/reschedule`,
@@ -603,25 +618,45 @@ const Schedule = () => {
           body: JSON.stringify({
             registration_id: appointment.registration_id,
             new_date: newDate,
-            new_time: newTime,
+            new_time: time,
             branch_id: user?.branch_id,
             employee_id: user?.employee_id,
           }),
         },
       );
+
       const data = await res.json();
+
       if (data.success) {
         toast.success(
-          `Rescheduled to ${format(day, "MMM d")} at ${format(parse(time, "HH:mm", new Date()), "hh:mm a")}`,
+          `Rescheduled to ${format(day, "MMM d")} at ${format(
+            parse(time, "HH:mm", new Date()),
+            "hh:mm a",
+          )}`,
         );
-        fetchSchedule(true); // Force refresh
+        // Normalizing the data from the server response, if any.
+        if (data.appointment) {
+          const normalizedAppointment = {
+            ...data.appointment,
+            appointment_date: data.appointment.appointment_date
+              ? data.appointment.appointment_date.substring(0, 10)
+              : data.appointment.appointment_date,
+          };
+          const finalAppointments = updatedAppointments.map((a) =>
+            a.registration_id === normalizedAppointment.registration_id
+              ? normalizedAppointment
+              : a,
+          );
+          setScheduleAppointments(finalAppointments);
+        }
       } else {
-        toast.error(data.message || "Rescheduling failed");
+        toast.error(data.message || "Rescheduling failed. Reverting changes.");
+        setScheduleAppointments(originalAppointments);
       }
-    } catch (e) {
-      toast.error("Error during reschedule");
-    } finally {
-      setIsUpdating(false);
+    } catch (error) {
+      console.error("Reschedule failed:", error);
+      toast.error("An error occurred. Reverting changes.");
+      setScheduleAppointments(originalAppointments);
     }
   };
 
@@ -688,14 +723,14 @@ const Schedule = () => {
                     (a) =>
                       a &&
                       a.appointment_date &&
-                      isToday(new Date(a.appointment_date)),
+                      isToday(parse(a.appointment_date, "yyyy-MM-dd", new Date())),
                   ).length > 0 ? (
                     (scheduleAppointments || [])
                       .filter(
                         (a) =>
                           a &&
                           a.appointment_date &&
-                          isToday(new Date(a.appointment_date)),
+                          isToday(parse(a.appointment_date, "yyyy-MM-dd", new Date())),
                       )
                       .sort((a, b) =>
                         (a.appointment_time || "").localeCompare(
@@ -731,16 +766,24 @@ const Schedule = () => {
                               <div className="flex items-start justify-between gap-3">
                                 <div className="flex flex-col min-w-0">
                                   <span className="text-xs font-black tracking-[0.2em] text-emerald-500 uppercase">
-                                    {appt.appointment_time
-                                      ? format(
-                                          parse(
-                                            appt.appointment_time,
-                                            "HH:mm:ss",
-                                            new Date(),
-                                          ),
-                                          "hh:mm a",
-                                        )
-                                      : "--:--"}
+                                    {(() => {
+                                      if (!appt.appointment_time) {
+                                        return "--:--";
+                                      }
+                                      const timeFormat =
+                                        appt.appointment_time.length > 5
+                                          ? "HH:mm:ss"
+                                          : "HH:mm";
+                                      const parsed = parse(
+                                        appt.appointment_time,
+                                        timeFormat,
+                                        new Date(),
+                                      );
+                                      if (isNaN(parsed.getTime())) {
+                                        return appt.appointment_time; // Invalid format
+                                      }
+                                      return format(parsed, "hh:mm a");
+                                    })()}
                                   </span>
                                   <p className="text-lg font-black tracking-tight truncate">
                                     {appt.patient_name || "Unknown Patient"}
@@ -927,24 +970,7 @@ const Schedule = () => {
                 </div>
               </DndContext>
 
-              {/* Updating Overlay */}
-              <AnimatePresence>
-                {isUpdating && (
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="absolute inset-0 bg-white/50 dark:bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center"
-                  >
-                    <div className="bg-[#1a1c1e] text-white px-6 py-3 rounded-full flex items-center gap-3 shadow-xl">
-                      <Loader2 className="animate-spin text-emerald-500" />
-                      <span className="text-sm font-bold">
-                        Updating Schedule...
-                      </span>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+              
             </motion.div>
           </motion.main>
         </div>
@@ -1145,10 +1171,10 @@ const RescheduleModal = ({
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex flex-col">
                     <span className="text-sm font-bold opacity-40">
-                      {format(new Date(selectedDate), "EEEE")}
+                      {format(parse(selectedDate, "yyyy-MM-dd", new Date()), "EEEE")}
                     </span>
                     <span className="text-2xl font-black tracking-tight">
-                      {format(new Date(selectedDate), "MMM d, yyyy")}
+                      {format(parse(selectedDate, "yyyy-MM-dd", new Date()), "MMM d, yyyy")}
                     </span>
                   </div>
                   <div

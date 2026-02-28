@@ -29,7 +29,6 @@ import {
   Hourglass,
   Phone,
   LayoutGrid,
-  Banknote,
   Info,
   StickyNote,
   UserPlus,
@@ -52,13 +51,9 @@ import ChatModal from "../components/Chat/ChatModal";
 import KeyboardShortcuts, {
   type ShortcutItem,
 } from "../components/KeyboardShortcuts";
-import LogoutConfirmation from "../components/LogoutConfirmation";
-import DailyIntelligence from "../components/DailyIntelligence";
 import { useUIStore } from "../store/useUIStore";
 import { useDashboardStore } from "../store";
 import Sidebar from "../components/Sidebar";
-import NotesDrawer from "../components/NotesDrawer";
-
 type ModalType =
   | "registration"
   | "test"
@@ -713,8 +708,6 @@ const ReceptionDashboard = () => {
 
     const now = Date.now();
     const prevAccess = lastAccessTime || 0;
-    const diff = (now - prevAccess) / 1000;
-
     // Update last access time immediately as the "page is opened"
     useDashboardStore.setState({ lastAccessTime: now });
 

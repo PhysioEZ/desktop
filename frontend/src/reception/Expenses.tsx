@@ -26,8 +26,6 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 import Sidebar from "../components/Sidebar";
 import { toast } from "sonner";
-import DailyIntelligence from "../components/DailyIntelligence";
-import NotesDrawer from "../components/NotesDrawer";
 import ChatModal from "../components/Chat/ChatModal";
 
 interface ExpenseRecord {

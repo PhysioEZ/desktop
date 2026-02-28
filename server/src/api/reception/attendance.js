@@ -93,7 +93,7 @@ async function markFullAttendance(req, res, branchId, input) {
         const historyConsumed = parseFloat(histRows[0].total || 0);
 
         const curRate = (patient.treatment_type === 'package' && patient.treatment_days > 0)
-            ? (parseFloat(patient.package_cost) / patient.treatment_days)
+            ? (parseFloat(patient.total_amount) / patient.treatment_days)
             : parseFloat(patient.treatment_cost_per_day || 0);
 
         const [cAttRows] = await connection.query("SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'", [patient_id, patient.start_date || '2000-01-01']);

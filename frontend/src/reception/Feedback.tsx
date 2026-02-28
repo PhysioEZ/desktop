@@ -22,14 +22,11 @@ import { format } from "date-fns";
 import { toast } from "sonner";
 import { API_BASE_URL, authFetch } from "../config";
 import {
-  useDashboardStore,
   useThemeStore,
 } from "../store";
 import PageHeader from "../components/PageHeader";
 import Sidebar from "../components/Sidebar";
 import FileViewer from "../components/FileViewer/FileViewer";
-import DailyIntelligence from "../components/DailyIntelligence";
-import NotesDrawer from "../components/NotesDrawer";
 import ChatModal from "../components/Chat/ChatModal";
 
 interface FeedbackRecord {

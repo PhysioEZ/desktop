@@ -42,8 +42,8 @@ const WelcomeScreen = () => {
   const [imgError, setImgError] = useState(false);
 
   // Constants for timing
-  const minVisualDuration = 4000; // 4s min stay
-  const maxWaitTime = 15000; // 15s max stay
+  const minVisualDuration = 3000; // 3s min stay
+  const maxWaitTime = 6000; // 6s max stay
   const startTimeRef = useRef(Date.now());
 
   useEffect(() => {

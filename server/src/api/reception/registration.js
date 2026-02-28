@@ -1,6 +1,7 @@
 const pool = require('../../config/db');
 const fs = require('fs');
 const path = require('path');
+const { recalculatePatientFinancials } = require('../../utils/financials');
 
 exports.submitRegistration = async (req, res) => {
     const connection = await pool.getConnection();
@@ -325,6 +326,9 @@ exports.quickAddPatient = async (req, res) => {
 
         // Update Registration Status
         await connection.query("UPDATE registration SET status = 'consulted' WHERE registration_id = ?", [registrationId]);
+
+        // Centralized Recalculation
+        await recalculatePatientFinancials(connection, newPatientId);
 
         await connection.commit();
         res.json({ status: 'success', message: 'Patient added successfully', patient_id: newPatientId });

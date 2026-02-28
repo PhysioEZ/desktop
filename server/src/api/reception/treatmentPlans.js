@@ -122,7 +122,7 @@ async function editTreatmentPlan(req, res, input) {
 
                 let basePerDay = parseFloat(patient.treatment_cost_per_day || 0);
                 if (patient.treatment_type === 'package' && patient.treatment_days > 0) {
-                    basePerDay = parseFloat(patient.package_cost) / patient.treatment_days;
+                    basePerDay = parseFloat(patient.total_amount) / patient.treatment_days;
                 }
 
                 const subtotal = basePerDay * newDays;
@@ -200,7 +200,7 @@ async function changeTreatmentPlan(req, res, input) {
         const [histRows] = await connection.query("SELECT COALESCE(SUM(consumed_amount), 0) as total FROM patients_treatment WHERE patient_id = ?", [patientId]);
         const historyConsumed = parseFloat(histRows[0].total || 0);
 
-        const curRate = (patient.treatment_type === 'package' && patient.treatment_days > 0) ? (parseFloat(patient.package_cost) / patient.treatment_days) : parseFloat(patient.treatment_cost_per_day || 0);
+        const curRate = (patient.treatment_type === 'package' && patient.treatment_days > 0) ? (parseFloat(patient.total_amount) / patient.treatment_days) : parseFloat(patient.treatment_cost_per_day || 0);
         const [cAtt] = await connection.query("SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < CURDATE() AND status = 'present'", [patientId, patient.start_date || '2000-01-01']);
         const currentCount = cAtt[0].count;
         const currentConsumed = (currentCount * curRate);

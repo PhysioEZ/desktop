@@ -12,8 +12,7 @@ import {
   ArrowRight,
   X,
   Phone,
-  Banknote,
-} from "lucide-react";
+  } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useThemeStore } from "../store/useThemeStore";
@@ -21,8 +20,6 @@ import { useAuthStore } from "../store/useAuthStore";
 import { API_BASE_URL, authFetch, FILE_BASE_URL } from "../config";
 import Sidebar from "../components/Sidebar";
 import PageHeader from "../components/PageHeader";
-import DailyIntelligence from "../components/DailyIntelligence";
-import NotesDrawer from "../components/NotesDrawer";
 import ChatModal from "../components/Chat/ChatModal";
 
 interface SupportTicket {

@@ -19,7 +19,6 @@ import {
   MessageCircle,
   Wallet,
   ArrowUpRight,
-  Banknote,
   RotateCcw,
   IndianRupee,
 } from "lucide-react";
@@ -35,12 +34,7 @@ import { usePatientStore } from "../store/usePatientStore";
 import PageHeader from "../components/PageHeader";
 import Sidebar from "../components/Sidebar";
 import TestDetailsModal from "../components/reception/TestDetailsModal";
-import DailyIntelligence from "../components/DailyIntelligence";
-import NotesDrawer from "../components/NotesDrawer";
-import LogoutConfirmation from "../components/LogoutConfirmation";
 import ChatModal from "../components/Chat/ChatModal";
-import KeyboardShortcuts from "../components/KeyboardShortcuts";
-
 interface BillingRecord {
   patient_id: number;
   patient_name: string;
