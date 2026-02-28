@@ -22,6 +22,7 @@ function getWeekRange(startDateStr) {
 
 exports.fetchSchedule = async (req, res) => {
     const branch_id = req.user.branch_id || req.query.branch_id;
+    const forceRemote = req.query.force === 'true';
     if (!branch_id) return res.status(400).json({ success: false, message: 'Branch ID required' });
 
     const weekStartStr = req.query.week_start;
@@ -33,7 +34,8 @@ exports.fetchSchedule = async (req, res) => {
     const eDate = formatDate(end);
 
     try {
-        const [rows] = await pool.query(`
+        const query = async () => {
+            return await pool.query(`
             SELECT
                 r.registration_id,
                 r.patient_name,
@@ -49,6 +51,11 @@ exports.fetchSchedule = async (req, res) => {
               AND r.appointment_time IS NOT NULL
               AND r.status NOT IN ('closed', 'cancelled')
         `, [branch_id, sDate, eDate]);
+        };
+
+        const [rows] = forceRemote
+            ? await pool.queryContext.run({ forceRemote: true }, query)
+            : await query();
 
         res.json({
             success: true,

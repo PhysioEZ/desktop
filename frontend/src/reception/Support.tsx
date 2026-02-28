@@ -1,3 +1,5 @@
+import NotesDrawer from "../components/NotesDrawer";
+import DailyIntelligence from "../components/DailyIntelligence";
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   Search,
@@ -13,6 +15,7 @@ import {
   X,
   Phone,
   } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useThemeStore } from "../store/useThemeStore";
@@ -21,6 +24,7 @@ import { API_BASE_URL, authFetch, FILE_BASE_URL } from "../config";
 import Sidebar from "../components/Sidebar";
 import PageHeader from "../components/PageHeader";
 import ChatModal from "../components/Chat/ChatModal";
+import LogoutConfirmation from "../components/LogoutConfirmation";
 
 interface SupportTicket {
   id: number;
@@ -42,12 +46,12 @@ interface SystemService {
   service_name: string;
   service_slug: string;
   current_status:
-  | "operational"
-  | "degraded"
-  | "partial_outage"
-  | "major_outage"
-  | "maintenance"
-  | string;
+    | "operational"
+    | "degraded"
+    | "partial_outage"
+    | "major_outage"
+    | "maintenance"
+    | string;
   last_updated?: string;
 }
 
@@ -119,7 +123,10 @@ const detectBrowserEngine = () => {
 
 const Support = () => {
   const { isDark } = useThemeStore();
-  const { user } = useAuthStore();
+  const { user, logout } = useAuthStore();
+  const navigate = useNavigate();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  
   const [showChatModal, setShowChatModal] = useState(false);
 
   const isGlobalViewer = isGlobalRole(user?.role);
@@ -278,7 +285,10 @@ const Support = () => {
 
   useEffect(() => {
     if (refreshCooldown > 0) {
-      const timer = setTimeout(() => setRefreshCooldown(refreshCooldown - 1), 1000);
+      const timer = setTimeout(
+        () => setRefreshCooldown(refreshCooldown - 1),
+        1000,
+      );
       return () => clearTimeout(timer);
     }
   }, [refreshCooldown]);
@@ -376,12 +386,12 @@ const Support = () => {
           system_metadata:
             typeof metadata === "string"
               ? (() => {
-                try {
-                  return JSON.parse(metadata);
-                } catch {
-                  return { raw: metadata };
-                }
-              })()
+                  try {
+                    return JSON.parse(metadata);
+                  } catch {
+                    return { raw: metadata };
+                  }
+                })()
               : metadata,
         });
       }
@@ -440,6 +450,7 @@ const Support = () => {
 
       <Sidebar
         onShowChat={() => setShowChatModal(true)}
+        
       />
 
       <div className="flex-1 h-screen overflow-hidden relative flex flex-col">
@@ -453,7 +464,6 @@ const Support = () => {
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}
         />
-
 
         <div className="flex-1 flex overflow-hidden">
           {/* === LEFT PANEL (STATS) === */}
@@ -541,12 +551,13 @@ const Support = () => {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <div
-                        className={`p-2 rounded-xl transition-colors duration-500 ${stat.color === "blue"
-                          ? "bg-blue-500/10 text-blue-500 group-hover:bg-blue-500 group-hover:text-white"
-                          : stat.color === "amber"
-                            ? "bg-amber-500/10 text-amber-500 group-hover:bg-amber-500 group-hover:text-white"
-                            : "bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white"
-                          }`}
+                        className={`p-2 rounded-xl transition-colors duration-500 ${
+                          stat.color === "blue"
+                            ? "bg-blue-500/10 text-blue-500 group-hover:bg-blue-500 group-hover:text-white"
+                            : stat.color === "amber"
+                              ? "bg-amber-500/10 text-amber-500 group-hover:bg-amber-500 group-hover:text-white"
+                              : "bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500 group-hover:text-white"
+                        }`}
                       >
                         <stat.icon size={18} strokeWidth={2.5} />
                       </div>
@@ -590,12 +601,13 @@ const Support = () => {
                       </span>
                       <div className="flex items-center gap-2">
                         <div
-                          className={`w-2 h-2 rounded-full shadow-[0_0_8px] shadow-current ${service.current_status === "operational"
-                            ? "text-emerald-500 bg-emerald-500"
-                            : service.current_status === "degraded"
-                              ? "text-amber-500 bg-amber-500"
-                              : "text-rose-500 bg-rose-500"
-                            }`}
+                          className={`w-2 h-2 rounded-full shadow-[0_0_8px] shadow-current ${
+                            service.current_status === "operational"
+                              ? "text-emerald-500 bg-emerald-500"
+                              : service.current_status === "degraded"
+                                ? "text-amber-500 bg-amber-500"
+                                : "text-rose-500 bg-rose-500"
+                          }`}
                         />
                         <span className="text-[11px] font-black font-mono uppercase tracking-tighter">
                           {service.current_status.split("_")[0]}
@@ -609,8 +621,6 @@ const Support = () => {
 
           <main className="flex-1 overflow-y-auto custom-scrollbar relative">
             <div className="p-8 lg:p-12 flex flex-col gap-8">
-
-
               {/* Integrated Status Monitor */}
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
@@ -775,12 +785,13 @@ const Support = () => {
                             <button
                               key={p}
                               onClick={() => setPriority(p)}
-                              className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${priority === p
-                                ? p === "urgent"
-                                  ? "bg-rose-500 text-white shadow-lg"
-                                  : "bg-blue-600 text-white shadow-lg"
-                                : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                                }`}
+                              className={`px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${
+                                priority === p
+                                  ? p === "urgent"
+                                    ? "bg-rose-500 text-white shadow-lg"
+                                    : "bg-blue-600 text-white shadow-lg"
+                                  : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                              }`}
                             >
                               {p}
                             </button>
@@ -856,7 +867,9 @@ const Support = () => {
                       disabled={isSubmitting}
                       className="w-full py-4 rounded-2xl bg-slate-900 border border-white/10 text-white text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-lg flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50 mt-auto"
                     >
-                      <span>{isSubmitting ? "Sending..." : "Send Request"}</span>
+                      <span>
+                        {isSubmitting ? "Sending..." : "Send Request"}
+                      </span>
                       {!isSubmitting && <ArrowRight size={14} />}
                     </button>
                   </div>
@@ -980,7 +993,9 @@ const Support = () => {
                             <select
                               value={selectedBranchId}
                               onChange={(e) =>
-                                setSelectedBranchId(Number(e.target.value) || "all")
+                                setSelectedBranchId(
+                                  Number(e.target.value) || "all",
+                                )
                               }
                               className={`px-6 py-3 rounded-2xl border text-[10px] font-black uppercase tracking-widest outline-none appearance-none cursor-pointer pr-12 transition-all ${isDark ? "bg-white/[0.03] border-white/5 text-slate-300" : "bg-slate-50 border-slate-100"}`}
                             >
@@ -1019,7 +1034,9 @@ const Support = () => {
                     <div className="relative group">
                       <select
                         value={ticketCategoryFilter}
-                        onChange={(e) => setTicketCategoryFilter(e.target.value)}
+                        onChange={(e) =>
+                          setTicketCategoryFilter(e.target.value)
+                        }
                         className={`px-5 py-2.5 rounded-xl border text-[10px] font-black uppercase tracking-widest outline-none appearance-none cursor-pointer pr-10 transition-all ${isDark ? "bg-white/[0.03] border-white/5 text-slate-300" : "bg-slate-50 border-slate-100"}`}
                       >
                         <option value="all">Every Category</option>
@@ -1068,12 +1085,13 @@ const Support = () => {
                             </h4>
                             <div className="flex items-center gap-1.5">
                               <span
-                                className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${ticket.priority === "urgent"
-                                  ? "bg-rose-500 text-white shadow-lg"
-                                  : ticket.priority === "high"
-                                    ? "bg-amber-500 text-white"
-                                    : "bg-slate-500/10 text-slate-500"
-                                  }`}
+                                className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${
+                                  ticket.priority === "urgent"
+                                    ? "bg-rose-500 text-white shadow-lg"
+                                    : ticket.priority === "high"
+                                      ? "bg-amber-500 text-white"
+                                      : "bg-slate-500/10 text-slate-500"
+                                }`}
                               >
                                 {ticket.priority}
                               </span>
@@ -1094,12 +1112,13 @@ const Support = () => {
 
                         <div className="flex items-center gap-6 mt-6 sm:mt-0 shrink-0">
                           <div
-                            className={`px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${ticket.status === "completed"
-                              ? "bg-emerald-500/10 border-emerald-500 text-emerald-500"
-                              : ticket.status === "responded"
-                                ? "bg-blue-500/10 border-blue-500 text-blue-500"
-                                : "bg-amber-500/10 border-amber-500 text-amber-500"
-                              }`}
+                            className={`px-6 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest border transition-all ${
+                              ticket.status === "completed"
+                                ? "bg-emerald-500/10 border-emerald-500 text-emerald-500"
+                                : ticket.status === "responded"
+                                  ? "bg-blue-500/10 border-blue-500 text-blue-500"
+                                  : "bg-amber-500/10 border-amber-500 text-amber-500"
+                            }`}
                           >
                             {ticket.status}
                           </div>
@@ -1156,7 +1175,6 @@ const Support = () => {
           </div>
         </div>
 
-
         <AnimatePresence>
           {selectedTicket && (
             <motion.div
@@ -1204,12 +1222,13 @@ const Support = () => {
                       </label>
                       <div>
                         <span
-                          className={`px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${selectedTicket.status === "completed"
-                            ? "bg-emerald-500/20 text-emerald-500"
-                            : selectedTicket.status === "in_progress"
-                              ? "bg-blue-500/20 text-blue-500"
-                              : "bg-amber-500/20 text-amber-500"
-                            }`}
+                          className={`px-4 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${
+                            selectedTicket.status === "completed"
+                              ? "bg-emerald-500/20 text-emerald-500"
+                              : selectedTicket.status === "in_progress"
+                                ? "bg-blue-500/20 text-blue-500"
+                                : "bg-amber-500/20 text-amber-500"
+                          }`}
                         >
                           {selectedTicket.status.replace("_", " ")}
                         </span>
@@ -1232,12 +1251,13 @@ const Support = () => {
                         Priority
                       </label>
                       <div
-                        className={`text-xs font-bold uppercase ${selectedTicket.priority === "urgent"
-                          ? "text-rose-500"
-                          : selectedTicket.priority === "high"
-                            ? "text-amber-500"
-                            : "text-slate-500"
-                          }`}
+                        className={`text-xs font-bold uppercase ${
+                          selectedTicket.priority === "urgent"
+                            ? "text-rose-500"
+                            : selectedTicket.priority === "high"
+                              ? "text-amber-500"
+                              : "text-slate-500"
+                        }`}
                       >
                         {selectedTicket.priority}
                       </div>
@@ -1280,7 +1300,9 @@ const Support = () => {
                           </span>
                           <select
                             value={respondingStatus}
-                            onChange={(e) => setRespondingStatus(e.target.value)}
+                            onChange={(e) =>
+                              setRespondingStatus(e.target.value)
+                            }
                             className={`text-[10px] font-bold uppercase px-3 py-1 rounded-lg border outline-none ${isDark ? "bg-[#1A1D21] border-white/10" : "bg-slate-50 border-slate-200"}`}
                           >
                             <option value="pending">Pending</option>
@@ -1339,10 +1361,10 @@ const Support = () => {
                       ))}
                       {(!selectedTicket.attachments ||
                         selectedTicket.attachments.length === 0) && (
-                          <p className="text-[10px] font-bold text-slate-400 uppercase italic opacity-60">
-                            No attachments provided
-                          </p>
-                        )}
+                        <p className="text-[10px] font-bold text-slate-400 uppercase italic opacity-60">
+                          No attachments provided
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -1384,8 +1406,15 @@ const Support = () => {
           isOpen={showChatModal}
           onClose={() => setShowChatModal(false)}
         />
+        <LogoutConfirmation
+          isOpen={showLogoutConfirm}
+          onClose={() => setShowLogoutConfirm(false)}
+          onConfirm={() => {
+            logout();
+            navigate("/login");
+          }}
+        />
       </div>
-
     </div>
   );
 };

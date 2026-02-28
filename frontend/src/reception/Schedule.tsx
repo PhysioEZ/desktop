@@ -237,7 +237,6 @@ const Schedule = () => {
   const [activeAppointment, setActiveAppointment] =
     useState<Appointment | null>(null);
   const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-  
 
   // States
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -331,7 +330,7 @@ const Schedule = () => {
       setIsLoading(true);
       try {
         const res = await authFetch(
-          `${API_BASE_URL}/reception/schedule?week_start=${weekStartStr}&branch_id=${user.branch_id}&employee_id=${user.employee_id}`,
+          `${API_BASE_URL}/reception/schedule?week_start=${weekStartStr}&branch_id=${user.branch_id}&employee_id=${user.employee_id}${force ? "&force=true" : ""}`,
         );
         const data = await res.json();
         if (data.success) {
@@ -723,14 +722,18 @@ const Schedule = () => {
                     (a) =>
                       a &&
                       a.appointment_date &&
-                      isToday(parse(a.appointment_date, "yyyy-MM-dd", new Date())),
+                      isToday(
+                        parse(a.appointment_date, "yyyy-MM-dd", new Date()),
+                      ),
                   ).length > 0 ? (
                     (scheduleAppointments || [])
                       .filter(
                         (a) =>
                           a &&
                           a.appointment_date &&
-                          isToday(parse(a.appointment_date, "yyyy-MM-dd", new Date())),
+                          isToday(
+                            parse(a.appointment_date, "yyyy-MM-dd", new Date()),
+                          ),
                       )
                       .sort((a, b) =>
                         (a.appointment_time || "").localeCompare(
@@ -942,8 +945,10 @@ const Schedule = () => {
                         const dayStr = format(day, "yyyy-MM-dd");
                         const slotApps = (scheduleAppointments || []).filter(
                           (a: any) =>
+                            a &&
                             a.appointment_date === dayStr &&
-                            a.appointment_time.startsWith(time),
+                            a.appointment_time &&
+                            String(a.appointment_time).startsWith(time),
                         );
                         return (
                           <DroppableSlot
@@ -969,8 +974,6 @@ const Schedule = () => {
                   ))}
                 </div>
               </DndContext>
-
-              
             </motion.div>
           </motion.main>
         </div>
@@ -1171,10 +1174,16 @@ const RescheduleModal = ({
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex flex-col">
                     <span className="text-sm font-bold opacity-40">
-                      {format(parse(selectedDate, "yyyy-MM-dd", new Date()), "EEEE")}
+                      {format(
+                        parse(selectedDate, "yyyy-MM-dd", new Date()),
+                        "EEEE",
+                      )}
                     </span>
                     <span className="text-2xl font-black tracking-tight">
-                      {format(parse(selectedDate, "yyyy-MM-dd", new Date()), "MMM d, yyyy")}
+                      {format(
+                        parse(selectedDate, "yyyy-MM-dd", new Date()),
+                        "MMM d, yyyy",
+                      )}
                     </span>
                   </div>
                   <div

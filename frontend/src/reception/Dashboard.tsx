@@ -43,7 +43,7 @@ import {
   ClipboardCheck,
   Sparkles,
   Percent,
-} from "lucide-react";
+  Banknote } from "lucide-react";
 import { useThemeStore } from "../store/useThemeStore";
 import CustomSelect from "../components/ui/CustomSelect";
 import DatePicker from "../components/ui/DatePicker";
@@ -54,6 +54,9 @@ import KeyboardShortcuts, {
 import { useUIStore } from "../store/useUIStore";
 import { useDashboardStore } from "../store";
 import Sidebar from "../components/Sidebar";
+import LogoutConfirmation from "../components/LogoutConfirmation";
+import DailyIntelligence from "../components/DailyIntelligence";
+import NotesDrawer from "../components/NotesDrawer";
 type ModalType =
   | "registration"
   | "test"
@@ -707,7 +710,6 @@ const ReceptionDashboard = () => {
     if (!user?.branch_id) return;
 
     const now = Date.now();
-    const prevAccess = lastAccessTime || 0;
     // Update last access time immediately as the "page is opened"
     useDashboardStore.setState({ lastAccessTime: now });
 
