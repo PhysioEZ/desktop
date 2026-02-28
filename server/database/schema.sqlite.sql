@@ -434,7 +434,8 @@ CREATE TABLE IF NOT EXISTS `quick_inquiry` (
   `expected_visit_date` TEXT,
   `status` TEXT DEFAULT 'pending',
   `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
-  `next_followup_date` TEXT
+  `next_followup_date` TEXT,
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `reception_notes` (
@@ -599,7 +600,8 @@ CREATE TABLE IF NOT EXISTS `test_inquiry` (
   `assigned_test_date` TEXT,
   `expected_visit_date` TEXT,
   `status` TEXT DEFAULT 'pending',
-  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `test_items` (

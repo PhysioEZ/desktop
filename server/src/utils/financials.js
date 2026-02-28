@@ -40,7 +40,7 @@ async function recalculatePatientFinancials(connection, patientId) {
     }
 
     const [attRows] = await connection.query(
-        "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'",
+        "SELECT COUNT(DISTINCT SUBSTR(attendance_date, 1, 10)) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'",
         [patientId, patient.start_date || '2000-01-01']
     );
     const currentAttendanceCount = attRows[0].count;

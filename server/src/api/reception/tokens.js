@@ -70,7 +70,7 @@ async function getPatientFinancials(conn, patientId, today) {
     for (let h of history) {
         // Only count PRESENT attendance
         const [hAtt] = await conn.query(
-            "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < ? AND status = 'present'",
+            "SELECT COUNT(DISTINCT SUBSTR(attendance_date, 1, 10)) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < ? AND status = 'present'",
             [pId, h.start_date, h.end_date]
         );
 
@@ -95,7 +95,7 @@ async function getPatientFinancials(conn, patientId, today) {
     const curRate = (curPkgCost > 0 && curDays > 0) ? (curPkgCost / curDays) : curDailyCost;
 
     const [cAtt] = await conn.query(
-        "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'",
+        "SELECT COUNT(DISTINCT SUBSTR(attendance_date, 1, 10)) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'",
         [pId, patient.start_date || '2000-01-01']
     );
     const currentAttendanceCount = cAtt[0].count;

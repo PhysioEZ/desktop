@@ -55,7 +55,7 @@ exports.checkUpdates = async (req, res) => {
                     query = `SELECT COUNT(*) as count FROM payments WHERE branch_id = ? AND created_at > ?`;
                     params = [branchId, mysqlTimestamp];
                 } else {
-                    const hasUpdatedAt = ['registration', 'tests', 'patients'].includes(table);
+                    const hasUpdatedAt = ['registration', 'tests', 'patients', 'quick_inquiry', 'test_inquiry'].includes(table);
                     const updateCheck = hasUpdatedAt ? ` OR updated_at > ?` : '';
                     query = `SELECT COUNT(*) as count FROM ${table} WHERE branch_id = ? AND (created_at > ?${updateCheck})`;
                     params = [branchId, mysqlTimestamp];

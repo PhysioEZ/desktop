@@ -201,7 +201,7 @@ async function changeTreatmentPlan(req, res, input) {
         const historyConsumed = parseFloat(histRows[0].total || 0);
 
         const curRate = (patient.treatment_type === 'package' && patient.treatment_days > 0) ? (parseFloat(patient.total_amount) / patient.treatment_days) : parseFloat(patient.treatment_cost_per_day || 0);
-        const [cAtt] = await connection.query("SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < CURDATE() AND status = 'present'", [patientId, patient.start_date || '2000-01-01']);
+        const [cAtt] = await connection.query("SELECT COUNT(DISTINCT SUBSTR(attendance_date, 1, 10)) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < CURDATE() AND status = 'present'", [patientId, patient.start_date || '2000-01-01']);
         const currentCount = cAtt[0].count;
         const currentConsumed = (currentCount * curRate);
 

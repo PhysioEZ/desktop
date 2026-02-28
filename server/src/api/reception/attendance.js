@@ -34,7 +34,7 @@ async function revertAttendance(req, res, branchId, input) {
         await connection.beginTransaction();
 
         // 1. Check if attendance exists for today (present or pending)
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date(new Date().getTime() + 5.5 * 3600 * 1000).toISOString().split('T')[0];
         const [attRows] = await connection.query(
             "SELECT attendance_id FROM attendance WHERE patient_id = ? AND attendance_date = ? AND status IN ('present', 'pending') LIMIT 1",
             [patient_id, today]
@@ -96,7 +96,7 @@ async function markFullAttendance(req, res, branchId, input) {
             ? (parseFloat(patient.total_amount) / patient.treatment_days)
             : parseFloat(patient.treatment_cost_per_day || 0);
 
-        const [cAttRows] = await connection.query("SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'", [patient_id, patient.start_date || '2000-01-01']);
+        const [cAttRows] = await connection.query("SELECT COUNT(DISTINCT SUBSTR(attendance_date, 1, 10)) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'", [patient_id, patient.start_date || '2000-01-01']);
         const currentAttendanceCount = cAttRows[0].count;
 
         const currentConsumed = currentAttendanceCount * curRate;
@@ -106,7 +106,7 @@ async function markFullAttendance(req, res, branchId, input) {
         // 2. Financial Validation
         // If they are marking 'present' and they have no balance to cover THIS visit
         if (status === 'present') {
-            const today = new Date().toISOString().split('T')[0];
+            const today = new Date(new Date().getTime() + 5.5 * 3600 * 1000).toISOString().split('T')[0];
             const [alreadyMarked] = await connection.query("SELECT attendance_id FROM attendance WHERE patient_id = ? AND attendance_date = ? AND status = 'present'", [patient_id, today]);
 
             // Check if effectiveBalance covers this session
@@ -134,7 +134,7 @@ async function markFullAttendance(req, res, branchId, input) {
         }
 
         // 3. Attendance Logic
-        const today = new Date().toISOString().split('T')[0];
+        const today = new Date(new Date().getTime() + 5.5 * 3600 * 1000).toISOString().split('T')[0];
         const [existing] = await connection.query("SELECT attendance_id FROM attendance WHERE patient_id = ? AND attendance_date = ?", [patient_id, today]);
 
         let attendanceId;

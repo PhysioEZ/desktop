@@ -51,7 +51,7 @@ exports.getAttendanceHistory = async (req, res) => {
 
     // Calculate statistics
     const [presentCountResult] = await pool.query(
-      "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND status = 'present'",
+      "SELECT COUNT(DISTINCT SUBSTR(attendance_date, 1, 10)) as count FROM attendance WHERE patient_id = ? AND status = 'present'",
       [patient_id],
     );
     const presentCount = presentCountResult[0].count;

@@ -18,8 +18,8 @@ const SYNCABLE_TABLES = {
     'tests': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['test_payments'] },
     'attendance': { tsCol: 'created_at', branchCol: 'patients.branch_id', deps: [] },
     'payments': { tsCol: 'created_at', branchCol: 'patients.branch_id', deps: ['payment_splits'] },
-    'quick_inquiry': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
-    'test_inquiry': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
+    'quick_inquiry': { tsCol: 'updated_at', branchCol: 'branch_id', deps: [] },
+    'test_inquiry': { tsCol: 'updated_at', branchCol: 'branch_id', deps: [] },
     'patient_master': { tsCol: 'first_registered_at', branchCol: 'first_registered_branch_id', deps: [] },
     'employees': { tsCol: 'updated_at', branchCol: 'branch_id', deps: [] },
     'patients_treatment': { tsCol: 'created_at', branchCol: 'patients.branch_id', deps: [] },
@@ -326,7 +326,16 @@ async function runPull(tableHint = null) {
                             const lower = resCol.toLowerCase();
                             if (tableColumns.has(lower)) {
                                 cols.push(tableColumns.get(lower));
-                                vals.push(row[resCol]);
+                                let val = row[resCol];
+                                if (val instanceof Date) {
+                                    val = val.getFullYear() + '-' +
+                                        String(val.getMonth() + 1).padStart(2, '0') + '-' +
+                                        String(val.getDate()).padStart(2, '0') + ' ' +
+                                        String(val.getHours()).padStart(2, '0') + ':' +
+                                        String(val.getMinutes()).padStart(2, '0') + ':' +
+                                        String(val.getSeconds()).padStart(2, '0');
+                                }
+                                vals.push(val);
                             }
                         });
                         if (cols.length === 0) continue;
@@ -471,21 +480,30 @@ async function syncAndVerify(tableName = null) {
     const result = { pushed: 0, pulled: [], success: true };
 
     try {
-        // Step 1: Flush any pending local mutations to the server
+        // Step 1: Read from Server (Pull) and Update local SQLite if changes found
+        await runPull(tableName);
+
+        // Step 2: Push recently updated local operations back to Source Server MySQL
+        let pushedCount = 0;
         if (!isPushing) {
             const db = await require('../config/sqlite').getLocalDb();
             const pending = await db.all(
                 "SELECT COUNT(*) as count FROM pending_sync_queue WHERE status = 'pending'"
             );
             if (pending[0]?.count > 0) {
-                console.log(`[syncAndVerify] Flushing ${pending[0].count} pending items...`);
+                console.log(`[syncAndVerify] Pushing ${pending[0].count} pending local changes...`);
                 await runPush();
-                result.pushed = pending[0].count;
+                pushedCount = pending[0].count;
+                result.pushed = pushedCount;
             }
         }
 
-        // Step 2: Pull fresh data from server
-        await runPull(tableName);
+        // Step 3: Read AGAIN from Server (Pull) if any data was just pushed to capture backend triggers/auto-updates
+        if (pushedCount > 0) {
+            console.log(`[syncAndVerify] Re-syncing from server to capture post-push mutations...`);
+            await runPull(tableName);
+        }
+
         result.pulled = tableName ? [tableName] : ['full_check'];
 
     } catch (err) {

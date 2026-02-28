@@ -116,7 +116,7 @@ async function fetchFilters(req, res, branchId) {
     // Get Counts
     const [[counts]] = await pool.query(`
         SELECT 
-            COUNT(CASE WHEN DATE(created_at) = DATE('now', 'localtime') THEN 1 END) as new_today,
+            COUNT(CASE WHEN DATE(created_at) = CURDATE() THEN 1 END) as new_today,
             COUNT(CASE WHEN status = 'active' THEN 1 END) as active_count,
             COUNT(CASE WHEN status = 'inactive' THEN 1 END) as inactive_count,
             COUNT(CASE WHEN status IN ('stopped', 'completed') THEN 1 END) as terminated_count,
@@ -246,7 +246,7 @@ async function fetchPatients(req, res, branchId, input) {
         ) hist ON p.patient_id = hist.patient_id
         -- Current Attendance Count
         LEFT JOIN (
-            SELECT a.patient_id, COUNT(*) as count 
+            SELECT a.patient_id, COUNT(DISTINCT SUBSTR(a.attendance_date, 1, 10)) as count 
             FROM attendance a 
             JOIN patients p2 ON a.patient_id = p2.patient_id
             WHERE a.attendance_date >= COALESCE(p2.start_date, '2000-01-01') AND a.status = 'present'
@@ -353,7 +353,7 @@ async function fetchDetails(req, res, patientId) {
                 totalConsumed += parseFloat(h.consumed_amount);
             } else {
                 const [hAttRows] = await pool.query(
-                    "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < ? AND status = 'present'",
+                    "SELECT COUNT(DISTINCT SUBSTR(attendance_date, 1, 10)) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < ? AND status = 'present'",
                     [patientId, h.start_date, h.end_date],
                 );
                 const hCount = hAttRows[0].count;
@@ -370,7 +370,7 @@ async function fetchDetails(req, res, patientId) {
                 ? parseFloat(p.package_cost) / p.treatment_days
                 : parseFloat(p.treatment_cost_per_day || p.cost_per_day);
         const [cAttRows] = await pool.query(
-            "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'",
+            "SELECT COUNT(DISTINCT SUBSTR(attendance_date, 1, 10)) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'",
             [patientId, p.start_date || "2000-01-01"],
         );
         const cCount = cAttRows[0].count;
@@ -420,7 +420,14 @@ async function fetchDetails(req, res, patientId) {
             "SELECT attendance_id, attendance_date, status, created_at FROM attendance WHERE patient_id = ? ORDER BY attendance_date DESC LIMIT 50",
             [patientId],
         );
-        attendance = attendanceRows;
+        // Safe deduplication of attendance history log mapped objects to block sync UI lagging duplicate IDs
+        let seenLocalDates = new Set();
+        attendance = attendanceRows.filter(r => {
+            let key = typeof r.attendance_date === 'string' ? r.attendance_date.substring(0, 10) : r.attendance_date;
+            if (seenLocalDates.has(key)) return false;
+            seenLocalDates.add(key);
+            return true;
+        });
 
         const [historyRows] = await pool.query(
             "SELECT treatment_id as id, treatment_type, treatment_days, package_cost, treatment_cost_per_day, total_amount, advance_payment, discount_amount, start_date, end_date, created_at FROM patients_treatment WHERE patient_id = ? ORDER BY start_date DESC",
