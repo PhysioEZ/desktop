@@ -104,6 +104,7 @@ class SqlitePool {
         const isSelect = /^\s*\(?\s*(SELECT|PRAGMA|WITH|SHOW|DESCRIBE)/i.test(translatedSql);
         const context = queryContext.getStore() || {};
         const forceRemote = forceRemoteInternal || context.forceRemote;
+        const skipMirror = context.skipMirror || false;
 
         // AUTH/SETTINGS tables always go to remote for consistency
         const isAuthOrSettings = /employees|system_settings|api_tokens|roles|users|chat_messages/i.test(sql);
@@ -130,7 +131,7 @@ class SqlitePool {
                 }
             } else {
                 // Forced Remote Read (e.g. Refresh or Auth)
-                return this._hitSource(sql, params, true);
+                return this._hitSource(sql, params, true, skipMirror);
             }
         }
 
@@ -138,7 +139,7 @@ class SqlitePool {
         else {
             if (isAuthOrSettings || forceRemote) {
                 // Important stuff hits MySQL immediately
-                return this._hitSource(sql, params, false);
+                return this._hitSource(sql, params, false, skipMirror);
             } else {
                 // LOCAL-FIRST MUTATION
                 // Write to SQLite immediately for instant UI update
@@ -168,7 +169,7 @@ class SqlitePool {
         }
     }
 
-    async _hitSource(sql, params, isSelect) {
+    async _hitSource(sql, params, isSelect, skipMirror = false) {
         let sourceResults;
         let sourceInsertId, sourceAffectedRows;
 
@@ -213,7 +214,7 @@ class SqlitePool {
                 const db = await getLocalDb();
                 const translatedSql = this._translateSql(sql);
                 await db.run(translatedSql, params || []);
-            } else if (Array.isArray(sourceResults) && sourceResults.length > 0) {
+            } else if (!skipMirror && Array.isArray(sourceResults) && sourceResults.length > 0) {
                 // Determine table name if possible for mirroring
                 const tableMatch = sql.match(/FROM\s+["`]?(\w+)["`]?/i);
                 if (tableMatch) {
@@ -262,6 +263,22 @@ class SqlitePool {
                                 if (!hasAllPKs && primaryKeys.length > 0) {
                                     // Skip partial mirroring
                                     continue;
+                                }
+
+                                // CRITICAL: Mirror Protection
+                                // If this row has a pending sync in SQLite, do NOT overwrite it with potentially stale remote data
+                                if (primaryKeys.length > 0) {
+                                    const pkValues = primaryKeys.map(pk => row[cols[resultColsLower.indexOf(pk)]]);
+
+                                    const pending = await db.get(
+                                        `SELECT 1 FROM pending_sync_queue WHERE body LIKE ? AND body LIKE ?`,
+                                        [`%${tableName}%`, `%${pkValues[0]}%`] // Simple heuristic for ID matching in JSON body
+                                    );
+
+                                    if (pending) {
+                                        // Skip mirroring to protect local un-synced change
+                                        continue;
+                                    }
                                 }
 
                                 const placeholders = cols.map(() => '?').join(', ');

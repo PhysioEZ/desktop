@@ -54,19 +54,20 @@ async function runDailyCleanup(branchId) {
     if (lastRunDate !== todayDate) {
         try {
             const sql = `
-                UPDATE patients p
-                LEFT JOIN (
-                    SELECT patient_id, MAX(attendance_date) as last_visit 
-                    FROM attendance 
-                    GROUP BY patient_id
-                ) a ON p.patient_id = a.patient_id
-                SET p.status = 'inactive'
-                WHERE p.branch_id = ? 
-                  AND p.status = 'active'
+                UPDATE patients 
+                SET status = 'inactive'
+                WHERE branch_id = ? 
+                  AND status = 'active'
                   AND (
-                      (a.last_visit IS NOT NULL AND a.last_visit < DATE_SUB(CURDATE(), INTERVAL 3 DAY))
+                      (patient_id IN (
+                          SELECT patient_id 
+                          FROM attendance 
+                          GROUP BY patient_id 
+                          HAVING MAX(attendance_date) < DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+                      ))
                       OR 
-                      (a.last_visit IS NULL AND p.created_at < DATE_SUB(NOW(), INTERVAL 3 DAY))
+                      (NOT EXISTS (SELECT 1 FROM attendance a WHERE a.patient_id = patients.patient_id) 
+                       AND created_at < DATE_SUB(NOW(), INTERVAL 3 DAY))
                   )`;
             await pool.query(sql, [branchId]);
             fs.writeFileSync(cleanupFile, todayDate);

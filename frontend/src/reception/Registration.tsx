@@ -377,6 +377,9 @@ const Registration = () => {
       data = data.filter(
         (r) => r.status?.toLowerCase() === statusFilter.toLowerCase(),
       );
+    } else {
+      // By default, hide closed registrations (matches server-side fetch logic)
+      data = data.filter((r) => r.status?.toLowerCase() !== "closed");
     }
 
     // Referrer Filter
@@ -476,20 +479,15 @@ const Registration = () => {
           registrationsCache: currentCache,
         } = useRegistrationStore.getState();
 
+        // ONLY use cache if we have both the raw data and the cache keyed for this exact request
         if (
           currentLastParams &&
           cacheKey === JSON.stringify(currentLastParams) &&
           currentRegistrations &&
-          currentRegistrations.length > 0
+          currentRegistrations.length > 0 &&
+          currentCache &&
+          currentCache[cacheKey]
         ) {
-          setIsLoading(false);
-          return;
-        }
-
-        if (currentCache && currentCache[cacheKey]) {
-          const cached = currentCache[cacheKey];
-          setRegistrations(cached.data);
-          setLastParams(currentParams);
           setIsLoading(false);
           return;
         }
@@ -901,8 +899,8 @@ const Registration = () => {
   }, [fetchOptions]);
 
   const handleUpdateStatus = async (id: number, newStatus: string) => {
-    // Optimistic update
-    const updatedRegistrations = registrations.map((reg: any) =>
+    // Optimistic update - MUST use storeData (the full list) NOT registrations (the paginated slice)
+    const updatedRegistrations = storeData.map((reg: any) =>
       reg.registration_id === id ? { ...reg, status: newStatus } : reg,
     );
     setRegistrations(updatedRegistrations);
@@ -910,7 +908,9 @@ const Registration = () => {
     try {
       const res = await authFetch(`${API_BASE_URL}/reception/registration`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           action: "update_status",
           id,
@@ -920,15 +920,31 @@ const Registration = () => {
       const data = await res.json();
       if (data.status === "success") {
         showToast(`Registration status updated to ${newStatus}`, "success");
-        fetchRegistrations();
+        // Update local list state optimistically for all pages
+        const updatedRegistrations = storeData.map((reg: any) =>
+          reg.registration_id === id ? { ...reg, status: newStatus } : reg,
+        );
+        // If it was closed, we hide it from the current view list
+        const finalData =
+          newStatus === "closed"
+            ? updatedRegistrations.filter((r) => r.registration_id !== id)
+            : updatedRegistrations;
+
+        setRegistrations(finalData);
+
+        // Clear only the cancelled cache so that page gets fresh view of recovery list from SQLite
+        useRegistrationStore.setState({
+          cancelledRegistrationsCache: null,
+          registrationsCache: {}, // Clear page-cache as counts/pages changed
+        });
       } else {
         showToast(data.message || "Failed to update status", "error");
-        fetchRegistrations(); // Revert on failure
+        fetchRegistrations(false); // Revert to local SQLite state on failure
       }
     } catch (err) {
       console.error("Failed to update status:", err);
       showToast("An error occurred while updating status", "error");
-      fetchRegistrations(); // Revert on error
+      fetchRegistrations(false);
     }
   };
 
@@ -967,7 +983,9 @@ const Registration = () => {
     try {
       const res = await authFetch(`${API_BASE_URL}/reception/registration`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           action: "update_details",
           registration_id: selectedRegistration.registration_id,
@@ -977,8 +995,35 @@ const Registration = () => {
       const data = await res.json();
       if (data.status === "success") {
         setIsEditing(false);
+        // Clear details cache for this item
+        setDetailsCache(selectedRegistration.registration_id, null);
+
+        // Optimistic update of the list record
+        const updatedList = storeData.map((reg) =>
+          reg.registration_id === selectedRegistration.registration_id
+            ? { ...reg, ...editData, status: editData.status || reg.status }
+            : reg,
+        );
+
+        // If status changed to closed during edit, hide it
+        const finalRegistrations =
+          editData.status === "closed"
+            ? updatedList.filter(
+                (r) =>
+                  r.registration_id !== selectedRegistration.registration_id,
+              )
+            : updatedList;
+
+        setRegistrations(finalRegistrations);
+
+        // Clear caches to reflect changes in other views
+        useRegistrationStore.setState({
+          registrationsCache: {},
+          cancelledRegistrationsCache: null,
+        });
+
+        // Refresh details modal locally
         fetchDetails(selectedRegistration.registration_id, true);
-        fetchRegistrations(true);
         showToast("Clinical Profile Synchronized Successfully", "success");
       }
     } catch (err) {
@@ -1050,10 +1095,29 @@ const Registration = () => {
     }, 500);
   };
 
-  const formatDateSafe = (dateStr: string, formatPattern: string) => {
-    if (!dateStr) return "N/A";
-    const date = parseISO(dateStr.replace(" ", "T"));
-    return isValid(date) ? format(date, formatPattern) : "Invalid Date";
+  const formatDateSafe = (
+    dateInput: any,
+    formatPattern: string = "MMM dd, yyyy",
+  ) => {
+    if (!dateInput) return "N/A";
+
+    let dateObj: Date;
+
+    if (typeof dateInput === "number") {
+      dateObj = new Date(dateInput);
+    } else if (typeof dateInput === "string") {
+      if (/^\d+\.?\d*$/.test(dateInput)) {
+        // Handle numeric strings like "1764672665000"
+        dateObj = new Date(parseFloat(dateInput));
+      } else {
+        // Standard ISO parsing
+        dateObj = parseISO(dateInput.replace(" ", "T"));
+      }
+    } else {
+      return "N/A";
+    }
+
+    return isValid(dateObj) ? format(dateObj, formatPattern) : "Invalid Date";
   };
 
   const getStatusColors = (status: string) => {

@@ -6,33 +6,39 @@ require('dotenv').config();
 
 const lastSyncMapFile = path.join(__dirname, '../../database/sync_status.json');
 
+/**
+ * Metadata for all syncable tables.
+ * branchCol: The column used to filter by branch in MySQL.
+ * tsCol: The column used to detect changes.
+ * dependencies: Tables that should also be checked if this table changes.
+ */
 const SYNCABLE_TABLES = {
-    'patients': 'updated_at',
-    'registration': 'updated_at',
-    'tests': 'updated_at',
-    'attendance': 'created_at',
-    'payments': 'created_at',
-    'quick_inquiry': 'created_at',
-    'test_inquiry': 'created_at',
-    'patient_master': 'first_registered_at',
-    'employees': 'updated_at',
-    'patients_treatment': 'created_at',
-    'notifications': 'created_at',
-    'expenses': 'created_at',
-    'reception_notes': 'created_at',
-    'referral_partners': 'partner_id',
-    'roles': 'role_id',
-    'branches': 'branch_id',
-    'system_settings': 'updated_at',
-    'users': 'id',
-    'test_items': 'created_at',
-    'test_payments': 'created_at',
-    'test_types': 'test_type_id',
-    'payment_methods': 'method_id',
-    'system_issues': 'created_at',
-    'system_services': 'last_updated',
-    'patient_feedback': 'created_at',
-    'service_tracks': 'created_at'
+    'patients': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['patient_master', 'patients_treatment'] },
+    'registration': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['patients', 'payments'] },
+    'tests': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['test_payments'] },
+    'attendance': { tsCol: 'created_at', branchCol: 'patients.branch_id', deps: [] },
+    'payments': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
+    'quick_inquiry': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
+    'test_inquiry': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
+    'patient_master': { tsCol: 'first_registered_at', branchCol: 'first_registered_branch_id', deps: [] },
+    'employees': { tsCol: 'updated_at', branchCol: 'branch_id', deps: [] },
+    'patients_treatment': { tsCol: 'created_at', branchCol: 'patients.branch_id', deps: [] },
+    'notifications': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
+    'expenses': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
+    'reception_notes': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
+    'referral_partners': { tsCol: 'partner_id', branchCol: null, deps: [] },
+    'roles': { tsCol: 'role_id', branchCol: null, deps: [] },
+    'branches': { tsCol: 'branch_id', branchCol: 'branch_id', deps: [] },
+    'system_settings': { tsCol: 'updated_at', branchCol: null, deps: [] },
+    'users': { tsCol: 'id', branchCol: null, deps: [] },
+    'test_items': { tsCol: 'created_at', branchCol: null, deps: [] },
+    'test_payments': { tsCol: 'created_at', branchCol: null, deps: [] },
+    'test_types': { tsCol: 'test_type_id', branchCol: 'branch_id', deps: [] },
+    'payment_methods': { tsCol: 'method_id', branchCol: 'branch_id', deps: [] },
+    'system_issues': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
+    'system_services': { tsCol: 'last_updated', branchCol: null, deps: [] },
+    'patient_feedback': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
+    'service_tracks': { tsCol: 'created_at', branchCol: null, deps: [] }
 };
 
 function getLastSyncMap() {
@@ -56,61 +62,186 @@ let isPulling = false;
 let isPushing = false;
 
 /**
- * TASK: PULL (Fetch from Source -> Local SQLite)
- * Runs every 20 seconds at T+0s
+ * Detects which tables have updates on the remote server using a batch query.
+ * This is the "Smart" part of the sync engine.
  */
-async function runPull() {
+async function detectUpdatedTables(branchId) {
+    const tableTimestamps = syncMap.tables || {};
+    const startOfTime = '2000-01-01 00:00:00';
+
+    // Build a batch query to check MAX timestamps for all tables
+    let subqueries = [];
+    const tablesToCheck = Object.keys(SYNCABLE_TABLES);
+
+    for (const table of tablesToCheck) {
+        const meta = SYNCABLE_TABLES[table];
+        let sql = `SELECT MAX(${meta.tsCol}) FROM ${table}`;
+
+        if (meta.branchCol) {
+            if (meta.branchCol.includes('.')) {
+                // Table requires join for branch filtering (e.g. attendance)
+                const parts = meta.branchCol.split('.');
+                const parentTable = parts[0];
+                const parentCol = parts[1];
+                // Prefix timestamp column to avoid ambiguity
+                sql = `SELECT MAX(${table}.${meta.tsCol}) FROM ${table} JOIN ${parentTable} ON ${table}.patient_id = ${parentTable}.patient_id WHERE ${parentTable}.${parentCol} = ${branchId}`;
+            } else {
+                sql += ` WHERE ${meta.branchCol} = ${branchId}`;
+            }
+        }
+
+        subqueries.push(`(${sql}) as "${table}"`);
+    }
+
+    const batchSql = `SELECT ${subqueries.join(', ')}`;
+
+    try {
+        const [rows] = await pool.queryRemote(batchSql);
+        if (!rows || rows.length === 0) return [];
+
+        const serverTs = rows[0];
+        const updatedTables = [];
+
+        for (const table of tablesToCheck) {
+            const localTs = tableTimestamps[table] || startOfTime;
+            const remoteTs = serverTs[table];
+
+            // Check if remote is newer. Handle NULL as "needs initialization" if local is also startOfTime
+            if (remoteTs && remoteTs > localTs) {
+                updatedTables.push(table);
+            } else if (!remoteTs && localTs === startOfTime) {
+                // Potential first-time initialization for empty table
+                updatedTables.push(table);
+            }
+        }
+
+        return updatedTables;
+    } catch (err) {
+        console.error("[Sync Smart Check] Batch detect failed:", err.message);
+        // Fallback: check everything if batch fails (or return empty to avoid spam)
+        return [];
+    }
+}
+
+/**
+ * TASK: PULL (Fetch from Source -> Local SQLite)
+ */
+async function runPull(tableHint = null) {
     if (isPulling) return;
     isPulling = true;
-    console.log(`[Sync Engine] Cycle: PULL at ${new Date().toLocaleTimeString()}`);
+
+    const startTimeStamp = new Date().toLocaleTimeString();
+    if (tableHint) console.log(`[Smart Sync] Targeted PULL for ${tableHint} at ${startTimeStamp}`);
+    else console.log(`[Sync Engine] Cycle: PULL at ${startTimeStamp}`);
 
     try {
         const startOfTime = '2000-01-01 00:00:00';
-        let overallSince = syncMap.global || startOfTime;
         let changes = {};
+        let tableTimestamps = syncMap.tables || {};
 
-        // 1. Fetch updates from source for all tables
-        for (const [table, tsCol] of Object.entries(SYNCABLE_TABLES)) {
-            let sql = `SELECT * FROM ${table}`;
+        const db = await getLocalDb();
+
+        // 0. Detect active branch for sync
+        let branchId = null;
+        try {
+            const tokenRow = await db.get(
+                "SELECT e.branch_id FROM api_tokens at JOIN employees e ON at.employee_id = e.employee_id ORDER BY at.last_used_at DESC LIMIT 1"
+            );
+            if (tokenRow) branchId = tokenRow.branch_id;
+        } catch (e) { }
+
+        if (!branchId) {
+            console.log("[Sync Engine] Waiting for active branch session...");
+            isPulling = false;
+            return;
+        }
+
+        // 1. SMART IDENTIFICATION: Which tables actually need pulling?
+        let tablesToPull = [];
+        if (tableHint) {
+            tablesToPull = [tableHint, ...(SYNCABLE_TABLES[tableHint]?.deps || [])];
+        } else {
+            tablesToPull = await detectUpdatedTables(branchId);
+        }
+
+        if (tablesToPull.length === 0) {
+            // No changes detected on server
+            console.log("[Smart Sync] Checked 26 tables. No changes detected on server.");
+            isPulling = false;
+            return;
+        }
+
+        console.log(`[Sync Engine] Change detected in: ${tablesToPull.join(', ')}`);
+
+        // 2. Fetch updates from source ONLY for affected tables
+        for (const table of tablesToPull) {
+            const meta = SYNCABLE_TABLES[table];
+            if (!meta) continue;
+
+            const tsCol = meta.tsCol;
+            let tableSince = tableTimestamps[table] || startOfTime;
+
+            // Optimization: If local table has 0 rows, start from beginning
+            try {
+                const countResult = await db.get(`SELECT COUNT(*) as count FROM "${table}"`);
+                if (!countResult || countResult.count === 0) {
+                    tableSince = startOfTime;
+                }
+            } catch (e) { }
+
+            let sql = `SELECT * FROM ${table} WHERE 1=1`;
             let params = [];
 
-            if (tsCol === 'updated_at' || tsCol === 'created_at' || tsCol === 'first_registered_at') {
-                sql += ` WHERE ${tsCol} > ? ORDER BY ${tsCol} ASC LIMIT 2000`;
-                params = [overallSince];
+            if (branchId && meta.branchCol) {
+                if (meta.branchCol.includes('.')) {
+                    // Requires Join for filtering
+                    const parts = meta.branchCol.split('.');
+                    sql = `SELECT ${table}.* FROM ${table} JOIN ${parts[0]} ON ${table}.patient_id = ${parts[0]}.patient_id WHERE ${parts[0]}.${parts[1]} = ?`;
+                } else {
+                    sql += ` AND ${meta.branchCol} = ?`;
+                }
+                params.push(branchId);
+            }
+
+            // Sync logic with NULL protection (only pull NULLs on first sync)
+            if (tsCol === 'updated_at' || tsCol === 'created_at' || tsCol === 'first_registered_at' || tsCol === 'last_updated') {
+                sql += ` AND (${tsCol} > ? OR (${tsCol} IS NULL AND ? = '2000-01-01 00:00:00'))`;
+                sql += ` ORDER BY ${tsCol} ASC LIMIT 2000`;
+                params.push(tableSince, tableSince);
             }
 
             try {
-                // pool.queryRemote forces hits to Source (MySQL or Bridge)
-                const [rows] = await pool.queryRemote(sql, params);
+                // Use skipMirror context to prevent db.js from double-mirroring
+                const [rows] = await pool.queryContext.run({ skipMirror: true }, async () => {
+                    return await pool.queryRemote(sql, params);
+                });
+
                 if (rows && rows.length > 0) {
-                    changes[table] = rows;
+                    changes[table] = { rows, tsCol };
                 }
             } catch (err) {
                 console.error(`[Sync Pull] Fetch fail table ${table}:`, err.message);
             }
         }
 
-        // 2. Merge into local SQLite
+        // 3. Merge into local SQLite
         if (Object.keys(changes).length > 0) {
-            const db = await getLocalDb();
             await db.run('BEGIN TRANSACTION');
-
             try {
-                let latestFound = overallSince;
-                for (const [table, rows] of Object.entries(changes)) {
-                    // Get SQLite schema for this table to filter columns
+                let anyUpdates = false;
+                for (const [table, changeData] of Object.entries(changes)) {
+                    const { rows, tsCol } = changeData;
+
                     let tableColumns, primaryKeys = [];
                     try {
                         const pragma = await db.all(`PRAGMA table_info("${table}")`);
                         tableColumns = new Map(pragma.map(c => [c.name.toLowerCase(), c.name]));
                         primaryKeys = pragma.filter(c => c.pk > 0).map(c => c.name.toLowerCase());
-                    } catch (e) {
-                        console.warn(`[Sync Pull] Schema error for ${table}:`, e.message);
-                        continue;
-                    }
+                    } catch (e) { continue; }
+
+                    let latestForTable = tableTimestamps[table] || startOfTime;
 
                     for (const row of rows) {
-                        // Filter to only columns that exist in SQLite
                         const cols = [];
                         const vals = [];
                         Object.keys(row).forEach(resCol => {
@@ -120,31 +251,29 @@ async function runPull() {
                                 vals.push(row[resCol]);
                             }
                         });
-
                         if (cols.length === 0) continue;
 
-                        // Only mirror if we have all primary keys
                         const resultColsLower = cols.map(c => c.toLowerCase());
-                        if (primaryKeys.length > 0 && !primaryKeys.every(pk => resultColsLower.includes(pk))) {
-                            continue;
-                        }
+                        if (primaryKeys.length > 0 && !primaryKeys.every(pk => resultColsLower.includes(pk))) continue;
 
                         const placeholders = cols.map(() => '?').join(', ');
                         const colNames = cols.map(c => `"${c}"`).join(', ');
-                        await db.run(`REPLACE INTO "${table}" (${colNames}) VALUES (${placeholders})`, vals);
+                        await db.run(`INSERT OR REPLACE INTO "${table}" (${colNames}) VALUES (${placeholders})`, vals);
 
-                        const tsCol = SYNCABLE_TABLES[table];
-                        if (row[tsCol] && row[tsCol] > latestFound) {
-                            latestFound = row[tsCol];
-                        }
+                        if (row[tsCol] && row[tsCol] > latestForTable) latestForTable = row[tsCol];
                     }
+
+                    tableTimestamps[table] = latestForTable;
+                    anyUpdates = true;
                 }
                 await db.run('COMMIT');
 
-                if (latestFound > overallSince) {
-                    syncMap.global = latestFound;
+                if (anyUpdates) {
+                    syncMap.tables = tableTimestamps;
+                    const allTs = Object.values(tableTimestamps);
+                    if (allTs.length > 0) syncMap.global = allTs.sort().pop();
                     setLastSyncMap(syncMap);
-                    console.log(`[Sync Engine] PULL Complete. Local SQLite updated to -> ${latestFound}`);
+                    console.log(`[Sync Engine] PULL Complete. Local SQLite synchronized.`);
                 }
             } catch (err) {
                 await db.run('ROLLBACK');
@@ -160,19 +289,18 @@ async function runPull() {
 
 /**
  * TASK: PUSH (Locally Queued Changes -> Source MySQL/Bridge)
- * Runs every 20 seconds at T+10s
  */
 async function runPush() {
     if (isPushing) return;
     isPushing = true;
-    console.log(`[Sync Engine] Cycle: PUSH at ${new Date().toLocaleTimeString()}`);
+    const startTimeStamp = new Date().toLocaleTimeString();
+    console.log(`[Sync Engine] Cycle: PUSH at ${startTimeStamp}`);
 
     const startTime = Date.now();
-    const MAX_PUSH_TIME = 10000; // 10 seconds limit per cycle
+    const MAX_PUSH_TIME = 10000;
 
     try {
         const db = await getLocalDb();
-        // Fetch pending items
         const pending = await db.all(
             "SELECT * FROM pending_sync_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT 50"
         );
@@ -185,14 +313,12 @@ async function runPush() {
         console.log(`[Sync Engine] Found ${pending.length} pending items to push.`);
 
         for (const item of pending) {
-            // Check if we spent more than 10 seconds in this cycle
             if (Date.now() - startTime > MAX_PUSH_TIME) {
                 console.log("[Sync Engine] PUSH cycle reached 10s limit. Pausing remaining tasks.");
                 break;
             }
 
             try {
-                // The body contains { sql, params }
                 const body = JSON.parse(item.body || '{}');
                 const sql = body.sql;
                 const params = body.params || [];
@@ -207,7 +333,14 @@ async function runPush() {
 
                 // Mark as success (remove from queue)
                 await db.run("DELETE FROM pending_sync_queue WHERE id = ?", [item.id]);
-                console.log(`[Sync Engine] PUSH Success: Item #${item.id}`);
+                console.log(`[Sync Engine] PUSH Success: Item #${item.id} (${sql.slice(0, 30)}...)`);
+
+                // SMART SYNC: Trigger a targeted pull for the table that was just pushed
+                const tableMatch = sql.match(/UPDATE\s+(\w+)\s+/i) || sql.match(/INSERT\s+INTO\s+(\w+)\s+/i) || sql.match(/DELETE\s+FROM\s+(\w+)\s+/i);
+                if (tableMatch) {
+                    const changedTable = tableMatch[1].toLowerCase();
+                    triggerPull(changedTable);
+                }
 
             } catch (err) {
                 console.error(`[Sync Engine] PUSH Fail: Item #${item.id}`, err.message);
@@ -215,8 +348,6 @@ async function runPush() {
                     "UPDATE pending_sync_queue SET attempts = attempts + 1, last_error = ? WHERE id = ?",
                     [err.message, item.id]
                 );
-
-                // If failed too many times, mark as error
                 if (item.attempts >= 5) {
                     await db.run("UPDATE pending_sync_queue SET status = 'error' WHERE id = ?", [item.id]);
                 }
@@ -229,35 +360,39 @@ async function runPush() {
     }
 }
 
-// Initial immediate run for Pull
-setTimeout(runPull, 1000);
+let isEngineStarted = false;
 
-// INTERLEAVED SCHEDULING
-// Pull every 60 seconds (as requested)
-setInterval(runPull, 60000);
+function startSyncEngine() {
+    if (isEngineStarted) return;
+    isEngineStarted = true;
 
-// Push every 30 seconds as a fallback, but we will also trigger it manually
-setInterval(runPush, 30000);
+    console.log("[Sync Engine] Starting Smart Service Cycles...");
 
-/**
- * Trigger an immediate push cycle. 
- * Called by db.js when something is added to the queue.
- */
+    // Initial immediate run for Pull
+    setTimeout(runPull, 1000);
+
+    // INTERLEAVED SCHEDULING
+    setInterval(runPull, 30000); // 30s for background (smart check makes it cheap)
+    setInterval(runPush, 15000); // 15s push frequency
+}
+
 function triggerPush() {
+    if (!isEngineStarted) return;
     if (!isPushing) {
-        // Run after 500ms to allow the DB transaction to fully complete
         setTimeout(runPush, 500);
     }
 }
 
-function triggerPull() {
+function triggerPull(tableHint = null) {
+    if (!isEngineStarted) return;
     if (!isPulling) {
-        setTimeout(runPull, 0);
+        setTimeout(() => runPull(tableHint), tableHint ? 200 : 0);
     }
 }
 
-// Global hooks to avoid circular dependencies
+// Global hooks
 global.triggerPush = triggerPush;
 global.triggerPull = triggerPull;
+global.startSyncEngine = startSyncEngine;
 
-module.exports = { runPull, runPush, triggerPush };
+module.exports = { runPull, runPush, triggerPush, startSyncEngine };

@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS `api_tokens` (
   `token_id` INTEGER PRIMARY KEY AUTOINCREMENT,
   `employee_id` INTEGER,
   `token` TEXT,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `expires_at` TEXT,
   `last_used_at` TEXT,
   `is_revoked` INTEGER DEFAULT 0,
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS `appointment_requests` (
   `phone` TEXT,
   `location` TEXT,
   `branch_id` INTEGER DEFAULT 1,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `status` TEXT DEFAULT 'new'
 );
 
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS `appointments` (
   `referralSource` TEXT DEFAULT 'self',
   `contactMethod` TEXT DEFAULT 'Phone',
   `location` TEXT,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `status` TEXT DEFAULT 'pending',
   `payment_status` TEXT DEFAULT 'pending',
   `payment_amount` REAL,
@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS `attendance` (
   `attendance_date` TEXT,
   `remarks` TEXT,
   `payment_id` INTEGER,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `status` TEXT DEFAULT 'present',
   `approval_request_at` TEXT,
   `approved_at` TEXT,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS `attendance` (
 
 CREATE TABLE IF NOT EXISTS `audit_log` (
   `log_id` INTEGER PRIMARY KEY AUTOINCREMENT,
-  `log_timestamp` TEXT DEFAULT 'current_timestamp()',
+  `log_timestamp` TEXT DEFAULT CURRENT_TIMESTAMP,
   `user_id` INTEGER,
   `employee_id` INTEGER,
   `username` TEXT,
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS `branch_budgets` (
   `effective_from_date` TEXT,
   `created_by_user_id` INTEGER,
   `created_by_employee_id` INTEGER,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `branches` (
@@ -109,7 +109,7 @@ CREATE TABLE IF NOT EXISTS `branches` (
   `logo_primary_path` TEXT,
   `logo_secondary_path` TEXT,
   `is_active` INTEGER DEFAULT 1,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `admin_employee_id` INTEGER,
   `created_by` INTEGER
 );
@@ -121,7 +121,7 @@ CREATE TABLE IF NOT EXISTS `chat_messages` (
   `message_type` TEXT DEFAULT 'text',
   `message_text` TEXT,
   `is_read` INTEGER DEFAULT 0,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `chief_complaints` (
@@ -131,7 +131,7 @@ CREATE TABLE IF NOT EXISTS `chief_complaints` (
   `complaint_code` TEXT,
   `is_active` INTEGER DEFAULT 1,
   `display_order` INTEGER DEFAULT 0,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `clinic_settings` (
@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS `clinic_settings` (
   `branch_id` INTEGER,
   `setting_key` TEXT,
   `setting_value` TEXT,
-  `updated_at` TEXT DEFAULT 'current_timestamp()'
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `consultation_types` (
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS `consultation_types` (
   `consultation_code` TEXT,
   `is_active` INTEGER DEFAULT 1,
   `display_order` INTEGER DEFAULT 0,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `daily_patient_counter` (
@@ -164,7 +164,7 @@ CREATE TABLE IF NOT EXISTS `departments` (
   `department_name` TEXT,
   `description` TEXT,
   `is_active` INTEGER DEFAULT 1,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `employees` (
@@ -185,8 +185,8 @@ CREATE TABLE IF NOT EXISTS `employees` (
   `date_of_joining` TEXT,
   `is_active` INTEGER DEFAULT 1,
   `photo_path` TEXT,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
-  `updated_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `expense_categories` (
@@ -194,7 +194,7 @@ CREATE TABLE IF NOT EXISTS `expense_categories` (
   `category_name` TEXT,
   `display_order` INTEGER DEFAULT 0,
   `is_active` INTEGER DEFAULT 1,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `expenses` (
@@ -217,8 +217,8 @@ CREATE TABLE IF NOT EXISTS `expenses` (
   `approved_at` TEXT,
   `authorized_by_user_id` INTEGER,
   `authorized_by_employee_id` INTEGER,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
-  `updated_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `payment_method` TEXT,
   `cheque_details` TEXT,
   `bill_image_path` TEXT
@@ -232,7 +232,7 @@ CREATE TABLE IF NOT EXISTS `inquiry_followups` (
   `employee_id` INTEGER,
   `note` TEXT,
   `next_followup_date` TEXT,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `inquiry_service_types` (
@@ -242,14 +242,14 @@ CREATE TABLE IF NOT EXISTS `inquiry_service_types` (
   `service_code` TEXT,
   `is_active` INTEGER DEFAULT 1,
   `display_order` INTEGER DEFAULT 0,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `issue_attachments` (
   `attachment_id` INTEGER PRIMARY KEY AUTOINCREMENT,
   `issue_id` INTEGER,
   `file_path` TEXT,
-  `uploaded_at` TEXT DEFAULT 'current_timestamp()'
+  `uploaded_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `job_applications` (
@@ -258,7 +258,7 @@ CREATE TABLE IF NOT EXISTS `job_applications` (
   `email` TEXT,
   `phone` TEXT,
   `message` TEXT,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `status` TEXT DEFAULT 'pending'
 );
 
@@ -269,7 +269,7 @@ CREATE TABLE IF NOT EXISTS `limb_types` (
   `limb_code` TEXT,
   `is_active` INTEGER DEFAULT 1,
   `display_order` INTEGER DEFAULT 0,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `login_attempts` (
@@ -289,7 +289,7 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   `message` TEXT,
   `link_url` TEXT,
   `is_read` INTEGER DEFAULT 0,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `patient_appointments` (
@@ -301,7 +301,7 @@ CREATE TABLE IF NOT EXISTS `patient_appointments` (
   `time_slot` TEXT,
   `service_type` TEXT,
   `status` TEXT DEFAULT 'scheduled',
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `patient_feedback` (
@@ -312,7 +312,7 @@ CREATE TABLE IF NOT EXISTS `patient_feedback` (
   `patient_status_snapshot` TEXT,
   `comments` TEXT,
   `created_by_employee_id` INTEGER,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `is_resolved` INTEGER DEFAULT 0,
   `resolution_note` TEXT,
   `resolved_by` INTEGER,
@@ -326,7 +326,7 @@ CREATE TABLE IF NOT EXISTS `patient_master` (
   `phone_number` TEXT,
   `gender` TEXT,
   `age` TEXT,
-  `first_registered_at` TEXT DEFAULT 'current_timestamp()',
+  `first_registered_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `first_registered_branch_id` INTEGER
 );
 
@@ -356,8 +356,8 @@ CREATE TABLE IF NOT EXISTS `patients` (
   `end_date` TEXT,
   `status` TEXT DEFAULT 'active',
   `patient_photo_path` TEXT,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
-  `updated_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `remarks` TEXT,
   `custom_fields` TEXT,
   `plan_changed` INTEGER DEFAULT 0
@@ -380,7 +380,7 @@ CREATE TABLE IF NOT EXISTS `patients_treatment` (
   `start_date` TEXT,
   `end_date` TEXT,
   `status` TEXT DEFAULT 'active',
-  `created_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `remarks` TEXT,
   `treatment_time_slot` TEXT,
   `archived_reason` TEXT,
@@ -394,7 +394,7 @@ CREATE TABLE IF NOT EXISTS `payment_methods` (
   `method_code` TEXT,
   `is_active` INTEGER DEFAULT 1,
   `display_order` INTEGER DEFAULT 0,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `payment_splits` (
@@ -402,7 +402,7 @@ CREATE TABLE IF NOT EXISTS `payment_splits` (
   `payment_id` INTEGER,
   `payment_method` TEXT,
   `amount` REAL,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `payments` (
@@ -414,7 +414,7 @@ CREATE TABLE IF NOT EXISTS `payments` (
   `amount` REAL,
   `mode` TEXT DEFAULT 'cash',
   `remarks` TEXT,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `quick_inquiry` (
@@ -433,7 +433,7 @@ CREATE TABLE IF NOT EXISTS `quick_inquiry` (
   `review` TEXT,
   `expected_visit_date` TEXT,
   `status` TEXT DEFAULT 'pending',
-  `created_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `next_followup_date` TEXT
 );
 
@@ -443,8 +443,8 @@ CREATE TABLE IF NOT EXISTS `reception_notes` (
   `employee_id` INTEGER,
   `type` TEXT DEFAULT 'public',
   `content` TEXT,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
-  `updated_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `attachment_path` TEXT,
   `attachment_type` TEXT,
   `mentions` TEXT
@@ -455,8 +455,8 @@ CREATE TABLE IF NOT EXISTS `referral_partners` (
   `name` TEXT,
   `phone` TEXT,
   `status` TEXT DEFAULT 'active',
-  `created_at` TEXT DEFAULT 'current_timestamp()',
-  `updated_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `referral_rates` (
@@ -465,7 +465,7 @@ CREATE TABLE IF NOT EXISTS `referral_rates` (
   `service_type` TEXT,
   `service_item_name` TEXT,
   `commission_amount` REAL DEFAULT 0.00,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `referral_sources` (
@@ -475,7 +475,7 @@ CREATE TABLE IF NOT EXISTS `referral_sources` (
   `source_code` TEXT,
   `is_active` INTEGER DEFAULT 1,
   `display_order` INTEGER DEFAULT 0,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `registration` (
@@ -505,8 +505,8 @@ CREATE TABLE IF NOT EXISTS `registration` (
   `follow_up_date` TEXT,
   `status` TEXT DEFAULT 'Pending',
   `refund_status` TEXT DEFAULT 'no',
-  `created_at` TEXT DEFAULT 'current_timestamp()',
-  `updated_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `patient_photo_path` TEXT,
   `referral_partner_id` INTEGER,
   `commission_amount` REAL DEFAULT 0.00,
@@ -520,7 +520,7 @@ CREATE TABLE IF NOT EXISTS `registration_payments` (
   `branch_id` INTEGER,
   `payment_method` TEXT,
   `amount` REAL,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `role_login_keys` (
@@ -528,8 +528,8 @@ CREATE TABLE IF NOT EXISTS `role_login_keys` (
   `key_name` TEXT,
   `password_hash` TEXT,
   `is_active` INTEGER DEFAULT 1,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
-  `updated_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `roles` (
@@ -548,8 +548,8 @@ CREATE TABLE IF NOT EXISTS `service_tracks` (
   `scheduling` TEXT,
   `permissions` TEXT,
   `is_active` INTEGER DEFAULT 1,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
-  `updated_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `system_issues` (
@@ -565,8 +565,8 @@ CREATE TABLE IF NOT EXISTS `system_issues` (
   `release_date` TEXT,
   `admin_response` TEXT,
   `system_metadata` TEXT,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
-  `updated_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `system_services` (
@@ -574,13 +574,13 @@ CREATE TABLE IF NOT EXISTS `system_services` (
   `service_name` TEXT,
   `service_slug` TEXT,
   `current_status` INTEGER DEFAULT 'operational',
-  `last_updated` TEXT DEFAULT 'current_timestamp()'
+  `last_updated` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `system_settings` (
   `setting_key` TEXT,
   `setting_value` TEXT,
-  `updated_at` TEXT DEFAULT 'current_timestamp()',
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `updated_by` INTEGER,
   PRIMARY KEY (`setting_key`)
 );
@@ -599,7 +599,7 @@ CREATE TABLE IF NOT EXISTS `test_inquiry` (
   `assigned_test_date` TEXT,
   `expected_visit_date` TEXT,
   `status` TEXT DEFAULT 'pending',
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `test_items` (
@@ -619,7 +619,7 @@ CREATE TABLE IF NOT EXISTS `test_items` (
   `test_status` TEXT DEFAULT 'pending',
   `payment_status` TEXT DEFAULT 'pending',
   `refund_status` TEXT DEFAULT 'no',
-  `created_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `referral_partner_id` INTEGER,
   `commission_amount` REAL DEFAULT 0.00,
   `commission_status` TEXT DEFAULT 'pending'
@@ -630,7 +630,7 @@ CREATE TABLE IF NOT EXISTS `test_payments` (
   `test_id` INTEGER,
   `payment_method` TEXT,
   `amount` REAL,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `test_staff` (
@@ -640,7 +640,7 @@ CREATE TABLE IF NOT EXISTS `test_staff` (
   `job_title` TEXT DEFAULT 'Technician',
   `is_active` INTEGER DEFAULT 1,
   `display_order` INTEGER DEFAULT 0,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `test_types` (
@@ -652,7 +652,7 @@ CREATE TABLE IF NOT EXISTS `test_types` (
   `requires_limb_selection` INTEGER DEFAULT 0,
   `is_active` INTEGER DEFAULT 1,
   `display_order` INTEGER DEFAULT 0,
-  `created_at` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `tests` (
@@ -684,8 +684,8 @@ CREATE TABLE IF NOT EXISTS `tests` (
   `payment_method` TEXT DEFAULT 'cash',
   `payment_status` TEXT DEFAULT 'pending',
   `refund_status` TEXT DEFAULT 'no',
-  `created_at` TEXT DEFAULT 'current_timestamp()',
-  `updated_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `test_status` TEXT DEFAULT 'pending',
   `referral_partner_id` INTEGER,
   `approval_status` TEXT DEFAULT 'approved'
@@ -706,7 +706,7 @@ CREATE TABLE IF NOT EXISTS `tokens` (
   `created_by_employee_id` INTEGER,
   `service_type` TEXT,
   `token_date` TEXT,
-  `created_at` TEXT DEFAULT 'current_timestamp()',
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
   `print_count` INTEGER DEFAULT 1
 );
 
@@ -715,8 +715,8 @@ CREATE TABLE IF NOT EXISTS `user_device_tokens` (
   `employee_id` INTEGER,
   `token` TEXT,
   `platform` TEXT DEFAULT 'android',
-  `created_at` TEXT DEFAULT 'current_timestamp()',
-  `last_updated` TEXT DEFAULT 'current_timestamp()'
+  `created_at` TEXT DEFAULT CURRENT_TIMESTAMP,
+  `last_updated` TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS `users` (

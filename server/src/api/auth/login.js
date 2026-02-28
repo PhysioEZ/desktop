@@ -88,6 +88,11 @@ exports.login = async (req, res) => {
                 req.ip || null
             );
 
+            // Start Sync Engine if not already started
+            if (global.startSyncEngine) {
+                global.startSyncEngine();
+            }
+
             // TODO: Log security event (Login Success)
 
             return res.json({
