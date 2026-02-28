@@ -44,7 +44,7 @@ async function runDailyCleanup(branchId) {
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
 
     const cleanupFile = path.join(tmpDir, `last_cleanup_${branchId}.txt`);
-    const todayDate = new Date().toISOString().split("T")[0];
+    const todayDate = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000).toISOString().split("T")[0];
 
     let lastRunDate = "";
     if (fs.existsSync(cleanupFile)) {
@@ -56,7 +56,7 @@ async function runDailyCleanup(branchId) {
             const sql = `
                 UPDATE patients 
                 SET status = 'inactive'
-                WHERE branch_id = ? 
+                WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) 
                   AND status = 'active'
                   AND (
                       (patient_id IN (
@@ -80,34 +80,34 @@ async function runDailyCleanup(branchId) {
 async function fetchFilters(req, res, branchId) {
     const filters = {};
     const doctors = await pool.query(
-        "SELECT DISTINCT assigned_doctor FROM patients WHERE branch_id = ? AND assigned_doctor IS NOT NULL AND assigned_doctor != '' ORDER BY assigned_doctor",
+        "SELECT DISTINCT assigned_doctor FROM patients WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND assigned_doctor IS NOT NULL AND assigned_doctor != '' ORDER BY assigned_doctor",
         [branchId],
     );
     const treatments = await pool.query(
-        "SELECT DISTINCT treatment_type FROM patients WHERE branch_id = ? AND treatment_type IS NOT NULL AND treatment_type != '' ORDER BY treatment_type",
+        "SELECT DISTINCT treatment_type FROM patients WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND treatment_type IS NOT NULL AND treatment_type != '' ORDER BY treatment_type",
         [branchId],
     );
     const statuses = await pool.query(
-        "SELECT DISTINCT status FROM patients WHERE branch_id = ? AND status IS NOT NULL AND status != '' ORDER BY status",
+        "SELECT DISTINCT status FROM patients WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND status IS NOT NULL AND status != '' ORDER BY status",
         [branchId],
     );
     const services = await pool.query(
-        "SELECT DISTINCT service_type FROM patients WHERE branch_id = ? AND service_type IS NOT NULL AND service_type != '' ORDER BY service_type",
+        "SELECT DISTINCT service_type FROM patients WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND service_type IS NOT NULL AND service_type != '' ORDER BY service_type",
         [branchId],
     );
 
     const [paymentMethods] = await pool.query(
-        "SELECT method_id, method_name FROM payment_methods WHERE branch_id = ? AND is_active = 1 ORDER BY display_order",
+        "SELECT method_id, method_name FROM payment_methods WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND is_active = 1 ORDER BY display_order",
         [branchId],
     );
 
     const [referrers] = await pool.query(
         `
-        SELECT DISTINCT reffered_by FROM registration WHERE branch_id = ? AND reffered_by IS NOT NULL AND reffered_by != ''
+        SELECT DISTINCT reffered_by FROM registration WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND reffered_by IS NOT NULL AND reffered_by != ''
         UNION
-        SELECT DISTINCT reffered_by FROM test_inquiry WHERE branch_id = ? AND reffered_by IS NOT NULL AND reffered_by != ''
+        SELECT DISTINCT reffered_by FROM test_inquiry WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND reffered_by IS NOT NULL AND reffered_by != ''
         UNION
-        SELECT DISTINCT referred_by AS reffered_by FROM tests WHERE branch_id = ? AND referred_by IS NOT NULL AND referred_by != ''
+        SELECT DISTINCT referred_by AS reffered_by FROM tests WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND referred_by IS NOT NULL AND referred_by != ''
         ORDER BY reffered_by ASC
     `,
         [branchId, branchId, branchId],
@@ -116,13 +116,13 @@ async function fetchFilters(req, res, branchId) {
     // Get Counts
     const [[counts]] = await pool.query(`
         SELECT 
-            COUNT(CASE WHEN DATE(created_at) = CURDATE() THEN 1 END) as new_today,
+            COUNT(CASE WHEN DATE(created_at) = DATE('now', 'localtime') THEN 1 END) as new_today,
             COUNT(CASE WHEN status = 'active' THEN 1 END) as active_count,
             COUNT(CASE WHEN status = 'inactive' THEN 1 END) as inactive_count,
             COUNT(CASE WHEN status IN ('stopped', 'completed') THEN 1 END) as terminated_count,
             COUNT(*) as total_count
         FROM patients 
-        WHERE branch_id = ?
+        WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0)
     `, [branchId]);
 
     // Resolve treatment names for the filter dropdown
@@ -171,7 +171,7 @@ async function fetchPatients(req, res, branchId, input) {
     const status = input.status || "";
     const offset = (page - 1) * limit;
 
-    let whereClauses = ["p.branch_id = ?"];
+    let whereClauses = ["(p.branch_id = ? OR p.branch_id IS NULL OR p.branch_id = 0)"];
     let params = [branchId];
 
     if (search) {

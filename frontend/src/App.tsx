@@ -34,7 +34,10 @@ import Feedback from "./reception/Feedback";
 import Expenses from "./reception/Expenses";
 import Support from "./reception/Support";
 import Reports from "./reception/Reports";
+import Settings from "./reception/Settings";
 import ReceptionAnalytics from "./reception/ReceptionAnalytics";
+
+import ProtectedRoute from "./components/ProtectedRoute";
 
 function App() {
   const { isDark } = useThemeStore();
@@ -80,36 +83,64 @@ function App() {
       <Toaster richColors position="top-right" closeButton />
       <Routes>
         <Route path="/login" element={<LoginScreen />} />
-        <Route path="/welcome" element={<WelcomeScreen />} />
-        <Route path="/reception/dashboard" element={<ReceptionDashboard />} />
-        <Route path="/reception/dashboard-new" element={<DashboardNew />} />
-        <Route path="/reception/schedule" element={<Schedule />} />
-        <Route path="/reception/test-schedule" element={<TestSchedule />} />
-        <Route path="/reception/inquiry" element={<Inquiry />} />
-        <Route path="/reception/registration" element={<Registration />} />
-        <Route path="/reception/attendance" element={<Attendance />} />
-        <Route path="/reception/tests" element={<Tests />} />
-        <Route path="/reception/feedback" element={<Feedback />} />
-        <Route path="/reception/expenses" element={<Expenses />} />
-        <Route path="/reception/support" element={<Support />} />
-        <Route path="/reception/reports" element={<Reports />} />
         <Route
-          path="/reception/registration/cancelled"
-          element={<CancelledRegistrations />}
-        />
-        <Route path="/reception/tests/cancelled" element={<CancelledTests />} />
-        <Route path="/reception/patients" element={<Patients />} />
-        <Route path="/reception/billing" element={<Billing />} />
-        <Route path="/reception/profile" element={<Profile />} />
-        <Route
-          path="/reception/reception-analytics"
-          element={<ReceptionAnalytics />}
+          path="/welcome"
+          element={
+            <ProtectedRoute>
+              <WelcomeScreen />
+            </ProtectedRoute>
+          }
         />
 
-        {/* Admin Routes */}
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/admin/services" element={<ServiceManager />} />
-        <Route path="/admin/simulator" element={<RegistrationSimulator />} />
+        {/* Protected Reception Routes */}
+        <Route
+          path="/reception/*"
+          element={
+            <ProtectedRoute>
+              <Routes>
+                <Route path="dashboard" element={<ReceptionDashboard />} />
+                <Route path="dashboard-new" element={<DashboardNew />} />
+                <Route path="schedule" element={<Schedule />} />
+                <Route path="test-schedule" element={<TestSchedule />} />
+                <Route path="inquiry" element={<Inquiry />} />
+                <Route path="registration" element={<Registration />} />
+                <Route path="attendance" element={<Attendance />} />
+                <Route path="tests" element={<Tests />} />
+                <Route path="feedback" element={<Feedback />} />
+                <Route path="expenses" element={<Expenses />} />
+                <Route path="support" element={<Support />} />
+                <Route path="reports" element={<Reports />} />
+                <Route
+                  path="registration/cancelled"
+                  element={<CancelledRegistrations />}
+                />
+                <Route path="tests/cancelled" element={<CancelledTests />} />
+                <Route path="patients" element={<Patients />} />
+                <Route path="billing" element={<Billing />} />
+                <Route path="profile" element={<Profile />} />
+                <Route path="settings" element={<Settings />} />
+                <Route
+                  path="reception-analytics"
+                  element={<ReceptionAnalytics />}
+                />
+              </Routes>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Protected Admin Routes */}
+        <Route
+          path="/admin/*"
+          element={
+            <ProtectedRoute>
+              <Routes>
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="services" element={<ServiceManager />} />
+                <Route path="simulator" element={<RegistrationSimulator />} />
+              </Routes>
+            </ProtectedRoute>
+          }
+        />
 
         {/* Default Redirect */}
         <Route path="*" element={<Navigate to="/login" replace />} />

@@ -16,8 +16,10 @@ async function getLocalDb() {
         filename: dbPath,
         driver: sqlite3.Database
     }).then(async (db) => {
-        if (!dbExists && fs.existsSync(schemaPath)) {
-            console.log("Initializing SQLite database from schema...");
+        // Check if our main table exists, if not, re-init schema
+        const tableCheck = await db.get("SELECT name FROM sqlite_master WHERE type='table' AND name='patients'");
+        if (!tableCheck && fs.existsSync(schemaPath)) {
+            console.log("Initializing or repairing SQLite database schema...");
             const schema = fs.readFileSync(schemaPath, 'utf8');
             await db.exec(schema);
             console.log("SQLite schema created successfully.");

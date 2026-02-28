@@ -56,20 +56,20 @@ exports.submitRegistration = async (req, res) => {
         }
 
         // --- 2. Generate Unique Patient UID ---
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const istNow = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
+        const today = istNow.toISOString().split('T')[0]; // YYYY-MM-DD
 
-        // Upsert counter
+        // Upsert counter (MySQL/MariaDB standard)
         await connection.query(`
             INSERT INTO daily_patient_counter (entry_date, counter) VALUES (?, 1)
-            ON CONFLICT(entry_date) DO UPDATE SET counter = counter + 1
+            ON DUPLICATE KEY UPDATE counter = counter + 1
         `, [today]);
 
         const [counterRows] = await connection.query("SELECT counter FROM daily_patient_counter WHERE entry_date = ?", [today]);
         const serialNumber = counterRows[0].counter;
 
         // Format: YYMMDD + counter
-        const dateObj = new Date();
-        const ymd = dateObj.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
+        const ymd = istNow.toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
         const patientUID = `${ymd}${serialNumber}`;
 
         // --- 3. Check/Upsert Patient Master ---

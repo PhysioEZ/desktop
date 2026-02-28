@@ -28,7 +28,6 @@ const WelcomeScreen = () => {
   const user = useAuthStore((state) => state.user);
   const { isDark } = useThemeStore();
   const [progress, setProgress] = useState(0);
-  const [syncStatus, setSyncStatus] = useState<any>(null);
   const [fetchStatus, setFetchStatus] = useState<{
     [key: string]: "pending" | "success" | "error";
   }>({
@@ -64,46 +63,77 @@ const WelcomeScreen = () => {
   useEffect(() => {
     if (!user) return;
 
-    let pollInterval: any;
-
     const initialize = async () => {
-      // 1. Clear Cache First
+      // 1. Try differential sync first (skip cache purge if data is fresh)
+      let needsFullSync = true;
       try {
-        const res = await authFetch(`${API_BASE_URL}/auth/clear-cache`, {
-          method: "POST",
-        });
-        await res.json();
-        setFetchStatus((prev) => ({ ...prev, cache: "success" }));
+        setCurrentTable("checking for changes...");
+        const diffRes = await authFetch(
+          `${API_BASE_URL}/reception/diff_check`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ branch_id: user.branch_id }),
+          },
+        );
+        const diffData = await diffRes.json();
+
+        if (diffData.success && diffData.mode === "differential") {
+          // Data is fresh — diff_check already pulled only the changed tables
+          console.log(
+            `[WelcomeScreen] Differential sync: ${diffData.changed_tables.length} tables updated`,
+          );
+          setFetchStatus((prev) => ({
+            ...prev,
+            cache: "success",
+            sync: "success",
+          }));
+          isSyncDoneRef.current = true;
+          setCurrentTable("");
+          needsFullSync = false;
+        }
+        // If mode === 'full_sync_needed', fall through to full sync below
       } catch (e) {
-        setFetchStatus((prev) => ({ ...prev, cache: "error" }));
+        console.warn("Diff check failed, falling back to full sync", e);
       }
 
-      // 2. Start Sync Polling
-      pollInterval = setInterval(async () => {
+      // 2. Full sync path: clear cache then pull everything
+      if (needsFullSync) {
+        // 2a. Clear stale cache
         try {
-          const res = await authFetch(`${API_BASE_URL}/reception/sync_status`);
-          const data = await res.json();
-          if (data.success) {
-            setSyncStatus(data);
-            if (data.progress?.currentTable) {
-              setCurrentTable(data.progress.currentTable);
-            }
-            if (data.isInitialSyncComplete) {
-              setFetchStatus((prev) => ({ ...prev, sync: "success" }));
-              isSyncDoneRef.current = true;
-              clearInterval(pollInterval);
+          const res = await authFetch(`${API_BASE_URL}/auth/clear-cache`, {
+            method: "POST",
+          });
+          await res.json();
+          setFetchStatus((prev) => ({ ...prev, cache: "success" }));
+        } catch (e) {
+          setFetchStatus((prev) => ({ ...prev, cache: "error" }));
+        }
 
-              // Trigger final fetches once sync is complete
-              await triggerFinalFetches();
-            }
+        // 2b. Run full sync (push pending + pull all)
+        try {
+          setCurrentTable("syncing...");
+          const syncRes = await authFetch(`${API_BASE_URL}/reception/sync`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          const syncData = await syncRes.json();
+          if (syncData.success) {
+            setFetchStatus((prev) => ({ ...prev, sync: "success" }));
+            isSyncDoneRef.current = true;
+            setCurrentTable("");
+          } else {
+            setFetchStatus((prev) => ({ ...prev, sync: "error" }));
           }
         } catch (e) {
-          console.error("Sync poll error", e);
+          console.error("Sync error", e);
+          setFetchStatus((prev) => ({ ...prev, sync: "error" }));
+          isSyncDoneRef.current = true;
         }
-      }, 2000);
-    };
+      }
 
-    const triggerFinalFetches = async () => {
+      // 3. Trigger final fetches once sync is complete
       try {
         await Promise.allSettled([
           authFetch(
@@ -125,11 +155,7 @@ const WelcomeScreen = () => {
     };
 
     initialize();
-
-    return () => {
-      if (pollInterval) clearInterval(pollInterval);
-    };
-  }, [user?.branch_id]); // We only restart if branch_id changes
+  }, [user?.branch_id]);
 
   // Effect 2: Visual Progress Animation
   useEffect(() => {
@@ -282,10 +308,7 @@ const WelcomeScreen = () => {
             <div className="pt-12">
               <div className="flex items-center gap-3 text-slate-400 dark:text-slate-500 text-xs font-medium">
                 <RefreshCcw size={14} className="animate-spin" />
-                Last synchronization:{" "}
-                {syncStatus?.lastPullTime
-                  ? new Date(syncStatus.lastPullTime).toLocaleTimeString()
-                  : "Determining..."}
+                Last synchronization: Just now
               </div>
             </div>
           </div>

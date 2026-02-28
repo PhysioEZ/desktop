@@ -14,7 +14,7 @@ import {
   ArrowUpRight,
   LayoutGrid,
   Table as TableIcon,
-  } from "lucide-react";
+} from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
   AreaChart,
@@ -33,6 +33,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import { API_BASE_URL, authFetch } from "../config";
 
 import Sidebar from "../components/Sidebar";
@@ -56,7 +57,7 @@ const Reports = () => {
   const [loading, setLoading] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
 
   // Data
   const [records, setRecords] = useState<any[]>([]);
@@ -136,8 +137,12 @@ const Reports = () => {
 
   const handleRefresh = async () => {
     if (refreshCooldown > 0) return;
-    await fetchData();
-    setRefreshCooldown(30);
+    smartRefresh(activeTab, {
+      onSuccess: () => {
+        fetchData();
+        setRefreshCooldown(30);
+      },
+    });
   };
 
   useEffect(() => {
@@ -1007,19 +1012,16 @@ const Reports = () => {
     <div
       className={`flex h-screen overflow-hidden font-sans transition-colors duration-300 ${isDark ? "bg-[#050505] text-slate-200" : "bg-[#FAFAFA] text-slate-900"}`}
     >
-      <Sidebar
-        onShowChat={() => setShowChatModal(true)}
-        
-      />
+      <Sidebar onShowChat={() => setShowChatModal(true)} />
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <PageHeader
-          title="Reports"
-          subtitle="Analytical Insights"
-          icon={Activity}
+          title="Reports & Analytics"
+          subtitle="Data Intelligence Hub"
+          icon={TrendingUp}
           onRefresh={handleRefresh}
           refreshCooldown={refreshCooldown}
-          isLoading={loading}
+          isLoading={loading || isRefreshing}
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}
         />

@@ -42,6 +42,21 @@ import PageHeader from "../components/PageHeader";
 
 type InquiryType = "consultation" | "test";
 
+const parseDateString = (
+  dateStr: string | number | null | undefined,
+): Date | null => {
+  if (!dateStr) return null;
+  // Handle stringified float epoch times
+  if (typeof dateStr === "string" && /^\d+(\.\d+)?$/.test(dateStr)) {
+    return new Date(Number(dateStr));
+  }
+  if (typeof dateStr === "number") {
+    return new Date(dateStr);
+  }
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? null : d;
+};
+
 const DatePicker = ({ value, onChange, onClose }: any) => {
   const [currDate, setCurrDate] = useState(
     value ? new Date(value) : new Date(),
@@ -1094,9 +1109,9 @@ const Inquiry = () => {
                               <td className="px-6 py-5">
                                 <div className="flex flex-col">
                                   <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                                    {inq.expected_date
+                                    {parseDateString(inq.expected_date)
                                       ? format(
-                                          parseISO(inq.expected_date),
+                                          parseDateString(inq.expected_date)!,
                                           "MMM d, yyyy",
                                         )
                                       : "TBD"}

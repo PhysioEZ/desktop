@@ -3,6 +3,7 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import { API_BASE_URL, authFetch } from "../config";
 import { useDashboardStore, useThemeStore, useAuthStore } from "../store";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import ChatModal from "../components/Chat/ChatModal";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -133,6 +134,7 @@ const DraggableAppointment = ({
       ref={setNodeRef}
       style={style}
       {...attributes}
+      {...listeners}
       variants={cardVariants}
       initial="initial"
       whileHover="hover"
@@ -154,10 +156,7 @@ const DraggableAppointment = ({
             </p>
           </div>
         </div>
-        <div
-          {...listeners}
-          className="p-1 opacity-20 group-hover:opacity-100 transition-opacity shrink-0"
-        >
+        <div className="p-1 opacity-20 group-hover:opacity-100 transition-opacity shrink-0">
           <GripVertical size={14} />
         </div>
       </div>
@@ -269,19 +268,6 @@ const Schedule = () => {
     return { time, label };
   });
 
-  const handleRefresh = async () => {
-    if (refreshCooldown > 0) return;
-
-    const promise = fetchSchedule(true);
-    toast.promise(promise, {
-      loading: "Refreshing schedule...",
-      success: "Schedule up to date",
-      error: "Failed to refresh",
-    });
-
-    setRefreshCooldown(30);
-  };
-
   useEffect(() => {
     if (refreshCooldown > 0) {
       const timer = setInterval(
@@ -312,6 +298,8 @@ const Schedule = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
+
   // Fetch Schedule
   const fetchSchedule = useCallback(
     async (force = false) => {
@@ -334,13 +322,21 @@ const Schedule = () => {
         );
         const data = await res.json();
         if (data.success) {
-          // Normalize appointment_date from ISO UTC to local YYYY-MM-DD
-          const normalized = (data.appointments || []).map((a: any) => ({
-            ...a,
-            appointment_date: a.appointment_date
-              ? a.appointment_date.substring(0, 10)
-              : a.appointment_date,
-          }));
+          const normalized = (data.appointments || []).map((a: any) => {
+            let localDateStr = a.appointment_date;
+            if (localDateStr && localDateStr.includes("T")) {
+              const d = new Date(localDateStr);
+              // For IST (+5.5 hours)
+              const istDate = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+              localDateStr = istDate.toISOString().substring(0, 10);
+            } else if (localDateStr) {
+              localDateStr = localDateStr.substring(0, 10);
+            }
+            return {
+              ...a,
+              appointment_date: localDateStr,
+            };
+          });
           setScheduleAppointments(normalized);
           setScheduleWeekStart(weekStartStr);
         }
@@ -362,7 +358,7 @@ const Schedule = () => {
   );
 
   useEffect(() => {
-    fetchSchedule(true);
+    fetchSchedule(false);
   }, [weekStartStr]); // Only re-fetch if week changes or forced
 
   // --- Shortcuts ---
@@ -481,7 +477,7 @@ const Schedule = () => {
       keys: ["Ctrl", "R"],
       description: "Refresh",
       group: "General",
-      action: handleRefresh,
+      action: () => handleRefresh(),
     },
   ];
 
@@ -579,6 +575,18 @@ const Schedule = () => {
     shortcuts,
   ]);
 
+  const handleRefresh = useCallback(async () => {
+    if (refreshCooldown > 0) return;
+
+    smartRefresh("registration", {
+      // We use "registration" as the hint because schedule data comes from registration table
+      onSuccess: () => {
+        fetchSchedule(true);
+        setRefreshCooldown(30);
+      },
+    });
+  }, [refreshCooldown, smartRefresh, fetchSchedule]);
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over) return;
@@ -627,6 +635,7 @@ const Schedule = () => {
       const data = await res.json();
 
       if (data.success) {
+        console.log(`[Sync] Rescheduled successfully on server mysql. Synced.`);
         toast.success(
           `Rescheduled to ${format(day, "MMM d")} at ${format(
             parse(time, "HH:mm", new Date()),
@@ -670,8 +679,8 @@ const Schedule = () => {
         <PageHeader
           title="Appointments"
           icon={Calendar}
-          onRefresh={handleRefresh}
-          isLoading={isLoading}
+          onRefresh={() => handleRefresh()}
+          isLoading={isLoading || isRefreshing}
           refreshCooldown={refreshCooldown}
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}

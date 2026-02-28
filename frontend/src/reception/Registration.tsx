@@ -58,6 +58,7 @@ import UpdatePaymentModal from "../components/reception/UpdatePaymentModal";
 import PageHeader from "../components/PageHeader";
 import Sidebar from "../components/Sidebar";
 import DailyIntelligence from "../components/DailyIntelligence";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import NotesDrawer from "../components/NotesDrawer";
 import LogoutConfirmation from "../components/LogoutConfirmation";
 import KeyboardShortcuts from "../components/KeyboardShortcuts";
@@ -267,6 +268,8 @@ const Registration = () => {
   const [showNotes, setShowNotes] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [refreshCooldown, setRefreshCooldown] = useState(0);
+
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
 
   // UI State
   const [toast, setToast] = useState<{
@@ -535,27 +538,13 @@ const Registration = () => {
   const handleRefresh = async () => {
     if (refreshCooldown > 0 || !user?.branch_id) return;
 
-    const fetchDash = authFetch(
-      `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
-      { headers: { "X-Refresh": "true" } },
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.status === "success") {
-          useDashboardStore.setState({ data: data.data });
-        }
-      })
-      .catch(console.error);
-
-    const promise = Promise.all([fetchRegistrations(true), fetchDash]);
-
-    sonnerToast.promise(promise, {
-      loading: "Refreshing registrations & stats...",
-      success: "Data updated",
-      error: "Failed to refresh",
+    smartRefresh("registration", {
+      onSuccess: () => {
+        fetchRegistrations(true);
+        fetchDashboardStats();
+        setRefreshCooldown(20);
+      },
     });
-
-    setRefreshCooldown(20);
   };
 
   useEffect(() => {
@@ -1143,11 +1132,11 @@ const Registration = () => {
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <PageHeader
-          title="Registration"
-          subtitle="Operations Center"
+          title="Registration Tracking"
+          subtitle="Patient Admissions & Intake"
           icon={UserPlus}
           onRefresh={handleRefresh}
-          isLoading={isLoading}
+          isLoading={isLoading || isRefreshing}
           refreshCooldown={refreshCooldown}
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}
@@ -2167,7 +2156,7 @@ const Registration = () => {
                     if (selectedRegistration?.registration_id) {
                       fetchDetails(selectedRegistration.registration_id, true);
                     }
-                    fetchRegistrations(true);
+                    fetchRegistrations(false);
                   }}
                 />
               )}

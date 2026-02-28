@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "../store/useAuthStore";
 import { usePatientStore } from "../store/usePatientStore";
 import { useThemeStore } from "../store/useThemeStore";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import { API_BASE_URL, authFetch } from "../config";
 import CustomSelect from "../components/ui/CustomSelect";
 import PatientDetailsModal from "../components/patients/PatientDetailsModal";
@@ -48,6 +49,8 @@ const Patients = () => {
     openPatientDetails,
     updateLocalPatientAttendance,
   } = usePatientStore();
+
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
 
   // Local UI State
   const [refreshCooldown, setRefreshCooldown] = useState(0);
@@ -121,15 +124,13 @@ const Patients = () => {
 
   const handleRefresh = async () => {
     if (refreshCooldown > 0 || !user?.branch_id) return;
-    const loadToast = toast.loading("Refreshing patients...");
-    try {
-      await fetchPatients(user.branch_id, true);
-      await fetchMetaData(user.branch_id, true);
-      toast.success("Patient list updated", { id: loadToast });
-      setRefreshCooldown(20);
-    } catch (e) {
-      toast.error("Failed to refresh", { id: loadToast });
-    }
+    smartRefresh("patients", {
+      onSuccess: () => {
+        fetchPatients(user.branch_id as number, true);
+        fetchMetaData(user.branch_id as number, true);
+        setRefreshCooldown(20);
+      },
+    });
   };
 
   const handleMarkAttendance = async (e: React.MouseEvent, patient: any) => {
@@ -157,7 +158,7 @@ const Patients = () => {
           toast.success("Attendance marked successfully");
           // Optimistic local update
           updateLocalPatientAttendance(patient.patient_id, "present", 1, -cost);
-          fetchPatients(user!.branch_id, true);
+          // fetchPatients(user!.branch_id, true); // Removed to prevent race conditions with background sync
         } else {
           if (
             data.status === "payment_required" ||
@@ -204,7 +205,7 @@ const Patients = () => {
           cost,
         );
         setRevertModal({ open: false, patient: null });
-        fetchPatients(user.branch_id, true);
+        // fetchPatients(user.branch_id, true); // Removed to prevent race conditions
       } else {
         toast.error(data.message || "Failed to revert attendance");
       }
@@ -221,12 +222,12 @@ const Patients = () => {
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <PageHeader
-          title="Patients"
-          subtitle="Operations Center"
+          title="Patients List"
+          subtitle="Record Management"
           icon={Users}
           onRefresh={handleRefresh}
+          isLoading={isLoading || isRefreshing}
           refreshCooldown={refreshCooldown}
-          isLoading={isLoading}
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}
         />

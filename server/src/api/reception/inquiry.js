@@ -48,13 +48,32 @@ async function fetchInquiries(req, res, branch_id, input) {
     let query, params = [branch_id];
 
     if (type === 'consultation') {
-        query = "SELECT *, expected_visit_date as next_followup_date FROM quick_inquiry WHERE branch_id = ?";
+        const istToday = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000).toISOString().split('T')[0];
+        query = `
+            SELECT 
+                *, 
+                chief_complain as complaint,
+                expected_visit_date as expected_date,
+                referralSource as referral,
+                expected_visit_date as next_followup_date
+            FROM quick_inquiry 
+            WHERE branch_id = ?
+        `;
         if (search) {
             query += " AND (name LIKE ? OR phone_number LIKE ?)";
             params.push(`%${search}%`, `%${search}%`);
         }
     } else {
-        query = "SELECT *, expected_visit_date as next_followup_date FROM test_inquiry WHERE branch_id = ?";
+        query = `
+            SELECT 
+                *, 
+                testname as test_name,
+                expected_visit_date as expected_date,
+                reffered_by as referral,
+                expected_visit_date as next_followup_date
+            FROM test_inquiry 
+            WHERE branch_id = ?
+        `;
         if (search) {
             query += " AND (name LIKE ? OR mobile_number LIKE ?)";
             params.push(`%${search}%`, `%${search}%`);

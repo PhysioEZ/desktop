@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
 import { API_BASE_URL, authFetch } from "../config";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -43,7 +44,8 @@ import {
   ClipboardCheck,
   Sparkles,
   Percent,
-  Banknote } from "lucide-react";
+  Banknote,
+} from "lucide-react";
 import { useThemeStore } from "../store/useThemeStore";
 import CustomSelect from "../components/ui/CustomSelect";
 import DatePicker from "../components/ui/DatePicker";
@@ -254,6 +256,9 @@ const ReceptionDashboard = () => {
   // ... other state ...
   const notifList = notifications || [];
   const [refreshCooldown, setRefreshCooldown] = useState(0);
+
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
+
   const [approvalRefreshCooldown, setApprovalRefreshCooldown] = useState(0);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [formViewMode, setFormViewMode] = useState<"chunked" | "all">(
@@ -666,25 +671,17 @@ const ReceptionDashboard = () => {
   };
 
   const handleRefresh = async () => {
-    if (refreshCooldown > 0 || isLoading) return;
-
-    // Trigger system status check manually on refresh
-    window.dispatchEvent(new CustomEvent("trigger-system-status-check"));
-
-    setIsLoading(true);
-    const toastId = toast.loading("Checking for updates...");
-
-    try {
-      // Direct full fetch with X-Refresh header as requested, bypassing check_updates
-      await fetchAll(true, true);
-      toast.success("System updated with latest records", { id: toastId });
-      setRefreshCooldown(30);
-    } catch (err) {
-      console.error("Refresh Error:", err);
-      toast.error("Sync failed", { id: toastId });
-    } finally {
-      setIsLoading(false);
-    }
+    if (refreshCooldown > 0 || !user?.branch_id) return;
+    smartRefresh(null, {
+      onSuccess: () => {
+        // After smartRefresh completes its internal fetching, update local state
+        // by re-fetching dashboard data and approvals.
+        // The smartRefresh hook itself should handle the main data fetching.
+        // This part is for ensuring the UI reflects the latest state after smartRefresh.
+        fetchAll(false, true); // Re-fetch all data, but don't show global loading spinner
+        setRefreshCooldown(30);
+      },
+    });
   };
 
   // Fetch Time Slots
@@ -1801,8 +1798,8 @@ const ReceptionDashboard = () => {
                 <div className="flex flex-col items-end mr-2">
                   <button
                     onClick={handleRefresh}
-                    disabled={isLoading || refreshCooldown > 0}
-                    className={`w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 ${isLoading ? "animate-spin" : ""} ${refreshCooldown > 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                    disabled={isLoading || isRefreshing || refreshCooldown > 0}
+                    className={`w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 ${isLoading || isRefreshing ? "animate-spin" : ""} ${refreshCooldown > 0 ? "opacity-50 cursor-not-allowed" : ""}`}
                     title={
                       refreshCooldown > 0
                         ? `Wait ${refreshCooldown}s`

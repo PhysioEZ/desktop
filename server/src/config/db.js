@@ -50,6 +50,17 @@ class SqlitePool {
     _translateSql(sql) {
         let newSql = sql;
 
+        // Translate MySQL DATE(x) to SQLite. Handle ISO strings, native calls, and Unix Timestamps (ms)
+        newSql = newSql.replace(/DATE\s*\(([^)]+)\)/gi, (match, col) => {
+            const c = col.trim();
+            // If it contains a comma or is a native call like 'now', 'localtime', just pass it as date(...)
+            if (c.includes(',') || /'now'|'localtime'/i.test(c)) {
+                return `date(${c})`;
+            }
+            // Robust check: if it looks like a number (timestamp), convert it. Otherwise treat as ISO.
+            return `(CASE WHEN typeof(${c}) IN ('integer', 'real') THEN date(${c}/1000, 'unixepoch', 'localtime') ELSE date(${c}) END)`;
+        });
+
         // Translate MySQL DATE_SUB(source, INTERVAL X UNIT) to SQLite
         newSql = newSql.replace(/DATE_SUB\s*\(([^,]+),\s*INTERVAL\s+(\d+)\s+(DAY|MONTH|YEAR|HOUR|MINUTE|SECOND)\s*\)/gi, (match, source, amount, unit) => {
             let s = source.trim();
@@ -57,6 +68,14 @@ class SqlitePool {
             else if (/NOW\s*\(\s*\)/i.test(s)) s = "datetime('now', 'localtime')";
             return `datetime(${s}, '-${amount} ${unit.toLowerCase()}s')`;
         });
+
+        // Translate MySQL ON DUPLICATE KEY UPDATE to SQLite ON CONFLICT
+        // Specialized for daily_patient_counter (primary bottleneck for ID generation)
+        if (newSql.toLowerCase().includes('daily_patient_counter')) {
+            newSql = newSql.replace(/INSERT INTO daily_patient_counter\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)\s*ON DUPLICATE KEY UPDATE/gi, (match, cols, vals) => {
+                return `INSERT INTO daily_patient_counter (${cols}) VALUES (${vals}) ON CONFLICT(entry_date) DO UPDATE SET`;
+            });
+        }
 
         // Translate CURDATE() to date('now', 'localtime')
         newSql = newSql.replace(/CURDATE\s*\(\s*\)/gi, "date('now', 'localtime')");
@@ -152,7 +171,8 @@ class SqlitePool {
                         ["sync_push", "local_mysql", "POST", JSON.stringify({ sql, params: params || [] })]
                     );
 
-                    console.log(`[Local-First] Mutation queued: ${sql.slice(0, 50)}...`);
+                    console.log(`[Local-First] Saved data to local SQLite. Action: ${sql.slice(0, 40)}... Successful.`);
+
 
                     // Trigger sync push immediately
                     if (global.triggerPush) global.triggerPush();

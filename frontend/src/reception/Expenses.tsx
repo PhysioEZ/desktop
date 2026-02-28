@@ -19,13 +19,13 @@ import {
   FileText,
   Check,
   CreditCard,
-  Banknote,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { API_BASE_URL, authFetch, FILE_BASE_URL } from "../config";
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import Sidebar from "../components/Sidebar";
 import { toast } from "sonner";
 import ChatModal from "../components/Chat/ChatModal";
@@ -150,6 +150,7 @@ const Expenses = () => {
   const [showIntelligence, setShowIntelligence] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
   const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
 
   // Pagination & Filter
   const [page, setPage] = useState(1);
@@ -263,13 +264,18 @@ const Expenses = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.branch_id, dateRange, page]);
+  }, [dateRange, page, debouncedSearch, user?.branch_id]);
 
-  const handleRefresh = useCallback(async () => {
-    if (refreshCooldown > 0) return;
-    setRefreshCooldown(30);
-    await fetchData();
-  }, [refreshCooldown, fetchData]);
+  const handleRefresh = useCallback(() => {
+    if (refreshCooldown > 0 || !user?.branch_id) return;
+
+    smartRefresh("expenses", {
+      onSuccess: () => {
+        fetchData();
+        setRefreshCooldown(30);
+      },
+    });
+  }, [refreshCooldown, user?.branch_id, fetchData, smartRefresh]);
 
   useEffect(() => {
     if (refreshCooldown > 0) {
@@ -367,11 +373,12 @@ const Expenses = () => {
 
       <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <PageHeader
-          title="Expenses"
-          icon={Banknote}
+          title="Expense Registry"
+          subtitle="Financial Tracking"
+          icon={Wallet}
           onRefresh={handleRefresh}
           refreshCooldown={refreshCooldown}
-          isLoading={loading}
+          isLoading={loading || isRefreshing}
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}
         />

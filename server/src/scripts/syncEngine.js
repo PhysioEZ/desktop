@@ -389,13 +389,11 @@ async function runPush() {
         const pending = await db.all(
             "SELECT * FROM pending_sync_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT 50"
         );
-
         if (pending.length === 0) {
             isPushing = false;
             return;
         }
-
-        console.log(`[Sync Engine] Found ${pending.length} pending items to push.`);
+        console.log(`[Sync Engine] Found ${pending.length} pending items to push. Syncing queue to server mysql...`);
 
         for (const item of pending) {
             if (Date.now() - startTime > MAX_PUSH_TIME) {
@@ -451,14 +449,51 @@ function startSyncEngine() {
     if (isEngineStarted) return;
     isEngineStarted = true;
 
-    console.log("[Sync Engine] Starting Smart Service Cycles...");
+    console.log("[Sync Engine] Starting Event-Driven Service...");
 
-    // Initial immediate run for Pull
+    // One-time bootstrap pull on server start
     setTimeout(runPull, 1000);
 
-    // INTERLEAVED SCHEDULING
-    setInterval(runPull, 30000); // 30s for background (smart check makes it cheap)
-    setInterval(runPush, 15000); // 15s push frequency
+    // NO interval timers — sync is now purely reactive:
+    // - triggerPush() is called by db.js after every local-first mutation
+    // - triggerPull(table) is called after a successful push in runPush()
+    // - syncAndVerify() is called by the frontend via /reception/sync API
+}
+
+/**
+ * syncAndVerify: Single entry point for "flush local changes then pull fresh".
+ * Called by the /reception/sync API endpoint and by WelcomeScreen on login.
+ *
+ * @param {string|null} tableName - Optional table to target. Null = full smart check.
+ * @returns {Promise<{pushed: number, pulled: string[], success: boolean}>}
+ */
+async function syncAndVerify(tableName = null) {
+    const result = { pushed: 0, pulled: [], success: true };
+
+    try {
+        // Step 1: Flush any pending local mutations to the server
+        if (!isPushing) {
+            const db = await require('../config/sqlite').getLocalDb();
+            const pending = await db.all(
+                "SELECT COUNT(*) as count FROM pending_sync_queue WHERE status = 'pending'"
+            );
+            if (pending[0]?.count > 0) {
+                console.log(`[syncAndVerify] Flushing ${pending[0].count} pending items...`);
+                await runPush();
+                result.pushed = pending[0].count;
+            }
+        }
+
+        // Step 2: Pull fresh data from server
+        await runPull(tableName);
+        result.pulled = tableName ? [tableName] : ['full_check'];
+
+    } catch (err) {
+        console.error('[syncAndVerify] Error:', err.message);
+        result.success = false;
+    }
+
+    return result;
 }
 
 function triggerPush() {
@@ -481,5 +516,9 @@ global.triggerPull = triggerPull;
 global.startSyncEngine = startSyncEngine;
 global.setActiveBranch = setActiveBranch;
 global.getSyncStatus = getSyncStatus;
+global.syncAndVerify = syncAndVerify;
 
-module.exports = { runPull, runPush, triggerPush, startSyncEngine, setActiveBranch, getSyncStatus };
+module.exports = { runPull, runPush, triggerPush, startSyncEngine, setActiveBranch, getSyncStatus, syncAndVerify, detectUpdatedTables };
+
+// Start the engine automatically when required
+startSyncEngine();

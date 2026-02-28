@@ -7,7 +7,18 @@ require('./scripts/syncEngine');
 const authRoutes = require('./api/auth/router');
 
 const app = express();
+app.disable('etag');
 const PORT = process.env.PORT || 3000;
+
+
+// Force fresh data for all API requests
+app.use('/api', (req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    next();
+});
+
 
 // Rate Turners
 const globalLimiter = rateLimit({

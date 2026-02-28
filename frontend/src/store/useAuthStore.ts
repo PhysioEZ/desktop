@@ -52,6 +52,9 @@ export const useAuthStore = create<AuthState>()(
         useConfigStore.getState().clearStore();
         
         set({ user: null, isAuthenticated: false });
+        localStorage.clear();
+        sessionStorage.clear();
+        window.location.href = '/login';
       },
     }),
     {

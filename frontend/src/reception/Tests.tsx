@@ -22,6 +22,7 @@ import Sidebar from "../components/Sidebar";
 import PageHeader from "../components/PageHeader";
 import { useAuthStore } from "../store/useAuthStore";
 import { useTestStore } from "../store/useTestStore";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import { API_BASE_URL, authFetch } from "../config";
 import { toast } from "sonner";
 
@@ -97,6 +98,7 @@ const Tests = () => {
   );
 
   const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
 
   const [showIntelligence, setShowIntelligence] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
@@ -303,8 +305,12 @@ const Tests = () => {
 
   const handleRefresh = () => {
     if (refreshCooldown > 0) return;
-    fetchTests(1, appliedSearchQuery, true);
-    setRefreshCooldown(30);
+    smartRefresh("tests", {
+      onSuccess: () => {
+        fetchTests(1, appliedSearchQuery, true);
+        setRefreshCooldown(30);
+      },
+    });
   };
 
   const handleSearchClick = () => {
@@ -344,7 +350,7 @@ const Tests = () => {
           icon={TestTube2}
           onRefresh={handleRefresh}
           refreshCooldown={refreshCooldown}
-          isLoading={isLoading}
+          isLoading={isLoading || isRefreshing}
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}
         />
