@@ -14,10 +14,10 @@ const lastSyncMapFile = path.join(__dirname, '../../database/sync_status.json');
  */
 const SYNCABLE_TABLES = {
     'patients': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['patient_master', 'patients_treatment'] },
-    'registration': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['patients', 'payments'] },
+    'registration': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['patients', 'payments', 'registration_payments'] },
     'tests': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['test_payments'] },
     'attendance': { tsCol: 'created_at', branchCol: 'patients.branch_id', deps: [] },
-    'payments': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
+    'payments': { tsCol: 'created_at', branchCol: 'patients.branch_id', deps: ['payment_splits'] },
     'quick_inquiry': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
     'test_inquiry': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
     'patient_master': { tsCol: 'first_registered_at', branchCol: 'first_registered_branch_id', deps: [] },
@@ -26,19 +26,26 @@ const SYNCABLE_TABLES = {
     'notifications': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
     'expenses': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
     'reception_notes': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
-    'referral_partners': { tsCol: 'partner_id', branchCol: null, deps: [] },
-    'roles': { tsCol: 'role_id', branchCol: null, deps: [] },
+    'test_staff': { tsCol: 'staff_id', branchCol: 'branch_id', deps: [] },
+    'test_types': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
+    'limb_types': { tsCol: 'limb_type_id', branchCol: 'branch_id', deps: [] },
+    'chief_complaints': { tsCol: 'complaint_code', branchCol: 'branch_id', deps: [] },
+    'referral_sources': { tsCol: 'source_code', branchCol: 'branch_id', deps: [] },
+    'consultation_types': { tsCol: 'consultation_code', branchCol: 'branch_id', deps: [] },
+    'inquiry_service_types': { tsCol: 'service_code', branchCol: 'branch_id', deps: [] },
+    'expense_categories': { tsCol: 'category_id', branchCol: null, deps: [] },
+    'service_tracks': { tsCol: 'updated_at', branchCol: null, deps: [] },
+    'referral_partners': { tsCol: 'updated_at', branchCol: null, deps: [] },
     'branches': { tsCol: 'branch_id', branchCol: 'branch_id', deps: [] },
     'system_settings': { tsCol: 'updated_at', branchCol: null, deps: [] },
-    'users': { tsCol: 'id', branchCol: null, deps: [] },
     'test_items': { tsCol: 'created_at', branchCol: null, deps: [] },
     'test_payments': { tsCol: 'created_at', branchCol: null, deps: [] },
-    'test_types': { tsCol: 'test_type_id', branchCol: 'branch_id', deps: [] },
-    'payment_methods': { tsCol: 'method_id', branchCol: 'branch_id', deps: [] },
+    'payment_methods': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
     'system_issues': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
     'system_services': { tsCol: 'last_updated', branchCol: null, deps: [] },
-    'patient_feedback': { tsCol: 'created_at', branchCol: 'branch_id', deps: [] },
-    'service_tracks': { tsCol: 'created_at', branchCol: null, deps: [] }
+    'registration_payments': { tsCol: 'amount', branchCol: 'branch_id', deps: [] },
+    'payment_splits': { tsCol: 'amount', branchCol: null, deps: [] },
+    'patient_appointments': { tsCol: 'appointment_date', branchCol: 'branch_id', deps: [] }
 };
 
 function getLastSyncMap() {
@@ -58,8 +65,37 @@ function setLastSyncMap(map) {
 }
 
 let syncMap = getLastSyncMap();
+let activeBranchId = syncMap.branchId || null;
 let isPulling = false;
 let isPushing = false;
+let isInitialSyncComplete = false;
+let lastPullTime = 0;
+let syncProgress = {
+    total: 0,
+    completed: 0,
+    currentTable: ""
+};
+
+function setActiveBranch(branchId) {
+    if (activeBranchId !== branchId) {
+        console.log(`[Sync Engine] Active Branch set to: ${branchId}`);
+        activeBranchId = branchId;
+        syncMap.branchId = branchId;
+        isInitialSyncComplete = false; // Reset for new branch
+        setLastSyncMap(syncMap);
+        // Trigger immediate pull for new branch
+        triggerPull();
+    }
+}
+
+function getSyncStatus() {
+    return {
+        isInitialSyncComplete,
+        lastPullTime,
+        activeBranchId,
+        progress: syncProgress
+    };
+}
 
 /**
  * Detects which tables have updates on the remote server using a batch query.
@@ -75,19 +111,19 @@ async function detectUpdatedTables(branchId) {
 
     for (const table of tablesToCheck) {
         const meta = SYNCABLE_TABLES[table];
-        let sql = `SELECT MAX(${meta.tsCol}) FROM ${table}`;
+        let sql;
 
-        if (meta.branchCol) {
-            if (meta.branchCol.includes('.')) {
-                // Table requires join for branch filtering (e.g. attendance)
-                const parts = meta.branchCol.split('.');
-                const parentTable = parts[0];
-                const parentCol = parts[1];
-                // Prefix timestamp column to avoid ambiguity
-                sql = `SELECT MAX(${table}.${meta.tsCol}) FROM ${table} JOIN ${parentTable} ON ${table}.patient_id = ${parentTable}.patient_id WHERE ${parentTable}.${parentCol} = ${branchId}`;
-            } else {
-                sql += ` WHERE ${meta.branchCol} = ${branchId}`;
-            }
+        if (meta.branchCol && meta.branchCol.includes('.')) {
+            // Table requires join for branch filtering (e.g. attendance)
+            const parts = meta.branchCol.split('.');
+            const parentTable = parts[0];
+            const parentCol = parts[1];
+            // Prefix timestamp column to avoid ambiguity
+            sql = `SELECT MAX(${table}.${meta.tsCol}) FROM ${table} JOIN ${parentTable} ON ${table}.patient_id = ${parentTable}.patient_id WHERE ${parentTable}.${parentCol} = ${branchId}`;
+        } else if (meta.branchCol) {
+            sql = `SELECT MAX(${table}.${meta.tsCol}) FROM ${table} WHERE ${meta.branchCol} = ${branchId}`;
+        } else {
+            sql = `SELECT MAX(${table}.${meta.tsCol}) FROM ${table}`;
         }
 
         subqueries.push(`(${sql}) as "${table}"`);
@@ -102,15 +138,37 @@ async function detectUpdatedTables(branchId) {
         const serverTs = rows[0];
         const updatedTables = [];
 
+        const db = await getLocalDb();
         for (const table of tablesToCheck) {
             const localTs = tableTimestamps[table] || startOfTime;
             const remoteTs = serverTs[table];
 
-            // Check if remote is newer. Handle NULL as "needs initialization" if local is also startOfTime
+            // 1. Remote has newer data
             if (remoteTs && remoteTs > localTs) {
                 updatedTables.push(table);
-            } else if (!remoteTs && localTs === startOfTime) {
-                // Potential first-time initialization for empty table
+                continue;
+            }
+
+            // 2. BOOTSTRAP: If local table is empty for THIS branch, we MUST pull it
+            try {
+                let countSql = `SELECT COUNT(*) as count FROM "${table}"`;
+                // For metadata tables, we check branch-specifically to ensure they are populated for this branch
+                if (meta.branchCol && !meta.branchCol.includes('.')) {
+                    countSql += ` WHERE ${meta.branchCol} = ${branchId}`;
+                }
+
+                const countResult = await db.get(countSql);
+                if (!countResult || countResult.count === 0) {
+                    updatedTables.push(table);
+                    continue;
+                }
+            } catch (e) {
+                updatedTables.push(table);
+                continue;
+            }
+
+            // 3. Fallback for initialization
+            if (!remoteTs && localTs === startOfTime) {
                 updatedTables.push(table);
             }
         }
@@ -142,13 +200,17 @@ async function runPull(tableHint = null) {
         const db = await getLocalDb();
 
         // 0. Detect active branch for sync
-        let branchId = null;
-        try {
-            const tokenRow = await db.get(
-                "SELECT e.branch_id FROM api_tokens at JOIN employees e ON at.employee_id = e.employee_id ORDER BY at.last_used_at DESC LIMIT 1"
-            );
-            if (tokenRow) branchId = tokenRow.branch_id;
-        } catch (e) { }
+        let branchId = activeBranchId;
+
+        // Fallback: try to get from SQLite if we have mirrored sessions (optional)
+        if (!branchId) {
+            try {
+                const tokenRow = await db.get(
+                    "SELECT e.branch_id FROM api_tokens at JOIN employees e ON at.employee_id = e.employee_id ORDER BY at.last_used_at DESC LIMIT 1"
+                );
+                if (tokenRow) branchId = tokenRow.branch_id;
+            } catch (e) { }
+        }
 
         if (!branchId) {
             console.log("[Sync Engine] Waiting for active branch session...");
@@ -158,23 +220,38 @@ async function runPull(tableHint = null) {
 
         // 1. SMART IDENTIFICATION: Which tables actually need pulling?
         let tablesToPull = [];
+        let isBootstrap = false;
         if (tableHint) {
             tablesToPull = [tableHint, ...(SYNCABLE_TABLES[tableHint]?.deps || [])];
         } else {
             tablesToPull = await detectUpdatedTables(branchId);
+            // Check if any of these are because the table is empty
+            for (const table of tablesToPull) {
+                try {
+                    const rowCount = await db.get(`SELECT COUNT(*) as count FROM "${table}"`);
+                    if (!rowCount || rowCount.count === 0) isBootstrap = true;
+                } catch (e) { isBootstrap = true; }
+            }
         }
 
         if (tablesToPull.length === 0) {
             // No changes detected on server
-            console.log("[Smart Sync] Checked 26 tables. No changes detected on server.");
+            console.log("[Smart Sync] Checked All Tables. No changes detected on server.");
             isPulling = false;
+            if (!tableHint) isInitialSyncComplete = true;
             return;
         }
 
-        console.log(`[Sync Engine] Change detected in: ${tablesToPull.join(', ')}`);
+        if (isBootstrap) console.log(`[Sync Engine] Initializing Bootstrap Pull for ${tablesToPull.length} tables...`);
+        else console.log(`[Sync Engine] Change detected in: ${tablesToPull.join(', ')}`);
+
+        // Update progress for monitoring
+        syncProgress.total = tablesToPull.length;
+        syncProgress.completed = 0;
 
         // 2. Fetch updates from source ONLY for affected tables
         for (const table of tablesToPull) {
+            syncProgress.currentTable = table;
             const meta = SYNCABLE_TABLES[table];
             if (!meta) continue;
 
@@ -205,8 +282,9 @@ async function runPull(tableHint = null) {
 
             // Sync logic with NULL protection (only pull NULLs on first sync)
             if (tsCol === 'updated_at' || tsCol === 'created_at' || tsCol === 'first_registered_at' || tsCol === 'last_updated') {
-                sql += ` AND (${tsCol} > ? OR (${tsCol} IS NULL AND ? = '2000-01-01 00:00:00'))`;
-                sql += ` ORDER BY ${tsCol} ASC LIMIT 2000`;
+                const prefixedTs = `${table}.${tsCol}`;
+                sql += ` AND (${prefixedTs} > ? OR (${prefixedTs} IS NULL AND ? = '2000-01-01 00:00:00'))`;
+                sql += ` ORDER BY ${prefixedTs} ASC LIMIT 2000`;
                 params.push(tableSince, tableSince);
             }
 
@@ -273,13 +351,20 @@ async function runPull(tableHint = null) {
                     const allTs = Object.values(tableTimestamps);
                     if (allTs.length > 0) syncMap.global = allTs.sort().pop();
                     setLastSyncMap(syncMap);
-                    console.log(`[Sync Engine] PULL Complete. Local SQLite synchronized.`);
                 }
             } catch (err) {
                 await db.run('ROLLBACK');
-                console.error("[Sync Engine] PULL Merge Error:", err);
+                console.warn(`[Sync Pull] Fetch fail table ${table}:`, err.message);
             }
+            syncProgress.completed++;
         }
+        console.log(`[Sync Engine] PULL Complete. Local SQLite synchronized. Status: ${isBootstrap ? 'Bootstrap' : 'Regular'}`);
+        if (isBootstrap || !isInitialSyncComplete) {
+            isInitialSyncComplete = true;
+        }
+        lastPullTime = Date.now();
+        syncProgress.completed = syncProgress.total;
+        syncProgress.currentTable = "";
     } catch (err) {
         console.error("[Sync Engine] Global PULL Error:", err);
     } finally {
@@ -394,5 +479,7 @@ function triggerPull(tableHint = null) {
 global.triggerPush = triggerPush;
 global.triggerPull = triggerPull;
 global.startSyncEngine = startSyncEngine;
+global.setActiveBranch = setActiveBranch;
+global.getSyncStatus = getSyncStatus;
 
-module.exports = { runPull, runPush, triggerPush, startSyncEngine };
+module.exports = { runPull, runPush, triggerPush, startSyncEngine, setActiveBranch, getSyncStatus };

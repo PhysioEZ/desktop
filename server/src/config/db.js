@@ -107,7 +107,7 @@ class SqlitePool {
         const skipMirror = context.skipMirror || false;
 
         // AUTH/SETTINGS tables always go to remote for consistency
-        const isAuthOrSettings = /employees|system_settings|api_tokens|roles|users|chat_messages/i.test(sql);
+        const isAuthOrSettings = /employees|system_settings|api_tokens|roles|users|chat_messages|daily_patient_counter/i.test(sql);
 
         // 1. Handling SELECT (Read)
         if (isSelect) {
@@ -116,7 +116,7 @@ class SqlitePool {
                     let rows = await db.all(translatedSql, params || []);
 
                     // LAZY LOADING: If empty and it's a main syncable table, trigger background sync and source hit
-                    const isMainTable = /patients|registration|tests|quick_inquiry|test_inquiry|attendance|notifications|payments|expenses|system_issues|system_services|issue_attachments|patient_feedback|service_tracks|referral_partners|branches|payment_methods|test_types|test_items|test_payments|tokens|patient_master/i.test(sql);
+                    const isMainTable = /patients|registration|tests|quick_inquiry|test_inquiry|attendance|notifications|payments|expenses|system_issues|system_services|issue_attachments|patient_feedback|service_tracks|referral_partners|branches|payment_methods|test_types|test_items|test_payments|tokens|patient_master|test_staff|limb_types|chief_complaints|referral_sources|consultation_types|inquiry_service_types|expense_categories|patient_appointments|registration_payments|payment_splits/i.test(sql);
                     if (rows.length === 0 && isMainTable && !context.isRetrying) {
                         console.log(`[Lazy Load] SQLite empty for ${sql.slice(0, 50)}... Fetching from source to initialize.`);
                         return await queryContext.run({ ...context, isRetrying: true, forceRemote: true }, async () => {

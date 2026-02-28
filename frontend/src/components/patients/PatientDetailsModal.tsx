@@ -30,7 +30,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { usePatientStore } from "../../store/usePatientStore";
-import { format } from "date-fns";
+import { formatDateSafe as format, parseDateSafe } from "../../utils/dateUtils";
 import { API_BASE_URL, authFetch, FILE_BASE_URL } from "../../config";
 import PayDuesModal from "./modals/PayDuesModal";
 import AddTestModal from "./modals/AddTestModal";
@@ -212,6 +212,7 @@ const PatientDetailsModal = () => {
     patientDetails,
     isLoadingDetails,
     fetchPatientDetails,
+    fetchPatients,
   } = usePatientStore();
   const [activeTab, setActiveTab] = useState("overview");
   const [modals, setModals] = useState({
@@ -225,8 +226,14 @@ const PatientDetailsModal = () => {
   const toggleModal = (key: keyof typeof modals, state: boolean) =>
     setModals((prev) => ({ ...prev, [key]: state }));
 
-  const handleRefresh = () =>
-    selectedPatient && fetchPatientDetails(selectedPatient.patient_id);
+  const handleRefresh = () => {
+    if (selectedPatient) {
+      fetchPatientDetails(selectedPatient.patient_id);
+      if (selectedPatient.branch_id) {
+        fetchPatients(selectedPatient.branch_id, true);
+      }
+    }
+  };
 
   const handlePrintBill = async () => {
     if (!selectedPatient?.patient_id) return;
@@ -249,12 +256,7 @@ const PatientDetailsModal = () => {
 
   const data = { ...selectedPatient, ...patientDetails };
   const dueAmount = parseFloat(String(data.due_amount || "0"));
-  const walletBalance =
-    (data.payments?.reduce(
-      (acc: number, p: { amount: string | number; type?: string }) =>
-        acc + (p.type === "test" ? 0 : parseFloat(String(p.amount))),
-      0,
-    ) || 0) - parseFloat(String(data.total_consumed || "0"));
+  const walletBalance = parseFloat(String(data.effective_balance || "0"));
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const patientData = data as any;
@@ -538,12 +540,26 @@ const PatientDetailsModal = () => {
                             }
                           />
                           <StatCard
-                            label="Current Due"
+                            label={
+                              walletBalance < 0
+                                ? "Current Arrears"
+                                : "Plan Remaining"
+                            }
                             value={`₹${dueAmount.toLocaleString()}`}
                             icon={AlertCircle}
-                            color={dueAmount > 0 ? "rose" : "emerald"}
+                            color={
+                              walletBalance < 0
+                                ? "rose"
+                                : dueAmount > 0
+                                  ? "amber"
+                                  : "emerald"
+                            }
                             subtext={
-                              dueAmount > 0 ? "Payment Required" : "All Clear"
+                              walletBalance < 0
+                                ? "Payment Required"
+                                : dueAmount > 0
+                                  ? "Upcoming Installments"
+                                  : "All Clear"
                             }
                           />
                         </div>
@@ -669,10 +685,7 @@ const PatientDetailsModal = () => {
                                 </span>
                                 <span className="text-sm font-black text-slate-800 dark:text-white">
                                   {data.start_date
-                                    ? format(
-                                        new Date(data.start_date),
-                                        "dd MMM yyyy",
-                                      )
+                                    ? format(data.start_date, "dd MMM yyyy")
                                     : "—"}
                                 </span>
                               </div>
@@ -682,10 +695,7 @@ const PatientDetailsModal = () => {
                                 </span>
                                 <span className="text-sm font-black text-slate-800 dark:text-white">
                                   {data.end_date
-                                    ? format(
-                                        new Date(data.end_date),
-                                        "dd MMM yyyy",
-                                      )
+                                    ? format(data.end_date, "dd MMM yyyy")
                                     : "—"}
                                 </span>
                               </div>
@@ -764,9 +774,7 @@ const PatientDetailsModal = () => {
                                     </div>
                                     <div className="text-[10px] font-medium text-slate-400">
                                       {format(
-                                        new Date(
-                                          att.date || att.attendance_date,
-                                        ),
+                                        att.date || att.attendance_date,
                                         "dd MMM, hh:mm a",
                                       )}
                                     </div>
@@ -841,10 +849,7 @@ const PatientDetailsModal = () => {
                                   </div>
                                   <div className="flex justify-between items-end mt-2 pt-2 border-t border-slate-100 dark:border-white/5">
                                     <p className="text-[10px] font-medium text-slate-400">
-                                      {format(
-                                        new Date(t.created_at),
-                                        "dd MMM, yyyy",
-                                      )}
+                                      {format(t.created_at, "dd MMM, yyyy")}
                                     </p>
                                     <p
                                       className={`text-xs font-black ${t.refund_status === "initiated" ? "text-slate-400 line-through" : "text-slate-700 dark:text-slate-300"}`}
@@ -1048,10 +1053,7 @@ const PatientDetailsModal = () => {
                               <span>Start Date</span>
                               <span className="text-slate-800 dark:text-white mt-1">
                                 {data.start_date
-                                  ? format(
-                                      new Date(data.start_date),
-                                      "dd MMM yyyy",
-                                    )
+                                  ? format(data.start_date, "dd MMM yyyy")
                                   : "—"}
                               </span>
                             </div>
@@ -1059,10 +1061,7 @@ const PatientDetailsModal = () => {
                               <span>Renewal Date</span>
                               <span className="text-slate-800 dark:text-white mt-1">
                                 {data.end_date
-                                  ? format(
-                                      new Date(data.end_date),
-                                      "dd MMM yyyy",
-                                    )
+                                  ? format(data.end_date, "dd MMM yyyy")
                                   : "—"}
                               </span>
                             </div>
@@ -1283,10 +1282,8 @@ const PatientDetailsModal = () => {
                                       </h4>
                                       <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
                                         {format(
-                                          new Date(
-                                            payment.payment_date ||
-                                              payment.created_at,
-                                          ),
+                                          payment.payment_date ||
+                                            payment.created_at,
                                           "dd MMM yyyy • HH:mm",
                                         )}
                                       </p>
@@ -1343,8 +1340,12 @@ const PatientDetailsModal = () => {
                               a: { date: string; attendance_date: string },
                               b: { date: string; attendance_date: string },
                             ) =>
-                              new Date(b.date || b.attendance_date).getTime() -
-                              new Date(a.date || a.attendance_date).getTime(),
+                              (parseDateSafe(
+                                b.date || b.attendance_date,
+                              )?.getTime() || 0) -
+                              (parseDateSafe(
+                                a.date || a.attendance_date,
+                              )?.getTime() || 0),
                           )
                           .map(
                             (
@@ -1362,13 +1363,13 @@ const PatientDetailsModal = () => {
                                 <div>
                                   <p className="text-sm font-black text-slate-800 dark:text-white">
                                     {format(
-                                      new Date(att.date || att.attendance_date),
+                                      att.date || att.attendance_date,
                                       "dd MMM yyyy",
                                     )}
                                   </p>
                                   <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
                                     {format(
-                                      new Date(att.date || att.attendance_date),
+                                      att.date || att.attendance_date,
                                       "EEEE",
                                     )}
                                   </p>
@@ -1435,7 +1436,7 @@ const PatientDetailsModal = () => {
                                   <div className="flex items-center justify-between mb-3">
                                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
                                       {format(
-                                        new Date(log.date),
+                                        log.date,
                                         "dd MMM yyyy • hh:mm a",
                                       )}
                                     </span>

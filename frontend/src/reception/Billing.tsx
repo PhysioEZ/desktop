@@ -507,7 +507,6 @@ const Billing = () => {
     >
       <Sidebar
         onShowChat={() => setShowChatModal(true)}
-        onShowShortcuts={() => setShowShortcuts(true)}
       />
 
       <div className="flex-1 h-screen overflow-hidden relative flex flex-col">

@@ -32,12 +32,11 @@ async function recalculatePatientFinancials(connection, patientId) {
     const historyConsumed = parseFloat(histRows[0].total || 0);
 
     // 4. calculate current plan consumption
-    // ensure rate is correct based on type
     let curRate = parseFloat(patient.treatment_cost_per_day || 0);
 
-    // if package, rate is package_cost / days
+    // if package, rate is total_amount (discounted net cost) / days
     if (patient.treatment_type === 'package' && patient.treatment_days > 0) {
-        curRate = parseFloat(patient.package_cost) / patient.treatment_days;
+        curRate = parseFloat(patient.total_amount) / patient.treatment_days;
     }
 
     const [attRows] = await connection.query(

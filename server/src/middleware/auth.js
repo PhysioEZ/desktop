@@ -41,7 +41,10 @@ module.exports = async (req, res, next) => {
         // Update last used (Async)
         pool.query("UPDATE api_tokens SET last_used_at = NOW() WHERE token_id = ?", [user.token_id]).catch(console.error);
 
-        // Start Sync Engine if not already started
+        // Start Sync Engine and set correct branch
+        if (global.setActiveBranch) {
+            global.setActiveBranch(user.branch_id);
+        }
         if (global.startSyncEngine) {
             global.startSyncEngine();
         }

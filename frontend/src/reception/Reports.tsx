@@ -882,7 +882,6 @@ const Reports = () => {
     >
       <Sidebar
         onShowChat={() => setShowChatModal(true)}
-        onShowShortcuts={() => setShowShortcuts(true)}
       />
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">

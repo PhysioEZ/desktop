@@ -46,6 +46,7 @@ const Patients = () => {
     fetchPatients,
     fetchMetaData,
     openPatientDetails,
+    updateLocalPatientAttendance,
   } = usePatientStore();
 
   // Local UI State
@@ -154,9 +155,18 @@ const Patients = () => {
         const data = await res.json();
         if (data.success || data.status === "success") {
           toast.success("Attendance marked successfully");
-          fetchPatients(user!.branch_id);
+          // Optimistic local update
+          updateLocalPatientAttendance(patient.patient_id, "present", 1, -cost);
+          fetchPatients(user!.branch_id, true);
         } else {
-          toast.error(data.message || "Failed to mark attendance");
+          if (
+            data.status === "payment_required" ||
+            data.message?.includes("Insufficient Balance")
+          ) {
+            setAttendanceModal({ open: true, patient });
+          } else {
+            toast.error(data.message || "Failed to mark attendance");
+          }
         }
       } catch (err) {
         toast.error("Error marking attendance");
@@ -186,7 +196,15 @@ const Patients = () => {
       const data = await res.json();
       if (data.success || data.status === "success") {
         toast.success("Attendance reverted successfully");
-        await fetchPatients(user.branch_id);
+        const cost = parseFloat(revertModal.patient.cost_per_day || "0");
+        updateLocalPatientAttendance(
+          revertModal.patient.patient_id,
+          "",
+          -1,
+          cost,
+        );
+        setRevertModal({ open: false, patient: null });
+        fetchPatients(user.branch_id, true);
       } else {
         toast.error(data.message || "Failed to revert attendance");
       }
@@ -704,7 +722,7 @@ const Patients = () => {
         isOpen={attendanceModal.open}
         patient={attendanceModal.patient}
         onClose={() => setAttendanceModal({ open: false, patient: null })}
-        onSuccess={() => fetchPatients(user!.branch_id)}
+        onSuccess={() => fetchPatients(user!.branch_id, true)}
       />
       <TokenPreviewModal
         isOpen={tokenModal.open}

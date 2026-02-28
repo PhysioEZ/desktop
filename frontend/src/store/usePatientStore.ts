@@ -6,6 +6,7 @@ export interface Patient {
     patient_id: number;
     patient_uid: string;
     patient_name: string;
+    branch_id?: number;
     patient_phone: string;
     patient_gender: string;
     patient_age: number;
@@ -110,6 +111,7 @@ interface PatientState {
     refreshPatients: (branchId: number) => Promise<void>;
     markAttendance: (patientId: number, branchId: number, status?: string) => Promise<boolean>;
     updateLocalPatientStatus: (patientId: number, newStatus: string) => void;
+    updateLocalPatientAttendance: (patientId: number, status: string, countChange: number, balanceChange?: number) => void;
     clearStore: () => void;
 }
 
@@ -307,6 +309,37 @@ export const usePatientStore = create<PatientState>()(
             patients: state.patients.map(p => p.patient_id === patientId ? { ...p, patient_status: newStatus } : p),
             selectedPatient: state.selectedPatient?.patient_id === patientId ? { ...state.selectedPatient, patient_status: newStatus } : state.selectedPatient && state.selectedPatient,
             patientDetails: state.patientDetails?.patient_id === patientId ? { ...state.patientDetails, patient_status: newStatus } : state.patientDetails
+        }));
+    },
+
+    updateLocalPatientAttendance: (patientId: number, status: string, countChange: number, balanceChange: number = 0) => {
+        set((state) => ({
+            patients: state.patients.map(p => 
+                p.patient_id === patientId 
+                ? { 
+                    ...p, 
+                    today_attendance: status, 
+                    attendance_count: (p.attendance_count || 0) + countChange,
+                    effective_balance: parseFloat(String(p.effective_balance || 0)) + balanceChange 
+                  } 
+                : p
+            ),
+            selectedPatient: state.selectedPatient?.patient_id === patientId 
+                ? { 
+                    ...state.selectedPatient, 
+                    today_attendance: status, 
+                    attendance_count: (state.selectedPatient.attendance_count || 0) + countChange,
+                    effective_balance: parseFloat(String(state.selectedPatient.effective_balance || 0)) + balanceChange 
+                  } 
+                : state.selectedPatient && state.selectedPatient,
+            patientDetails: state.patientDetails?.patient_id === patientId 
+                ? { 
+                    ...state.patientDetails, 
+                    today_attendance: status, 
+                    attendance_count: (state.patientDetails.attendance_count || 0) + countChange,
+                    effective_balance: parseFloat(String(state.patientDetails.effective_balance || 0)) + balanceChange 
+                  } 
+                : state.patientDetails
         }));
     },
 

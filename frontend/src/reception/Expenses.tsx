@@ -340,7 +340,6 @@ const Expenses = () => {
       />
       <Sidebar
         onShowChat={() => setShowChatModal(true)}
-        onShowShortcuts={() => setShowShortcuts(true)}
       />
 
       {/* === LEFT PANEL (STATS) === */}

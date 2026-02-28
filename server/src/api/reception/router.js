@@ -60,7 +60,11 @@ router.get("/dashboard", dashboardController.getDashboardData);
 
 // GET /api/reception/check_updates
 const checkUpdatesController = require("./checkUpdates");
+const { getSyncStatus } = require("../../scripts/syncEngine");
 router.get("/check_updates", checkUpdatesController.checkUpdates);
+router.get("/sync_status", (req, res) => {
+  res.json({ success: true, ...getSyncStatus() });
+});
 
 // POST /api/reception/approve_request
 const approvalsController = require("./approvals");

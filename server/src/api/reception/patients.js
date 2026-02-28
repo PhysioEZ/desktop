@@ -274,24 +274,9 @@ async function fetchPatients(req, res, branchId, input) {
         p.total_paid = parseFloat(p.total_paid) || 0;
         p.total_history_consumed = parseFloat(p.total_history_consumed) || 0;
 
-        p.effective_balance = p.total_paid - (p.total_history_consumed + curConsumed);
+        p.effective_balance = parseFloat(p.advance_payment || 0);
         p.cost_per_day = parseFloat(p.cost_per_day);
-
-        // Calculate Due Amount dynamically
-        const moneyAvailableForCurrentPlan = p.total_paid - (p.total_history_consumed + curConsumed); // This is effective_balance!
-        // Wait, money available for CURRENT plan is Total Paid - History Consumed.
-        // Effective Balance = (Total Paid - History Consumed) - Current Consumed.
-
-        const netAvailable = p.total_paid - p.total_history_consumed;
-
-        // Logic Update: Show 'Plan Remaining' for Packages, 'Arrears' for Daily.
-        if (parseFloat(p.total_amount) > 0) {
-            // For Packages: Due = Total Plan Cost - Total Paid - Discount (Ignoring history consumption for simple "Remaining" view)
-            p.due_amount = parseFloat(p.total_amount) - p.total_paid - (parseFloat(p.discount_amount) || 0);
-        } else {
-            // For Daily: DueAmount is only non-zero if they are in debt (negative balance)
-            p.due_amount = p.effective_balance < 0 ? Math.abs(p.effective_balance) : 0;
-        }
+        p.due_amount = parseFloat(p.due_amount || 0);
 
         if (p.due_amount < 0) p.due_amount = 0;
 
@@ -389,23 +374,16 @@ async function fetchDetails(req, res, patientId) {
             [patientId, p.start_date || "2000-01-01"],
         );
         const cCount = cAttRows[0].count;
-        totalConsumed += cCount * curRate;
-
-        p.effective_balance = totalPaid - totalConsumed;
+        p.effective_balance = parseFloat(p.advance_payment || 0);
         p.attendance_count = cCount;
         p.cost_per_day = curRate;
 
-        // Calculate Due Amount
-        const planCost = parseFloat(p.total_amount || 0);
-        const discountAmount = parseFloat(p.discount_amount || 0);
-        if (planCost > 0) {
-            p.due_amount = planCost - totalPaid - discountAmount;
-        } else {
-            p.due_amount = p.effective_balance < 0 ? Math.abs(p.effective_balance) : 0;
-        }
+        // Use pre-calculated Due Amount from DB
+        p.due_amount = parseFloat(p.due_amount || 0);
         if (p.due_amount < 0) p.due_amount = 0;
 
-        p.total_consumed = totalConsumed;
+        // Ensure total_consumed matches exactly with the effective_balance math
+        p.total_consumed = totalPaid - p.effective_balance;
         p.total_paid = totalPaid;
 
         // Resolve plan name for current plan

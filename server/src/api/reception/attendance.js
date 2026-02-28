@@ -45,8 +45,8 @@ async function revertAttendance(req, res, branchId, input) {
             return res.status(404).json({ success: false, message: 'No active attendance record found for today to revert.' });
         }
 
-        // 2. Delete the attendance record
-        await connection.query("DELETE FROM attendance WHERE attendance_id = ?", [attRows[0].attendance_id]);
+        // 2. Delete the attendance record using immutable identifying keys (to prevent local/remote ID mismatch)
+        await connection.query("DELETE FROM attendance WHERE patient_id = ? AND attendance_date = ?", [patient_id, today]);
 
         // 3. Recalculate Balance and Dues (Centralized)
         // We deleted the attendance, so recalculating will automatically reflect the refund
@@ -125,6 +125,7 @@ async function markFullAttendance(req, res, branchId, input) {
                 if (Math.round(effectiveBalance * 100) < Math.round(curRate * 100)) {
                     return res.status(403).json({
                         success: false,
+                        status: 'payment_required',
                         message: `Insufficient Balance. Current: ${effectiveBalance.toFixed(2)}, Session Cost: ${curRate.toFixed(2)}. Please collect payment first.`,
                         balance: effectiveBalance
                     });
