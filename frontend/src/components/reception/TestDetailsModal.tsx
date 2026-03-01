@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ChevronUp,
   Activity,
+  RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL, authFetch } from "../../config";
@@ -20,6 +21,7 @@ import { toast } from "sonner";
 import { useConfigStore } from "../../store";
 import SplitPaymentInput from "./SplitPaymentInput";
 import DatePicker from "../ui/DatePicker";
+import { useSmartRefresh } from "../../hooks/useSmartRefresh";
 
 interface TestRecord {
   uid: string;
@@ -88,9 +90,10 @@ interface TestDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   test: TestRecord | null;
+  onTestUpdate?: () => Promise<void>;
 }
 
-const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
+const TestDetailsModal = ({ isOpen, onClose, test, onTestUpdate }: TestDetailsModalProps) => {
   const [fullDetails, setFullDetails] = useState<FullTestDetails | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -101,6 +104,8 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
   );
   const [showMoreInfo, setShowMoreInfo] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const { smartRefresh } = useSmartRefresh();
 
   const { paymentMethods, fetchPaymentMethods } = useConfigStore();
   const [pendingPayments, setPendingPayments] = useState<
@@ -157,6 +162,23 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
     }
   };
 
+  const handleRefresh = async () => {
+    if (refreshCooldown > 0) return;
+    smartRefresh("test", {
+      onSuccess: async () => {
+        await fetchDetails();
+        setRefreshCooldown(20);
+      },
+    });
+  };
+
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(() => setRefreshCooldown((c) => c - 1), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [refreshCooldown]);
+
   const toggleItem = (itemId: number) => {
     setExpandedItems((prev) => ({ ...prev, [itemId]: !prev[itemId] }));
   };
@@ -166,17 +188,39 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
     newStatus: string,
     type: "test" | "payment",
   ) => {
-    if (!fullDetails) return;
+    if (!fullDetails || !fullDetails.test_id) {
+      toast.error("Test ID not found");
+      return;
+    }
     const toastId = toast.loading(`Updating ${type} status...`);
     try {
       const body: any = {
         action: "update_item",
-        item_id: itemId,
+        item_id: itemId || fullDetails.test_id,
         test_id: fullDetails.test_id,
       };
 
       if (type === "test") body.test_status = newStatus;
       else body.payment_status = newStatus;
+
+      // Optimistic UI update
+      setFullDetails((prev) =>
+        prev
+          ? {
+              ...prev,
+              [type === "test" ? "test_status" : "payment_status"]: newStatus,
+              test_items: prev.test_items.map((item) =>
+                item.item_id === (itemId || prev.test_id)
+                  ? {
+                      ...item,
+                      [type === "test" ? "test_status" : "payment_status"]:
+                        newStatus,
+                    }
+                  : item,
+              ),
+            }
+          : null,
+      );
 
       const response = await authFetch(`${API_BASE_URL}/reception/tests`, {
         method: "POST",
@@ -189,12 +233,21 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
           `${type === "test" ? "Test Status" : "Payment Status"} updated`,
           { id: toastId },
         );
-        fetchDetails();
+        // Refetch to ensure consistency
+        await fetchDetails();
+        // Notify parent to refresh tests list
+        if (onTestUpdate) {
+          await onTestUpdate();
+        }
       } else {
         toast.error(res.message || "Update failed", { id: toastId });
+        // Revert optimistic update on failure
+        await fetchDetails();
       }
     } catch (err) {
       toast.error("System error", { id: toastId });
+      // Revert optimistic update on error
+      await fetchDetails();
     }
   };
 
@@ -204,7 +257,10 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
     method: string = "cash",
     payments?: { method: string; amount: number }[],
   ) => {
-    if (!fullDetails) return;
+    if (!fullDetails || !fullDetails.test_id) {
+      toast.error("Test ID not found");
+      return;
+    }
 
     const toastId = toast.loading("Recording payment...");
     try {
@@ -213,7 +269,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
         body: JSON.stringify({
           action: "add_payment",
           test_id: fullDetails.test_id,
-          item_id: itemId,
+          item_id: itemId || fullDetails.test_id,
           amount,
           method,
           payments,
@@ -223,7 +279,24 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
       const res = await response.json();
       if (res.success) {
         toast.success("Payment recorded", { id: toastId });
-        fetchDetails();
+        // Update payment status optimistically
+        const newPaymentStatus = amount === fullDetails.due_amount ? "paid" : "partial";
+        setFullDetails((prev) =>
+          prev
+            ? {
+                ...prev,
+                payment_status: newPaymentStatus,
+                due_amount:
+                  (prev.due_amount || 0) - (amount || 0) <= 0 ? 0 : (prev.due_amount || 0) - (amount || 0),
+              }
+            : null,
+        );
+        // Refetch to ensure consistency
+        await fetchDetails();
+        // Notify parent to refresh tests list
+        if (onTestUpdate) {
+          await onTestUpdate();
+        }
       } else {
         toast.error(res.message || "Payment failed", { id: toastId });
       }
@@ -433,6 +506,30 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                     <Edit size={14} /> Edit
                   </button>
                 )}
+                <button
+                  onClick={handleRefresh}
+                  disabled={isLoading || refreshCooldown > 0}
+                  className={`w-9 h-9 flex items-center justify-center rounded-lg transition-all relative group ${refreshCooldown > 0 ? "bg-slate-50 dark:bg-slate-800 text-slate-400" : "bg-teal-50 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/50"}`}
+                  title={
+                    refreshCooldown > 0
+                      ? `Wait ${refreshCooldown}s`
+                      : "Refresh Data"
+                  }
+                >
+                  <RefreshCw
+                    size={16}
+                    className={
+                      isLoading
+                        ? "animate-spin"
+                        : "group-hover:rotate-180 transition-transform duration-500"
+                    }
+                  />
+                  {refreshCooldown > 0 && (
+                    <div className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white dark:border-slate-900 shadow-sm">
+                      {refreshCooldown}
+                    </div>
+                  )}
+                </button>
                 <button
                   onClick={onClose}
                   className="w-9 h-9 flex items-center justify-center rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
@@ -719,19 +816,16 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                             <span className="text-emerald-600 dark:text-emerald-500">
                               Paid: ₹
                               {parseFloat(
-                                String(data.advance_amount || 0),
+                                String(data.total_paid || data.advance_amount || 0),
                               ).toFixed(2)}
                             </span>
                             <span className="text-slate-500">
-                              {Number(data.total_amount) > 0
+                              {Number(data.total_amount) > 0 && (Number(data.total_amount) - Number(data.discount || 0)) > 0
                                 ? (
-                                    ((parseFloat(
-                                      String(data.advance_amount || 0),
-                                    ) +
-                                      parseFloat(String(data.discount || 0))) /
-                                      parseFloat(
-                                        String(data.total_amount || 1),
-                                      )) *
+                                    (parseFloat(
+                                      String(data.total_paid || data.advance_amount || 0),
+                                    ) /
+                                      (parseFloat(String(data.total_amount || 1)) - parseFloat(String(data.discount || 0)))) *
                                     100
                                   ).toFixed(0)
                                 : 0}
@@ -742,7 +836,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                             <motion.div
                               initial={{ width: 0 }}
                               animate={{
-                                width: `${Number(data.total_amount) > 0 ? ((parseFloat(String(data.advance_amount || 0)) + parseFloat(String(data.discount || 0))) / parseFloat(String(data.total_amount || 1))) * 100 : 0}%`,
+                                width: `${Number(data.total_amount) > 0 && (Number(data.total_amount) - Number(data.discount || 0)) > 0 ? Math.min(100, (parseFloat(String(data.total_paid || data.advance_amount || 0)) / (parseFloat(String(data.total_amount || 1)) - parseFloat(String(data.discount || 0)))) * 100) : 0}%`,
                               }}
                               className="h-full bg-emerald-500 rounded-full"
                             />
@@ -1016,6 +1110,7 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                                             [item.item_id]: payments,
                                           }))
                                         }
+                                        isDark={document.documentElement.classList.contains('dark')}
                                       />
 
                                       <div className="flex justify-between items-center mt-4 pt-4 border-t border-slate-100 dark:border-white/5">
@@ -1072,6 +1167,17 @@ const TestDetailsModal = ({ isOpen, onClose, test }: TestDetailsModalProps) => {
                 </div>
               </div>
             )}
+
+            {/* Footer with Close Button */}
+            <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 mt-auto">
+              <button
+                onClick={onClose}
+                className="w-full px-6 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-sm font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+              >
+                <X size={16} />
+                Close
+              </button>
+            </div>
 
             {/* Date Picker Overlay */}
             <AnimatePresence>

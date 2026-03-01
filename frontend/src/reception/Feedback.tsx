@@ -18,19 +18,19 @@ import {
   User,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../store/useAuthStore";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { API_BASE_URL, authFetch } from "../config";
-import {
-  useDashboardStore,
-  useThemeStore,
-} from "../store";
+import { useThemeStore } from "../store";
 import PageHeader from "../components/PageHeader";
 import Sidebar from "../components/Sidebar";
 import FileViewer from "../components/FileViewer/FileViewer";
-import DailyIntelligence from "../components/DailyIntelligence";
-import NotesDrawer from "../components/NotesDrawer";
 import ChatModal from "../components/Chat/ChatModal";
+import LogoutConfirmation from "../components/LogoutConfirmation";
+import NotesDrawer from "../components/NotesDrawer";
+import DailyIntelligence from "../components/DailyIntelligence";
 
 interface FeedbackRecord {
   id: number;
@@ -49,6 +49,9 @@ interface FeedbackRecord {
 
 const Feedback = () => {
   const { isDark } = useThemeStore();
+  const navigate = useNavigate();
+  const { logout } = useAuthStore();
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // State
   const [stats, setStats] = useState({
@@ -65,7 +68,6 @@ const Feedback = () => {
   const [showNotes, setShowNotes] = useState(false);
   const [refreshCooldown, setRefreshCooldown] = useState(0);
   const [showChatModal, setShowChatModal] = useState(false);
-
 
   // Pagination & Filters
   const [page, setPage] = useState(1);
@@ -113,7 +115,7 @@ const Feedback = () => {
   const handleRefresh = async () => {
     if (refreshCooldown > 0) return;
     await fetchFeedback();
-    setRefreshCooldown(30);
+    setRefreshCooldown(20);
   };
 
   useEffect(() => {
@@ -157,7 +159,7 @@ const Feedback = () => {
       if (data.success) {
         setPatientSearchResults(data.data);
       }
-    } catch (err) { }
+    } catch (err) {}
   };
 
   const [fileViewerConfig, setFileViewerConfig] = useState({
@@ -210,13 +212,13 @@ const Feedback = () => {
         <thead><tr><th>Date</th><th>Patient</th><th>Phone</th><th>Rating</th><th>Status</th><th>Comment</th><th>Resolved</th></tr></thead>
         <tbody>
           ${records
-        .map(
-          (r) => `
+            .map(
+              (r) => `
             <tr>
               <td style="white-space:nowrap; font-weight:600;">${(() => {
-              const d = new Date(r.date);
-              return isNaN(d.getTime()) ? r.date : format(d, "MMM dd, yyyy");
-            })()}</td>
+                const d = new Date(r.date);
+                return isNaN(d.getTime()) ? r.date : format(d, "MMM dd, yyyy");
+              })()}</td>
               <td style="font-weight: 800;">${r.patient_name}</td>
               <td style="font-family: monospace; font-size:13px; font-weight: 600;">${r.phone_number || "-"}</td>
               <td><span class="rating-${r.rating}">${r.rating}</span></td>
@@ -225,8 +227,8 @@ const Feedback = () => {
               <td style="font-weight: 800; color: ${r.is_resolved ? "#059669" : "#64748b"};">${r.is_resolved ? "YES" : "NO"}</td>
             </tr>
           `,
-        )
-        .join("")}
+            )
+            .join("")}
         </tbody>
       </table>
       </body></html>
@@ -303,10 +305,7 @@ const Feedback = () => {
     <div
       className={`flex h-screen overflow-hidden font-sans transition-colors duration-300 ${isDark ? "bg-[#050505] text-slate-200" : "bg-[#FAFAFA] text-slate-900"}`}
     >
-      <Sidebar
-        onShowChat={() => setShowChatModal(true)}
-        onShowShortcuts={() => setShowShortcuts(true)}
-      />
+      <Sidebar onShowChat={() => setShowChatModal(true)} />
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <PageHeader
@@ -321,7 +320,6 @@ const Feedback = () => {
         />
 
         <div className="flex-1 flex overflow-hidden">
-
           {/* === LEFT PANEL (STATS) === */}
           <div
             className={`hidden xl:flex w-[450px] flex-col justify-between p-10 border-r relative shrink-0 transition-colors duration-300 z-50 ${isDark ? "bg-[#0A0A0A] border-[#151515]" : "bg-white border-gray-200"}`}
@@ -451,7 +449,9 @@ const Feedback = () => {
                       const xStr = format(x, "yyyy-MM-dd");
                       return records.filter((rk) => {
                         try {
-                          return format(new Date(rk.date), "yyyy-MM-dd") === xStr;
+                          return (
+                            format(new Date(rk.date), "yyyy-MM-dd") === xStr
+                          );
                         } catch {
                           return false;
                         }
@@ -484,7 +484,6 @@ const Feedback = () => {
 
           {/* === MAIN CONTENT (Right Panel) === */}
           <main className="flex-1 h-screen overflow-hidden relative flex flex-col p-8 lg:p-12 gap-8">
-
             {/* Main Card (Table Container) */}
             <div
               className={`flex-1 rounded-[40px] border overflow-hidden flex flex-col shadow-sm transition-colors ${isDark ? "bg-[#0A0A0A] border-white/5" : "bg-white border-slate-200/60"}`}
@@ -606,7 +605,9 @@ const Feedback = () => {
                           (filterResolved === "Resolved"
                             ? r.is_resolved
                             : !r.is_resolved);
-                        return matchesSearch && matchesRating && matchesResolved;
+                        return (
+                          matchesSearch && matchesRating && matchesResolved
+                        );
                       })
                       .map((row) => {
                         const dateObj = new Date(row.date);
@@ -774,7 +775,9 @@ const Feedback = () => {
                       <ChevronLeft size={20} />
                     </button>
                     <button
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      onClick={() =>
+                        setPage((p) => Math.min(totalPages, p + 1))
+                      }
                       disabled={page >= totalPages}
                       className={`w-10 h-10 rounded-xl border flex items-center justify-center transition-all ${page >= totalPages ? "opacity-30 cursor-not-allowed" : "hover:bg-slate-50 dark:hover:bg-white/5 cursor-pointer"} ${isDark ? "border-white/10" : "border-slate-200 shadow-sm"}`}
                     >
@@ -807,7 +810,8 @@ const Feedback = () => {
                 <div className="px-10 py-8 border-b dark:border-white/5 flex items-center justify-between shrink-0 bg-gradient-to-r from-emerald-500/5 to-transparent">
                   <div>
                     <h2 className="text-3xl font-serif tracking-tight">
-                      Share <span className="text-emerald-500 italic">Feedback</span>
+                      Share{" "}
+                      <span className="text-emerald-500 italic">Feedback</span>
                     </h2>
                     <p className="text-xs font-medium text-slate-400 mt-1 uppercase tracking-widest">
                       New Patient Experience Entry
@@ -817,7 +821,10 @@ const Feedback = () => {
                     onClick={() => setShowForm(false)}
                     className="w-12 h-12 rounded-[20px] bg-slate-100 dark:bg-white/5 flex items-center justify-center hover:bg-rose-500/10 hover:text-rose-500 transition-all duration-300 group"
                   >
-                    <Plus size={24} className="rotate-45 opacity-40 group-hover:opacity-100 transition-opacity" />
+                    <Plus
+                      size={24}
+                      className="rotate-45 opacity-40 group-hover:opacity-100 transition-opacity"
+                    />
                   </button>
                 </div>
 
@@ -861,7 +868,9 @@ const Feedback = () => {
                                   else if (uiStatus === "completed")
                                     setTreatmentStatus("Treatment Completed");
                                   else if (uiStatus === "discontinued")
-                                    setTreatmentStatus("Discontinued / Stopped");
+                                    setTreatmentStatus(
+                                      "Discontinued / Stopped",
+                                    );
 
                                   setPatientSearchResults([]);
                                 }}
@@ -878,7 +887,10 @@ const Feedback = () => {
                                     {p.phone_number}
                                   </div>
                                 </div>
-                                <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0" />
+                                <ChevronRight
+                                  size={14}
+                                  className="opacity-0 group-hover:opacity-100 transition-all -translate-x-2 group-hover:translate-x-0"
+                                />
                               </div>
                             ))}
                           </div>
@@ -905,7 +917,8 @@ const Feedback = () => {
                           icon: Meh,
                           color: "text-slate-500",
                           activeBg: "bg-slate-500/10",
-                          activeBorder: "border-slate-400 dark:border-slate-500",
+                          activeBorder:
+                            "border-slate-400 dark:border-slate-500",
                         },
                         {
                           label: "Bad",
@@ -920,15 +933,20 @@ const Feedback = () => {
                           <button
                             key={item.label}
                             onClick={() => setExperience(item.label as any)}
-                            className={`flex flex-col items-center gap-3 p-5 rounded-[24px] border-2 transition-all duration-300 relative group cursor-pointer ${active
-                              ? `${item.activeBorder} ${item.activeBg} ${item.color} shadow-lg shadow-black/5`
-                              : `border-transparent ${isDark ? "bg-[#121212] hover:bg-white/5" : "bg-slate-50 hover:bg-slate-100"}`
-                              }`}
+                            className={`flex flex-col items-center gap-3 p-5 rounded-[24px] border-2 transition-all duration-300 relative group cursor-pointer ${
+                              active
+                                ? `${item.activeBorder} ${item.activeBg} ${item.color} shadow-lg shadow-black/5`
+                                : `border-transparent ${isDark ? "bg-[#121212] hover:bg-white/5" : "bg-slate-50 hover:bg-slate-100"}`
+                            }`}
                           >
-                            <div className={`transition-transform duration-300 ${active ? "scale-110" : "group-hover:scale-110"}`}>
+                            <div
+                              className={`transition-transform duration-300 ${active ? "scale-110" : "group-hover:scale-110"}`}
+                            >
                               <item.icon size={28} />
                             </div>
-                            <span className={`text-[10px] font-black uppercase tracking-[0.15em] ${active ? "opacity-100" : "opacity-40"}`}>
+                            <span
+                              className={`text-[10px] font-black uppercase tracking-[0.15em] ${active ? "opacity-100" : "opacity-40"}`}
+                            >
                               {item.label}
                             </span>
                             {active && (
@@ -980,15 +998,20 @@ const Feedback = () => {
                           <button
                             key={item.value}
                             onClick={() => setTreatmentStatus(item.value)}
-                            className={`flex items-center gap-4 p-5 rounded-[24px] border-2 transition-all duration-300 cursor-pointer group ${active
-                              ? `${item.border} ${item.bg} ${item.color} shadow-lg shadow-black/5`
-                              : `border-transparent ${isDark ? "bg-[#121212] hover:bg-white/5 text-slate-400" : "bg-slate-50 hover:bg-slate-100 text-slate-500"}`
-                              }`}
+                            className={`flex items-center gap-4 p-5 rounded-[24px] border-2 transition-all duration-300 cursor-pointer group ${
+                              active
+                                ? `${item.border} ${item.bg} ${item.color} shadow-lg shadow-black/5`
+                                : `border-transparent ${isDark ? "bg-[#121212] hover:bg-white/5 text-slate-400" : "bg-slate-50 hover:bg-slate-100 text-slate-500"}`
+                            }`}
                           >
-                            <div className={`p-2 rounded-xl transition-all duration-300 ${active ? "bg-white/20" : "bg-slate-200/50 dark:bg-white/5 opacity-40"}`}>
+                            <div
+                              className={`p-2 rounded-xl transition-all duration-300 ${active ? "bg-white/20" : "bg-slate-200/50 dark:bg-white/5 opacity-40"}`}
+                            >
                               <item.icon size={20} />
                             </div>
-                            <span className={`text-[11px] font-black uppercase tracking-wider ${active ? "opacity-100" : "opacity-60"}`}>
+                            <span
+                              className={`text-[11px] font-black uppercase tracking-wider ${active ? "opacity-100" : "opacity-60"}`}
+                            >
                               {item.label}
                             </span>
                           </button>
@@ -1015,10 +1038,11 @@ const Feedback = () => {
                   <button
                     disabled={submittingFeedback || submissionSuccess}
                     onClick={handleSubmit}
-                    className={`w-full py-5 rounded-[24px] text-white text-lg font-bold tracking-wide transition-all flex items-center justify-center gap-3 shadow-xl overflow-hidden relative ${submissionSuccess
-                      ? "bg-emerald-500 shadow-emerald-500/40"
-                      : "bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20"
-                      }`}
+                    className={`w-full py-5 rounded-[24px] text-white text-lg font-bold tracking-wide transition-all flex items-center justify-center gap-3 shadow-xl overflow-hidden relative ${
+                      submissionSuccess
+                        ? "bg-emerald-500 shadow-emerald-500/40"
+                        : "bg-emerald-600 hover:bg-emerald-700 hover:scale-[1.02] active:scale-[0.98] shadow-emerald-500/20"
+                    }`}
                   >
                     <AnimatePresence mode="wait">
                       {submissionSuccess ? (
@@ -1068,10 +1092,10 @@ const Feedback = () => {
                     )}
                   </button>
                 </div>
-              </motion.div >
-            </div >
+              </motion.div>
+            </div>
           )}
-        </AnimatePresence >
+        </AnimatePresence>
 
         <AnimatePresence>
           {selectedRecord && (
@@ -1167,7 +1191,9 @@ const Feedback = () => {
 
                   <div className="border-t border-dashed dark:border-white/10 pt-8 mt-8">
                     <label className="text-[10px] font-bold uppercase tracking-widest mb-4 flex items-center justify-between">
-                      <span className="text-slate-400">Resolution Tracking</span>
+                      <span className="text-slate-400">
+                        Resolution Tracking
+                      </span>
                       {selectedRecord.is_resolved && (
                         <span className="text-emerald-500 bg-emerald-500/10 px-3 py-1.5 rounded-lg font-bold flex items-center gap-2">
                           <i className="fa-solid fa-check"></i> Resolved
@@ -1181,14 +1207,15 @@ const Feedback = () => {
                       >
                         <div className="font-semibold text-sm opacity-80 uppercase tracking-wider mb-2 flex justify-between">
                           <span>
-                            Note from {selectedRecord.resolved_by_name || "Staff"}
+                            Note from{" "}
+                            {selectedRecord.resolved_by_name || "Staff"}
                           </span>
                           <span>
                             {selectedRecord.resolved_at
                               ? format(
-                                new Date(selectedRecord.resolved_at),
-                                "MMM dd, yyyy",
-                              )
+                                  new Date(selectedRecord.resolved_at),
+                                  "MMM dd, yyyy",
+                                )
                               : ""}
                           </span>
                         </div>
@@ -1282,8 +1309,16 @@ const Feedback = () => {
           isOpen={showChatModal}
           onClose={() => setShowChatModal(false)}
         />
+        <LogoutConfirmation
+          isOpen={showLogoutConfirm}
+          onClose={() => setShowLogoutConfirm(false)}
+          onConfirm={() => {
+            logout();
+            navigate("/login");
+          }}
+        />
       </div>
-    </div >
+    </div>
   );
 };
 

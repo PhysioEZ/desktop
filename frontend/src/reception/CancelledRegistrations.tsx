@@ -15,6 +15,7 @@ import { API_BASE_URL, authFetch } from "../config";
 import { useAuthStore } from "../store/useAuthStore";
 import { useRegistrationStore } from "../store/useRegistrationStore";
 import { useThemeStore } from "../store/useThemeStore";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import Sidebar from "../components/Sidebar";
 import PageHeader from "../components/PageHeader";
 import { toast } from "sonner";
@@ -132,6 +133,25 @@ interface RegistrationRecord {
   address: string;
 }
 
+const formatDateSafe = (dateInput: any) => {
+  if (!dateInput) return "N/A";
+  let dateObj: Date;
+  if (typeof dateInput === "number") {
+    dateObj = new Date(dateInput);
+  } else if (typeof dateInput === "string") {
+    if (/^\d+\.?\d*$/.test(dateInput)) {
+      dateObj = new Date(parseFloat(dateInput));
+    } else {
+      dateObj = new Date(dateInput.replace(" ", "T"));
+    }
+  } else {
+    return "N/A";
+  }
+  return isNaN(dateObj.getTime())
+    ? "Invalid Date"
+    : dateObj.toLocaleDateString();
+};
+
 const CancelledRegistrations: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuthStore();
@@ -144,6 +164,8 @@ const CancelledRegistrations: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
 
   // --- CLIENT SIDE FILTERING ---
   const filteredRegistrations = React.useMemo(() => {
@@ -184,11 +206,11 @@ const CancelledRegistrations: React.FC = () => {
   const [refundReason, setRefundReason] = useState("");
   const [isProcessingRefund, setIsProcessingRefund] = useState(false);
 
-  const fetchRegistrations = async (forceRefresh = false) => {
+  const fetchRegistrations = async () => {
     if (!user?.branch_id) return;
 
-    // Cache logic: Only fetch if empty/null OR if forceRefresh is true
-    if (!forceRefresh && cancelledRegistrationsCache !== null) {
+    // Cache logic: Only fetch if empty/null
+    if (cancelledRegistrationsCache !== null) {
       setIsLoading(false);
       return;
     }
@@ -199,7 +221,9 @@ const CancelledRegistrations: React.FC = () => {
         `${API_BASE_URL}/reception/registration`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({
             action: "fetch",
             branch_id: user.branch_id,
@@ -222,9 +246,32 @@ const CancelledRegistrations: React.FC = () => {
 
   useEffect(() => {
     if (user?.branch_id) {
+      // Force refresh on initial load to ensure all 'closed' records are pulled from source,
+      // as SQLite might only have one or two depending on sync timing.
       fetchRegistrations();
     }
   }, [user?.branch_id]);
+
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(() => setRefreshCooldown((p) => p - 1), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [refreshCooldown]);
+
+  const handleRefresh = async () => {
+    if (refreshCooldown > 0 || !user?.branch_id) return;
+
+    // Reset cache to force fetch
+    setCancelledRegistrationsCache(null);
+
+    smartRefresh("cancelled registry", {
+      onSuccess: async () => {
+        await fetchRegistrations();
+        setRefreshCooldown(20);
+      },
+    });
+  };
 
   // Reset page on search
   useEffect(() => {
@@ -232,22 +279,41 @@ const CancelledRegistrations: React.FC = () => {
   }, [search]);
 
   const handleUpdateStatus = async (id: number, newStatus: string) => {
+    // Optimistic update: If we're re-opening a closed registration, it should leave this view
+    if (newStatus !== "closed" && cancelledRegistrationsCache) {
+      const updated = cancelledRegistrationsCache.filter(
+        (r: any) => r.registration_id !== id,
+      );
+      setCancelledRegistrationsCache(updated);
+    }
+
     try {
       const response = await authFetch(
         `${API_BASE_URL}/reception/registration?action=update_status`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
           body: JSON.stringify({ id, status: newStatus }),
         },
       );
       const result = await response.json();
       if (result.status === "success") {
         toast.success(`Registration marked as ${newStatus}`);
-        fetchRegistrations(true);
+        // Clear main registry cache so it re-fetches when navigated back
+        useRegistrationStore.setState({
+          registrations: null,
+          lastParams: null,
+          registrationsCache: {},
+        });
+        // We STAY in the current optimistic state, no need to re-fetch from network
+        setIsLoading(false);
       }
     } catch (error) {
       toast.error("Failed to update status");
+      // On failure, we MUST re-fetch to restore correct data
+      fetchRegistrations();
     }
   };
 
@@ -274,10 +340,21 @@ const CancelledRegistrations: React.FC = () => {
       if (result.status === "success") {
         toast.success("Refund initiated successfully");
         setIsRefundModalOpen(false);
+
+        // OPTIMISTIC UPDATE: Update the item in local cache immediately
+        if (cancelledRegistrationsCache) {
+          const updated = cancelledRegistrationsCache.map((r: any) =>
+            r.registration_id === selectedForRefund.registration_id
+              ? { ...r, refund_status: "initiated" }
+              : r,
+          );
+          setCancelledRegistrationsCache(updated);
+        }
+
         setSelectedForRefund(null);
         setRefundAmount("");
         setRefundReason("");
-        fetchRegistrations(true);
+        // No network fetch needed, UI is updated locally
       }
     } catch (error) {
       toast.error("Refund failed");
@@ -303,8 +380,9 @@ const CancelledRegistrations: React.FC = () => {
           title="Cancelled"
           subtitle="Recovery Center"
           icon={Trash2}
-          onRefresh={() => fetchRegistrations(true)}
-          isLoading={isLoading}
+          onRefresh={handleRefresh}
+          isLoading={isLoading || isRefreshing}
+          refreshCooldown={refreshCooldown}
         />
 
         <div className="flex-1 flex overflow-hidden">
@@ -484,7 +562,7 @@ const CancelledRegistrations: React.FC = () => {
                               #{reg.registration_id}
                             </span>
                             <span className="text-[9px] text-slate-400 font-bold uppercase tracking-widest">
-                              {new Date(reg.created_at).toLocaleDateString()}
+                              {formatDateSafe(reg.created_at)}
                             </span>
                           </div>
                         </div>

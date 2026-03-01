@@ -41,6 +41,8 @@ module.exports = async (req, res, next) => {
         // Update last used (Async)
         pool.query("UPDATE api_tokens SET last_used_at = NOW() WHERE token_id = ?", [user.token_id]).catch(console.error);
 
+
+
         next();
     } catch (error) {
         console.error("Auth Middleware Error:", error);

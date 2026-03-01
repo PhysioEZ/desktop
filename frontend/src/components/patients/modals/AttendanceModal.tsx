@@ -93,6 +93,22 @@ const AttendanceModal = ({
       const data = await res.json();
 
       if (data.status === "success" || data.success) {
+        // Optimistic UI Update
+        const numAmount = parseFloat(amount) || 0;
+        const balanceChange = markAsDue ? -costPerDay : numAmount - costPerDay;
+        const newStatus = markAsDue ? "pending" : "present";
+
+        // Only increment count if we are formally marking them 'present', otherwise pending usually implies deferred but attendance is tracked server-side.
+        // For optimistic UI coherence, we assume present = +1, pending = 0, but pending will change to a button state immediately.
+        usePatientStore
+          .getState()
+          .updateLocalPatientAttendance(
+            patient!.patient_id,
+            newStatus,
+            newStatus === "present" ? 1 : 0,
+            balanceChange,
+          );
+
         onSuccess();
         onClose();
       } else {

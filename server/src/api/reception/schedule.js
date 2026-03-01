@@ -1,12 +1,12 @@
 const pool = require('../../config/db');
 
-// Helper to calculate start/end of week
+// Helper to calculate start/end of week (using IST offset)
 function getWeekRange(startDateStr) {
-    let start = new Date(startDateStr);
-    if (isNaN(start.getTime())) start = new Date(); // Fallback to now
+    const getISTNow = () => new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
+    let start = startDateStr ? new Date(startDateStr) : getISTNow();
 
-    // Adjust to Sunday if strictly enforcing Sunday start, handled by frontend usually
-    // PHP: if (startOfWeek->format('w') != 0) startOfWeek->modify('last sunday');
+    if (isNaN(start.getTime())) start = getISTNow();
+
     const day = start.getDay();
     if (day !== 0) {
         start.setDate(start.getDate() - day);
@@ -22,33 +22,44 @@ function getWeekRange(startDateStr) {
 
 exports.fetchSchedule = async (req, res) => {
     const branch_id = req.user.branch_id || req.query.branch_id;
+    const forceRemote = req.query.force === 'true';
     if (!branch_id) return res.status(400).json({ success: false, message: 'Branch ID required' });
 
     const weekStartStr = req.query.week_start;
     const { start, end } = getWeekRange(weekStartStr);
 
-    // Format YYYY-MM-DD
-    const formatDate = d => d.toISOString().split('T')[0];
+    // Format YYYY-MM-DD (Manual to avoid ISO UTC shift)
+    const formatDate = d => {
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    };
     const sDate = formatDate(start);
     const eDate = formatDate(end);
 
     try {
-        const [rows] = await pool.query(`
+        const query = async () => {
+            return await pool.query(`
             SELECT
                 r.registration_id,
                 r.patient_name,
-                r.appointment_date,
+                DATE(r.appointment_date) as appointment_date,
                 r.appointment_time,
                 r.status,
                 r.approval_status,
                 pm.patient_uid
             FROM registration r
             LEFT JOIN patient_master pm ON r.master_patient_id = pm.master_patient_id
-            WHERE r.branch_id = ?
-              AND r.appointment_date BETWEEN ? AND ?
+            WHERE (r.branch_id = ? OR r.branch_id IS NULL OR r.branch_id = 0)
+              AND DATE(r.appointment_date) BETWEEN ? AND ?
               AND r.appointment_time IS NOT NULL
-              AND r.status NOT IN ('closed', 'cancelled')
         `, [branch_id, sDate, eDate]);
+        };
+
+        const [rows] = forceRemote
+            ? await pool.queryContext.run({ forceRemote: true }, query)
+            : await query();
 
         res.json({
             success: true,

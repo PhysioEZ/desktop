@@ -75,14 +75,66 @@ exports.getUsers = async (req, res) => {
                     WHERE cm.sender_employee_id = e.employee_id 
                     AND cm.receiver_employee_id = ? 
                     AND cm.is_read = 0
-                ) as unread_count
+                ) as unread_count,
+                (
+                    SELECT cm2.message_text
+                    FROM chat_messages cm2
+                    WHERE (cm2.sender_employee_id = e.employee_id AND cm2.receiver_employee_id = ?)
+                       OR (cm2.sender_employee_id = ? AND cm2.receiver_employee_id = e.employee_id)
+                    ORDER BY cm2.created_at DESC
+                    LIMIT 1
+                ) as last_message_encrypted,
+                (
+                    SELECT cm2.message_type
+                    FROM chat_messages cm2
+                    WHERE (cm2.sender_employee_id = e.employee_id AND cm2.receiver_employee_id = ?)
+                       OR (cm2.sender_employee_id = ? AND cm2.receiver_employee_id = e.employee_id)
+                    ORDER BY cm2.created_at DESC
+                    LIMIT 1
+                ) as last_message_type,
+                (
+                    SELECT cm2.created_at
+                    FROM chat_messages cm2
+                    WHERE (cm2.sender_employee_id = e.employee_id AND cm2.receiver_employee_id = ?)
+                       OR (cm2.sender_employee_id = ? AND cm2.receiver_employee_id = e.employee_id)
+                    ORDER BY cm2.created_at DESC
+                    LIMIT 1
+                ) as last_message_time,
+                (
+                    SELECT cm2.sender_employee_id
+                    FROM chat_messages cm2
+                    WHERE (cm2.sender_employee_id = e.employee_id AND cm2.receiver_employee_id = ?)
+                       OR (cm2.sender_employee_id = ? AND cm2.receiver_employee_id = e.employee_id)
+                    ORDER BY cm2.created_at DESC
+                    LIMIT 1
+                ) as last_message_sender_id
             FROM employees e
             JOIN roles r ON e.role_id = r.role_id
             WHERE e.branch_id = ? AND e.employee_id != ? AND e.is_active = 1
-            ORDER BY e.first_name ASC
-        `, [currentEmployeeId, branchId, currentEmployeeId]);
+            ORDER BY last_message_time DESC, e.first_name ASC
+        `, [currentEmployeeId, currentEmployeeId, currentEmployeeId, currentEmployeeId, currentEmployeeId, currentEmployeeId, currentEmployeeId, currentEmployeeId, currentEmployeeId, branchId, currentEmployeeId]);
 
-        res.json({ success: true, users });
+        // Decrypt last message for preview
+        const usersWithPreview = users.map(user => {
+            if (user.last_message_encrypted && user.last_message_type === 'text') {
+                const decrypted = decryptMessage(user.last_message_encrypted, ENCRYPTION_KEY);
+                user.last_message = decrypted !== false ? decrypted : '[Encrypted]';
+            } else if (user.last_message_type === 'image') {
+                user.last_message = '📷 Photo';
+            } else if (user.last_message_type === 'pdf') {
+                user.last_message = '📄 PDF';
+            } else if (user.last_message_type === 'doc') {
+                user.last_message = '📎 Document';
+            } else {
+                user.last_message = '';
+            }
+            user.is_sender = (user.last_message_sender_id == currentEmployeeId);
+            delete user.last_message_encrypted;
+            delete user.last_message_sender_id;
+            return user;
+        });
+
+        res.json({ success: true, users: usersWithPreview });
     } catch (error) {
         res.json({ success: false, message: 'Database error: ' + error.message });
     }

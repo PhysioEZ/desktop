@@ -1,26 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
-  Activity,
   CheckCircle2,
-  Sparkles,
-  User as UserIcon,
+  ShieldCheck,
+  Zap,
+  RefreshCcw,
+  LayoutDashboard,
+  Database,
 } from "lucide-react";
 import { API_BASE_URL, authFetch } from "../config";
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 import { useDashboardStore } from "../store/useDashboardStore";
-import { useRegistrationStore } from "../store/useRegistrationStore";
 import { usePatientStore } from "../store/usePatientStore";
 import { useTestStore } from "../store/useTestStore";
 
 const bootSteps = [
-  { key: "cache", label: "Purging stale session cache" },
-  { key: "dashboard", label: "Syncing dashboard analytics" },
-  { key: "registration", label: "Retrieving registration records" },
-  { key: "patients", label: "Preparing patient registry" },
-  { key: "tests", label: "Loading medical test data" },
+  { key: "auth", label: "Authenticating Session", icon: ShieldCheck },
+  { key: "resources", label: "Loading Workspaces", icon: Zap },
+  { key: "finalize", label: "Launching Application", icon: LayoutDashboard },
 ];
 
 const WelcomeScreen = () => {
@@ -31,16 +30,18 @@ const WelcomeScreen = () => {
   const [fetchStatus, setFetchStatus] = useState<{
     [key: string]: "pending" | "success" | "error";
   }>({
-    cache: "pending",
-    dashboard: "pending",
-    registration: "pending",
-    patients: "pending",
-    tests: "pending",
+    auth: "success",
+    resources: "pending",
+    finalize: "pending",
   });
+  const [currentTable, setCurrentTable] = useState("");
+  const isDoneRef = useRef(false);
+  const [imgError, setImgError] = useState(false);
 
-  const currentStepIndex = useMemo(() => {
-    return bootSteps.findIndex((step) => fetchStatus[step.key] === "pending");
-  }, [fetchStatus]);
+  // Constants for timing
+  const minVisualDuration = 600; // 0.6s min stay
+  const maxWaitTime = 1200; // 1.2s max stay
+  const startTimeRef = useRef(Date.now());
 
   useEffect(() => {
     if (isDark) {
@@ -56,265 +57,318 @@ const WelcomeScreen = () => {
     }
   }, [user, navigate]);
 
+  // Effect 1: Initialization logic (Runs only once)
   useEffect(() => {
-    let isApiDone = false;
-    let currentProgress = 0;
-    const minVisualDuration = 1500;
-    const maxWaitTime = 4000;
-    const startTime = Date.now();
+    if (!user) return;
 
-    const doPrefetches = async () => {
+    const initialize = async () => {
+      // 1. Simulating resource prep
       try {
-        if (!user?.branch_id) return;
+        setFetchStatus((prev) => ({ ...prev, resources: "success" }));
+      } catch (e) {
+        setFetchStatus((prev) => ({ ...prev, resources: "error" }));
+      }
 
-        // Step 1: Clear server-side SQLite cache
-        try {
-          const res = await authFetch(`${API_BASE_URL}/auth/clear-cache`, {
-            method: "POST",
-          });
-          await res.json();
-          setFetchStatus((prev) => ({ ...prev, cache: "success" }));
-        } catch (e) {
-          console.warn("[Welcome] Cache clear fail:", e);
-          setFetchStatus((prev) => ({ ...prev, cache: "error" }));
-        }
-
-        // Step 2: Parallel API fetches
+      // 2. Fast data pre-fetch
+      try {
+        setCurrentTable("Loading Workspace...");
         await Promise.allSettled([
-          // Dashboard
           authFetch(
             `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
           )
             .then((res) => res.json())
             .then((data) => {
-              if (data.status === "success" || data.success) {
+              if (data.status === "success") {
                 useDashboardStore.getState().setData(data.data);
-                if (data.data.serverTime) {
-                  useDashboardStore
-                    .getState()
-                    .setLastSync(data.data.serverTime);
-                }
-                setFetchStatus((prev) => ({ ...prev, dashboard: "success" }));
-              } else throw new Error();
-            })
-            .catch(() =>
-              setFetchStatus((prev) => ({ ...prev, dashboard: "error" })),
-            ),
-
-          // Registrations
-          authFetch(`${API_BASE_URL}/reception/registration`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "fetch",
-              branch_id: user.branch_id,
-              limit: 1000,
-              page: 1,
+              }
             }),
-          })
-            .then((res) => res.json())
-            .then((data) => {
-              if (data.status === "success" || data.success) {
-                useRegistrationStore
-                  .getState()
-                  .setRegistrations(data.data || []);
-                useRegistrationStore.getState().setLastFetched(Date.now());
-                setFetchStatus((prev) => ({
-                  ...prev,
-                  registration: "success",
-                }));
-              } else throw new Error();
-            })
-            .catch(() =>
-              setFetchStatus((prev) => ({ ...prev, registration: "error" })),
-            ),
-
-          // Patients
-          usePatientStore
-            .getState()
-            .fetchMetaData(user.branch_id)
-            .then(() =>
-              setFetchStatus((prev) => ({ ...prev, patients: "success" })),
-            )
-            .catch(() =>
-              setFetchStatus((prev) => ({ ...prev, patients: "error" })),
-            ),
-          usePatientStore.getState().fetchPatients(user.branch_id),
-
-          // Tests
-          useTestStore
-            .getState()
-            .fetchTests(user.branch_id, 1, 15)
-            .then(() =>
-              setFetchStatus((prev) => ({ ...prev, tests: "success" })),
-            )
-            .catch(() =>
-              setFetchStatus((prev) => ({ ...prev, tests: "error" })),
-            ),
+          usePatientStore.getState().fetchMetaData(user.branch_id),
+          useTestStore.getState().fetchTests(user.branch_id, 1, 15),
         ]);
+        setFetchStatus((prev) => ({ ...prev, finalize: "success" }));
+        isDoneRef.current = true;
       } catch (e) {
-        console.error("Prefetch errors: ", e);
-      } finally {
-        isApiDone = true;
+        console.error("Initialization error", e);
+        setFetchStatus((prev) => ({ ...prev, finalize: "error" }));
+        isDoneRef.current = true;
       }
     };
 
-    doPrefetches();
+    initialize();
+  }, [user?.branch_id]);
 
+  // Effect 2: Visual Progress Animation
+  useEffect(() => {
     const updateInterval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
-      let visualProgress = (elapsed / maxWaitTime) * 90;
-      if (visualProgress > 90) visualProgress = 90;
+      const elapsed = Date.now() - startTimeRef.current;
 
-      const finishedByApi = isApiDone && elapsed >= minVisualDuration;
+      // Calculate basic visual progress
+      let visualProgress = (elapsed / maxWaitTime) * 100;
+
+      // Navigation conditions
+      const finishedBySync = isDoneRef.current && elapsed >= minVisualDuration;
       const finishedByTimeout = elapsed >= maxWaitTime;
 
-      if (finishedByApi || finishedByTimeout) {
-        currentProgress += 5;
-        if (currentProgress >= 100) {
-          setProgress(100);
-          clearInterval(updateInterval);
-          setTimeout(() => {
-            const dest =
-              user?.role === "admin" ||
-              user?.role === "superadmin" ||
-              user?.role === "developer"
-                ? "/admin/dashboard"
-                : "/reception/dashboard";
-            navigate(dest);
-          }, 600);
-          return;
-        }
+      if (finishedBySync || finishedByTimeout) {
+        setProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(updateInterval);
+            // Navigate after small delay once 100 is reached
+            setTimeout(() => {
+              const dest =
+                user?.role === "admin" ||
+                user?.role === "superadmin" ||
+                user?.role === "developer"
+                  ? "/admin/dashboard"
+                  : "/reception/dashboard";
+              navigate(dest);
+            }, 600);
+            return 100;
+          }
+          return Math.min(100, prev + 1.5);
+        });
       } else {
-        currentProgress = visualProgress;
+        // Slow down near 95% if not finished
+        if (visualProgress > 95 && !isDoneRef.current) {
+          setProgress(95);
+        } else {
+          setProgress(Math.min(95, visualProgress));
+        }
       }
-      setProgress(currentProgress);
-    }, 40);
+    }, 100);
 
     return () => clearInterval(updateInterval);
-  }, [navigate, user]);
+  }, [navigate, user, minVisualDuration, maxWaitTime]);
+
+  const currentStepIndex = useMemo(() => {
+    const idx = bootSteps.findIndex(
+      (step) => fetchStatus[step.key] === "pending",
+    );
+    return idx === -1 ? bootSteps.length - 1 : idx;
+  }, [fetchStatus]);
 
   if (!user) return null;
 
   return (
-    <div className="relative min-h-screen overflow-hidden flex items-center justify-center p-4 transition-colors duration-700 dark:bg-[#05060A] bg-slate-50">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-[#00B884]/10 blur-[120px] rounded-full dark:opacity-100 opacity-50" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-[#3b82f6]/5 blur-[120px] rounded-full dark:opacity-100 opacity-30" />
+    <div
+      className={`relative min-h-screen overflow-hidden flex items-center justify-center p-6 bg-slate-50 dark:bg-[#05060A] transition-colors duration-1000 selection:bg-emerald-500/30`}
+    >
+      {/* Dynamic Background Elements */}
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] bg-emerald-500/5 dark:bg-emerald-500/10 blur-[160px] rounded-full" />
+        <div className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-blue-500/5 blur-[160px] rounded-full" />
+        <div className="absolute inset-0 opacity-20 dark:opacity-100 bg-[linear-gradient(rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.02)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.02)_1px,transparent_1px)] bg-[size:100px_100px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)]" />
       </div>
 
-      <main className="relative z-10 w-full max-w-[1200px] flex items-center justify-center p-4">
+      <main className="relative z-10 w-full max-w-6xl">
         <motion.div
-          initial={{ opacity: 0, y: 30, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.8 }}
-          className="grid w-full min-h-[600px] grid-cols-1 md:grid-cols-[0.8fr_1.2fr] overflow-hidden rounded-[32px] border dark:border-white/10 border-slate-200 dark:bg-[#0B0D11] bg-white shadow-2xl"
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 1.2, ease: [0.23, 1, 0.32, 1] }}
+          className="relative grid grid-cols-1 lg:grid-cols-[450px_1fr] min-h-[700px] rounded-[48px] border border-slate-200 dark:border-white/10 bg-white/90 dark:bg-[#0B0D11]/80 backdrop-blur-3xl shadow-[0_32px_120px_rgba(0,0,0,0.1)] dark:shadow-[0_32px_120px_rgba(0,0,0,0.5)] overflow-hidden"
         >
-          {/* User Info */}
-          <section className="relative flex flex-col justify-center p-8 lg:p-14 border-b md:border-b-0 md:border-r dark:bg-gradient-to-br dark:from-[#101318] dark:to-[#0B0D11] bg-slate-50/50">
-            <motion.div
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="mb-10 inline-flex items-center gap-2 w-fit rounded-full border border-emerald-500/20 bg-emerald-500/5 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] text-[#00B884]"
-            >
-              <Sparkles size={12} />
-              Authenticating
-            </motion.div>
+          {/* Left Panel */}
+          <div className="relative p-12 lg:p-16 flex flex-col justify-between border-b lg:border-b-0 lg:border-r border-slate-100 dark:border-white/5 bg-gradient-to-br from-slate-50/50 dark:from-white/[0.03] to-transparent">
+            <div className="space-y-12">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.5 }}
+                className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[#00B884] text-[10px] uppercase font-black tracking-[0.2em]"
+              >
+                <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                Secure Session Active
+              </motion.div>
 
-            <div className="space-y-8">
-              <div className="h-24 w-24 overflow-hidden rounded-[24px] border-2 border-white dark:border-white/10 bg-white">
-                {user.photo ? (
-                  <img
-                    src={`${API_BASE_URL.replace("/api", "")}/${user.photo}`}
-                    alt={user.name}
-                    className="h-full w-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src =
-                        `https://ui-avatars.com/api/?name=${user.name}&background=00B884&color=fff&bold=true`;
-                    }}
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center">
-                    <UserIcon size={36} className="text-slate-400" />
+              <div className="space-y-10">
+                <motion.div
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 100,
+                    damping: 15,
+                    delay: 0.2,
+                  }}
+                  className="relative group w-32 h-32"
+                >
+                  <div className="absolute inset-x-0 inset-y-0 bg-emerald-500/20 blur-2xl rounded-full scale-110 group-hover:scale-125 transition-transform" />
+                  <div className="relative h-full w-full rounded-[40px] border-2 border-emerald-500/30 p-1.5 overflow-hidden bg-slate-100 dark:bg-[#0A0B0E]">
+                    {user.photo && !imgError ? (
+                      <img
+                        src={`${API_BASE_URL.replace("/api", "")}/${user.photo}`}
+                        className="h-full w-full object-cover rounded-[32px]"
+                        alt={user.name}
+                        onError={() => setImgError(true)}
+                      />
+                    ) : (
+                      <div className="h-full w-full flex items-center justify-center bg-emerald-500/10 dark:bg-emerald-500/20 rounded-[32px]">
+                        <span className="text-4xl font-black text-emerald-600 dark:text-emerald-400">
+                          {user.name
+                            ? user.name
+                                .split(" ")
+                                .map((n: string) => n[0])
+                                .join("")
+                                .substring(0, 2)
+                                .toUpperCase()
+                            : "U"}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <div>
-                <h1 className="text-3xl font-black dark:text-white text-slate-900">
-                  Welcome back, <br />
-                  <span className="text-[#00B884]">{user.name}</span>
-                </h1>
-                <p className="mt-3 text-sm dark:text-slate-400 text-slate-600">
-                  Preparing your secured workspace and operational modules.
-                </p>
+                </motion.div>
+
+                <div className="space-y-4">
+                  <motion.h1
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.4 }}
+                    className="text-4xl lg:text-5xl font-black text-slate-900 dark:text-white leading-tight"
+                  >
+                    Welcome back,
+                    <br />
+                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00B884] to-[#34D399]">
+                      {user.name.split(" ")[0]}
+                    </span>
+                  </motion.h1>
+                  <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.6 }}
+                    className="text-slate-500 dark:text-slate-400 text-base leading-relaxed max-w-[300px]"
+                  >
+                    Preparing your operational environment and loading real-time
+                    branch data.
+                  </motion.p>
+                </div>
               </div>
             </div>
-          </section>
 
-          {/* Progress */}
-          <section className="flex flex-col justify-center p-8 lg:p-16 dark:bg-[#0B0D11] bg-white">
-            <div className="w-full space-y-10">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-[11px] font-black uppercase text-slate-500">
-                    System Initialization
-                  </p>
-                  <p className="text-lg font-black text-[#00B884]">
-                    {Math.round(progress)}%
-                  </p>
+            <div className="pt-12">
+              <div className="flex items-center gap-3 text-slate-400 dark:text-slate-500 text-xs font-medium">
+                <RefreshCcw size={14} className="animate-spin" />
+                Last updated: Just now
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel */}
+          <div className="p-12 lg:p-20 flex flex-col justify-center bg-slate-50/30 dark:bg-black/20">
+            <div className="max-w-xl w-full mx-auto space-y-16">
+              <div className="space-y-6">
+                <div className="flex items-end justify-between">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">
+                      System Readiness
+                    </p>
+                    <h2 className="text-2xl font-black text-slate-800 dark:text-white">
+                      Initializing Modules
+                    </h2>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-4xl font-black text-[#00B884] tabular-nums">
+                      {Math.round(progress)}
+                      <span className="text-sm text-slate-400 dark:text-slate-500 ml-1">
+                        %
+                      </span>
+                    </span>
+                  </div>
                 </div>
-                <div className="h-2 w-full overflow-hidden rounded-full dark:bg-white/5 bg-slate-100">
+
+                <div className="relative h-3 w-full rounded-full bg-slate-200 dark:bg-white/[0.03] overflow-hidden border border-slate-100 dark:border-white/5 p-0.5">
                   <motion.div
-                    animate={{ width: `${progress}%` }}
-                    className="h-full bg-[#00B884] shadow-[0_0_15px_rgba(0,184,132,0.5)]"
+                    className="absolute inset-y-0.5 left-0.5 rounded-full bg-gradient-to-r from-[#00B884] to-[#10B981] shadow-[0_0_20px_rgba(16,185,129,0.3)]"
+                    initial={{ width: 0 }}
+                    animate={{ width: `calc(${progress}% - 4px)` }}
+                    transition={{ ease: "easeOut", duration: 0.5 }}
                   />
                 </div>
+
+                <AnimatePresence mode="wait">
+                  {currentTable && progress < 100 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      className="flex items-center gap-2 text-[#00B884]/80 text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-lg bg-emerald-500/5 w-fit border border-emerald-500/10"
+                    >
+                      <Database size={12} className="animate-pulse" />
+                      Loading: {currentTable}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
-              <div className="space-y-4">
-                {bootSteps.map((step, index) => {
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {bootSteps.map((step, idx) => {
                   const status = fetchStatus[step.key];
-                  const isComplete = status === "success";
-                  const isError = status === "error";
-                  const isCurrent = index === currentStepIndex;
+                  const isDone = status === "success";
+                  const isCurrent = idx === currentStepIndex && !isDone;
+                  const StepIcon = step.icon;
 
                   return (
                     <motion.div
                       key={step.key}
-                      className={`flex items-center gap-4 rounded-2xl border px-6 py-4 transition-all ${
-                        isComplete
-                          ? "border-[#00B884]/20 bg-[#00B884]/5 text-[#00B884]"
-                          : isError
-                            ? "border-red-500/20 bg-red-500/5 text-red-500"
-                            : isCurrent
-                              ? "dark:border-white/10 border-slate-200 dark:bg-[#1A1D23] bg-slate-50"
-                              : "border-transparent opacity-40"
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.8 + idx * 0.1 }}
+                      className={`relative group p-5 rounded-3xl border transition-all duration-500 ${
+                        isDone
+                          ? "bg-emerald-500/5 border-emerald-500/20"
+                          : isCurrent
+                            ? "bg-white dark:bg-white/[0.05] border-slate-200 dark:border-white/10 shadow-xl"
+                            : "bg-transparent border-slate-100 dark:border-white/5 opacity-40"
                       }`}
                     >
-                      {isComplete ? (
-                        <CheckCircle2 size={18} />
-                      ) : isError ? (
-                        <Activity size={18} className="text-red-500" />
-                      ) : (
-                        <Activity
-                          size={18}
-                          className={isCurrent ? "animate-spin" : ""}
-                        />
-                      )}
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold">{step.label}</span>
-                        {isError && (
-                          <span className="text-[10px] italic">
-                            Fetch failed, retrying in background...
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={`p-2.5 rounded-2xl transition-colors duration-500 ${
+                            isDone
+                              ? "bg-emerald-500/20 text-[#00B884]"
+                              : isCurrent
+                                ? "bg-slate-900 dark:bg-white/10 text-white"
+                                : "bg-slate-100 dark:bg-white/5 text-slate-400 dark:text-slate-600"
+                          }`}
+                        >
+                          <StepIcon
+                            size={20}
+                            className={isCurrent ? "animate-pulse" : ""}
+                          />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-slate-700 dark:text-white tracking-wide truncate">
+                            {step.label}
                           </span>
-                        )}
+                          <span
+                            className={`text-[9px] font-medium uppercase tracking-widest ${isDone ? "text-emerald-500" : "text-slate-400 dark:text-slate-500"}`}
+                          >
+                            {isDone
+                              ? "Verified"
+                              : isCurrent
+                                ? "In Progress"
+                                : "Pending"}
+                          </span>
+                        </div>
+                        <div className="ml-auto">
+                          {isDone && (
+                            <motion.div
+                              initial={{ scale: 0 }}
+                              animate={{ scale: 1 }}
+                            >
+                              <CheckCircle2
+                                size={18}
+                                className="text-emerald-500"
+                              />
+                            </motion.div>
+                          )}
+                        </div>
                       </div>
                     </motion.div>
                   );
                 })}
               </div>
             </div>
-          </section>
+          </div>
         </motion.div>
       </main>
     </div>

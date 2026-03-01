@@ -15,6 +15,7 @@ import { API_BASE_URL, authFetch } from "../config";
 import { useAuthStore } from "../store/useAuthStore";
 import { useRegistrationStore } from "../store/useRegistrationStore";
 import { useThemeStore } from "../store/useThemeStore";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import Sidebar from "../components/Sidebar";
 import PageHeader from "../components/PageHeader";
 import { toast } from "sonner";
@@ -147,6 +148,8 @@ const CancelledTests: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
 
   // --- CLIENT SIDE FILTERING ---
   const filteredTests = React.useMemo(() => {
@@ -189,10 +192,10 @@ const CancelledTests: React.FC = () => {
   const [refundReason, setRefundReason] = useState("");
   const [isProcessingRefund, setIsProcessingRefund] = useState(false);
 
-  const fetchCancelledTests = async (forceRefresh = false) => {
+  const fetchCancelledTests = async () => {
     if (!user?.branch_id) return;
 
-    if (!forceRefresh && cancelledTestsCache !== null) {
+    if (cancelledTestsCache !== null) {
       setIsLoading(false);
       return;
     }
@@ -227,6 +230,27 @@ const CancelledTests: React.FC = () => {
     }
   }, [user?.branch_id]);
 
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(() => setRefreshCooldown((p) => p - 1), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [refreshCooldown]);
+
+  const handleRefresh = async () => {
+    if (refreshCooldown > 0 || !user?.branch_id) return;
+
+    // Reset cache
+    setCancelledTestsCache(null);
+
+    smartRefresh("cancelled tests", {
+      onSuccess: async () => {
+        await fetchCancelledTests();
+        setRefreshCooldown(20);
+      },
+    });
+  };
+
   // Reset page on search
   useEffect(() => {
     setCurrentPage(1);
@@ -258,7 +282,7 @@ const CancelledTests: React.FC = () => {
         setSelectedForRefund(null);
         setRefundAmount("");
         setRefundReason("");
-        fetchCancelledTests(true);
+        fetchCancelledTests();
       } else {
         toast.error(result.message || "Refund failed");
       }
@@ -291,7 +315,7 @@ const CancelledTests: React.FC = () => {
       const result = await response.json();
       if (result.success) {
         toast.success(`Status updated to ${status}`);
-        fetchCancelledTests(true);
+        fetchCancelledTests();
       } else {
         toast.error(result.message || "Failed to update status");
       }
@@ -311,8 +335,9 @@ const CancelledTests: React.FC = () => {
           title="Cancelled Tests"
           subtitle="Diagnostic Recovery"
           icon={Trash2}
-          onRefresh={() => fetchCancelledTests(true)}
-          isLoading={isLoading}
+          onRefresh={handleRefresh}
+          isLoading={isLoading || isRefreshing}
+          refreshCooldown={refreshCooldown}
         />
 
         <div className="flex-1 flex overflow-hidden">

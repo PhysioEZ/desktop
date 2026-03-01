@@ -1,0 +1,111 @@
+
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+          body { font-family: 'Inter', sans-serif; padding: 40px; color: #1a1a1a; background: #fff; line-height: 1.5; }
+          .header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 40px; border-bottom: 2px solid #f1f5f9; padding-bottom: 20px; }
+          .brand { font-size: 18px; font-weight: 900; letter-spacing: -0.02em; color: #10b981; text-transform: uppercase; }
+          .report-info { text-align: right; }
+          .report-title { font-size: 24px; font-weight: 900; margin: 0; letter-spacing: -0.04em; color: #0f172a; }
+          .report-meta { font-size: 10px; font-weight: 800; opacity: 0.4; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.1em; }
+          
+          .subscriber-card { 
+            background: #f8fafc; 
+            border-radius: 16px; 
+            padding: 16px 24px; 
+            margin-bottom: 30px; 
+            display: flex; 
+            align-items: center;
+            justify-content: space-between;
+            gap: 40px;
+          }
+          .stat-item { flex: 1; }
+          .stat-label { font-size: 9px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+          .stat-value { font-size: 14px; font-weight: 800; color: #0f172a; white-space: nowrap; }
+          .stat-value.highlight { color: #10b981; }
+          .stat-value.danger { color: #ef4444; }
+
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; table-layout: fixed; }
+          th { padding: 14px 16px; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; border-bottom: 2px solid #f1f5f9; background: #fafafa; }
+          td { padding: 14px 16px; font-size: 11px; font-weight: 600; color: #334155; border-bottom: 1px solid #f1f5f9; word-break: break-word; }
+          
+          .col-date { width: 25%; text-align: left; }
+          .col-mode { width: 20%; text-align: left; }
+          .col-notes { width: 15%; text-align: left; color: #64748b; }
+          .col-amount { width: 20%; text-align: right; }
+          .col-status { width: 20%; text-align: center; }
+
+          .mode { font-size: 9px; font-weight: 800; background: #f1f5f9; padding: 4px 8px; border-radius: 6px; text-transform: uppercase; }
+          .amount { font-weight: 800; font-family: 'JetBrains Mono', monospace; }
+          .success-badge { color: #059669; font-size: 9px; font-weight: 900; display: inline-flex; align-items: center; gap: 4px; justify-content: center; width: 100%; }
+          
+          .footer { margin-top: 60px; font-size: 9px; font-weight: 700; opacity: 0.3; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="brand">PhysioEZ / Ledger / TREATMENT</div>
+          <div class="report-info">
+            <h1 class="report-title">Sumit</h1>
+            <p class="report-meta">ID: #1 • Generated on 01 Mar 2026</p>
+          </div>
+        </div>
+
+        <div class="subscriber-card">
+          <div class="stat-item">
+            <div class="stat-label">Total Billed</div>
+            <div class="stat-value">₹4,750</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Total Paid</div>
+            <div class="stat-value highlight">₹2,000</div>
+          </div>
+          <div class="stat-item">
+            <div class="stat-label">Outstanding Due</div>
+            <div class="stat-value danger">₹2,750</div>
+          </div>
+          
+          <div class="stat-item">
+            <div class="stat-label">Wallet Balance</div>
+            <div class="stat-value ">₹1,050</div>
+          </div>
+        </div>
+        
+        <h3 style="font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; color: #0f172a; margin: 40px 0 16px 4px;">Treatment Payments</h3>
+        <table>
+          <thead>
+            <tr>
+              <th class="col-date">Date & Time</th>
+              <th class="col-mode">Mode</th>
+              <th class="col-notes">Notes</th>
+              <th class="col-amount">Amount</th>
+              <th class="col-status">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            
+              <tr>
+                <td class="col-date">
+                  01 Mar 2026, 05:30 AM
+                </td>
+                <td class="col-mode">
+                  <span class="mode">upi-hdfc</span>
+                  
+                </td>
+                <td class="col-notes">--</td>
+                <td class="col-amount amount">₹2,000</td>
+                <td class="col-status"><div class="success-badge">● SUCCESSFUL</div></td>
+              </tr>
+            
+          </tbody>
+        </table>
+        
+        <div class="footer">
+          End of Ledger • TREATMENT records only
+        </div>
+      </body>
+      </html>
+    

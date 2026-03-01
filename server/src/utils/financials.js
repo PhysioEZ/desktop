@@ -32,54 +32,40 @@ async function recalculatePatientFinancials(connection, patientId) {
     const historyConsumed = parseFloat(histRows[0].total || 0);
 
     // 4. calculate current plan consumption
-    // ensure rate is correct based on type
     let curRate = parseFloat(patient.treatment_cost_per_day || 0);
 
-    // if package, rate is package_cost / days
+    // if package, rate is total_amount (discounted net cost) / days
     if (patient.treatment_type === 'package' && patient.treatment_days > 0) {
-        curRate = parseFloat(patient.package_cost) / patient.treatment_days;
+        curRate = parseFloat(patient.total_amount) / patient.treatment_days;
     }
 
     const [attRows] = await connection.query(
-        "SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'",
+        "SELECT COUNT(DISTINCT SUBSTR(attendance_date, 1, 10)) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'",
         [patientId, patient.start_date || '2000-01-01']
     );
     const currentAttendanceCount = attRows[0].count;
     const currentConsumed = currentAttendanceCount * curRate;
 
-    // 5. final calculations
-    const totalConsumed = historyConsumed + currentConsumed;
-
-    // effective balance = what they paid - what they used
-    // positive = they have money in wallet
-    // negative = they owe money for what they used
-    const effectiveBalance = totalPaid - totalConsumed;
-
-    // due amount = total plan cost (including current) - total paid
-    // this reflects "how much more do i need to pay to finish this plan?"
-    // note: if they have a history of debt, total_amount should theoretically include it, 
-    // but in this system it seems 'total_amount' is just the current plan's cost.
-    // so due_amount is strictly about the current commitment vs what's been paid.
-    // however, if they had previous debt, it should be carried over.
-    // current logic implies: 
-    // due = (current_plan_total) - (total_paid - history_consumed) 
-    //     = current_plan_total - (total available for current plan)
-    //     = current_plan_total - (total_paid - history_consumed)
-    //     = current_plan_total - total_paid + history_consumed
-
-    // verify 'total_amount' handling:
-    // in registration/edit, total_amount IS the current plan cost.
-
+    // 5. Calculate Total Commitment vs Total Paid
+    // Cumulative logic: Dues = (All History Plan Costs + Current Plan Cost) - Total Paid
+    // This ensures that abandoned plan debt (the unused part) is PRESERVED if firm commitment.
+    const [costRows] = await connection.query(
+        "SELECT COALESCE(SUM(total_amount), 0) as total FROM patients_treatment WHERE patient_id = ?",
+        [patientId]
+    );
+    const totalHistoryCost = parseFloat(costRows[0].total || 0);
     const currentPlanCost = parseFloat(patient.total_amount || 0);
 
-    // debt/credit from past
-    const balanceFromHistory = totalPaid - historyConsumed;
+    // Final Calculations
+    const totalConsumed = historyConsumed + currentConsumed;
+    const effectiveBalance = totalPaid - totalConsumed;
 
-    // due = cost - (net available)
-    const dueAmount = currentPlanCost - balanceFromHistory;
+    // Final Due Amount (Contractual Liability)
+    const dueAmount = Math.max(0, (totalHistoryCost + currentPlanCost) - totalPaid);
 
     // 6. update patient record
-    // we also update 'treatment_cost_per_day' to ensure consistency if it was a package calculation
+    // effective balance = what they paid - what they used (liquidity)
+    // due_amount = total commitment - what they paid (liability)
     await connection.query(
         `UPDATE patients SET 
             advance_payment = ?, 

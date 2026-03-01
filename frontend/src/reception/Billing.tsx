@@ -1,3 +1,5 @@
+import NotesDrawer from "../components/NotesDrawer";
+import DailyIntelligence from "../components/DailyIntelligence";
 import { useState, useEffect, useRef, useMemo } from "react";
 import {
   format,
@@ -19,12 +21,13 @@ import {
   MessageCircle,
   Wallet,
   ArrowUpRight,
-  Banknote,
   RotateCcw,
   IndianRupee,
+  Banknote,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-// import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store";
 import { API_BASE_URL, authFetch } from "../config";
 import { toast } from "sonner";
@@ -35,12 +38,8 @@ import { usePatientStore } from "../store/usePatientStore";
 import PageHeader from "../components/PageHeader";
 import Sidebar from "../components/Sidebar";
 import TestDetailsModal from "../components/reception/TestDetailsModal";
-import DailyIntelligence from "../components/DailyIntelligence";
-import NotesDrawer from "../components/NotesDrawer";
-import LogoutConfirmation from "../components/LogoutConfirmation";
 import ChatModal from "../components/Chat/ChatModal";
-import KeyboardShortcuts from "../components/KeyboardShortcuts";
-
+import LogoutConfirmation from "../components/LogoutConfirmation";
 interface BillingRecord {
   patient_id: number;
   patient_name: string;
@@ -59,7 +58,8 @@ interface BillingRecord {
 
 const Billing = () => {
   const { isDark } = useThemeStore();
-  // const { user } = useAuthStore();
+  const navigate = useNavigate();
+  const { logout } = useAuthStore();
 
   // State
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -70,6 +70,8 @@ const Billing = () => {
   });
   const [records, setRecords] = useState<BillingRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showOnlyToday, setShowOnlyToday] = useState(false);
@@ -81,7 +83,6 @@ const Billing = () => {
 
   const [statsData, setStatsData] = useState<any>({ methods: [], trends: [] });
   const [showChatModal, setShowChatModal] = useState(false);
-
 
   // Custom Range States
   const [isCustomRange, setIsCustomRange] = useState(false);
@@ -110,7 +111,13 @@ const Billing = () => {
     fileName: string;
     downloadUrl?: string;
     downloadFileName?: string;
-  }>({ isOpen: false, url: "", fileName: "", downloadUrl: "", downloadFileName: "" });
+  }>({
+    isOpen: false,
+    url: "",
+    fileName: "",
+    downloadUrl: "",
+    downloadFileName: "",
+  });
 
   const [showIntelligence, setShowIntelligence] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
@@ -206,7 +213,7 @@ const Billing = () => {
   const handleRefresh = async () => {
     if (refreshCooldown > 0) return;
     await fetchData();
-    setRefreshCooldown(30);
+    setRefreshCooldown(20);
   };
 
   useEffect(() => {
@@ -375,10 +382,10 @@ const Billing = () => {
           </thead>
           <tbody>
             ${(() => {
-        if (activeTab === "overview") {
-          return dataToExport
-            .map(
-              (r) => `
+              if (activeTab === "overview") {
+                return dataToExport
+                  .map(
+                    (r) => `
               <tr>
                 <td>${format(new Date(r.last_activity), "dd MMM yy")}</td>
                 <td>${r.patient_name} (${r.billing_type})</td>
@@ -389,14 +396,14 @@ const Billing = () => {
                 <td style="text-align: center">--</td>
               </tr>
             `,
-            )
-            .join("");
-        }
+                  )
+                  .join("");
+              }
 
-        if (activeTab === "tests") {
-          return dataToExport
-            .map(
-              (r) => `
+              if (activeTab === "tests") {
+                return dataToExport
+                  .map(
+                    (r) => `
               <tr>
                 <td>${format(new Date(r.last_test_date), "dd MMM yy")}</td>
                 <td>${r.patient_name}</td>
@@ -407,13 +414,13 @@ const Billing = () => {
                 <td style="text-align: center">--</td>
               </tr>
             `,
-            )
-            .join("");
-        }
+                  )
+                  .join("");
+              }
 
-        return dataToExport
-          .map(
-            (r) => `
+              return dataToExport
+                .map(
+                  (r) => `
               <tr>
                 <td class="patient-id">#${r.patient_id}</td>
                 <td>${r.patient_name}</td>
@@ -426,9 +433,9 @@ const Billing = () => {
                 </td>
               </tr>
             `,
-          )
-          .join("");
-      })()}
+                )
+                .join("");
+            })()}
           </tbody>
         </table>
         
@@ -459,7 +466,9 @@ const Billing = () => {
           r.phone_number,
           r.billed_amount,
           r.paid_amount,
-          parseNum(r.billed_amount) - parseNum(r.paid_amount) - parseNum(r.discount),
+          parseNum(r.billed_amount) -
+            parseNum(r.paid_amount) -
+            parseNum(r.discount),
         ]);
       }
       if (activeTab === "tests") {
@@ -505,10 +514,7 @@ const Billing = () => {
     <div
       className={`flex h-screen overflow-hidden font-sans transition-colors duration-300 ${isDark ? "bg-[#050505] text-[#E2E8F0]" : "bg-[#FAFAFA] text-[#1A1A1A]"}`}
     >
-      <Sidebar
-        onShowChat={() => setShowChatModal(true)}
-        onShowShortcuts={() => setShowShortcuts(true)}
-      />
+      <Sidebar onShowChat={() => setShowChatModal(true)} />
 
       <div className="flex-1 h-screen overflow-hidden relative flex flex-col">
         <PageHeader
@@ -962,14 +968,15 @@ const Billing = () => {
                         setShowRangePicker("start");
                       }
                     }}
-                    className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide transition-all ${isCustomRange
-                      ? isDark
-                        ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
-                        : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
-                      : isDark
-                        ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5"
-                        : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
-                      }`}
+                    className={`hidden lg:flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide transition-all ${
+                      isCustomRange
+                        ? isDark
+                          ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                          : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
+                        : isDark
+                          ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5"
+                          : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
+                    }`}
                   >
                     <CalendarRange
                       size={16}
@@ -983,14 +990,15 @@ const Billing = () => {
                   {/* Today */}
                   <button
                     onClick={() => setShowOnlyToday(!showOnlyToday)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide transition-all ${showOnlyToday
-                      ? isDark
-                        ? "bg-[#4ADE80]/10 border-[#4ADE80]/30 text-[#4ADE80]"
-                        : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
-                      : isDark
-                        ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5"
-                        : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
-                      }`}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border font-bold text-xs uppercase tracking-wide transition-all ${
+                      showOnlyToday
+                        ? isDark
+                          ? "bg-[#4ADE80]/10 border-[#4ADE80]/30 text-[#4ADE80]"
+                          : "bg-emerald-50 border-emerald-200 text-emerald-700 shadow-sm"
+                        : isDark
+                          ? "bg-[#1A1C1A] border-[#2A2D2A] hover:bg-white/5"
+                          : "bg-white border-gray-200 text-gray-500 hover:bg-gray-50"
+                    }`}
                   >
                     <Zap
                       size={16}
@@ -1130,7 +1138,10 @@ const Billing = () => {
                             Select Report Category
                           </div>
                           {[
-                            { label: "Patients (Treatments)", type: "treatment" },
+                            {
+                              label: "Patients (Treatments)",
+                              type: "treatment",
+                            },
                             { label: "Diagnostic Tests", type: "test" },
                             { label: "Whole Overview", type: undefined },
                           ].map((opt) => (
@@ -1233,15 +1244,18 @@ const Billing = () => {
                     <div className="w-2 h-2 bg-current rounded-full animate-bounce delay-200" />
                   </div>
                 ) : (
-                  activeTab === "overview"
-                    ? combinedRecords.length === 0
-                    : activeTab === "patients"
-                      ? sortedRecords.length === 0
-                      : groupedTests.length === 0
-                ) ? (
+                    activeTab === "overview"
+                      ? combinedRecords.length === 0
+                      : activeTab === "patients"
+                        ? sortedRecords.length === 0
+                        : groupedTests.length === 0
+                  ) ? (
                   <div className="h-64 flex flex-col items-center justify-center opacity-40 gap-4">
                     <FileText size={48} strokeWidth={1} />
-                    <p className="font-bold text-gray-400">No records found</p>
+                    <p className="font-bold text-gray-400">
+                      No records found, Try changing the Filters or Select
+                      different Month
+                    </p>
                   </div>
                 ) : (
                   <div
@@ -1281,10 +1295,11 @@ const Billing = () => {
                                 {row.patient_name}
                               </span>
                               <span
-                                className={`text-[8px] font-black px-2 py-0.5 rounded tracking-[0.1em] uppercase ${row.billing_type === "test"
-                                  ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400"
-                                  : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
-                                  }`}
+                                className={`text-[8px] font-black px-2 py-0.5 rounded tracking-[0.1em] uppercase ${
+                                  row.billing_type === "test"
+                                    ? "bg-purple-100 text-purple-600 dark:bg-purple-900/40 dark:text-purple-400"
+                                    : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400"
+                                }`}
                               >
                                 {row.billing_type}
                               </span>
@@ -1310,8 +1325,8 @@ const Billing = () => {
                           >
                             {fmt(
                               parseNum(row.billed_amount) -
-                              parseNum(row.paid_amount) -
-                              parseNum(row.discount),
+                                parseNum(row.paid_amount) -
+                                parseNum(row.discount),
                             )}
                           </div>
                           <div className="w-[5%] flex justify-end">
@@ -1430,25 +1445,14 @@ const Billing = () => {
                           animate={{ opacity: 1, scale: 1 }}
                           transition={{ delay: idx * 0.03 }}
                           onClick={() => {
-                            if (row.patient_id) {
-                              openPatientDetails(
-                                {
-                                  patient_id: row.patient_id,
-                                  patient_name: row.patient_name,
-                                  patient_phone: row.phone_number,
-                                } as any,
-                                "test",
-                              );
-                            } else {
-                              toast.info(
-                                "Redirecting to patient's last test details...",
-                              );
-                              setSelectedTest({
-                                uid: row.patient_name,
+                            openPatientDetails(
+                              {
+                                patient_id: row.patient_id || 0,
                                 patient_name: row.patient_name,
-                              });
-                              setIsTestModalOpen(true);
-                            }
+                                phone_number: row.phone_number,
+                              } as any,
+                              "test",
+                            );
                           }}
                           className={`flex items-center px-8 py-4 transition-all cursor-pointer group hover:bg-gray-50 dark:hover:bg-white/5 border-b dark:border-white/5 last:border-0`}
                         >
@@ -1562,6 +1566,14 @@ const Billing = () => {
           onClose={() => setShowChatModal(false)}
         />
 
+        <LogoutConfirmation
+          isOpen={showLogoutConfirm}
+          onClose={() => setShowLogoutConfirm(false)}
+          onConfirm={() => {
+            logout();
+            navigate("/login");
+          }}
+        />
       </div>
     </div>
   );

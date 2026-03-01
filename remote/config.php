@@ -5,12 +5,12 @@
 
 // 1. Database Configuration
 define('DB_HOST', 'localhost');
-define('DB_USER', 'u861850327_root');
-define('DB_PASS', 'Spine33#');
-define('DB_NAME', 'u861850327_prospine');
+define('DB_USER', 'root');
+define('DB_PASS', '');
+define('DB_NAME', 'prospine');
 
 // 2. System Security Token (For Node.js to Bridge communication)
-$SECURITY_TOKEN = 'PhysioEZ_System_Double_Shield_2026_Security';
+$SECURITY_TOKEN = 'PhysioEZ_System_Double';
 
 // 3. Allowed Tables
 $ALLOWED_TABLES = [

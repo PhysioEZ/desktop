@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   TestTube2,
@@ -22,6 +22,7 @@ import Sidebar from "../components/Sidebar";
 import PageHeader from "../components/PageHeader";
 import { useAuthStore } from "../store/useAuthStore";
 import { useTestStore } from "../store/useTestStore";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import { API_BASE_URL, authFetch } from "../config";
 import { toast } from "sonner";
 
@@ -97,6 +98,7 @@ const Tests = () => {
   );
 
   const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
 
   const [showIntelligence, setShowIntelligence] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
@@ -185,111 +187,108 @@ const Tests = () => {
     }
   };
 
-  const fetchTests = async (
-    pageNum = 1,
-    searchParam = appliedSearchQuery,
-    forceRefresh = false,
-  ) => {
-    if (pageNum === 1) {
-      setIsLoading(true);
-    } else {
-      setIsLoadingMore(true);
-    }
-    try {
-      const params = new URLSearchParams();
-      params.append("action", "fetch");
-
-      const bodyData: any = {
-        action: "fetch",
-        page: pageNum,
-        limit: 15,
-        search: searchParam,
-      };
-
-      // Set status based on statusFilter
-      if (statusFilter !== "All") {
-        bodyData.status = statusFilter;
+  const fetchTests = useCallback(
+    async (pageNum = 1, searchStr?: string, force = false) => {
+      if (pageNum === 1) {
+        setIsLoading(true);
+      } else {
+        setIsLoadingMore(true);
       }
+      try {
+        const params = new URLSearchParams();
+        params.append("action", "fetch");
 
-      if (paymentFilter !== "All") {
-        bodyData.payment_status = paymentFilter;
-      }
+        const bodyData: any = {
+          action: "fetch",
+          page: pageNum,
+          limit: 15,
+          search: searchStr !== undefined ? searchStr : appliedSearchQuery,
+          force,
+        };
 
-      if (testTypeFilter !== "All") {
-        bodyData.test_name = testTypeFilter;
-      }
+        // Set status based on statusFilter
+        if (statusFilter !== "All") {
+          bodyData.status = statusFilter;
+        }
 
-      const response = await authFetch(
-        `${API_BASE_URL}/reception/tests?${params.toString()}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(forceRefresh && { "X-Refresh": "true" }),
+        if (paymentFilter !== "All") {
+          bodyData.payment_status = paymentFilter;
+        }
+
+        if (testTypeFilter !== "All") {
+          bodyData.test_name = testTypeFilter;
+        }
+
+        const response = await authFetch(
+          `${API_BASE_URL}/reception/tests?${params.toString()}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(bodyData),
           },
-          body: JSON.stringify(bodyData),
-        },
-      );
-      const res = await response.json();
-      if (res.success) {
-        if (pageNum === 1) {
-          setRecords(res.data);
-        } else {
-          setRecords((prev) => [...prev, ...res.data]);
-        }
-        setHasMore(res.data.length === 15);
-        setPage(pageNum);
+        );
+        const res = await response.json();
+        if (res.success) {
+          if (pageNum === 1) {
+            setRecords(res.data);
+          } else {
+            setRecords((prev) => [...prev, ...res.data]);
+          }
+          setHasMore(res.data.length === 15);
+          setPage(pageNum);
 
-        // Update stats only on initial fetch
-        if (pageNum === 1) {
-          setStats({
-            total: res.stats.total || 0,
-            completed: res.stats.completed || 0,
-            pending: res.stats.pending || 0,
-            cancelled: res.stats.cancelled || 0,
-            total_revenue: res.data.reduce(
-              (acc: number, curr: TestRecord) =>
-                acc + (Number(curr.total_amount) || 0),
-              0,
-            ),
-            total_paid: res.data.reduce(
-              (acc: number, curr: TestRecord) =>
-                acc + (Number(curr.paid_amount) || 0),
-              0,
-            ),
-            total_due: res.data.reduce(
-              (acc: number, curr: TestRecord) =>
-                acc + (Number(curr.due_amount) || 0),
-              0,
-            ),
-          });
+          // Update stats only on initial fetch
+          if (pageNum === 1) {
+            setStats({
+              total: res.stats.total || 0,
+              completed: res.stats.completed || 0,
+              pending: res.stats.pending || 0,
+              cancelled: res.stats.cancelled || 0,
+              total_revenue: res.data.reduce(
+                (acc: number, curr: TestRecord) =>
+                  acc + (Number(curr.total_amount) || 0),
+                0,
+              ),
+              total_paid: res.data.reduce(
+                (acc: number, curr: TestRecord) =>
+                  acc + (Number(curr.paid_amount) || 0),
+                0,
+              ),
+              total_due: res.data.reduce(
+                (acc: number, curr: TestRecord) =>
+                  acc + (Number(curr.due_amount) || 0),
+                0,
+              ),
+            });
+          }
         }
+        // Also fetch approvals
+        await fetchApprovals();
+      } catch (error) {
+        console.error("Fetch Tests Error:", error);
+      } finally {
+        setIsLoading(false);
+        setIsLoadingMore(false);
       }
-      // Also fetch approvals
-      await fetchApprovals();
-    } catch (error) {
-      console.error("Fetch Tests Error:", error);
-    } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
-    }
-  };
+    },
+    [
+      appliedSearchQuery,
+      statusFilter,
+      paymentFilter,
+      testTypeFilter,
+      fetchApprovals,
+      _user?.branch_id,
+    ],
+  );
 
   const isFirstMount = useRef(true);
 
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
-      if (
-        records.length > 0 &&
-        statusFilter === "All" &&
-        paymentFilter === "All" &&
-        testTypeFilter === "All" &&
-        appliedSearchQuery === ""
-      ) {
-        fetchApprovals();
-        return;
-      }
+      fetchApprovals();
     }
     fetchTests(1, appliedSearchQuery);
   }, [statusFilter, paymentFilter, testTypeFilter]);
@@ -301,10 +300,14 @@ const Tests = () => {
     }
   }, [refreshCooldown]);
 
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     if (refreshCooldown > 0) return;
-    fetchTests(1, appliedSearchQuery, true);
-    setRefreshCooldown(30);
+    smartRefresh("test", {
+      onSuccess: async () => {
+        await fetchTests(1, undefined, true);
+        setRefreshCooldown(20);
+      },
+    });
   };
 
   const handleSearchClick = () => {
@@ -339,12 +342,12 @@ const Tests = () => {
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <PageHeader
-          title="Tests"
-          subtitle="Lab Registry"
+          title="Lab Registry"
+          subtitle="Diagnostics & Tests"
           icon={TestTube2}
           onRefresh={handleRefresh}
           refreshCooldown={refreshCooldown}
-          isLoading={isLoading}
+          isLoading={isLoading || isRefreshing}
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}
         />
@@ -483,60 +486,6 @@ const Tests = () => {
                 </div>
               </div>
               <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-white/5 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-700" />
-            </div>
-
-            {/* 3. Test Types Distribution Card - Consolidated */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                  Service Distribution
-                </h3>
-              </div>
-
-              <div
-                className={`p-6 rounded-[32px] border ${isDark ? "bg-white/[0.02] border-white/5" : "bg-white border-slate-100 shadow-sm"} space-y-6`}
-              >
-                {[
-                  {
-                    name: "EEG (Brain Test)",
-                    count: 24,
-                    progress: 65,
-                    color:
-                      "bg-indigo-500 shadow-[0_0_10px_rgba(99,102,241,0.3)]",
-                  },
-                  {
-                    name: "NCV (Nerve Test)",
-                    count: 18,
-                    progress: 45,
-                    color:
-                      "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]",
-                  },
-                  {
-                    name: "BERA (Hearing Test)",
-                    count: 12,
-                    progress: 30,
-                    color: "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.3)]",
-                  },
-                ].map((item, idx) => (
-                  <div key={idx} className="group">
-                    <div className="flex justify-between items-center mb-2.5">
-                      <span className="text-[9px] font-black uppercase tracking-widest opacity-40 group-hover:opacity-100 transition-opacity">
-                        {item.name}
-                      </span>
-                      <span className="text-xs font-black tracking-tight">
-                        {item.count}
-                      </span>
-                    </div>
-                    <div className="h-1.5 w-full bg-black/5 dark:bg-white/5 rounded-full overflow-hidden">
-                      <motion.div
-                        initial={{ width: 0 }}
-                        animate={{ width: `${item.progress}%` }}
-                        className={`h-full ${item.color}`}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
             </div>
 
             {/* Important Info */}
@@ -1144,6 +1093,7 @@ const Tests = () => {
               isOpen={isDetailsModalOpen}
               onClose={() => setIsDetailsModalOpen(false)}
               test={selectedTest}
+              onTestUpdate={() => fetchTests(1, appliedSearchQuery)}
             />
           )}
         </AnimatePresence>

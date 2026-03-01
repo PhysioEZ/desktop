@@ -3,11 +3,21 @@ const cors = require('cors');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
-require('./scripts/syncEngine');
 const authRoutes = require('./api/auth/router');
 
 const app = express();
+app.disable('etag');
 const PORT = process.env.PORT || 3000;
+
+
+// Force fresh data for all API requests
+app.use('/api', (req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    next();
+});
+
 
 // Rate Turners
 const globalLimiter = rateLimit({
@@ -42,24 +52,14 @@ app.use(cors({
         }
     },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Employee-ID', 'X-Branch-ID', 'X-Refresh', 'X-Force-Remote'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Employee-ID', 'X-Branch-ID'],
     credentials: true
 }));
 app.use(express.json({ limit: '50mb' })); // Increased limit for photo uploads
 app.use(morgan('dev'));
 
 const pool = require('./config/db');
-app.use((req, res, next) => {
-    const forceRemote = req.headers['x-force-remote'] === 'true' || req.headers['x-refresh'] === 'true';
-    if (forceRemote) {
-        // Trigger a background sync immediately so the data is fresh for the next query
-        if (global.triggerFastSync) global.triggerFastSync();
-
-        pool.queryContext.run({ forceRemote: true }, next);
-    } else {
-        next();
-    }
-});
+// Direct MySQL pool connection
 
 // Apply Global Rate Limiter to all requests
 app.use(globalLimiter);
@@ -91,11 +91,11 @@ const frontendBuildPath = path.join(__dirname, '../../frontend/dist');
 app.use(express.static(frontendBuildPath));
 
 // Handle SPA routing - redirect all non-api routes to index.html
-app.get('*', (req, res, next) => {
-    if (req.url.startsWith('/api') || req.url.startsWith('/uploads') || req.url.startsWith('/assets')) {
-        return next();
+app.use((req, res, next) => {
+    if (req.method === 'GET' && !req.url.startsWith('/api') && !req.url.startsWith('/uploads') && !req.url.startsWith('/assets')) {
+        return res.sendFile(path.join(frontendBuildPath, 'index.html'));
     }
-    res.sendFile(path.join(frontendBuildPath, 'index.html'));
+    next();
 });
 
 // 404 Handler (only for /api routes now since others go to index.html)

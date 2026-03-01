@@ -62,15 +62,10 @@ export const useTestStore = create<TestStore>()(
       lastFetched: null,
       setTests: (tests) => set({ tests }),
       setLastFetched: (time) => set({ lastFetched: time }),
-      fetchTests: async (branchId: number, pageNum = 1, limitNum = 15, forceRefresh = false) => {
-        const { tests, lastFetched } = get();
+      fetchTests: async (branchId: number, pageNum = 1, limitNum = 15) => {
+        const { tests } = get();
         
-        // Use cache if not forced and we have data fetched recently
-        if (!forceRefresh && tests.length > 0 && lastFetched) {
-           return;
-        }
-
-        if (pageNum === 1) {
+        if (pageNum === 1 && tests.length === 0) {
           set({ isLoading: true });
         }
         
@@ -91,8 +86,7 @@ export const useTestStore = create<TestStore>()(
             {
               method: "POST",
               headers: { 
-                "Content-Type": "application/json",
-                ...(forceRefresh && { "X-Refresh": "true" })
+                "Content-Type": "application/json"
               },
               body: JSON.stringify(bodyData),
             }

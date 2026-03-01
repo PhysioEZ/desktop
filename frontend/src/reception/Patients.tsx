@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "../store/useAuthStore";
 import { usePatientStore } from "../store/usePatientStore";
 import { useThemeStore } from "../store/useThemeStore";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import { API_BASE_URL, authFetch } from "../config";
 import CustomSelect from "../components/ui/CustomSelect";
 import PatientDetailsModal from "../components/patients/PatientDetailsModal";
@@ -46,7 +47,10 @@ const Patients = () => {
     fetchPatients,
     fetchMetaData,
     openPatientDetails,
+    updateLocalPatientAttendance,
   } = usePatientStore();
+
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
 
   // Local UI State
   const [refreshCooldown, setRefreshCooldown] = useState(0);
@@ -69,6 +73,10 @@ const Patients = () => {
     patient: any | null;
   }>({ open: false, patient: null });
 
+  const [processingPatients, setProcessingPatients] = useState<Set<number>>(
+    new Set(),
+  );
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Initial Data Fetch
@@ -84,16 +92,6 @@ const Patients = () => {
 
     if (isFirstMount.current) {
       isFirstMount.current = false;
-      if (
-        patients.length > 0 &&
-        filters.search === "" &&
-        filters.service_type === "" &&
-        filters.doctor === "" &&
-        filters.treatment === "" &&
-        filters.status === ""
-      ) {
-        return;
-      }
     }
 
     const runFetch = () => fetchPatients(user.branch_id as number);
@@ -120,26 +118,32 @@ const Patients = () => {
 
   const handleRefresh = async () => {
     if (refreshCooldown > 0 || !user?.branch_id) return;
-    const loadToast = toast.loading("Refreshing patients...");
-    try {
-      await fetchPatients(user.branch_id, true);
-      await fetchMetaData(user.branch_id, true);
-      toast.success("Patient list updated", { id: loadToast });
-      setRefreshCooldown(20);
-    } catch (e) {
-      toast.error("Failed to refresh", { id: loadToast });
-    }
+    smartRefresh("patients", {
+      onSuccess: async () => {
+        await usePatientStore.getState().fetchPatients(user.branch_id);
+        await usePatientStore.getState().fetchMetaData(user.branch_id);
+        setRefreshCooldown(20);
+      },
+    });
   };
 
   const handleMarkAttendance = async (e: React.MouseEvent, patient: any) => {
     e.stopPropagation();
-    if (patient.today_attendance === "present") return;
+    if (
+      patient.today_attendance === "present" ||
+      processingPatients.has(patient.patient_id)
+    )
+      return;
+
+    setProcessingPatients((prev) => new Set(prev).add(patient.patient_id));
 
     const cost = parseFloat(patient.cost_per_day || "0");
     const balance = parseFloat(patient.effective_balance || "0");
 
     if (Math.round(balance * 100) >= Math.round(cost * 100) || cost === 0) {
-      const loadingToast = toast.loading("Marking attendance...");
+      const loadingToast = toast.loading(
+        `Marking ${patient.patient_name} present...`,
+      );
       try {
         const res = await authFetch(`${API_BASE_URL}/reception/attendance`, {
           method: "POST",
@@ -152,9 +156,16 @@ const Patients = () => {
           }),
         });
         const data = await res.json();
+
         if (data.success || data.status === "success") {
-          toast.success("Attendance marked successfully");
-          fetchPatients(user!.branch_id);
+          toast.success(data.message || "Attendance marked successfully");
+          updateLocalPatientAttendance(patient.patient_id, "present", 1, -cost);
+        } else if (
+          data.status === "payment_required" ||
+          data.message?.includes("Insufficient Balance") ||
+          data.message?.includes("insufficient")
+        ) {
+          setAttendanceModal({ open: true, patient });
         } else {
           toast.error(data.message || "Failed to mark attendance");
         }
@@ -162,9 +173,19 @@ const Patients = () => {
         toast.error("Error marking attendance");
       } finally {
         toast.dismiss(loadingToast);
+        setProcessingPatients((prev) => {
+          const next = new Set(prev);
+          next.delete(patient.patient_id);
+          return next;
+        });
       }
     } else {
       setAttendanceModal({ open: true, patient });
+      setProcessingPatients((prev) => {
+        const next = new Set(prev);
+        next.delete(patient.patient_id);
+        return next;
+      });
     }
   };
 
@@ -186,7 +207,15 @@ const Patients = () => {
       const data = await res.json();
       if (data.success || data.status === "success") {
         toast.success("Attendance reverted successfully");
-        await fetchPatients(user.branch_id);
+        const cost = parseFloat(revertModal.patient.cost_per_day || "0");
+        updateLocalPatientAttendance(
+          revertModal.patient.patient_id,
+          "",
+          -1,
+          cost,
+        );
+        setRevertModal({ open: false, patient: null });
+        fetchPatients(user.branch_id);
       } else {
         toast.error(data.message || "Failed to revert attendance");
       }
@@ -203,12 +232,12 @@ const Patients = () => {
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <PageHeader
-          title="Patients"
-          subtitle="Operations Center"
+          title="Patients List"
+          subtitle="Record Management"
           icon={Users}
           onRefresh={handleRefresh}
+          isLoading={isLoading || isRefreshing}
           refreshCooldown={refreshCooldown}
-          isLoading={isLoading}
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}
         />
@@ -413,7 +442,7 @@ const Patients = () => {
                 <div className="h-40 flex flex-col items-center justify-center opacity-30 gap-4">
                   <RefreshCw size={24} className="animate-spin" />
                   <p className="text-[9px] font-black uppercase tracking-widest">
-                    Syncing Registry...
+                    Updating Registry...
                   </p>
                 </div>
               ) : patients.length === 0 ? (
@@ -438,12 +467,17 @@ const Patients = () => {
                     className="flex flex-col gap-3 pb-40"
                   >
                     {patients.map((patient, idx) => {
-                      const totalDays = patient.treatment_days || 1;
+                      const totalDays = Math.max(
+                        patient.treatment_days || 1,
+                        patient.attendance_count || 1,
+                      );
                       const progress = Math.min(
                         100,
                         (patient.attendance_count / totalDays) * 100,
                       );
-                      const isPresent = patient.today_attendance === "present";
+                      const isPresent =
+                        patient.today_attendance === "present" ||
+                        patient.today_attendance === "pending";
                       const isPending = patient.today_attendance === "pending";
                       const effectiveBalance = isNaN(
                         parseFloat(String(patient.effective_balance)),
@@ -657,7 +691,7 @@ const Patients = () => {
             </div>
 
             {/* Compact Centered Pagination */}
-            <div className="flex justify-center mt-8">
+            <div className="flex justify-center mt-0">
               <div
                 className={`flex items-center gap-6 px-6 py-3 rounded-full border shadow-xl ${isDark ? "bg-[#141619] border-white/5" : "bg-white border-gray-100"}`}
               >

@@ -59,8 +59,8 @@ const uploadNotes = multer({
 router.get("/dashboard", dashboardController.getDashboardData);
 
 // GET /api/reception/check_updates
-const checkUpdatesController = require("./checkUpdates");
-router.get("/check_updates", checkUpdatesController.checkUpdates);
+// const checkUpdatesController = require("./checkUpdates");
+// router.get("/check_updates", checkUpdatesController.checkUpdates);
 
 // POST /api/reception/approve_request
 const approvalsController = require("./approvals");

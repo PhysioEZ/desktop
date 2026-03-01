@@ -7,6 +7,10 @@ export interface ChatUser {
   full_name: string;
   role: string;
   unread_count: number;
+  last_message?: string;
+  last_message_type?: string;
+  last_message_time?: string | null;
+  is_sender?: boolean;
 }
 
 export interface ChatMessage {

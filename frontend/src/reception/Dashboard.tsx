@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
+import { useInquiryStore } from "../store/useInquiryStore";
 import { API_BASE_URL, authFetch } from "../config";
 import { motion, AnimatePresence } from "framer-motion";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import { toast } from "sonner";
 import { format } from "date-fns";
 
@@ -29,7 +31,6 @@ import {
   Hourglass,
   Phone,
   LayoutGrid,
-  Banknote,
   Info,
   StickyNote,
   UserPlus,
@@ -44,6 +45,7 @@ import {
   ClipboardCheck,
   Sparkles,
   Percent,
+  Banknote,
 } from "lucide-react";
 import { useThemeStore } from "../store/useThemeStore";
 import CustomSelect from "../components/ui/CustomSelect";
@@ -52,13 +54,12 @@ import ChatModal from "../components/Chat/ChatModal";
 import KeyboardShortcuts, {
   type ShortcutItem,
 } from "../components/KeyboardShortcuts";
-import LogoutConfirmation from "../components/LogoutConfirmation";
-import DailyIntelligence from "../components/DailyIntelligence";
 import { useUIStore } from "../store/useUIStore";
 import { useDashboardStore } from "../store";
 import Sidebar from "../components/Sidebar";
+import LogoutConfirmation from "../components/LogoutConfirmation";
+import DailyIntelligence from "../components/DailyIntelligence";
 import NotesDrawer from "../components/NotesDrawer";
-
 type ModalType =
   | "registration"
   | "test"
@@ -236,9 +237,7 @@ const ReceptionDashboard = () => {
   const setData = useDashboardStore((s) => s.setData);
   const formOptions = useDashboardStore((s) => s.formOptions);
   const setFormOptions = useDashboardStore((s) => s.setFormOptions);
-  const lastSync = useDashboardStore((s) => s.lastSync);
   const setLastSync = useDashboardStore((s) => s.setLastSync);
-  const lastAccessTime = useDashboardStore((s) => s.lastAccessTime);
   const pendingApprovals = useDashboardStore((s) => s.pendingApprovals);
   const setPendingApprovals = useDashboardStore((s) => s.setPendingApprovals);
   const storeTimeSlots = useDashboardStore((s) => s.timeSlots);
@@ -256,6 +255,9 @@ const ReceptionDashboard = () => {
   // ... other state ...
   const notifList = notifications || [];
   const [refreshCooldown, setRefreshCooldown] = useState(0);
+
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
+
   const [approvalRefreshCooldown, setApprovalRefreshCooldown] = useState(0);
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [formViewMode, setFormViewMode] = useState<"chunked" | "all">(
@@ -440,27 +442,24 @@ const ReceptionDashboard = () => {
   const pendingList = pendingApprovals || [];
   const currentSlots = storeTimeSlots?.slots || [];
 
-  const fetchApprovals = useCallback(
-    async (forceRefresh = false) => {
-      if (!user?.branch_id) return [];
-      try {
-        const res = await authFetch(
-          `${API_BASE_URL}/reception/get_pending_approvals?branch_id=${user.branch_id}`,
-          { headers: { ...(forceRefresh && { "X-Refresh": "true" }) } },
-        );
-        const resData = await res.json();
-        if (resData.success) {
-          setPendingApprovals(resData.data || []);
-          return resData.data || [];
-        }
-        return [];
-      } catch (e) {
-        console.error("Error fetching approvals", e);
-        return [];
+  const fetchApprovals = useCallback(async () => {
+    if (!user?.branch_id) return [];
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/get_pending_approvals?branch_id=${user.branch_id}`,
+        { headers: {} },
+      );
+      const resData = await res.json();
+      if (resData.success) {
+        setPendingApprovals(resData.data || []);
+        return resData.data || [];
       }
-    },
-    [user?.branch_id, setPendingApprovals],
-  );
+      return [];
+    } catch (e) {
+      console.error("Error fetching approvals", e);
+      return [];
+    }
+  }, [user?.branch_id, setPendingApprovals]);
 
   // Theme Logic from store
   const { isDark, toggleTheme } = useThemeStore();
@@ -475,25 +474,22 @@ const ReceptionDashboard = () => {
 
   // --- GRANULAR FETCHERS ---
 
-  const fetchMainDashboard = useCallback(
-    async (forceRefresh = false) => {
-      if (!user?.branch_id) return;
-      try {
-        const res = await authFetch(
-          `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
-          { headers: { ...(forceRefresh && { "X-Refresh": "true" }) } },
-        );
-        const data = await res.json();
-        if (data.status === "success") {
-          setData(data.data);
-          if (data.data.serverTime) setLastSync(data.data.serverTime);
-        }
-      } catch (e) {
-        console.error("Error fetching dashboard stats:", e);
+  const fetchMainDashboard = useCallback(async () => {
+    if (!user?.branch_id) return;
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
+        { headers: {} },
+      );
+      const data = await res.json();
+      if (data.status === "success") {
+        setData(data.data);
+        if (data.data.serverTime) setLastSync(data.data.serverTime);
       }
-    },
-    [user?.branch_id, setData, setLastSync],
-  );
+    } catch (e) {
+      console.error("Error fetching dashboard stats:", e);
+    }
+  }, [user?.branch_id, setData, setLastSync]);
 
   const performAutoApprovals = useCallback(
     async (listOverride?: any[]) => {
@@ -513,28 +509,25 @@ const ReceptionDashboard = () => {
 
       if (qualifying.length === 0) return;
 
-      let approvedCount = 0;
-      for (const item of qualifying) {
-        try {
-          const res = await authFetch(
-            `${API_BASE_URL}/reception/approve_request`,
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                request_id: item.id,
-                request_type: item.type,
-                branch_id: user.branch_id,
-                status: "approved",
-                approved_by: "System Auto-Approve",
-              }),
-            },
-          );
-          if (res.ok) approvedCount++;
-        } catch (e) {
+      const approvalPromises = qualifying.map((item: any) =>
+        authFetch(`${API_BASE_URL}/reception/approve_request`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            request_id: item.id,
+            request_type: item.type,
+            branch_id: user.branch_id,
+            status: "approved",
+            approved_by: "System Auto-Approve",
+          }),
+        }).catch((e) => {
           console.error("Auto approval failed for item:", item.id, e);
-        }
-      }
+          return null;
+        }),
+      );
+
+      const results = await Promise.all(approvalPromises);
+      const approvedCount = results.filter((r) => r && r.ok).length;
 
       // Refresh data after processing if any were approved
       if (approvedCount > 0) {
@@ -577,38 +570,35 @@ const ReceptionDashboard = () => {
   }, [user?.branch_id, appointmentDate, setFormOptions, selectedTests]);
 
   // --- LOGIC: FETCHING ---
-  const fetchNotifs = useCallback(
-    async (forceRefresh = false) => {
-      try {
-        const res = await authFetch(
-          `${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ""}`,
-          { headers: { ...(forceRefresh && { "X-Refresh": "true" }) } },
-        );
-        const data = await res.json();
-        if (data.success || data.status === "success") {
-          setNotifications(data.notifications || []);
-          setUnreadCount(data.unread_count || 0);
-        }
-      } catch (err) {
-        console.error(err);
+  const fetchNotifs = useCallback(async () => {
+    try {
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/notifications?employee_id=${user?.employee_id || ""}`,
+        { headers: {} },
+      );
+      const data = await res.json();
+      if (data.success || data.status === "success") {
+        setNotifications(data.notifications || []);
+        setUnreadCount(data.unread_count || 0);
       }
-    },
-    [user?.employee_id, setNotifications, setUnreadCount],
-  );
+    } catch (err) {
+      console.error(err);
+    }
+  }, [user?.employee_id, setNotifications, setUnreadCount]);
 
   const isInitialLoad = useRef(!data);
   const fetchAll = useCallback(
-    async (showLoading = true, forceRefresh = false) => {
+    async (showLoading = true) => {
       if (!user?.branch_id) return;
       if (showLoading) setIsLoading(true);
 
       try {
         window.dispatchEvent(new CustomEvent("trigger-system-status-check"));
         await Promise.all([
-          fetchMainDashboard(forceRefresh),
+          fetchMainDashboard(),
           fetchFormOptionsData(),
-          fetchNotifs(forceRefresh),
-          fetchApprovals(forceRefresh),
+          fetchNotifs(),
+          fetchApprovals(),
         ]);
         // Trigger auto-approvals after data is loaded
         performAutoApprovals();
@@ -657,7 +647,7 @@ const ReceptionDashboard = () => {
     try {
       const latestList = await fetchApprovals();
       await performAutoApprovals(latestList);
-      toast.success("Approvals synchronized", { id: toastId });
+      toast.success("Approvals updated", { id: toastId });
       setApprovalRefreshCooldown(20);
     } catch (err) {
       console.error("Manual Approval Refresh Error:", err);
@@ -668,25 +658,14 @@ const ReceptionDashboard = () => {
   };
 
   const handleRefresh = async () => {
-    if (refreshCooldown > 0 || isLoading) return;
+    if (refreshCooldown > 0 || !user?.branch_id) return;
 
-    // Trigger system status check manually on refresh
-    window.dispatchEvent(new CustomEvent("trigger-system-status-check"));
-
-    setIsLoading(true);
-    const toastId = toast.loading("Checking for updates...");
-
-    try {
-      // Direct full fetch with X-Refresh header as requested, bypassing check_updates
-      await fetchAll(true, true);
-      toast.success("System updated with latest records", { id: toastId });
-      setRefreshCooldown(30);
-    } catch (err) {
-      console.error("Refresh Error:", err);
-      toast.error("Sync failed", { id: toastId });
-    } finally {
-      setIsLoading(false);
-    }
+    smartRefresh("Dashboard data", {
+      onSuccess: async () => {
+        await fetchAll(true);
+        setRefreshCooldown(20);
+      },
+    });
   };
 
   // Fetch Time Slots
@@ -712,88 +691,12 @@ const ReceptionDashboard = () => {
     if (!user?.branch_id) return;
 
     const now = Date.now();
-    const prevAccess = lastAccessTime || 0;
-    const diff = (now - prevAccess) / 1000;
-
     // Update last access time immediately as the "page is opened"
     useDashboardStore.setState({ lastAccessTime: now });
 
-    // If never synced or no data, do a full fetch
-    if (!data || !lastSync) {
-      await fetchAll();
-      return;
-    }
-
-    // Within 15s window - skip all server hits
-    // if (diff < 15) {
-    //   return;
-    // }
-
-    // Over 15s - check if DB actually changed before doing a heavy fetch
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/check_updates?branch_id=${user.branch_id}&last_sync=${lastSync}`,
-      );
-      const updateData = await res.json();
-
-      if (updateData.success && updateData.hasChanges) {
-        const syncTasks = [];
-
-        // Granular Sync Logic
-        const mainDataTables = [
-          "registration",
-          "tests",
-          "patients",
-          "quick_inquiry",
-          "test_inquiry",
-          "attendance",
-          "payments",
-        ];
-        const hasMainChanges = mainDataTables.some(
-          (table) => updateData.changes[table],
-        );
-
-        if (hasMainChanges) syncTasks.push(fetchMainDashboard());
-        if (updateData.changes["notifications"]) syncTasks.push(fetchNotifs());
-        if (updateData.changes["registration"] || updateData.changes["tests"])
-          syncTasks.push(fetchApprovals());
-
-        // If registration modal is open, always refresh slots if registration changes detected
-        if (
-          activeModal === "registration" &&
-          appointmentDate &&
-          updateData.changes["registration"]
-        ) {
-          syncTasks.push(fetchTimeSlots(appointmentDate));
-        }
-
-        if (syncTasks.length > 0) {
-          await Promise.all(syncTasks);
-          // Clear search cache if patients or related records changed
-          if (hasMainChanges) {
-            useDashboardStore.setState({ searchCache: {} });
-          }
-        }
-
-        if (updateData.serverTime) setLastSync(updateData.serverTime);
-      }
-    } catch (err) {
-      console.error("Smart update check failed:", err);
-    }
-  }, [
-    user?.branch_id,
-    lastAccessTime,
-    data,
-    lastSync,
-    fetchAll,
-    fetchMainDashboard,
-    fetchNotifs,
-    fetchApprovals,
-    activeModal,
-    appointmentDate,
-    fetchTimeSlots,
-    setLastSync,
-  ]);
+    // With pure server-side architecture, we fetch all directly
+    await fetchAll(false);
+  }, [user?.branch_id, fetchAll]);
 
   // Fetch time slots when registration modal is opened
   useEffect(() => {
@@ -1347,10 +1250,11 @@ const ReceptionDashboard = () => {
           inquiry_type: formObject.inquiry_type || null,
           communication_type: formObject.communication_type || null,
           referralSource: formObject.referralSource || "self",
+          referred_by: formObject.referred_by || "",
           conditionType: formObject.conditionType || "",
           conditionType_other: formObject.conditionType_other || "",
           remarks: formObject.remarks || "",
-          expected_date: formObject.expected_date || null,
+          expected_date: formObject.expected_visit_date || null,
         };
       } else if (activeModal === "test_inquiry") {
         endpoint = `${API_BASE_URL}/reception/test_inquiry_submit`;
@@ -1359,7 +1263,7 @@ const ReceptionDashboard = () => {
           patient_name: formObject.patient_name,
           test_name: formObject.test_name,
           referred_by: formObject.referred_by || "",
-          phone_number: formObject.phone_number,
+          phone_number: formObject.phone,
           expected_visit_date: formObject.expected_visit_date || null,
         };
       }
@@ -1384,6 +1288,23 @@ const ReceptionDashboard = () => {
         // Smart refresh: Clear cached slots and trigger update check after successful submit
         if (activeModal === "registration") {
           useDashboardStore.setState({ timeSlots: null });
+        }
+
+        // Clear inquiry cache after successful inquiry/test_inquiry submission
+        if (activeModal === "inquiry" || activeModal === "test_inquiry") {
+          console.log("[Dashboard] Clearing inquiry cache after submission");
+          useInquiryStore.setState({
+            consultations: null,
+            diagnostics: null,
+            followUpLogs: {},
+          });
+          // Also clear localStorage cache
+          try {
+            localStorage.removeItem("inquiry-cache");
+            console.log("[Dashboard] Cleared inquiry localStorage cache");
+          } catch (e) {
+            console.error("[Dashboard] Error clearing localStorage", e);
+          }
         }
 
         // Clear search cache on successful submission
@@ -1806,8 +1727,8 @@ const ReceptionDashboard = () => {
                 <div className="flex flex-col items-end mr-2">
                   <button
                     onClick={handleRefresh}
-                    disabled={isLoading || refreshCooldown > 0}
-                    className={`w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 ${isLoading ? "animate-spin" : ""} ${refreshCooldown > 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                    disabled={isLoading || isRefreshing || refreshCooldown > 0}
+                    className={`w-10 h-10 flex items-center justify-center rounded-[14px] transition-all hover:bg-white dark:hover:bg-white/10 ${isLoading || isRefreshing ? "animate-spin" : ""} ${refreshCooldown > 0 ? "opacity-50 cursor-not-allowed" : ""}`}
                     title={
                       refreshCooldown > 0
                         ? `Wait ${refreshCooldown}s`
@@ -3720,6 +3641,17 @@ const ReceptionDashboard = () => {
                                 value={inqSource}
                               />
                             </FormField>
+                            <FormField
+                              label="Referred By (Source)"
+                              icon={Search}
+                            >
+                              <input
+                                type="text"
+                                name="referred_by"
+                                className={inputClass}
+                                placeholder="Name of referring source/person"
+                              />
+                            </FormField>
                             <FormField label="Next Step / Plan" icon={Calendar}>
                               <div
                                 onClick={() => {
@@ -3741,7 +3673,7 @@ const ReceptionDashboard = () => {
                               </div>
                               <input
                                 type="hidden"
-                                name="plan_to_visit_date"
+                                name="expected_visit_date"
                                 value={inquiryDate}
                               />
                             </FormField>
@@ -3821,18 +3753,13 @@ const ReceptionDashboard = () => {
                                 required
                               />
                             </FormField>
-                            <FormField label="Expected Amount" icon={Wallet}>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
-                                  ₹
-                                </span>
-                                <input
-                                  type="number"
-                                  name="expected_amount"
-                                  className="w-full bg-white border border-slate-200 rounded-lg pl-6 pr-3 py-2 text-sm font-bold outline-none focus:border-emerald-500"
-                                  placeholder="0"
-                                />
-                              </div>
+                            <FormField label="Referred By" icon={Search}>
+                              <input
+                                type="text"
+                                name="referred_by"
+                                className={inputClass}
+                                placeholder="Name of referring source/person"
+                              />
                             </FormField>
                             <FormField label="Expected Visit" icon={Calendar}>
                               <div

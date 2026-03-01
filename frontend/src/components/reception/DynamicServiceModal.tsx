@@ -29,6 +29,8 @@ import {
   User,
   Plus,
   Eye,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL, authFetch } from "../../config";
@@ -36,6 +38,7 @@ import { format, addDays } from "date-fns";
 import CustomSelect from "../ui/CustomSelect";
 import DatePicker from "../ui/DatePicker";
 import { useRegistrationStore } from "../../store/useRegistrationStore";
+import { useSmartRefresh } from "../../hooks/useSmartRefresh";
 
 interface FormField {
   id: string;
@@ -223,6 +226,8 @@ const DynamicServiceModal = ({
     employees: [],
   });
   const [availableSlots, setAvailableSlots] = useState<any[]>([]);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
 
   const {
     dynamicModalOptions,
@@ -231,42 +236,46 @@ const DynamicServiceModal = ({
     setServiceSlotsCache,
   } = useRegistrationStore();
 
-  const fetchOptions = useCallback(async () => {
-    // Cache check - now branch sensitive
-    if (
-      dynamicModalOptions &&
-      dynamicModalOptions.branchId === registration.branch_id &&
-      dynamicModalOptions.employees.length > 0
-    ) {
-      setOptions(dynamicModalOptions);
-      return;
-    }
+  const fetchOptions = useCallback(
+    async (force = false) => {
+      // Cache check - now branch sensitive
+      if (
+        !force &&
+        dynamicModalOptions &&
+        dynamicModalOptions.branchId === registration.branch_id &&
+        dynamicModalOptions.employees.length > 0
+      ) {
+        setOptions(dynamicModalOptions);
+        return;
+      }
 
-    try {
-      const resOptions = await authFetch(
-        `${API_BASE_URL}/reception/form_options?branch_id=${registration.branch_id}`,
-      );
-      const dataOptions = await resOptions.json();
-      const resPayments = await authFetch(
-        `${API_BASE_URL}/reception/get_payment_methods`,
-      );
-      const dataPayments = await resPayments.json();
+      try {
+        const resOptions = await authFetch(
+          `${API_BASE_URL}/reception/form_options?branch_id=${registration.branch_id}`,
+        );
+        const dataOptions = await resOptions.json();
+        const resPayments = await authFetch(
+          `${API_BASE_URL}/reception/get_payment_methods`,
+        );
+        const dataPayments = await resPayments.json();
 
-      const newOptions = {
-        branchId: registration.branch_id,
-        paymentMethods:
-          dataPayments.status === "success" ? dataPayments.data : [],
-        employees:
-          dataOptions.status === "success" ? dataOptions.data.employees : [],
-      };
+        const newOptions = {
+          branchId: registration.branch_id,
+          paymentMethods:
+            dataPayments.status === "success" ? dataPayments.data : [],
+          employees:
+            dataOptions.status === "success" ? dataOptions.data.employees : [],
+        };
 
-      setOptions(newOptions);
-      setDynamicModalOptions(newOptions);
-    } catch (err) {
-      console.error("Failed to fetch options:", err);
-      setError("System clinical registries are currently unavailable.");
-    }
-  }, [dynamicModalOptions, registration.branch_id, setDynamicModalOptions]);
+        setOptions(newOptions);
+        setDynamicModalOptions(newOptions);
+      } catch (err) {
+        console.error("Failed to fetch options:", err);
+        setError("System clinical registries are currently unavailable.");
+      }
+    },
+    [dynamicModalOptions, registration.branch_id, setDynamicModalOptions],
+  );
 
   useEffect(() => {
     if (isOpen && track) {
@@ -282,52 +291,83 @@ const DynamicServiceModal = ({
     }
   }, [isOpen, track, fetchOptions]);
 
-  const fetchSlots = useCallback(async () => {
-    if (!track.scheduling?.enabled || !startDate) return;
+  const fetchSlots = useCallback(
+    async (force = false) => {
+      if (!track.scheduling?.enabled || !startDate) return;
 
-    const cacheKey = `${startDate}-${track.name.toLowerCase().replace(/\s+/g, "_")}`;
-    if (serviceSlotsCache && serviceSlotsCache[cacheKey]) {
-      setAvailableSlots(serviceSlotsCache[cacheKey]);
-      return;
-    }
-
-    setIsLoadingSlots(true);
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/get_treatment_slots?date=${startDate}&service_type=${track.name.toLowerCase().replace(/\s+/g, "_")}`,
-      );
-      const data = await res.json();
-      if (data.success) {
-        const slots = [];
-        const interval = track.scheduling.slotInterval || 60;
-        const capacity = track.scheduling.slotCapacity || 1;
-        const current = new Date(`1970-01-01T${track.scheduling.startTime}:00`);
-        const end = new Date(`1970-01-01T${track.scheduling.endTime}:00`);
-        while (current < end) {
-          const timeStr = current.toTimeString().substring(0, 5);
-          const bookedCount = data.booked[`${timeStr}:00`] || 0;
-          slots.push({
-            value: timeStr,
-            label: `${current.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (${bookedCount}/${capacity})`,
-            disabled: bookedCount >= capacity,
-          });
-          current.setMinutes(current.getMinutes() + interval);
-        }
-        setAvailableSlots(slots);
-        setServiceSlotsCache(cacheKey, slots);
+      const cacheKey = `${startDate}-${track.name.toLowerCase().replace(/\s+/g, "_")}`;
+      if (!force && serviceSlotsCache && serviceSlotsCache[cacheKey]) {
+        setAvailableSlots(serviceSlotsCache[cacheKey]);
+        return;
       }
-    } catch (err) {
-      console.error("Failed to fetch slots:", err);
-    } finally {
-      setIsLoadingSlots(false);
-    }
-  }, [startDate, track, serviceSlotsCache, setServiceSlotsCache]);
+
+      setIsLoadingSlots(true);
+      try {
+        const res = await authFetch(
+          `${API_BASE_URL}/reception/get_treatment_slots?date=${startDate}&service_type=${track.name.toLowerCase().replace(/\s+/g, "_")}`,
+        );
+        const data = await res.json();
+        if (data.success) {
+          const slots = [];
+          const interval = track.scheduling.slotInterval || 60;
+          const capacity = track.scheduling.slotCapacity || 1;
+          const current = new Date(
+            `1970-01-01T${track.scheduling.startTime}:00`,
+          );
+          const end = new Date(`1970-01-01T${track.scheduling.endTime}:00`);
+          while (current < end) {
+            const timeStr = current.toTimeString().substring(0, 5);
+            const bookedCount = data.booked[`${timeStr}:00`] || 0;
+            slots.push({
+              value: timeStr,
+              label: `${current.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} (${bookedCount}/${capacity})`,
+              disabled: bookedCount >= capacity,
+            });
+            current.setMinutes(current.getMinutes() + interval);
+          }
+          setAvailableSlots(slots);
+          setServiceSlotsCache(cacheKey, slots);
+        }
+      } catch (err) {
+        console.error("Failed to fetch slots:", err);
+      } finally {
+        setIsLoadingSlots(false);
+      }
+    },
+    [startDate, track, serviceSlotsCache, setServiceSlotsCache],
+  );
 
   useEffect(() => {
     if (isOpen && track.scheduling?.enabled && startDate) {
       fetchSlots();
     }
   }, [startDate, isOpen, track, fetchSlots]);
+
+  const handleRefresh = useCallback(async () => {
+    if (refreshCooldown > 0) return;
+    smartRefresh("registration", {
+      onSuccess: async () => {
+        await fetchOptions(true);
+        if (track.scheduling?.enabled) {
+          await fetchSlots(true);
+        }
+        setRefreshCooldown(20);
+      },
+    });
+  }, [
+    refreshCooldown,
+    smartRefresh,
+    fetchOptions,
+    fetchSlots,
+    track.scheduling?.enabled,
+  ]);
+
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(() => setRefreshCooldown((c) => c - 1), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [refreshCooldown]);
 
   const handlePlanChange = (planId: string) => {
     const plan = track.pricing.plans.find((p) => p.id === planId);
@@ -510,12 +550,42 @@ const DynamicServiceModal = ({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="w-10 h-10 flex items-center justify-center bg-slate-50 dark:bg-white/5 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-500/10 transition-all group"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleRefresh}
+              disabled={refreshCooldown > 0}
+              className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all relative group ${refreshCooldown > 0 ? "bg-slate-50 dark:bg-white/5 text-slate-300" : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/10"}`}
+              title={
+                refreshCooldown > 0
+                  ? `Wait ${refreshCooldown}s`
+                  : "Refresh Data"
+              }
+            >
+              {isRefreshing ? (
+                <Loader2 size={18} className="animate-spin" />
+              ) : (
+                <RefreshCw
+                  size={18}
+                  className={
+                    refreshCooldown > 0
+                      ? ""
+                      : "group-hover:rotate-180 transition-transform duration-500"
+                  }
+                />
+              )}
+              {refreshCooldown > 0 && !isRefreshing && (
+                <div className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white dark:border-[#0A0B0A] animate-in zoom-in duration-300 shadow-sm">
+                  {refreshCooldown}
+                </div>
+              )}
+            </button>
+            <button
+              onClick={onClose}
+              className="w-10 h-10 flex items-center justify-center bg-slate-50 dark:bg-white/5 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-500 dark:hover:bg-rose-500/10 transition-all group"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Content */}
@@ -664,7 +734,7 @@ const DynamicServiceModal = ({
                         onChange={setSelectedSlot}
                         options={availableSlots}
                         placeholder={
-                          isLoadingSlots ? "Syncing..." : "Choose slot"
+                          isLoadingSlots ? "Loading..." : "Choose slot"
                         }
                         className="!py-3 !rounded-xl !bg-white dark:!bg-white/5 !border-slate-100 dark:!border-white/10 !text-[13px] !font-bold shadow-sm"
                       />

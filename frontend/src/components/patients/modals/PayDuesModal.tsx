@@ -298,7 +298,7 @@ const PayDuesModal = ({
                         size={20}
                         strokeWidth={3}
                       />
-                      Syncing...
+                      Updating...
                     </>
                   ) : (
                     <>

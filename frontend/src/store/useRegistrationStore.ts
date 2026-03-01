@@ -24,8 +24,8 @@ interface RegistrationStore {
   setDynamicModalOptions: (options: { branchId?: string | number; employees: any[]; paymentMethods: any[] }) => void;
   setServiceSlotsCache: (key: string, data: any[]) => void;
   setRegistrationsCache: (key: string, data: any[], pagination: any) => void;
-  setCancelledRegistrationsCache: (data: any[]) => void;
-  setCancelledTestsCache: (data: any[]) => void;
+  setCancelledRegistrationsCache: (data: any[] | null) => void;
+  setCancelledTestsCache: (data: any[] | null) => void;
   clearCache: () => void;
 }
 

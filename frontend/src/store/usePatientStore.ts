@@ -6,6 +6,7 @@ export interface Patient {
     patient_id: number;
     patient_uid: string;
     patient_name: string;
+    branch_id?: number;
     patient_phone: string;
     patient_gender: string;
     patient_age: number;
@@ -100,8 +101,8 @@ interface PatientState {
     // Actions
     setFilters: (filters: Partial<FilterState>) => void;
     setPage: (page: number) => void;
-    fetchPatients: (branchId: number, forceRefresh?: boolean) => Promise<void>;
-    fetchMetaData: (branchId: number, forceRefresh?: boolean) => Promise<void>;
+    fetchPatients: (branchId: number) => Promise<void>;
+    fetchMetaData: (branchId: number) => Promise<void>;
     fetchPatientDetails: (patientId: number | null, patientName?: string, phone?: string) => Promise<void>;
     billingViewMode: 'treatment' | 'test';
     setBillingViewMode: (mode: 'treatment' | 'test') => void;
@@ -110,6 +111,7 @@ interface PatientState {
     refreshPatients: (branchId: number) => Promise<void>;
     markAttendance: (patientId: number, branchId: number, status?: string) => Promise<boolean>;
     updateLocalPatientStatus: (patientId: number, newStatus: string) => void;
+    updateLocalPatientAttendance: (patientId: number, status: string, countChange: number, balanceChange?: number) => void;
     clearStore: () => void;
 }
 
@@ -165,25 +167,19 @@ export const usePatientStore = create<PatientState>()(
         set((state) => ({ pagination: { ...state.pagination, page } }));
     },
 
-    fetchPatients: async (branchId: number, forceRefresh = false) => {
+    fetchPatients: async (branchId: number) => {
         const { pagination, filters } = get();
         
-        // If not forced and we have data, skip loading state logic to prevent flash
-        if (!forceRefresh && get().patients.length > 0) {
-            // But we still fetch in background if needed? 
-            // The flow says "once fetch and stored in the sqlite, use this to show."
-            // So if we have data, we might not need to fetch at all unless forceRefresh.
-            return; 
+        // Only show loading if we don't have existing memory data to prevent screen flash while background fetching SQLite locally
+        if (get().patients.length === 0) {
+            set({ isLoading: true });
         }
-
-        set({ isLoading: true });
         
         try {
             const response = await authFetch(`${API_BASE_URL}/reception/patients`, {
                 method: 'POST',
                 headers: { 
-                    'Content-Type': 'application/json',
-                    ...(forceRefresh && { 'X-Refresh': 'true' })
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     action: 'fetch',
@@ -215,15 +211,14 @@ export const usePatientStore = create<PatientState>()(
         }
     },
 
-    fetchMetaData: async (branchId: number, forceRefresh = false) => {
-        if (!forceRefresh && get().metaData.doctors.length > 0) return;
+    fetchMetaData: async (branchId: number) => {
+        if (get().metaData.doctors.length > 0) return;
 
         try {
             const response = await authFetch(`${API_BASE_URL}/reception/patients`, {
                 method: 'POST',
                 headers: { 
-                    'Content-Type': 'application/json',
-                    ...(forceRefresh && { 'X-Refresh': 'true' })
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
                     action: 'fetch_filters',
@@ -307,6 +302,40 @@ export const usePatientStore = create<PatientState>()(
             patients: state.patients.map(p => p.patient_id === patientId ? { ...p, patient_status: newStatus } : p),
             selectedPatient: state.selectedPatient?.patient_id === patientId ? { ...state.selectedPatient, patient_status: newStatus } : state.selectedPatient && state.selectedPatient,
             patientDetails: state.patientDetails?.patient_id === patientId ? { ...state.patientDetails, patient_status: newStatus } : state.patientDetails
+        }));
+    },
+
+    updateLocalPatientAttendance: (patientId: number, status: string, countChange: number, balanceChange: number = 0) => {
+        set((state) => ({
+            patients: state.patients.map(p => 
+                p.patient_id === patientId 
+                ? { 
+                    ...p, 
+                    today_attendance: status, 
+                    patient_status: "active",
+                    attendance_count: (p.attendance_count || 0) + countChange,
+                    effective_balance: parseFloat(String(p.effective_balance || 0)) + balanceChange 
+                  } 
+                : p
+            ),
+            selectedPatient: state.selectedPatient?.patient_id === patientId 
+                ? { 
+                    ...state.selectedPatient, 
+                    today_attendance: status, 
+                    patient_status: "active",
+                    attendance_count: (state.selectedPatient.attendance_count || 0) + countChange,
+                    effective_balance: parseFloat(String(state.selectedPatient.effective_balance || 0)) + balanceChange 
+                  } 
+                : state.selectedPatient && state.selectedPatient,
+            patientDetails: state.patientDetails?.patient_id === patientId 
+                ? { 
+                    ...state.patientDetails, 
+                    today_attendance: status, 
+                    patient_status: "active",
+                    attendance_count: (state.patientDetails.attendance_count || 0) + countChange,
+                    effective_balance: parseFloat(String(state.patientDetails.effective_balance || 0)) + balanceChange 
+                  } 
+                : state.patientDetails
         }));
     },
 

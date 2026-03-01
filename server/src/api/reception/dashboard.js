@@ -9,20 +9,23 @@ exports.getDashboardData = async (req, res) => {
             return res.status(400).json({ status: "error", message: "Branch ID required" });
         }
 
-        const now = new Date();
-        const pad = (n) => (n < 10 ? '0' + n : n);
-        const getLocalDateStr = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+        const getISTDate = (date) => {
+            const offset = 5.5 * 60 * 60 * 1000;
+            const istDate = new Date(date.getTime() + offset);
+            return istDate.toISOString().split('T')[0];
+        };
 
-        const today = getLocalDateStr(now);
-        const startOfMonth = getLocalDateStr(new Date(now.getFullYear(), now.getMonth(), 1));
-        const endOfMonth = getLocalDateStr(new Date(now.getFullYear(), now.getMonth() + 1, 0));
+        const today = getISTDate(new Date());
+        const istNow = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
+        const startOfMonth = getISTDate(new Date(istNow.getFullYear(), istNow.getMonth(), 1));
+        const endOfMonth = getISTDate(new Date(istNow.getFullYear(), istNow.getMonth() + 1, 0));
 
         // Generate dates for the last 7 days for weekly stats
         const dates = [];
         for (let i = 6; i >= 0; i--) {
-            const d = new Date(now);
-            d.setDate(now.getDate() - i);
-            dates.push(getLocalDateStr(d));
+            const d = new Date(new Date().getTime() + 5.5 * 60 * 60 * 1000);
+            d.setDate(d.getDate() - i);
+            dates.push(d.toISOString().split('T')[0]);
         }
 
         // -------------------------------------------------------------------------
@@ -37,27 +40,50 @@ exports.getDashboardData = async (req, res) => {
         }
 
         if (lastRunDate !== today) {
-            const sqlCleanup = `
-                UPDATE patients p
-                LEFT JOIN (
-                    SELECT patient_id, MAX(attendance_date) as last_visit 
-                    FROM attendance 
-                    GROUP BY patient_id
-                ) a ON p.patient_id = a.patient_id
-                SET p.status = 'inactive'
-                WHERE p.branch_id = ? 
-                  AND p.status = 'active'
-                  AND (
-                      (a.last_visit IS NOT NULL AND a.last_visit < DATE_SUB(CURDATE(), INTERVAL 3 DAY))
-                      OR 
-                      (a.last_visit IS NULL AND p.created_at < DATE_SUB(NOW(), INTERVAL 3 DAY))
-                  )`;
-            await pool.query(sqlCleanup, [branchId]);
-
-            if (!fs.existsSync(tmpDir)) {
-                fs.mkdirSync(tmpDir, { recursive: true });
+            // 1. Auto-activation: If marked present today, they must be active
+            try {
+                await pool.query(`
+                    UPDATE patients 
+                    SET status = 'active'
+                    WHERE status != 'active' AND status != 'completed' AND status != 'terminated'
+                      AND (branch_id = ? OR branch_id IS NULL OR branch_id = 0)
+                      AND EXISTS (
+                          SELECT 1 FROM attendance a 
+                          WHERE a.patient_id = patients.patient_id 
+                            AND DATE(a.attendance_date) = CURDATE()
+                            AND a.status = 'present'
+                      )
+                `, [branchId]);
+            } catch (e) {
+                console.error("Auto-activation error:", e);
             }
-            fs.writeFileSync(cleanupFile, today);
+
+            try {
+                const sqlCleanup = `
+                    UPDATE patients 
+                    SET status = 'inactive'
+                    WHERE branch_id = ? 
+                      AND status = 'active'
+                      AND (
+                          (patient_id IN (
+                              SELECT patient_id 
+                              FROM attendance 
+                              GROUP BY patient_id 
+                              HAVING MAX(SUBSTR(attendance_date, 1, 10)) < DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+                          ))
+                          OR 
+                          (NOT EXISTS (SELECT 1 FROM attendance a WHERE a.patient_id = patients.patient_id) 
+                           AND created_at < DATE_SUB(NOW(), INTERVAL 3 DAY))
+                      )`;
+                await pool.query(sqlCleanup, [branchId]);
+
+                if (!fs.existsSync(tmpDir)) {
+                    fs.mkdirSync(tmpDir, { recursive: true });
+                }
+                fs.writeFileSync(cleanupFile, today);
+            } catch (error) {
+                console.error("Auto-deactivation failed:", error);
+            }
         }
 
         // -------------------------------------------------------------------------
@@ -94,71 +120,128 @@ exports.getDashboardData = async (req, res) => {
             [schedule],
             [weeklyRows]
         ] = await Promise.all([
-            pool.query("SELECT COUNT(*) as count FROM registration WHERE branch_id = ? AND DATE(created_at) = ?", [branchId, today]),
+            // 1. regTotalRows
+            pool.query("SELECT COUNT(*) as count FROM registration WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(created_at) = ?", [branchId, today]),
+
+            // 2. regStatusRows
             pool.query(`
                 SELECT 
-                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-                    SUM(CASE WHEN status IN ('consulted','closed') THEN 1 ELSE 0 END) as conducted
+                    SUM(CASE WHEN status = 'pending' AND DATE(appointment_date) = ? THEN 1 ELSE 0 END) as pending,
+                    SUM(CASE WHEN (status = 'consulted' OR status = 'closed') AND DATE(appointment_date) = ? THEN 1 ELSE 0 END) as conducted
                 FROM registration
-                WHERE branch_id = ? AND DATE(appointment_date) = ?
-            `, [branchId, today]),
-            pool.query("SELECT COUNT(*) as count FROM registration WHERE branch_id = ? AND DATE(created_at) BETWEEN ? AND ?", [branchId, startOfMonth, endOfMonth]),
-            pool.query("SELECT COUNT(*) as count FROM registration WHERE branch_id = ? AND approval_status = 'pending'", [branchId]),
-            pool.query("SELECT COUNT(*) as count FROM quick_inquiry WHERE branch_id = ? AND DATE(created_at) = ?", [branchId, today]),
-            pool.query("SELECT COUNT(*) as count FROM test_inquiry WHERE branch_id = ? AND DATE(created_at) = ?", [branchId, today]),
+                WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0)
+            `, [today, today, branchId]),
+
+            // 3. regMonthRows
+            pool.query("SELECT COUNT(*) as count FROM registration WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(created_at) BETWEEN ? AND ?", [branchId, startOfMonth, endOfMonth]),
+
+            // 4. regApprovalRows
+            pool.query("SELECT COUNT(*) as count FROM registration WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND approval_status = 'pending'", [branchId]),
+
+            // 5. quickRows
+            pool.query("SELECT COUNT(*) as count FROM quick_inquiry WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(created_at) = ?", [branchId, today]),
+
+            // 6. testInqRows
+            pool.query("SELECT COUNT(*) as count FROM test_inquiry WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(created_at) = ?", [branchId, today]),
+
+            // 7. attendedRows
             pool.query(`
                 SELECT COUNT(DISTINCT a.patient_id) as count 
                 FROM attendance a
                 JOIN patients p ON a.patient_id = p.patient_id
-                WHERE a.attendance_date = ? AND p.branch_id = ?
+                WHERE DATE(a.attendance_date) = ? AND (p.branch_id = ? OR p.branch_id IS NULL OR p.branch_id = 0) AND a.status = 'present'
             `, [today, branchId]),
-            pool.query("SELECT COUNT(*) as count FROM patients WHERE branch_id = ?", [branchId]),
-            pool.query("SELECT COUNT(*) as count FROM patients WHERE branch_id = ? AND status = 'active'", [branchId]),
-            pool.query("SELECT COUNT(*) as count FROM patients WHERE branch_id = ? AND status = 'inactive'", [branchId]),
+
+            // 8. totalPtsRows
+            pool.query("SELECT COUNT(*) as count FROM patients WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0)", [branchId]),
+
+            // 9. activeRows
+            pool.query("SELECT COUNT(*) as count FROM patients WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND status = 'active'", [branchId]),
+
+            // 10. inactiveRows
+            pool.query("SELECT COUNT(*) as count FROM patients WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND status = 'inactive'", [branchId]),
+
+            // 11. ptPaidRows
             pool.query(`
                 SELECT SUM(p.amount) as total
                 FROM payments p
                 JOIN patients pt ON p.patient_id = pt.patient_id
-                WHERE pt.branch_id = ? AND p.payment_date = ?
+                WHERE (pt.branch_id = ? OR pt.branch_id IS NULL OR pt.branch_id = 0) AND DATE(p.payment_date) = ?
             `, [branchId, today]),
-            pool.query("SELECT COUNT(*) as count FROM patients WHERE branch_id = ? AND DATE(created_at) BETWEEN ? AND ?", [branchId, startOfMonth, endOfMonth]),
-            pool.query("SELECT COUNT(*) as count FROM tests WHERE branch_id = ? AND DATE(created_at) = ? AND approval_status != 'rejected'", [branchId, today]),
-            pool.query("SELECT COUNT(*) as count FROM tests WHERE branch_id = ? AND DATE(created_at) = ? AND approval_status = 'pending'", [branchId, today]),
-            pool.query("SELECT COUNT(*) as count FROM tests WHERE branch_id = ? AND test_status = 'pending' AND approval_status = 'approved' AND DATE(created_at) = ?", [branchId, today]),
-            pool.query("SELECT COUNT(*) as count FROM tests WHERE branch_id = ? AND test_status = 'completed' AND approval_status = 'approved' AND DATE(created_at) = ?", [branchId, today]),
-            pool.query("SELECT SUM(advance_amount) as total FROM tests WHERE branch_id = ? AND DATE(visit_date) = ? AND test_status != 'cancelled' AND approval_status != 'rejected' AND approval_status != 'pending'", [branchId, today]),
-            pool.query("SELECT COUNT(*) as count FROM tests WHERE branch_id = ? AND DATE(created_at) BETWEEN ? AND ? AND approval_status != 'rejected'", [branchId, startOfMonth, endOfMonth]),
-            pool.query("SELECT SUM(consultation_amount) as total FROM registration WHERE branch_id = ? AND DATE(created_at) = ? AND status != 'closed' AND approval_status != 'rejected' AND approval_status != 'pending'", [branchId, today]),
-            pool.query("SELECT SUM(due_amount) as total FROM patients WHERE branch_id = ? AND DATE(created_at) = ? AND treatment_type = 'package'", [branchId, today]),
-            pool.query("SELECT SUM(due_amount) as total FROM tests WHERE branch_id = ? AND DATE(created_at) = ? AND approval_status != 'rejected' AND approval_status != 'pending'", [branchId, today]),
-            pool.query("SELECT SUM(consultation_amount) as total FROM registration WHERE branch_id = ? AND DATE(created_at) BETWEEN ? AND ? AND approval_status = 'approved'", [branchId, startOfMonth, endOfMonth]),
-            pool.query("SELECT SUM(advance_amount) as total FROM tests WHERE branch_id = ? AND DATE(visit_date) BETWEEN ? AND ? AND approval_status = 'approved'", [branchId, startOfMonth, endOfMonth]),
-            pool.query("SELECT SUM(p.amount) as total FROM payments p JOIN patients pt ON p.patient_id = pt.patient_id WHERE pt.branch_id = ? AND p.payment_date BETWEEN ? AND ?", [branchId, startOfMonth, endOfMonth]),
+
+            // 12. newPtMonthRows
+            pool.query("SELECT COUNT(*) as count FROM patients WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(created_at) BETWEEN ? AND ?", [branchId, startOfMonth, endOfMonth]),
+
+            // 13. testTodayRows
+            pool.query("SELECT COUNT(*) as count FROM tests WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(created_at) = ? AND approval_status != 'rejected'", [branchId, today]),
+
+            // 14. testApprRows
+            pool.query("SELECT COUNT(*) as count FROM tests WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(created_at) = ? AND approval_status = 'pending'", [branchId, today]),
+
+            // 15. testPendRows
+            pool.query("SELECT COUNT(*) as count FROM tests WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND test_status = 'pending' AND approval_status = 'approved' AND DATE(created_at) = ?", [branchId, today]),
+
+            // 16. testCompRows
+            pool.query("SELECT COUNT(*) as count FROM tests WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND test_status = 'completed' AND approval_status = 'approved' AND DATE(created_at) = ?", [branchId, today]),
+
+            // 17. testRevRows
+            pool.query("SELECT SUM(advance_amount) as total FROM tests WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(visit_date) = ? AND test_status != 'cancelled' AND approval_status != 'rejected' AND approval_status != 'pending'", [branchId, today]),
+
+            // 18. testMonthRows
+            pool.query("SELECT COUNT(*) as count FROM tests WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(created_at) BETWEEN ? AND ? AND approval_status != 'rejected'", [branchId, startOfMonth, endOfMonth]),
+
+            // 19. regPayRows
+            pool.query("SELECT SUM(consultation_amount) as total FROM registration WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(created_at) = ? AND status != 'closed' AND approval_status != 'rejected' AND approval_status != 'pending'", [branchId, today]),
+
+            // 20. ptDueRows
+            pool.query("SELECT SUM(due_amount) as total FROM patients WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(created_at) = ? AND treatment_type = 'package'", [branchId, today]),
+
+            // 21. testDueRows
+            pool.query("SELECT SUM(due_amount) as total FROM tests WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(created_at) = ? AND approval_status != 'rejected' AND approval_status != 'pending'", [branchId, today]),
+
+            // 22. monthRegPayRows
+            pool.query("SELECT SUM(consultation_amount) as total FROM registration WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(created_at) BETWEEN ? AND ? AND approval_status = 'approved'", [branchId, startOfMonth, endOfMonth]),
+
+            // 23. monthTestPayRows
+            pool.query("SELECT SUM(advance_amount) as total FROM tests WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(visit_date) BETWEEN ? AND ? AND approval_status = 'approved'", [branchId, startOfMonth, endOfMonth]),
+
+            // 24. monthPtPayRows
+            pool.query("SELECT SUM(p.amount) as total FROM payments p JOIN patients pt ON p.patient_id = pt.patient_id WHERE (pt.branch_id = ? OR pt.branch_id IS NULL OR pt.branch_id = 0) AND DATE(p.payment_date) BETWEEN ? AND ?", [branchId, startOfMonth, endOfMonth]),
+
             pool.query(`
                 SELECT 
-                    registration_id as id, 
-                    patient_name, 
-                    appointment_time, 
-                    status,
-                    approval_status 
-                FROM registration 
-                WHERE branch_id = ? AND DATE(appointment_date) = ?
-                ORDER BY appointment_time ASC LIMIT 50
+                    r.registration_id as id,
+                    r.patient_name,
+                    DATE(r.appointment_date) as appointment_date,
+                    r.appointment_time,
+                    r.status,
+                    r.approval_status,
+                    pm.patient_uid
+                FROM registration r
+                LEFT JOIN patient_master pm ON r.master_patient_id = pm.master_patient_id
+                WHERE (r.branch_id = ? OR r.branch_id IS NULL OR r.branch_id = 0)
+                  AND DATE(r.appointment_date) = ?
+                  AND r.appointment_time IS NOT NULL
+                  AND LOWER(r.status) NOT IN ('closed', 'cancelled')
+                ORDER BY r.appointment_time ASC LIMIT 50
             `, [branchId, today]),
+
+            // 26. weeklyRows
             pool.query(`
                 SELECT 
                     DATE(d) as date,
                     SUM(amount) as total
                 FROM (
-                    SELECT created_at as d, consultation_amount as amount FROM registration WHERE branch_id = ? AND status != 'closed' AND approval_status != 'rejected' AND approval_status != 'pending'
+                    SELECT created_at as d, consultation_amount as amount FROM registration WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND status != 'closed' AND approval_status != 'rejected' AND approval_status != 'pending'
                     UNION ALL
-                    SELECT visit_date as d, advance_amount as amount FROM tests WHERE branch_id = ? AND test_status != 'cancelled' AND approval_status != 'rejected' AND approval_status != 'pending'
+                    SELECT visit_date as d, advance_amount as amount FROM tests WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND test_status != 'cancelled' AND approval_status != 'rejected' AND approval_status != 'pending'
                     UNION ALL
-                    SELECT payment_date as d, p.amount FROM payments p JOIN patients pt ON p.patient_id = pt.patient_id WHERE pt.branch_id = ?
+                    SELECT payment_date as d, p.amount FROM payments p JOIN patients pt ON p.patient_id = pt.patient_id WHERE (pt.branch_id = ? OR pt.branch_id IS NULL OR pt.branch_id = 0)
                 ) as combined
-                WHERE DATE(d) BETWEEN DATE_SUB(CURDATE(), INTERVAL 6 DAY) AND CURDATE()
+                WHERE DATE(d) BETWEEN ? AND ?
                 GROUP BY DATE(d)
-            `, [branchId, branchId, branchId])
+                ORDER BY DATE(d) ASC
+            `, [branchId, branchId, branchId, dates[0], dates[6]])
         ]);
 
         regStats.today_total = regTotalRows[0].count;
@@ -205,7 +288,7 @@ exports.getDashboardData = async (req, res) => {
         const resultsMap = {};
         weeklyRows.forEach(row => {
             const dateObj = new Date(row.date);
-            const dateStr = getLocalDateStr(dateObj);
+            const dateStr = getISTDate(dateObj);
             resultsMap[dateStr] = row.total;
         });
 

@@ -10,12 +10,14 @@ import {
   IndianRupee,
   Hash,
   CheckCircle2,
+  RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { API_BASE_URL, authFetch } from "../../config";
 import { format, addDays } from "date-fns";
 import CustomSelect from "../ui/CustomSelect";
 import DatePicker from "../ui/DatePicker";
+import { useSmartRefresh } from "../../hooks/useSmartRefresh";
 
 interface QuickAddModalProps {
   isOpen: boolean;
@@ -65,6 +67,8 @@ const QuickAddModal = ({
   });
   const [timeSlots, setTimeSlots] = useState<any[]>([]);
   const [openDatePicker, setOpenDatePicker] = useState(false);
+  const [refreshCooldown, setRefreshCooldown] = useState(0);
+  const { smartRefresh } = useSmartRefresh();
 
   const existingPatient = useMemo(() => {
     if (!registration.existing_services) return null;
@@ -203,10 +207,26 @@ const QuickAddModal = ({
       }
     } catch (err) {
       console.error("Failed to fetch slots:", err);
-    } finally {
-      setIsLoadingSlots(false);
     }
   };
+
+  const handleRefresh = async () => {
+    if (refreshCooldown > 0) return;
+    smartRefresh("registration", {
+      onSuccess: async () => {
+        await fetchOptions();
+        await fetchSlots();
+        setRefreshCooldown(20);
+      },
+    });
+  };
+
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(() => setRefreshCooldown((c) => c - 1), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [refreshCooldown]);
 
   const generateTimeSlots = (serviceType: string) => {
     const slots = [];
@@ -329,12 +349,40 @@ const QuickAddModal = ({
                 </p>
               </div>
             </div>
-            <button
-              onClick={onClose}
-              className="w-10 h-10 flex items-center justify-center hover:bg-[#1c1b1f]/8 dark:hover:bg-[#e6e1e5]/8 rounded-full transition-all text-[#49454f] dark:text-[#cac4d0]"
-            >
-              <X size={20} />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefresh}
+                disabled={
+                  isLoadingOptions || isLoadingSlots || refreshCooldown > 0
+                }
+                className={`w-10 h-10 flex items-center justify-center rounded-xl transition-all relative group ${refreshCooldown > 0 ? "bg-[#1c1b1f]/8 text-[#49454f]/50" : "bg-[#006a6a]/10 text-[#006a6a] hover:bg-[#006a6a]/20 border border-[#006a6a]/10"}`}
+                title={
+                  refreshCooldown > 0
+                    ? `Wait ${refreshCooldown}s`
+                    : "Refresh Data"
+                }
+              >
+                <RefreshCw
+                  size={20}
+                  className={
+                    isLoadingOptions || isLoadingSlots
+                      ? "animate-spin"
+                      : "group-hover:rotate-180 transition-transform duration-500"
+                  }
+                />
+                {refreshCooldown > 0 && (
+                  <div className="absolute -top-1.5 -right-1.5 bg-[#ba1a1a] text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-[#fef7ff] dark:border-[#141218] animate-in zoom-in duration-300 shadow-sm">
+                    {refreshCooldown}
+                  </div>
+                )}
+              </button>
+              <button
+                onClick={onClose}
+                className="w-10 h-10 flex items-center justify-center hover:bg-[#1c1b1f]/8 dark:hover:bg-[#e6e1e5]/8 rounded-full transition-all text-[#49454f] dark:text-[#cac4d0]"
+              >
+                <X size={20} />
+              </button>
+            </div>
           </div>
 
           {existingPatient ? (

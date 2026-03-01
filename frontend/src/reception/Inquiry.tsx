@@ -19,6 +19,7 @@ import {
   Phone,
   LayoutGrid,
   Beaker,
+  RefreshCw,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -39,8 +40,24 @@ import LogoutConfirmation from "../components/LogoutConfirmation";
 import ChatModal from "../components/Chat/ChatModal";
 import ActionFAB from "../components/ActionFAB";
 import PageHeader from "../components/PageHeader";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 
 type InquiryType = "consultation" | "test";
+
+const parseDateString = (
+  dateStr: string | number | null | undefined,
+): Date | null => {
+  if (!dateStr) return null;
+  // Handle stringified float epoch times
+  if (typeof dateStr === "string" && /^\d+(\.\d+)?$/.test(dateStr)) {
+    return new Date(Number(dateStr));
+  }
+  if (typeof dateStr === "number") {
+    return new Date(dateStr);
+  }
+  const d = new Date(dateStr);
+  return isNaN(d.getTime()) ? null : d;
+};
 
 const DatePicker = ({ value, onChange, onClose }: any) => {
   const [currDate, setCurrDate] = useState(
@@ -221,6 +238,7 @@ const Inquiry = () => {
     setConsultations,
     setDiagnostics,
     setFollowUpLogs,
+    clearCache,
   } = useInquiryStore();
 
   // Local State
@@ -242,10 +260,45 @@ const Inquiry = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [refreshCooldown, setRefreshCooldown] = useState(0);
 
+  // Cache validation: Clean corrupted cache with duplicates on mount
+  useEffect(() => {
+    const validateCache = () => {
+      // Check for duplicate inquiry_ids in cached data
+      const hasConsultationDuplicates =
+        consultations &&
+        consultations.length >
+          new Set(consultations.map((c: any) => c.inquiry_id)).size;
+      const hasDiagnosticsDuplicates =
+        diagnostics &&
+        diagnostics.length >
+          new Set(diagnostics.map((d: any) => d.inquiry_id)).size;
+
+      if (hasConsultationDuplicates || hasDiagnosticsDuplicates) {
+        console.warn(
+          "[InquiryCache] Detected duplicates in cached data, clearing cache completely",
+        );
+        clearCache();
+        // Force clear localStorage directly
+        try {
+          const cacheKey = localStorage.getItem("inquiry-cache");
+          if (cacheKey) {
+            localStorage.removeItem("inquiry-cache");
+            console.log(
+              "[InquiryCache] Removed localStorage inquiry-cache key",
+            );
+          }
+        } catch (e) {
+          console.error("[InquiryCache] Error clearing localStorage:", e);
+        }
+      }
+    };
+    validateCache();
+  }, [consultations, diagnostics, clearCache]);
+
   // Stats Data
   const [monthlyStats, setMonthlyStats] = useState({
-    consultation: { total: 0, visited: 0 },
-    test: { total: 0, visited: 0 },
+    consultation: { today: 0, total: 0, visited: 0 },
+    test: { today: 0, total: 0, visited: 0 },
   });
 
   // Refs
@@ -269,6 +322,48 @@ const Inquiry = () => {
     show: boolean;
     inquiry: any | null;
   }>({ show: false, inquiry: null });
+  const [isFetchingLogs, setIsFetchingLogs] = useState(false);
+  const { smartRefresh } = useSmartRefresh();
+
+  const fetchFollowUps = async (inquiryId: number) => {
+    setIsFetchingLogs(true);
+    try {
+      const res = await authFetch(`${API_BASE_URL}/reception/inquiry`, {
+        method: "POST",
+        body: JSON.stringify({
+          action: "fetch_followups",
+          inquiry_id: inquiryId,
+          type: activeTab,
+        }),
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        setFollowUpLogs(inquiryId, data.data);
+        setFollowUpLogsLocal(data.data);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsFetchingLogs(false);
+    }
+  };
+
+  const handleRefreshFollowUps = useCallback(async () => {
+    if (refreshCooldown > 0 || !followUpModal.inquiry) return;
+    smartRefresh("inquiry", {
+      onSuccess: async () => {
+        await fetchFollowUps(followUpModal.inquiry.inquiry_id);
+        setRefreshCooldown(20);
+      },
+    });
+  }, [refreshCooldown, followUpModal.inquiry, smartRefresh, activeTab]);
+
+  useEffect(() => {
+    if (refreshCooldown > 0) {
+      const timer = setInterval(() => setRefreshCooldown((c) => c - 1), 1000);
+      return () => clearInterval(timer);
+    }
+  }, [refreshCooldown]);
   const [followUpLogsLocal, setFollowUpLogsLocal] = useState<any[]>([]);
   const [newNote, setNewNote] = useState("");
   const [nextDate, setNextDate] = useState("");
@@ -439,6 +534,32 @@ const Inquiry = () => {
     }
   }, [refreshCooldown]);
 
+  // Deduplication helper: removes duplicate inquiries by inquiry_id
+  const deduplicateInquiries = (inquiries: any[]): any[] => {
+    if (!inquiries || inquiries.length === 0) return inquiries;
+
+    const seen = new Set<number>();
+    const duplicates: any[] = [];
+
+    const dedupedList = inquiries.filter((inq) => {
+      if (seen.has(inq.inquiry_id)) {
+        duplicates.push(inq);
+        return false;
+      }
+      seen.add(inq.inquiry_id);
+      return true;
+    });
+
+    if (duplicates.length > 0) {
+      console.warn(
+        "[Inquiry Dedup] Removed duplicates:",
+        duplicates.map((d) => `${d.inquiry_id}:${d.name}`).join(", "),
+      );
+    }
+
+    return dedupedList;
+  };
+
   const fetchInquiries = useCallback(
     async (force = false) => {
       if (!user?.branch_id) return;
@@ -447,12 +568,14 @@ const Inquiry = () => {
       if (!force) {
         const { consultations, diagnostics } = useInquiryStore.getState();
         if (activeTab === "consultation" && consultations) {
-          updateMonthlyStats(consultations, "consultation");
+          const dedupedData = deduplicateInquiries(consultations);
+          updateMonthlyStats(dedupedData, "consultation");
           setIsLoading(false);
           return;
         }
         if (activeTab === "test" && diagnostics) {
-          updateMonthlyStats(diagnostics, "test");
+          const dedupedData = deduplicateInquiries(diagnostics);
+          updateMonthlyStats(dedupedData, "test");
           setIsLoading(false);
           return;
         }
@@ -471,9 +594,11 @@ const Inquiry = () => {
         });
         const data = await res.json();
         if (data.status === "success") {
-          if (activeTab === "consultation") setConsultations(data.data);
-          else setDiagnostics(data.data);
-          updateMonthlyStats(data.data, activeTab);
+          // Deduplicate before saving to store
+          const dedupedData = deduplicateInquiries(data.data || []);
+          if (activeTab === "consultation") setConsultations(dedupedData);
+          else setDiagnostics(dedupedData);
+          updateMonthlyStats(dedupedData, activeTab);
         }
       } catch (err) {
         showToast("Failed to load inquiries", "error");
@@ -485,20 +610,93 @@ const Inquiry = () => {
   );
 
   const updateMonthlyStats = (data: any[], type: string) => {
+    const now = new Date();
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
+
     const total = data.length;
     const visited = data.filter((i) => i.status === "visited").length;
+    const today = data.filter((i) => {
+      const createdDate = new Date(i.created_at);
+      return (
+        createdDate >= todayStart &&
+        createdDate < new Date(todayStart.getTime() + 24 * 60 * 60 * 1000)
+      );
+    }).length;
+
     setMonthlyStats((prev) => ({
       ...prev,
-      [type]: { total, visited },
+      [type]: { today, total, visited },
     }));
   };
 
-  useEffect(() => {
-    fetchInquiries(false);
-  }, [fetchInquiries]);
+  // Track if first mount to force fresh data fetch
+  const isFirstMountRef = useRef(true);
 
-  const inquiries =
-    activeTab === "consultation" ? consultations || [] : diagnostics || [];
+  useEffect(() => {
+    // Force fresh fetch on first mount to ensure no stale cache duplicates
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      clearCache();
+      // Load both consultation and test data on mount
+      (async () => {
+        if (!user?.branch_id) return;
+
+        setIsLoading(true);
+        try {
+          // Fetch consultation inquiries
+          const consultRes = await authFetch(
+            `${API_BASE_URL}/reception/inquiry`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "fetch",
+                branch_id: user.branch_id,
+                type: "consultation",
+              }),
+            },
+          );
+          const consultData = await consultRes.json();
+          if (consultData.status === "success") {
+            const consultDedupedData = deduplicateInquiries(
+              consultData.data || [],
+            );
+            setConsultations(consultDedupedData);
+            updateMonthlyStats(consultDedupedData, "consultation");
+          }
+
+          // Fetch test inquiries
+          const testRes = await authFetch(`${API_BASE_URL}/reception/inquiry`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "fetch",
+              branch_id: user.branch_id,
+              type: "test",
+            }),
+          });
+          const testData = await testRes.json();
+          if (testData.status === "success") {
+            const testDedupedData = deduplicateInquiries(testData.data || []);
+            setDiagnostics(testDedupedData);
+            updateMonthlyStats(testDedupedData, "test");
+          }
+        } catch (err) {
+          console.error("Failed to load inquiries on mount", err);
+        } finally {
+          setIsLoading(false);
+        }
+      })();
+    }
+  }, [user?.branch_id, clearCache, setConsultations, setDiagnostics]);
+
+  const inquiries = deduplicateInquiries(
+    activeTab === "consultation" ? consultations || [] : diagnostics || [],
+  );
 
   const filteredInquiries = inquiries.filter((inq: any) => {
     const q = localSearchQuery.toLowerCase();
@@ -763,13 +961,7 @@ const Inquiry = () => {
                     <div
                       className={`text-7xl font-medium tracking-tighter leading-none ${isDark ? "text-white" : "text-[#0F172A]"}`}
                     >
-                      {
-                        inquiries.filter(
-                          (i) =>
-                            i.type === "consultation" &&
-                            isToday(parseISO(i.created_at)),
-                        ).length
-                      }
+                      {monthlyStats.consultation.today}
                     </div>
                     <div className="text-sm font-medium opacity-40 mt-2 text-[#1a1c1e] dark:text-[#e3e2e6]">
                       Today
@@ -823,13 +1015,7 @@ const Inquiry = () => {
                     <div
                       className={`text-7xl font-medium tracking-tighter leading-none ${isDark ? "text-white" : "text-[#0F172A]"}`}
                     >
-                      {
-                        inquiries.filter(
-                          (i) =>
-                            i.type === "test" &&
-                            isToday(parseISO(i.created_at)),
-                        ).length
-                      }
+                      {monthlyStats.test.today}
                     </div>
                     <div className="text-sm font-medium opacity-40 mt-2 text-[#1a1c1e] dark:text-[#e3e2e6]">
                       Today
@@ -1094,9 +1280,9 @@ const Inquiry = () => {
                               <td className="px-6 py-5">
                                 <div className="flex flex-col">
                                   <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                                    {inq.expected_date
+                                    {parseDateString(inq.expected_date)
                                       ? format(
-                                          parseISO(inq.expected_date),
+                                          parseDateString(inq.expected_date)!,
                                           "MMM d, yyyy",
                                         )
                                       : "TBD"}
@@ -1322,14 +1508,40 @@ const Inquiry = () => {
                       {followUpModal.inquiry.name}
                     </p>
                   </div>
-                  <button
-                    onClick={() =>
-                      setFollowUpModal({ show: false, inquiry: null })
-                    }
-                    className="p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-2xl transition-all"
-                  >
-                    <X size={20} />
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={handleRefreshFollowUps}
+                      disabled={isFetchingLogs || refreshCooldown > 0}
+                      className={`w-10 h-10 flex items-center justify-center rounded-2xl transition-all relative group ${refreshCooldown > 0 ? "bg-slate-50 dark:bg-white/5 text-slate-300" : "bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500/20 border border-emerald-500/10"}`}
+                      title={
+                        refreshCooldown > 0
+                          ? `Wait ${refreshCooldown}s`
+                          : "Refresh History"
+                      }
+                    >
+                      <RefreshCw
+                        size={18}
+                        className={
+                          isFetchingLogs
+                            ? "animate-spin"
+                            : "group-hover:rotate-180 transition-transform duration-500"
+                        }
+                      />
+                      {refreshCooldown > 0 && (
+                        <div className="absolute -top-1.5 -right-1.5 bg-rose-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border-2 border-white dark:border-[#121412] animate-in zoom-in duration-300 shadow-sm">
+                          {refreshCooldown}
+                        </div>
+                      )}
+                    </button>
+                    <button
+                      onClick={() =>
+                        setFollowUpModal({ show: false, inquiry: null })
+                      }
+                      className="p-3 hover:bg-slate-100 dark:hover:bg-white/5 rounded-2xl transition-all"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-8 py-8 custom-scrollbar">

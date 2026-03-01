@@ -13,7 +13,7 @@ exports.getNotes = async (req, res) => {
         }
 
         let query = `
-            SELECT n.*, (e.first_name || ' ' || COALESCE(e.last_name, '')) as author_name 
+            SELECT n.*, CONCAT(e.first_name, ' ', COALESCE(e.last_name, '')) as author_name 
             FROM reception_notes n
             JOIN employees e ON n.employee_id = e.employee_id
             WHERE n.branch_id = ? AND n.type = ?

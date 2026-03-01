@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X,
@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Wallet,
   Zap,
+  RefreshCw,
 } from "lucide-react";
 import { usePatientStore } from "../../store/usePatientStore";
 import { format } from "date-fns";
@@ -23,6 +24,7 @@ interface BillingDrawerProps {
 }
 
 const BillingDrawer: React.FC<BillingDrawerProps> = ({ onExport }) => {
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const {
     selectedPatient,
     isDetailsModalOpen,
@@ -30,6 +32,7 @@ const BillingDrawer: React.FC<BillingDrawerProps> = ({ onExport }) => {
     patientDetails,
     isLoadingDetails,
     billingViewMode,
+    fetchPatientDetails,
   } = usePatientStore();
   const { isDark } = useThemeStore();
 
@@ -107,6 +110,23 @@ const BillingDrawer: React.FC<BillingDrawerProps> = ({ onExport }) => {
     subtitle: "Loading data...",
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      if (selectedPatient?.patient_id) {
+        // Registered patient
+        await fetchPatientDetails(selectedPatient.patient_id, selectedPatient.patient_name, selectedPatient.patient_phone || selectedPatient.phone_number);
+      } else if (selectedPatient?.patient_name && (selectedPatient?.patient_phone || selectedPatient?.phone_number)) {
+        // Walk-in patient (fetch by name and phone)
+        await fetchPatientDetails(null, selectedPatient.patient_name, selectedPatient.patient_phone || selectedPatient.phone_number);
+      }
+    } catch (error) {
+      console.error("Error refreshing patient details:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const handleExport = () => {
     if (!onExport || !scopedData) return;
 
@@ -144,9 +164,9 @@ const BillingDrawer: React.FC<BillingDrawerProps> = ({ onExport }) => {
           th { padding: 14px 16px; font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; border-bottom: 2px solid #f1f5f9; background: #fafafa; }
           td { padding: 14px 16px; font-size: 11px; font-weight: 600; color: #334155; border-bottom: 1px solid #f1f5f9; word-break: break-word; }
           
-          .col-date { width: 25%; text-align: left; }
-          .col-mode { width: 20%; text-align: left; }
-          .col-notes { width: 15%; text-align: left; color: #64748b; }
+          .col-date { width: 20%; text-align: left; }
+          .col-test { width: 25%; text-align: left; }
+          .col-method { width: 15%; text-align: left; }
           .col-amount { width: 20%; text-align: right; }
           .col-status { width: 20%; text-align: center; }
 
@@ -195,8 +215,8 @@ const BillingDrawer: React.FC<BillingDrawerProps> = ({ onExport }) => {
           <thead>
             <tr>
               <th class="col-date">Date & Time</th>
-              <th class="col-mode">Mode</th>
-              <th class="col-notes">Notes</th>
+              <th class="col-test">${billingViewMode === "test" ? "Test Name" : "Service"}</th>
+              <th class="col-method">Payment Method</th>
               <th class="col-amount">Amount</th>
               <th class="col-status">Status</th>
             </tr>
@@ -209,11 +229,12 @@ const BillingDrawer: React.FC<BillingDrawerProps> = ({ onExport }) => {
                 <td class="col-date">
                   ${format(new Date(p.payment_date || p.created_at), "dd MMM yyyy, hh:mm a")}
                 </td>
-                <td class="col-mode">
-                  <span class="mode">${p.payment_method || "Payment"}</span>
-                  ${p.test_name ? `<div style="font-size: 8px; color: #64748b; margin-top: 2px;">${p.test_name}</div>` : ""}
+                <td class="col-test">
+                  <span style="font-weight: 700; color: #0f172a;">${p.test_name || p.remarks || "Service"}</span>
                 </td>
-                <td class="col-notes">${p.notes || "--"}</td>
+                <td class="col-method">
+                  <span class="mode">${p.payment_method || "Cash"}</span>
+                </td>
                 <td class="col-amount amount">${fmt(p.amount)}</td>
                 <td class="col-status"><div class="success-badge">● SUCCESSFUL</div></td>
               </tr>
@@ -278,12 +299,22 @@ const BillingDrawer: React.FC<BillingDrawerProps> = ({ onExport }) => {
                     </span>
                   </div>
                 </div>
-                <button
-                  onClick={closePatientDetails}
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${isDark ? "bg-white/5 hover:bg-white/10 text-white/40" : "bg-white shadow-sm border border-slate-200 text-slate-400 hover:text-slate-600"}`}
-                >
-                  <X size={24} />
-                </button>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${isDark ? "bg-white/5 hover:bg-white/10 text-white/40" : "bg-white shadow-sm border border-slate-200 text-slate-400 hover:text-slate-600"} ${isRefreshing ? "opacity-50 cursor-not-allowed" : ""}`}
+                    title="Refresh details"
+                  >
+                    <RefreshCw size={20} className={isRefreshing ? "animate-spin" : ""} />
+                  </button>
+                  <button
+                    onClick={closePatientDetails}
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${isDark ? "bg-white/5 hover:bg-white/10 text-white/40" : "bg-white shadow-sm border border-slate-200 text-slate-400 hover:text-slate-600"}`}
+                  >
+                    <X size={24} />
+                  </button>
+                </div>
               </div>
 
               {/* Patient Core Card */}

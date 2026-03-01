@@ -18,7 +18,9 @@ import {
 } from "lucide-react";
 import { API_BASE_URL, authFetch } from "../../../config";
 import { type Patient, usePatientStore } from "../../../store/usePatientStore";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
+import { DatePicker } from "../../SharedPickers";
+import { format } from "date-fns";
 
 interface ChangePlanModalProps {
   isOpen: boolean;
@@ -56,7 +58,7 @@ const IconComponent = ({
 const labelClass =
   "block text-[9px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-[0.2em] mb-1.5 px-1";
 const inputClass =
-  "w-full px-5 py-3 bg-white/80 dark:bg-white/[0.03] backdrop-blur-md border border-slate-200 dark:border-white/5 focus:border-teal-500 dark:focus:border-teal-400 focus:ring-4 focus:ring-teal-500/10 rounded-[18px] outline-none transition-all text-sm font-bold text-slate-800 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600 shadow-sm";
+  "w-full py-3 bg-white/80 dark:bg-white/[0.03] backdrop-blur-md border border-slate-200 dark:border-white/5 focus:border-teal-500 dark:focus:border-teal-400 focus:ring-4 focus:ring-teal-500/10 rounded-[18px] outline-none transition-all text-sm font-bold text-slate-800 dark:text-white placeholder:text-slate-300 dark:placeholder:text-slate-600 shadow-sm";
 
 const FormInput = ({
   label,
@@ -97,7 +99,7 @@ const FormInput = ({
         disabled={disabled}
         readOnly={readOnly}
         placeholder={placeholder}
-        className={`${inputClass} ${Icon || prefix ? "pl-12" : "px-5"}`}
+        className={`${inputClass} ${Icon || prefix ? "pl-14 pr-5" : "px-5"}`}
         style={{ borderColor: themeColor && value ? themeColor : undefined }}
         {...props}
         onKeyDown={(e) => {
@@ -125,24 +127,29 @@ const ChangePlanModal = ({
   const [days, setDays] = useState("");
   const [discount, setDiscount] = useState("0");
   const [advance, setAdvance] = useState("");
+  const [startDate, setStartDate] = useState(
+    new Date().toISOString().split("T")[0],
+  );
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState(""); // Primary method for single mode
   const [reason, setReason] = useState("");
   const [finalDue, setFinalDue] = useState(0);
   const [carryOverBalance, setCarryOverBalance] = useState(0);
+  const [existingDue, setExistingDue] = useState(0);
 
   // Split Payment State
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [paymentSplits, setPaymentSplits] = useState<Record<string, number>>(
     {},
   );
-
-  const darkTealBase = "#042626";
+  const [useWalletBalance, setUseWalletBalance] = useState(true);
 
   useEffect(() => {
     if (isOpen && patient) {
       setCarryOverBalance(
         parseFloat(patient.effective_balance?.toString() || "0"),
       );
+      setExistingDue(parseFloat(patient.due_amount?.toString() || "0"));
 
       // Auto-fill existing patient plan data immediately
       const currentRate = patient.cost_per_day?.toString() || "";
@@ -210,9 +217,22 @@ const ChangePlanModal = ({
     const effectiveRate = Math.max(0, r - d);
     const totalCost = effectiveRate * n;
 
-    // Net Payable = Total Cost - CarryOver - Advance
-    setFinalDue(totalCost - carryOverBalance - (parseFloat(advance) || 0));
-  }, [rateOrCost, days, discount, advance, selectedPlanId, carryOverBalance]);
+    // Net Payable = (Total New Cost + Existing Debt) - Wallet Credit - New Advance
+    const net =
+      totalCost +
+      existingDue -
+      (useWalletBalance ? carryOverBalance : 0) -
+      (parseFloat(advance) || 0);
+    setFinalDue(net);
+  }, [
+    rateOrCost,
+    days,
+    discount,
+    advance,
+    selectedPlanId,
+    carryOverBalance,
+    useWalletBalance,
+  ]);
 
   // Sync simple payment mode to splits
   useEffect(() => {
@@ -289,6 +309,7 @@ const ChangePlanModal = ({
         payment_amounts: paymentSplits, // For backend split logic
         reason_for_change: reason,
         new_track_id: patient?.service_track_id || selectedTrack?.id,
+        new_start_date: startDate,
         action: "change_plan",
       };
       const res = await authFetch(`${API_BASE_URL}/reception/treatment_plans`, {
@@ -332,7 +353,7 @@ const ChangePlanModal = ({
           {/* Left Panel */}
           <div
             className="w-[350px] flex flex-col pt-10 px-6 relative z-10 shrink-0 overflow-y-auto custom-scrollbar"
-            style={{ backgroundColor: darkTealBase }}
+            style={{ backgroundColor: "#042626" }}
           >
             <div className="space-y-6 pb-10">
               <div className="space-y-5 px-2">
@@ -340,7 +361,7 @@ const ChangePlanModal = ({
                   <IconComponent
                     name={selectedTrack?.icon || "Layout"}
                     size={32}
-                    style={{ color: darkTealBase }}
+                    style={{ color: "#042626" }}
                   />
                 </div>
                 <div className="space-y-1">
@@ -395,7 +416,7 @@ const ChangePlanModal = ({
                   ))}
                 </div>
 
-                <div className="p-5 rounded-[28px] bg-orange-50 dark:bg-orange-500/10 shadow-xl text-center border border-orange-200/50 dark:border-orange-500/20">
+                <div className="p-5 rounded-[28px] bg-orange-50 dark:bg-orange-500/10 shadow-xl text-center border border-orange-200/50 dark:border-orange-500/20 mt-4">
                   <p className="text-[8px] font-black text-orange-400 dark:text-orange-300 uppercase tracking-widest mb-1">
                     Total Balance
                   </p>
@@ -410,10 +431,10 @@ const ChangePlanModal = ({
                 </div>
 
                 {/* History Card */}
-                <div className="p-5 rounded-[28px] bg-white/5 border border-white/10 space-y-4">
+                <div className="p-5 rounded-[28px] bg-white/5 border border-white/10 space-y-4 shadow-xl">
                   <div className="flex items-center gap-2">
                     <History size={14} className="text-teal-400" />
-                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest uppercase">
+                    <p className="text-[9px] font-black text-white/40 uppercase tracking-widest">
                       Last Activity
                     </p>
                   </div>
@@ -466,12 +487,6 @@ const ChangePlanModal = ({
 
           {/* Right Panel */}
           <div className="flex-1 relative overflow-hidden bg-white dark:bg-[#0c0d0f] shrink">
-            <div className="absolute inset-0 z-0 pointer-events-none">
-              <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-br from-teal-50/60 via-white dark:via-[#0c0d0f] to-orange-50/60 dark:opacity-20" />
-              <div className="absolute top-1/2 -right-40 w-[800px] h-[800px] blur-[180px] opacity-[0.1] dark:opacity-[0.05] rounded-full bg-orange-400" />
-              <div className="absolute -bottom-40 -left-20 w-[600px] h-[600px] blur-[150px] opacity-[0.08] dark:opacity-[0.04] rounded-full bg-teal-400" />
-            </div>
-
             <div className="relative z-10 flex flex-col h-full overflow-y-auto p-12 custom-scrollbar">
               <form onSubmit={handleSubmit} className="space-y-12">
                 <div className="flex justify-between items-center mb-6">
@@ -565,7 +580,9 @@ const ChangePlanModal = ({
                       value={rateOrCost}
                       onChange={(e: any) => {
                         const val = parseFloat(e.target.value);
-                        setRateOrCost(isNaN(val) ? "" : Math.max(0, val).toString());
+                        setRateOrCost(
+                          isNaN(val) ? "" : Math.max(0, val).toString(),
+                        );
                       }}
                       type="number"
                       prefix="₹"
@@ -589,7 +606,9 @@ const ChangePlanModal = ({
                       value={discount}
                       onChange={(e: any) => {
                         const val = parseFloat(e.target.value);
-                        setDiscount(isNaN(val) ? "" : Math.max(0, val).toString());
+                        setDiscount(
+                          isNaN(val) ? "" : Math.max(0, val).toString(),
+                        );
                       }}
                       type="number"
                       prefix="-"
@@ -601,13 +620,31 @@ const ChangePlanModal = ({
                       value={advance}
                       onChange={(e: any) => {
                         const val = parseFloat(e.target.value);
-                        setAdvance(isNaN(val) ? "" : Math.max(0, val).toString());
+                        setAdvance(
+                          isNaN(val) ? "" : Math.max(0, val).toString(),
+                        );
                       }}
                       type="number"
                       prefix="₹"
                       min="0"
                     />
+                    <FormInput
+                      label="Starting Date"
+                      value={format(new Date(startDate), "dd MMM yyyy")}
+                      readOnly
+                      onClick={() => setShowDatePicker(true)}
+                      icon={Calendar}
+                      className="cursor-pointer"
+                    />
                   </div>
+
+                  {showDatePicker && (
+                    <DatePicker
+                      value={startDate}
+                      onChange={(d: string) => setStartDate(d)}
+                      onClose={() => setShowDatePicker(false)}
+                    />
+                  )}
 
                   {/* Payment Section */}
                   <div className="space-y-6">
@@ -699,60 +736,98 @@ const ChangePlanModal = ({
                     )}
                   </div>
 
-                  <div className="flex justify-between items-center p-4 bg-teal-50/50 dark:bg-teal-500/5 rounded-2xl border border-teal-100 dark:border-teal-500/20 mb-6">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-teal-600 dark:text-teal-400">
-                      Net Rate / Session
-                    </span>
-                    <span className="text-xl font-black text-teal-700 dark:text-teal-400 tracking-tight">
-                      ₹
-                      {(
-                        (parseFloat(rateOrCost) || 0) -
-                        (parseFloat(discount) || 0)
-                      ).toLocaleString()}
-                    </span>
-                  </div>
-
-                  {/* Simplified Financial Breakdown */}
-                  <div className="p-6 rounded-[32px] bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 space-y-3">
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
-                      <span>Plan Value</span>
-                      <span>
+                  <div className="flex flex-col gap-6">
+                    <div className="flex justify-between items-center p-4 bg-teal-50/50 dark:bg-teal-500/5 rounded-2xl border border-teal-100 dark:border-teal-500/20">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-teal-600 dark:text-teal-400">
+                        Net Rate / Session
+                      </span>
+                      <span className="text-xl font-black text-teal-700 dark:text-teal-400 tracking-tight">
                         ₹
                         {(
-                          ((parseFloat(rateOrCost) || 0) -
-                            (parseFloat(discount) || 0)) *
-                          (parseInt(days) || 0)
+                          (parseFloat(rateOrCost) || 0) -
+                          (parseFloat(discount) || 0)
                         ).toLocaleString()}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
-                      <span>Wallet Balance</span>
-                      <span
-                        className={`${carryOverBalance > 0 ? "text-emerald-500 dark:text-emerald-400" : "text-rose-500"}`}
-                      >
-                        {carryOverBalance > 0 ? "- " : "+ "}₹
-                        {Math.abs(carryOverBalance).toLocaleString()}
-                      </span>
-                    </div>
-                    {(parseFloat(advance) || 0) > 0 && (
-                      <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
-                        <span>Advance Paid</span>
-                        <span className="text-emerald-500 dark:text-emerald-400">
-                          - ₹{parseFloat(advance).toLocaleString()}
-                        </span>
+
+                    {/* Deduction Logic Toggle - Moved here */}
+                    <div className="flex items-center justify-between p-5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5">
+                      <div className="space-y-0.5">
+                        <h4 className="text-[11px] font-black text-slate-800 dark:text-white uppercase tracking-tight">
+                          Deduction Logic
+                        </h4>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                          Apply Wallet Balance
+                        </p>
                       </div>
-                    )}
-                    <div className="h-px bg-slate-200 dark:bg-white/5 w-full my-2" />
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
-                        Final Due
-                      </span>
-                      <span
-                        className={`text-xl font-black tracking-tighter ${finalDue > 0 ? "text-slate-800 dark:text-white" : "text-emerald-500 dark:text-emerald-400"}`}
+                      <button
+                        type="button"
+                        onClick={() => setUseWalletBalance(!useWalletBalance)}
+                        className={`relative w-10 h-5 rounded-full transition-colors duration-200 outline-none ${useWalletBalance ? "bg-teal-500" : "bg-slate-300 dark:bg-slate-700"}`}
                       >
-                        ₹{finalDue.toLocaleString()}
-                      </span>
+                        <div
+                          className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${useWalletBalance ? "translate-x-5" : ""}`}
+                        />
+                      </button>
                     </div>
+
+                    {/* Simplified Financial Breakdown - Conditional */}
+                    <AnimatePresence>
+                      {useWalletBalance && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="p-6 rounded-[32px] bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 space-y-3 overflow-hidden"
+                        >
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
+                            <span>Plan Value</span>
+                            <span>
+                              ₹
+                              {(
+                                ((parseFloat(rateOrCost) || 0) -
+                                  (parseFloat(discount) || 0)) *
+                                (parseInt(days) || 0)
+                              ).toLocaleString()}
+                            </span>
+                          </div>
+                          {existingDue > 0 && (
+                            <div className="flex justify-between items-center text-xs font-bold text-rose-500">
+                              <span>Existing Dues</span>
+                              <span>+ ₹{existingDue.toLocaleString()}</span>
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
+                            <span>Wallet Balance</span>
+                            <span
+                              className={`${carryOverBalance > 0 ? "text-emerald-500 dark:text-emerald-400" : "text-rose-500"}`}
+                            >
+                              {carryOverBalance > 0 ? "- " : "+ "}₹
+                              {Math.abs(carryOverBalance).toLocaleString()}
+                            </span>
+                          </div>
+                          {(parseFloat(advance) || 0) > 0 && (
+                            <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
+                              <span>Advance Paid</span>
+                              <span className="text-emerald-500 dark:text-emerald-400">
+                                - ₹{parseFloat(advance).toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          <div className="h-px bg-slate-200 dark:bg-white/5 w-full my-2" />
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                              Final Due
+                            </span>
+                            <span
+                              className={`text-xl font-black tracking-tighter ${finalDue > 0 ? "text-slate-800 dark:text-white" : "text-emerald-500 dark:text-emerald-400"}`}
+                            >
+                              ₹{Math.max(0, finalDue).toLocaleString()}
+                            </span>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
 
                   <div className="pt-4">
@@ -762,7 +837,7 @@ const ChangePlanModal = ({
                           Net Payable
                         </p>
                         <h2 className="text-3xl font-black tracking-tighter text-slate-800 dark:text-white">
-                          ₹{finalDue.toLocaleString()}
+                          ₹{Math.max(0, finalDue).toLocaleString()}
                         </h2>
                       </div>
                       <button

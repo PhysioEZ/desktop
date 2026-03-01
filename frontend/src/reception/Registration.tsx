@@ -44,6 +44,7 @@ import {
   Users,
   FileText,
   Ticket,
+  Loader2,
 } from "lucide-react";
 import CustomSelect from "../components/ui/CustomSelect";
 import { useNavigate } from "react-router-dom";
@@ -58,6 +59,7 @@ import UpdatePaymentModal from "../components/reception/UpdatePaymentModal";
 import PageHeader from "../components/PageHeader";
 import Sidebar from "../components/Sidebar";
 import DailyIntelligence from "../components/DailyIntelligence";
+import { useSmartRefresh } from "../hooks/useSmartRefresh";
 import NotesDrawer from "../components/NotesDrawer";
 import LogoutConfirmation from "../components/LogoutConfirmation";
 import KeyboardShortcuts from "../components/KeyboardShortcuts";
@@ -268,6 +270,8 @@ const Registration = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [refreshCooldown, setRefreshCooldown] = useState(0);
 
+  const { smartRefresh, isRefreshing } = useSmartRefresh();
+
   // UI State
   const [toast, setToast] = useState<{
     message: string;
@@ -377,6 +381,9 @@ const Registration = () => {
       data = data.filter(
         (r) => r.status?.toLowerCase() === statusFilter.toLowerCase(),
       );
+    } else {
+      // By default, hide closed registrations (matches server-side fetch logic)
+      data = data.filter((r) => r.status?.toLowerCase() !== "closed");
     }
 
     // Referrer Filter
@@ -453,111 +460,90 @@ const Registration = () => {
     };
   }, [isDetailsModalOpen, isBillModalOpen, confirmModal.isOpen]);
 
-  const fetchRegistrations = useCallback(
-    async (forceRefresh = false) => {
-      if (!user?.branch_id) return;
+  const fetchRegistrations = useCallback(async () => {
+    if (!user?.branch_id) return;
 
-      // FETCH ALL DATA (Limit 1000)
-      const currentParams = {
-        action: "fetch",
-        branch_id: user.branch_id,
-        limit: 1000,
-        page: 1, // Get everything
-        // No search/filter params sent to API
-      };
+    // FETCH ALL DATA (Limit 1000)
+    const currentParams = {
+      action: "fetch",
+      branch_id: user.branch_id,
+      limit: 1000,
+      page: 1, // Get everything
+      // No search/filter params sent to API
+    };
 
-      const cacheKey = JSON.stringify(currentParams);
+    const cacheKey = JSON.stringify(currentParams);
 
-      // Cache logic:
-      if (!forceRefresh) {
-        const {
-          registrations: currentRegistrations,
-          lastParams: currentLastParams,
-          registrationsCache: currentCache,
-        } = useRegistrationStore.getState();
+    // Cache logic:
+    // Remove forceRefresh check as we always fetch from server now
+    if (true) {
+      const {
+        registrations: currentRegistrations,
+        lastParams: currentLastParams,
+        registrationsCache: currentCache,
+      } = useRegistrationStore.getState();
 
-        if (
-          currentLastParams &&
-          cacheKey === JSON.stringify(currentLastParams) &&
-          currentRegistrations &&
-          currentRegistrations.length > 0
-        ) {
-          setIsLoading(false);
-          return;
-        }
-
-        if (currentCache && currentCache[cacheKey]) {
-          const cached = currentCache[cacheKey];
-          setRegistrations(cached.data);
-          setLastParams(currentParams);
-          setIsLoading(false);
-          return;
-        }
-      }
-
-      const { registrations: currentRegistrations } =
-        useRegistrationStore.getState();
-
-      if (isFirstLoad.current || !currentRegistrations || forceRefresh === true)
-        setIsLoading(true);
-
-      try {
-        const res = await authFetch(`${API_BASE_URL}/reception/registration`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            ...(forceRefresh && { "X-Refresh": "true" }),
-          },
-          body: JSON.stringify(currentParams),
-        });
-        const data = await res.json();
-        if (data.status === "success") {
-          setRegistrations(data.data || []);
-          // setPagination(data.pagination); // Local pagination
-          setLastParams(currentParams);
-          setLastFetched(Date.now());
-          setRegistrationsCache(cacheKey, data.data || [], data.pagination);
-        }
-      } catch (err) {
-        console.error("Failed to fetch registrations:", err);
-      } finally {
+      // ONLY use cache if we have both the raw data and the cache keyed for this exact request
+      if (
+        currentLastParams &&
+        cacheKey === JSON.stringify(currentLastParams) &&
+        currentRegistrations &&
+        currentRegistrations.length > 0 &&
+        currentCache &&
+        currentCache[cacheKey]
+      ) {
         setIsLoading(false);
-        isFirstLoad.current = false;
+        return;
       }
-    },
-    [
-      user?.branch_id,
-      setRegistrations,
-      setLastParams,
-      setLastFetched,
-      setRegistrationsCache,
-    ],
-  );
+    }
+
+    const { registrations: currentRegistrations } =
+      useRegistrationStore.getState();
+
+    if (isFirstLoad.current || !currentRegistrations) setIsLoading(true);
+
+    try {
+      const res = await authFetch(`${API_BASE_URL}/reception/registration`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(currentParams),
+      });
+      const data = await res.json();
+      if (data.status === "success") {
+        setRegistrations(data.data || []);
+        // setPagination(data.pagination); // Local pagination
+        setLastParams(currentParams);
+        setLastFetched(Date.now());
+        setRegistrationsCache(cacheKey, data.data || [], data.pagination);
+      }
+    } catch (err) {
+      console.error("Failed to fetch registrations:", err);
+    } finally {
+      setIsLoading(false);
+      isFirstLoad.current = false;
+    }
+  }, [
+    user?.branch_id,
+    setRegistrations,
+    setLastParams,
+    setLastFetched,
+    setRegistrationsCache,
+  ]);
 
   const handleRefresh = async () => {
     if (refreshCooldown > 0 || !user?.branch_id) return;
 
-    const fetchDash = authFetch(
-      `${API_BASE_URL}/reception/dashboard?branch_id=${user.branch_id}`,
-      { headers: { "X-Refresh": "true" } },
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.status === "success") {
-          useDashboardStore.setState({ data: data.data });
+    smartRefresh("registration", {
+      onSuccess: async () => {
+        await fetchRegistrations();
+        if (selectedRegistration?.registration_id) {
+          await fetchDetails(selectedRegistration.registration_id, true);
         }
-      })
-      .catch(console.error);
-
-    const promise = Promise.all([fetchRegistrations(true), fetchDash]);
-
-    sonnerToast.promise(promise, {
-      loading: "Refreshing registrations & stats...",
-      success: "Data updated",
-      error: "Failed to refresh",
+        setRefreshCooldown(20);
+      },
     });
-
-    setRefreshCooldown(20);
   };
 
   useEffect(() => {
@@ -722,7 +708,7 @@ const Registration = () => {
         setConditionFilter("");
         setCurrentPage(1);
         // Force refresh after reset
-        setTimeout(() => fetchRegistrations(true), 0);
+        setTimeout(() => fetchRegistrations(), 0);
       },
       pageSpecific: true,
     },
@@ -837,7 +823,7 @@ const Registration = () => {
 
   useEffect(() => {
     if (!user?.branch_id) return;
-    fetchRegistrations(false);
+    fetchRegistrations();
   }, [user?.branch_id, fetchRegistrations]);
 
   const fetchOptions = useCallback(async () => {
@@ -901,8 +887,8 @@ const Registration = () => {
   }, [fetchOptions]);
 
   const handleUpdateStatus = async (id: number, newStatus: string) => {
-    // Optimistic update
-    const updatedRegistrations = registrations.map((reg: any) =>
+    // Optimistic update - MUST use storeData (the full list) NOT registrations (the paginated slice)
+    const updatedRegistrations = storeData.map((reg: any) =>
       reg.registration_id === id ? { ...reg, status: newStatus } : reg,
     );
     setRegistrations(updatedRegistrations);
@@ -910,7 +896,9 @@ const Registration = () => {
     try {
       const res = await authFetch(`${API_BASE_URL}/reception/registration`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           action: "update_status",
           id,
@@ -920,21 +908,37 @@ const Registration = () => {
       const data = await res.json();
       if (data.status === "success") {
         showToast(`Registration status updated to ${newStatus}`, "success");
-        fetchRegistrations();
+        // Update local list state optimistically for all pages
+        const updatedRegistrations = storeData.map((reg: any) =>
+          reg.registration_id === id ? { ...reg, status: newStatus } : reg,
+        );
+        // If it was closed, we hide it from the current view list
+        const finalData =
+          newStatus === "closed"
+            ? updatedRegistrations.filter((r) => r.registration_id !== id)
+            : updatedRegistrations;
+
+        setRegistrations(finalData);
+
+        // Clear only the cancelled cache so that page gets fresh view of recovery list from SQLite
+        useRegistrationStore.setState({
+          cancelledRegistrationsCache: null,
+          registrationsCache: {}, // Clear page-cache as counts/pages changed
+        });
       } else {
         showToast(data.message || "Failed to update status", "error");
-        fetchRegistrations(); // Revert on failure
+        fetchRegistrations(); // Revert to local SQLite state on failure
       }
     } catch (err) {
       console.error("Failed to update status:", err);
       showToast("An error occurred while updating status", "error");
-      fetchRegistrations(); // Revert on error
+      fetchRegistrations();
     }
   };
 
-  const fetchDetails = async (id: number, forceRefresh = false) => {
+  const fetchDetails = async (id: number, force = false) => {
     // Cache check
-    if (!forceRefresh && detailsCache && detailsCache[id]) {
+    if (!force && detailsCache && detailsCache[id]) {
       setSelectedRegistration(detailsCache[id]);
       setIsEditing(false);
       setIsDetailsModalOpen(true);
@@ -952,7 +956,8 @@ const Registration = () => {
         setSelectedRegistration(data.data);
         setIsEditing(false); // Reset edit mode when opening new details
         setIsDetailsModalOpen(true);
-        if (forceRefresh) {
+        // Always update cache
+        if (true) {
           showToast("Registration Profile Updated", "success");
         }
       }
@@ -967,7 +972,9 @@ const Registration = () => {
     try {
       const res = await authFetch(`${API_BASE_URL}/reception/registration`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
           action: "update_details",
           registration_id: selectedRegistration.registration_id,
@@ -977,8 +984,35 @@ const Registration = () => {
       const data = await res.json();
       if (data.status === "success") {
         setIsEditing(false);
-        fetchDetails(selectedRegistration.registration_id, true);
-        fetchRegistrations(true);
+        // Clear details cache for this item
+        setDetailsCache(selectedRegistration.registration_id, null);
+
+        // Optimistic update of the list record
+        const updatedList = storeData.map((reg) =>
+          reg.registration_id === selectedRegistration.registration_id
+            ? { ...reg, ...editData, status: editData.status || reg.status }
+            : reg,
+        );
+
+        // If status changed to closed during edit, hide it
+        const finalRegistrations =
+          editData.status === "closed"
+            ? updatedList.filter(
+                (r) =>
+                  r.registration_id !== selectedRegistration.registration_id,
+              )
+            : updatedList;
+
+        setRegistrations(finalRegistrations);
+
+        // Clear caches to reflect changes in other views
+        useRegistrationStore.setState({
+          registrationsCache: {},
+          cancelledRegistrationsCache: null,
+        });
+
+        // Refresh details modal locally
+        fetchDetails(selectedRegistration.registration_id);
         showToast("Clinical Profile Synchronized Successfully", "success");
       }
     } catch (err) {
@@ -1050,10 +1084,29 @@ const Registration = () => {
     }, 500);
   };
 
-  const formatDateSafe = (dateStr: string, formatPattern: string) => {
-    if (!dateStr) return "N/A";
-    const date = parseISO(dateStr.replace(" ", "T"));
-    return isValid(date) ? format(date, formatPattern) : "Invalid Date";
+  const formatDateSafe = (
+    dateInput: any,
+    formatPattern: string = "MMM dd, yyyy",
+  ) => {
+    if (!dateInput) return "N/A";
+
+    let dateObj: Date;
+
+    if (typeof dateInput === "number") {
+      dateObj = new Date(dateInput);
+    } else if (typeof dateInput === "string") {
+      if (/^\d+\.?\d*$/.test(dateInput)) {
+        // Handle numeric strings like "1764672665000"
+        dateObj = new Date(parseFloat(dateInput));
+      } else {
+        // Standard ISO parsing
+        dateObj = parseISO(dateInput.replace(" ", "T"));
+      }
+    } else {
+      return "N/A";
+    }
+
+    return isValid(dateObj) ? format(dateObj, formatPattern) : "Invalid Date";
   };
 
   const getStatusColors = (status: string) => {
@@ -1079,11 +1132,11 @@ const Registration = () => {
 
       <div className="flex-1 flex flex-col h-full relative overflow-hidden">
         <PageHeader
-          title="Registration"
-          subtitle="Operations Center"
+          title="Registration Tracking"
+          subtitle="Patient Admissions & Intake"
           icon={UserPlus}
           onRefresh={handleRefresh}
-          isLoading={isLoading}
+          isLoading={isLoading || isRefreshing}
           refreshCooldown={refreshCooldown}
           onShowIntelligence={() => setShowIntelligence(true)}
           onShowNotes={() => setShowNotes(true)}
@@ -1413,7 +1466,7 @@ const Registration = () => {
                         {/* Patient Details */}
                         <div
                           className="flex items-center gap-5 min-w-0"
-                          onClick={() => fetchDetails(reg.registration_id)}
+                          onClick={() => fetchDetails(reg.uid)}
                         >
                           <div className="w-14 h-14 rounded-2xl overflow-hidden shadow-inner border border-black/5 dark:border-white/5 flex-shrink-0 relative group-hover:ring-2 ring-offset-2 ring-emerald-500 transition-all">
                             <PatientAvatar
@@ -1644,13 +1697,26 @@ const Registration = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() =>
-                      fetchDetails(selectedRegistration.registration_id, true)
+                    onClick={() => {
+                      if (refreshCooldown > 0 || isRefreshing) return;
+                      handleRefresh();
+                    }}
+                    className={`w-9 h-9 flex items-center justify-center rounded-xl transition-all ${refreshCooldown > 0 ? "bg-slate-50 text-slate-300" : "hover:bg-slate-100/80 text-slate-400 hover:text-emerald-500 active:rotate-180"}`}
+                    title={
+                      refreshCooldown > 0
+                        ? `Wait ${refreshCooldown}s`
+                        : "Refresh Details"
                     }
-                    className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100/80 text-slate-400 hover:text-emerald-500 transition-all active:rotate-180 duration-500"
-                    title="Refresh Details"
+                    disabled={refreshCooldown > 0 || isRefreshing}
                   >
-                    <RefreshCw size={16} />
+                    {isRefreshing ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <RefreshCw
+                        size={16}
+                        className={refreshCooldown > 0 ? "" : "duration-500"}
+                      />
+                    )}
                   </button>
                   <button
                     onClick={
@@ -2101,9 +2167,9 @@ const Registration = () => {
                       "success",
                     );
                     if (selectedRegistration?.registration_id) {
-                      fetchDetails(selectedRegistration.registration_id, true);
+                      fetchDetails(selectedRegistration.registration_id);
                     }
-                    fetchRegistrations(true);
+                    fetchRegistrations();
                   }}
                 />
               )}

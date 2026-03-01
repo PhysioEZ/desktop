@@ -107,67 +107,64 @@ const Attendance = () => {
 
   // --- Fetchers ---
 
-  const fetchData = useCallback(
-    async (forceRefresh = false) => {
-      setLoading(true);
-      try {
-        const dateStr = format(currentDate, "yyyy-MM-dd");
-        const res = await authFetch(
-          `${API_BASE_URL}/reception/attendance_data?date=${dateStr}`,
-          { headers: { ...(forceRefresh && { "X-Refresh": "true" }) } },
-        );
-        const data = await res.json();
-        if (data.success) {
-          const transformed: AttendanceRecord[] =
-            data.data.attendance_records.map((r: any) => ({
-              id: r.patient_id,
-              patient_name: r.patient_name,
-              treatment:
-                r.treatment_type.charAt(0).toUpperCase() +
-                r.treatment_type.slice(1),
-              progress_current: r.attendance_count || 0,
-              progress_total: r.treatment_days || 0,
-              status:
-                r.status === "present"
-                  ? "Present"
-                  : r.status === "pending"
-                    ? "Pending"
-                    : "Absent",
-              last_active:
-                r.attendance_id && r.status === "present"
-                  ? format(currentDate, "dd MMM")
-                  : r.last_attendance_date &&
-                      !isNaN(new Date(r.last_attendance_date).getTime())
-                    ? format(new Date(r.last_attendance_date), "dd MMM")
-                    : "Never",
-            }));
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const dateStr = format(currentDate, "yyyy-MM-dd");
+      const res = await authFetch(
+        `${API_BASE_URL}/reception/attendance_data?date=${dateStr}`,
+        { headers: {} },
+      );
+      const data = await res.json();
+      if (data.success) {
+        const transformed: AttendanceRecord[] =
+          data.data.attendance_records.map((r: any) => ({
+            id: r.patient_id,
+            patient_name: r.patient_name,
+            treatment:
+              r.treatment_type.charAt(0).toUpperCase() +
+              r.treatment_type.slice(1),
+            progress_current: r.attendance_count || 0,
+            progress_total: r.treatment_days || 0,
+            status:
+              r.status === "present"
+                ? "Present"
+                : r.status === "pending"
+                  ? "Pending"
+                  : "Absent",
+            last_active:
+              r.attendance_id && r.status === "present"
+                ? format(currentDate, "dd MMM")
+                : r.last_attendance_date &&
+                    !isNaN(new Date(r.last_attendance_date).getTime())
+                  ? format(new Date(r.last_attendance_date), "dd MMM")
+                  : "Never",
+          }));
 
-          const presentCount = transformed.filter(
-            (r) => r.status === "Present",
-          ).length;
-          const absentCount = transformed.filter(
-            (r) => r.status === "Absent",
-          ).length;
-          const pendingCount = transformed.filter(
-            (r) => r.status === "Pending",
-          ).length;
+        const presentCount = transformed.filter(
+          (r) => r.status === "Present",
+        ).length;
+        const absentCount = transformed.filter(
+          (r) => r.status === "Absent",
+        ).length;
+        const pendingCount = transformed.filter(
+          (r) => r.status === "Pending",
+        ).length;
 
-          setStats({
-            total: transformed.length,
-            present: presentCount,
-            absent: absentCount,
-            pending: pendingCount,
-          });
-          setRecords(transformed);
-        }
-      } catch (e) {
-        toast.error("Network error");
-      } finally {
-        setLoading(false);
+        setStats({
+          total: transformed.length,
+          present: presentCount,
+          absent: absentCount,
+          pending: pendingCount,
+        });
+        setRecords(transformed);
       }
-    },
-    [currentDate],
-  );
+    } catch (e) {
+      toast.error("Network error");
+    } finally {
+      setLoading(false);
+    }
+  }, [currentDate]);
 
   const fetchAttendanceHistory = async (patientId: number) => {
     if (!patientId) {
@@ -254,7 +251,7 @@ const Attendance = () => {
 
   const handleRefresh = async () => {
     if (refreshCooldown > 0) return;
-    await fetchData(true);
+    await fetchData();
     setRefreshCooldown(20);
     toast.success("Data updated");
   };
@@ -725,7 +722,7 @@ const Attendance = () => {
                   <div className="h-64 flex flex-col items-center justify-center opacity-30">
                     <RefreshCw className="animate-spin mb-4" />
                     <span className="text-[11px] font-medium uppercase tracking-widest">
-                      Syncing Records
+                      Loading Records
                     </span>
                   </div>
                 ) : filteredRecords.length === 0 ? (

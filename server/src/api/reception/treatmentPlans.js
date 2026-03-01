@@ -82,10 +82,9 @@ async function editTreatmentPlan(req, res, input) {
             }
         }
 
-        if (input.edit_remarks) {
-            fields.push("remarks = (COALESCE(remarks, '') || ?)");
-            params.push(`\n[Edit: ${input.edit_remarks}]`);
-        }
+        const timestamp = new Date(new Date().getTime() + 5.5 * 3600 * 1000).toISOString().replace('T', ' ').split('.')[0];
+        fields.push("remarks = CONCAT(COALESCE(remarks, ''), ?)");
+        params.push(`\n[${timestamp}] Plan edited: ${input.edit_remarks}`);
 
 
         // 2. Financial Recalculation
@@ -122,7 +121,7 @@ async function editTreatmentPlan(req, res, input) {
 
                 let basePerDay = parseFloat(patient.treatment_cost_per_day || 0);
                 if (patient.treatment_type === 'package' && patient.treatment_days > 0) {
-                    basePerDay = parseFloat(patient.package_cost) / patient.treatment_days;
+                    basePerDay = parseFloat(patient.total_amount) / patient.treatment_days;
                 }
 
                 const subtotal = basePerDay * newDays;
@@ -192,21 +191,26 @@ async function changeTreatmentPlan(req, res, input) {
         const actualEndDate = new Date().toISOString().split('T')[0];
 
         // We reuse the effective balance calculation logic or assume the caller passed it
-        // Better to calculate it here to ensure data integrity
+        // Recalculate everything fresh to ensure NO debt or credit vanishes
         const [paidRows] = await connection.query("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE patient_id = ?", [patientId]);
         const totalPaid = parseFloat(paidRows[0].total || 0);
 
-        // Optimized History Consumption
         const [histRows] = await connection.query("SELECT COALESCE(SUM(consumed_amount), 0) as total FROM patients_treatment WHERE patient_id = ?", [patientId]);
         const historyConsumed = parseFloat(histRows[0].total || 0);
 
-        const curRate = (patient.treatment_type === 'package' && patient.treatment_days > 0) ? (parseFloat(patient.package_cost) / patient.treatment_days) : parseFloat(patient.treatment_cost_per_day || 0);
-        const [cAtt] = await connection.query("SELECT COUNT(*) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND attendance_date < CURDATE() AND status = 'present'", [patientId, patient.start_date || '2000-01-01']);
+        // Fetch attendance count for current plan to ARCHIVE it correctly
+        const [cAtt] = await connection.query("SELECT COUNT(DISTINCT SUBSTR(attendance_date, 1, 10)) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'", [patientId, patient.start_date || '2000-01-01']);
         const currentCount = cAtt[0].count;
-        const currentConsumed = (currentCount * curRate);
+        const curRate = (patient.treatment_type === 'package' && patient.treatment_days > 0) ? (parseFloat(patient.total_amount) / patient.treatment_days) : parseFloat(patient.treatment_cost_per_day || 0);
+        const currentConsumedInThisPlan = currentCount * curRate;
 
-        const totalConsumed = historyConsumed + currentConsumed;
-        const carryOverBalance = totalPaid - totalConsumed;
+        // CRITICAL FIX: The ONLY way to preserve debt is to calculate the TRUE wallet state from the LEDGER.
+        // walletBeforeSwitch = (Total Paid) - (History Consumed) - (Current Plan Sessions)
+        // If this is negative, it represents a DUE amount.
+        const walletBeforeSwitch = totalPaid - historyConsumed - currentConsumedInThisPlan;
+
+        // For the archive record, we record exactly what was consumed in that plan period.
+        const consumedAmountToArchive = currentConsumedInThisPlan;
 
         await connection.query(`
             INSERT INTO patients_treatment (
@@ -217,10 +221,10 @@ async function changeTreatmentPlan(req, res, input) {
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
         `, [
             patientId, patient.treatment_type, patient.start_date, actualEndDate,
-            patient.treatment_days, currentCount, currentConsumed,
+            patient.treatment_days, currentCount, consumedAmountToArchive,
             patient.treatment_cost_per_day || 0, patient.package_cost || 0,
             patient.total_amount || 0, patient.due_amount || 0, patient.discount_amount || 0,
-            `Archived on Plan Change. Carried Over Balance: ${carryOverBalance}. Reason: ${input.reason_for_change || 'N/A'}`
+            `Archived on Plan Change. Bal: ${walletBeforeSwitch}. Rsn: ${input.reason_for_change || 'N/A'}`
         ]);
 
         // 4. Update with New Plan Details
@@ -238,7 +242,7 @@ async function changeTreatmentPlan(req, res, input) {
         const advance = parseFloat(input.new_advance_payment || 0);
         const payMethod = input.change_plan_payment_method || 'cash';
 
-        const newStartDate = new Date().toISOString().split('T')[0];
+        const newStartDate = input.new_start_date || new Date().toISOString().split('T')[0];
         const newEndDateObj = new Date();
         newEndDateObj.setDate(newEndDateObj.getDate() + newDays);
         const newEndDate = newEndDateObj.toISOString().split('T')[0];
@@ -258,7 +262,16 @@ async function changeTreatmentPlan(req, res, input) {
 
         const discountAmount = (subtotal * newDiscountPct) / 100;
         const totalAmount = subtotal - discountAmount;
-        const dueAmount = totalAmount - carryOverBalance - advance;
+
+        // Final Wallet = Old Wallet + Newly Paid Advance
+        const finalWallet = walletBeforeSwitch + advance;
+
+        // Final Due = New Plan Cost - Available Wallet
+        // Note: If finalWallet is negative, this correctly ADDS the debt to due_amount
+        const dueAmount = totalAmount - finalWallet;
+
+        const timestamp = new Date(new Date().getTime() + 5.5 * 3600 * 1000).toISOString().replace('T', ' ').split('.')[0];
+        const planRemark = `\n[${timestamp}] Plan changed to ${newType}. (New Value: ${totalAmount}, Bal Carryover: ${walletBeforeSwitch}, Reason: ${input.reason_for_change || 'N/A'}, Start Date: ${newStartDate})`;
 
         await connection.query(`
             UPDATE patients SET
@@ -270,11 +283,12 @@ async function changeTreatmentPlan(req, res, input) {
                 package_cost = ?, 
                 total_amount = ?,
                 due_amount = ?,
+                advance_payment = ?,
                 discount_amount = ?,
                 service_track_id = COALESCE(?, service_track_id),
                 status = 'active',
                 plan_changed = 1,
-                remarks = (COALESCE(remarks, '') || ?)
+                remarks = CONCAT(COALESCE(remarks, ''), ?)
             WHERE patient_id = ?
         `, [
             newType,
@@ -285,9 +299,10 @@ async function changeTreatmentPlan(req, res, input) {
             packageCost,
             totalAmount,
             dueAmount,
+            finalWallet,
             discountAmount,
             trackId,
-            `\n[Plan Change: ${newType} | New Tot: ${totalAmount} | Days: ${newDays} | Ad: ${advance} | Rsn: ${input.reason_for_change || 'N/A'}]`,
+            planRemark,
             patientId
         ]);
 
@@ -331,13 +346,14 @@ async function changeTreatmentPlan(req, res, input) {
         }
 
         // 6. Centralized Recalculation to ensure integrity
+        // Now supports cumulative commitment (sum of history totals)
         await recalculatePatientFinancials(connection, patientId);
 
         await connection.commit();
         res.json({
             success: true,
             message: 'Treatment plan changed successfully',
-            carried_over: carryOverBalance
+            carried_over: walletBeforeSwitch
         });
 
     } catch (error) {
