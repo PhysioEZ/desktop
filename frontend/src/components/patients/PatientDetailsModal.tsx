@@ -279,7 +279,7 @@ const PatientDetailsModal = () => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           transition={{ type: "spring", damping: 30, stiffness: 300 }}
-          className="relative w-full max-w-[90rem] h-[90vh] bg-white dark:bg-[#0c0d0f] rounded-[32px] shadow-2xl flex overflow-hidden ring-1 ring-white/10"
+          className="relative w-full max-w-[100rem] h-[90vh] bg-white dark:bg-[#0c0d0f] rounded-[32px] shadow-2xl flex overflow-hidden ring-1 ring-white/10"
         >
           {/* --- LEFT SIDEBAR (DARK) --- */}
           <div className="w-[340px] shrink-0 bg-[#0f1115] text-slate-300 flex flex-col border-r border-white/5 relative overflow-hidden">
@@ -1111,16 +1111,19 @@ const PatientDetailsModal = () => {
                               treatment_type: string;
                               start_date: string;
                               end_date: string;
+                              treatment_days: number;
+                              attendance_count: number;
+                              treatment_cost_per_day: number;
                               total_amount: string | number;
                             },
                             i: number,
                           ) => (
                             <div
                               key={i}
-                              className="p-6 rounded-[24px] bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 flex items-center justify-between shadow-sm"
+                              className="p-6 rounded-[24px] bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between shadow-sm gap-4"
                             >
                               <div className="flex items-center gap-6">
-                                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400">
+                                <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-white/5 flex items-center justify-center text-slate-400 shrink-0">
                                   <Archive size={20} />
                                 </div>
                                 <div>
@@ -1128,20 +1131,48 @@ const PatientDetailsModal = () => {
                                     {h.treatment_type}
                                   </h4>
                                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-                                    {h.start_date} — {h.end_date}
+                                    {h.start_date && h.start_date !== "—"
+                                      ? format(h.start_date, "dd MMM yyyy")
+                                      : "—"}{" "}
+                                    —{" "}
+                                    {h.end_date && h.end_date !== "—"
+                                      ? format(h.end_date, "dd MMM yyyy")
+                                      : "—"}
                                   </p>
                                 </div>
                               </div>
-                              <div className="text-right">
-                                <p className="text-lg font-black text-emerald-500">
-                                  ₹
-                                  {parseFloat(
-                                    String(h.total_amount || "0"),
-                                  ).toLocaleString()}
-                                </p>
-                                <p className="text-[10px] font-bold text-slate-300 uppercase">
-                                  Total Value
-                                </p>
+                              <div className="flex items-center gap-8 sm:text-right">
+                                <div className="hidden md:block">
+                                  <p className="text-sm font-black text-slate-700 dark:text-slate-300">
+                                    ₹
+                                    {parseFloat(
+                                      String(h.treatment_cost_per_day || 0),
+                                    ).toLocaleString()}
+                                  </p>
+                                  <p className="text-[10px] font-bold text-slate-300 uppercase">
+                                    Cost / Day
+                                  </p>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-black text-slate-700 dark:text-slate-300">
+                                    {h.attendance_count || 0}/
+                                    {h.treatment_days || 0}
+                                  </p>
+                                  <p className="text-[10px] font-bold text-slate-300 uppercase">
+                                    Sessions
+                                  </p>
+                                </div>
+                                <div className="min-w-[100px]">
+                                  <p className="text-lg font-black text-emerald-500">
+                                    ₹
+                                    {parseFloat(
+                                      String(h.total_amount || "0"),
+                                    ).toLocaleString()}
+                                  </p>
+                                  <p className="text-[10px] font-bold text-slate-300 uppercase">
+                                    Total Value
+                                  </p>
+                                </div>
                               </div>
                             </div>
                           ),

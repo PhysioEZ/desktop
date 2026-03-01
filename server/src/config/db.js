@@ -89,11 +89,11 @@ class SqlitePool {
         // Translate CAST(x AS DECIMAL(m,n)) to CAST(x AS REAL)
         newSql = newSql.replace(/CAST\s*\(([^)]+)\s+AS\s+DECIMAL\s*\([^)]*\)\s*\)/gi, 'CAST($1 AS REAL)');
 
-        // Translate MySQL CONCAT(a, b) to a || b
-        newSql = newSql.replace(/CONCAT\s*\(([^,]+),\s*([^)]+)\)/gi, '($1 || $2)');
+        // Translate MySQL CONCAT(a, b) to a || b. Improved to handle nested commas in arguments (like COALESCE).
+        newSql = newSql.replace(/CONCAT\s*\(((?:[^(),]+|\([^()]*\))+),\s*([^)]+)\)/gi, '($1 || $2)');
 
-        // Translate MySQL IF(c, t, f) to CASE WHEN c THEN t ELSE f END
-        newSql = newSql.replace(/IF\s*\(([^,]+),([^,]+),([^)]+)\)/gi, "CASE WHEN $1 THEN $2 ELSE $3 END");
+        // Translate MySQL IF(c, t, f) to CASE WHEN c THEN t ELSE f END. Handles nested commas in arguments.
+        newSql = newSql.replace(/IF\s*\(((?:[^(),]+|\([^()]*\))+),((?:[^(),]+|\([^()]*\))+),([^)]+)\)/gi, "CASE WHEN $1 THEN $2 ELSE $3 END");
 
         // Ignore SET statements (MySQL specific boilerplate)
         if (/^\s*SET\s+/i.test(newSql) || /^\s*NAMES\s+/i.test(newSql) || /^\s*SET\s+NAMES/i.test(newSql) || /^\s*\/\*.*\*\/\s*SET\s+/i.test(newSql)) {
@@ -166,9 +166,19 @@ class SqlitePool {
                     const result = await db.run(translatedSql, params || []);
 
                     // Queue for background sync
+                    // Enhanced to include table name and local_id for dependency resolution
+                    let tableName = null;
+                    const insertMatch = sql.match(/INSERT\s+INTO\s+["`]?(\w+)["`]?/i);
+                    if (insertMatch) tableName = insertMatch[1].toLowerCase();
+
                     await db.run(
                         "INSERT INTO pending_sync_queue (action, url, method, body) VALUES (?, ?, ?, ?)",
-                        ["sync_push", "local_mysql", "POST", JSON.stringify({ sql, params: params || [] })]
+                        ["sync_push", "local_mysql", "POST", JSON.stringify({
+                            sql,
+                            params: params || [],
+                            local_id: insertMatch ? result.lastID : null,
+                            tableName
+                        })]
                     );
 
                     console.log(`[Local-First] Saved data to local SQLite. Action: ${sql.slice(0, 40)}... Successful.`);

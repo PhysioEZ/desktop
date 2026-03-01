@@ -174,9 +174,9 @@ async function markFullAttendance(req, res, branchId, input) {
         const amount = parseFloat(payment_amount);
         if (amount > 0) {
             await connection.query(`
-                INSERT INTO payments (patient_id, amount, mode, payment_date, remarks, created_at, processed_by_employee_id)
-                VALUES (?, ?, ?, ?, ?, NOW(), ?)
-            `, [patient_id, amount, mode, today, remarks, req.user.employee_id]);
+                INSERT INTO payments (patient_id, branch_id, amount, mode, payment_date, remarks, created_at, processed_by_employee_id)
+                VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)
+            `, [patient_id, branchId, amount, mode, today, remarks, req.user.employee_id]);
         }
 
         // 5. Auto-Activate Patient

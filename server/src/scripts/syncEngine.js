@@ -13,8 +13,8 @@ const lastSyncMapFile = path.join(__dirname, '../../database/sync_status.json');
  * dependencies: Tables that should also be checked if this table changes.
  */
 const SYNCABLE_TABLES = {
-    'patients': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['patient_master', 'patients_treatment'] },
-    'registration': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['patients', 'payments', 'registration_payments'] },
+    'patients': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['patient_master', 'patients_treatment', 'attendance', 'payments'] },
+    'registration': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['patients', 'payments', 'registration_payments', 'attendance'] },
     'tests': { tsCol: 'updated_at', branchCol: 'branch_id', deps: ['test_payments'] },
     'attendance': { tsCol: 'created_at', branchCol: 'patients.branch_id', deps: [] },
     'payments': { tsCol: 'created_at', branchCol: 'patients.branch_id', deps: ['payment_splits'] },
@@ -395,6 +395,10 @@ async function runPush() {
 
     try {
         const db = await getLocalDb();
+        // Refresh syncMap from disk to capture any manual injections or other process updates
+        syncMap = getLastSyncMap();
+        const idMappings = syncMap.idMappings || {};
+
         const pending = await db.all(
             "SELECT * FROM pending_sync_queue WHERE status = 'pending' ORDER BY created_at ASC LIMIT 50"
         );
@@ -413,15 +417,87 @@ async function runPush() {
             try {
                 const body = JSON.parse(item.body || '{}');
                 const sql = body.sql;
-                const params = body.params || [];
+                let params = body.params || [];
+                const localId = body.local_id;
+                const tableName = body.tableName;
 
                 if (!sql) {
                     await db.run("UPDATE pending_sync_queue SET status = 'error', last_error = 'No SQL provided' WHERE id = ?", [item.id]);
                     continue;
                 }
 
+                // --- ID REMAPPING LOGIC ---
+                // If any param matches a previously mapped LocalID, replace it with the RemoteID
+                let wasRemapped = false;
+                params = params.map(val => {
+                    // We check all known mappings. 
+                    // To be safe, we only map if the value exists as a key in idMappings
+                    // We use [Table:LocalID] format for specificity if possible, but for now 
+                    // we'll check global mappings for efficiency in fresh-database scenarios.
+                    for (const [key, remoteId] of Object.entries(idMappings)) {
+                        const [mTable, mLocalId] = key.split(':');
+                        if (val == mLocalId) {
+                            // Check if the SQL likely refers to this table
+                            // We check for the table name or a column like table_id or master_table_id
+                            const cleanTable = mTable.replace(/_master$/, ''); // Handle 'patient_master' -> 'patient'
+                            if (sql.toLowerCase().includes(mTable.toLowerCase()) ||
+                                sql.toLowerCase().includes(cleanTable.toLowerCase())) {
+                                wasRemapped = true;
+                                return remoteId;
+                            }
+                        }
+                    }
+                    return val;
+                });
+
+                if (wasRemapped) {
+                    console.log(`[Sync Engine] Remapped IDs for Item #${item.id} before push.`);
+                }
+
                 // Execute the queued query against the remote source
-                await pool.queryRemote(sql, params);
+                const [result] = await pool.queryRemote(sql, params);
+
+                // --- RECORD NEW MAPPING & RECONCILE LOCAL ID ---
+                // If this was an INSERT and we have a local_id, record the MySQL insertId
+                if (localId && tableName && result && result.insertId) {
+                    const remoteId = result.insertId;
+                    idMappings[`${tableName}:${localId}`] = remoteId;
+                    syncMap.idMappings = idMappings;
+                    setLastSyncMap(syncMap);
+
+                    // --- RECONCILE LOCAL SQLITE ID ---
+                    // If local ID != remote ID, we must update the local row ID to match the server
+                    // to avoid "duplicates" when we pull later.
+                    if (localId != remoteId) {
+                        try {
+                            const pkName = tableName === 'patient_master' ? 'master_patient_id' :
+                                tableName === 'registration' ? 'registration_id' :
+                                    tableName === 'patients' ? 'patient_id' :
+                                        tableName === 'tests' ? 'test_id' : 'id';
+
+                            console.log(`[Sync Engine] Reconciling Local ID: ${tableName} ${localId} -> ${remoteId}`);
+
+                            await db.run('BEGIN TRANSACTION');
+                            // 1. Update the record itself
+                            await db.run(`UPDATE "${tableName}" SET "${pkName}" = ? WHERE "${pkName}" = ?`, [remoteId, localId]);
+
+                            // 2. Update Foreign Key references in other tables
+                            // This is a simple heuristic: check all syncable tables for the ID column
+                            for (const table of Object.keys(SYNCABLE_TABLES)) {
+                                if (table === tableName) continue;
+                                const pragma = await db.all(`PRAGMA table_info("${table}")`);
+                                const hasCol = pragma.some(c => c.name.toLowerCase() === pkName.toLowerCase());
+                                if (hasCol) {
+                                    await db.run(`UPDATE "${table}" SET "${pkName}" = ? WHERE "${pkName}" = ?`, [remoteId, localId]);
+                                }
+                            }
+                            await db.run('COMMIT');
+                        } catch (reconcileErr) {
+                            await db.run('ROLLBACK');
+                            console.error(`[Sync Engine] ID Reconciliation Fail for ${tableName}:`, reconcileErr.message);
+                        }
+                    }
+                }
 
                 // Mark as success (remove from queue)
                 await db.run("DELETE FROM pending_sync_queue WHERE id = ?", [item.id]);
@@ -460,8 +536,11 @@ function startSyncEngine() {
 
     console.log("[Sync Engine] Starting Event-Driven Service...");
 
-    // One-time bootstrap pull on server start
-    setTimeout(runPull, 1000);
+    // One-time bootstrap pull and push on server start
+    setTimeout(() => {
+        runPull();
+        triggerPush();
+    }, 1000);
 
     // NO interval timers — sync is now purely reactive:
     // - triggerPush() is called by db.js after every local-first mutation

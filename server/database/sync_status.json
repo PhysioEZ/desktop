@@ -38,5 +38,13 @@
     "patient_appointments": "2000-01-01 00:00:00"
   },
   "global": "web_search",
-  "branchId": 1
+  "branchId": 1,
+  "idMappings": {
+    "patient_master:45": 1,
+    "registration:44": 5,
+    "patients:28": 1,
+    "attendance:270": 1,
+    "notifications:191": 1,
+    "tests:41": 1
+  }
 }

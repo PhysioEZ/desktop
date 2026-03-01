@@ -1255,7 +1255,7 @@ const Billing = () => {
                   ) ? (
                   <div className="h-64 flex flex-col items-center justify-center opacity-40 gap-4">
                     <FileText size={48} strokeWidth={1} />
-                    <p className="font-bold text-gray-400">No records found</p>
+                    <p className="font-bold text-gray-400">No records found, Try changing the Filters or Select different Month</p>
                   </div>
                 ) : (
                   <div

@@ -73,6 +73,10 @@ const Patients = () => {
     patient: any | null;
   }>({ open: false, patient: null });
 
+  const [processingPatients, setProcessingPatients] = useState<Set<number>>(
+    new Set(),
+  );
+
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Initial Data Fetch
@@ -125,13 +129,21 @@ const Patients = () => {
 
   const handleMarkAttendance = async (e: React.MouseEvent, patient: any) => {
     e.stopPropagation();
-    if (patient.today_attendance === "present") return;
+    if (
+      patient.today_attendance === "present" ||
+      processingPatients.has(patient.patient_id)
+    )
+      return;
+
+    setProcessingPatients((prev) => new Set(prev).add(patient.patient_id));
 
     const cost = parseFloat(patient.cost_per_day || "0");
     const balance = parseFloat(patient.effective_balance || "0");
 
     if (Math.round(balance * 100) >= Math.round(cost * 100) || cost === 0) {
-      const loadingToast = toast.loading("Marking attendance...");
+      const loadingToast = toast.loading(
+        `Marking ${patient.patient_name} present...`,
+      );
       try {
         const res = await authFetch(`${API_BASE_URL}/reception/attendance`, {
           method: "POST",
@@ -148,7 +160,6 @@ const Patients = () => {
         if (data.success || data.status === "success") {
           toast.success(data.message || "Attendance marked successfully");
           updateLocalPatientAttendance(patient.patient_id, "present", 1, -cost);
-          fetchPatients(user!.branch_id);
         } else if (
           data.status === "payment_required" ||
           data.message?.includes("Insufficient Balance") ||
@@ -162,9 +173,19 @@ const Patients = () => {
         toast.error("Error marking attendance");
       } finally {
         toast.dismiss(loadingToast);
+        setProcessingPatients((prev) => {
+          const next = new Set(prev);
+          next.delete(patient.patient_id);
+          return next;
+        });
       }
     } else {
       setAttendanceModal({ open: true, patient });
+      setProcessingPatients((prev) => {
+        const next = new Set(prev);
+        next.delete(patient.patient_id);
+        return next;
+      });
     }
   };
 
