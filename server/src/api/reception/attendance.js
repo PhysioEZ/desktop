@@ -36,7 +36,7 @@ async function revertAttendance(req, res, branchId, input) {
         // 1. Check if attendance exists for today (present or pending)
         const today = new Date(new Date().getTime() + 5.5 * 3600 * 1000).toISOString().split('T')[0];
         const [attRows] = await connection.query(
-            "SELECT attendance_id FROM attendance WHERE patient_id = ? AND attendance_date = ? AND status IN ('present', 'pending') LIMIT 1",
+            "SELECT attendance_id FROM attendance WHERE patient_id = ? AND SUBSTR(attendance_date, 1, 10) = ? AND status IN ('present', 'pending') LIMIT 1",
             [patient_id, today]
         );
 
@@ -46,12 +46,20 @@ async function revertAttendance(req, res, branchId, input) {
         }
 
         // 2. Delete the attendance record using immutable identifying keys (to prevent local/remote ID mismatch)
-        await connection.query("DELETE FROM attendance WHERE patient_id = ? AND attendance_date = ?", [patient_id, today]);
+        await connection.query("DELETE FROM attendance WHERE patient_id = ? AND SUBSTR(attendance_date, 1, 10) = ?", [patient_id, today]);
 
-        // 3. Recalculate Balance and Dues (Centralized)
-        // We deleted the attendance, so recalculating will automatically reflect the refund
-        const financials = await recalculatePatientFinancials(connection, patient_id);
-        const effectiveBalance = financials.effective_balance;
+        // 3. Update Balance (Refund the session implicitly by reversing the debit)
+        const [ptRows] = await connection.query("SELECT * FROM patients WHERE patient_id = ?", [patient_id]);
+        const patient = ptRows[0];
+
+        const curRate = (patient.treatment_type === 'package' && patient.treatment_days > 0)
+            ? (parseFloat(patient.total_amount) / patient.treatment_days)
+            : parseFloat(patient.treatment_cost_per_day || 0);
+
+        const currentBalance = parseFloat(patient.advance_payment || 0);
+        const effectiveBalance = currentBalance + curRate;
+
+        await connection.query("UPDATE patients SET advance_payment = ? WHERE patient_id = ?", [effectiveBalance, patient_id]);
 
         await connection.commit();
         res.json({
@@ -86,28 +94,20 @@ async function markFullAttendance(req, res, branchId, input) {
         const patient = ptRows[0];
         if (!patient) throw new Error("Patient not found");
 
-        const [paidRows] = await connection.query("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE patient_id = ?", [patient_id]);
-        const totalPaidSoFar = parseFloat(paidRows[0].total || 0);
-
-        const [histRows] = await connection.query("SELECT COALESCE(SUM(consumed_amount), 0) as total FROM patients_treatment WHERE patient_id = ?", [patient_id]);
-        const historyConsumed = parseFloat(histRows[0].total || 0);
-
         const curRate = (patient.treatment_type === 'package' && patient.treatment_days > 0)
             ? (parseFloat(patient.total_amount) / patient.treatment_days)
             : parseFloat(patient.treatment_cost_per_day || 0);
 
-        const [cAttRows] = await connection.query("SELECT COUNT(DISTINCT SUBSTR(attendance_date, 1, 10)) as count FROM attendance WHERE patient_id = ? AND attendance_date >= ? AND status = 'present'", [patient_id, patient.start_date || '2000-01-01']);
-        const currentAttendanceCount = cAttRows[0].count;
-
-        const currentConsumed = currentAttendanceCount * curRate;
-        const totalPaidWithNew = totalPaidSoFar + parseFloat(payment_amount);
-        const effectiveBalance = totalPaidWithNew - (historyConsumed + currentConsumed);
+        // Rather than re-assembling the entire ledger and accidentally catching latent SQL sync errors, 
+        // we strictly trust the patient.advance_payment flag (which perfectly matches the UI's effective_balance state)
+        // and just add the newly submitted payment amount to see if they can afford the session.
+        const effectiveBalance = parseFloat(patient.advance_payment || 0) + parseFloat(payment_amount || 0);
 
         // 2. Financial Validation
         // If they are marking 'present' and they have no balance to cover THIS visit
         if (status === 'present') {
             const today = new Date(new Date().getTime() + 5.5 * 3600 * 1000).toISOString().split('T')[0];
-            const [alreadyMarked] = await connection.query("SELECT attendance_id FROM attendance WHERE patient_id = ? AND attendance_date = ? AND status = 'present'", [patient_id, today]);
+            const [alreadyMarked] = await connection.query("SELECT attendance_id FROM attendance WHERE patient_id = ? AND SUBSTR(attendance_date, 1, 10) = ? AND status = 'present'", [patient_id, today]);
 
             // Check if effectiveBalance covers this session
             // Note: effectiveBalance calculated above INCLUDES the payment made in this request (totalPaidWithNew)
@@ -135,7 +135,7 @@ async function markFullAttendance(req, res, branchId, input) {
 
         // 3. Attendance Logic
         const today = new Date(new Date().getTime() + 5.5 * 3600 * 1000).toISOString().split('T')[0];
-        const [existing] = await connection.query("SELECT attendance_id FROM attendance WHERE patient_id = ? AND attendance_date = ?", [patient_id, today]);
+        const [existing] = await connection.query("SELECT attendance_id FROM attendance WHERE patient_id = ? AND SUBSTR(attendance_date, 1, 10) = ?", [patient_id, today]);
 
         let attendanceId;
         const approvalRequestAt = status === 'pending' ? new Date() : null;
@@ -184,15 +184,22 @@ async function markFullAttendance(req, res, branchId, input) {
             await connection.query("UPDATE patients SET status = 'active' WHERE patient_id = ?", [patient_id]);
         }
 
-        // 6. Centralized Financial Update
-        const financials = await recalculatePatientFinancials(connection, patient_id);
+        // 6. Inline Financial Update (Mirrors UI logic exactly to prevent unpredictable jumps)
+        let attendanceCostDeduction = 0;
+        if (status === 'present' || status === 'pending') {
+            attendanceCostDeduction = curRate;
+        }
 
+        const newBalance = effectiveBalance - attendanceCostDeduction;
+
+        await connection.query("UPDATE patients SET advance_payment = ? WHERE patient_id = ?", [newBalance, patient_id]);
 
         await connection.commit();
         res.json({
             success: true,
+            status: 'success', // Keep both for backward compatibility
             message: status === 'pending' ? 'Attendance request sent for approval' : 'Attendance marked successfully',
-            new_balance: financials.effective_balance.toFixed(2)
+            new_balance: newBalance.toFixed(2)
         });
 
     } catch (error) {

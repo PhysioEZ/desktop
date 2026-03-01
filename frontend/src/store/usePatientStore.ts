@@ -170,15 +170,10 @@ export const usePatientStore = create<PatientState>()(
     fetchPatients: async (branchId: number, forceRefresh = false) => {
         const { pagination, filters } = get();
         
-        // If not forced and we have data, skip loading state logic to prevent flash
-        if (!forceRefresh && get().patients.length > 0) {
-            // But we still fetch in background if needed? 
-            // The flow says "once fetch and stored in the sqlite, use this to show."
-            // So if we have data, we might not need to fetch at all unless forceRefresh.
-            return; 
+        // Only show loading if we don't have existing memory data to prevent screen flash while background fetching SQLite locally
+        if (get().patients.length === 0) {
+            set({ isLoading: true });
         }
-
-        set({ isLoading: true });
         
         try {
             const response = await authFetch(`${API_BASE_URL}/reception/patients`, {
@@ -319,6 +314,7 @@ export const usePatientStore = create<PatientState>()(
                 ? { 
                     ...p, 
                     today_attendance: status, 
+                    patient_status: "active",
                     attendance_count: (p.attendance_count || 0) + countChange,
                     effective_balance: parseFloat(String(p.effective_balance || 0)) + balanceChange 
                   } 
@@ -328,6 +324,7 @@ export const usePatientStore = create<PatientState>()(
                 ? { 
                     ...state.selectedPatient, 
                     today_attendance: status, 
+                    patient_status: "active",
                     attendance_count: (state.selectedPatient.attendance_count || 0) + countChange,
                     effective_balance: parseFloat(String(state.selectedPatient.effective_balance || 0)) + balanceChange 
                   } 
@@ -336,6 +333,7 @@ export const usePatientStore = create<PatientState>()(
                 ? { 
                     ...state.patientDetails, 
                     today_attendance: status, 
+                    patient_status: "active",
                     attendance_count: (state.patientDetails.attendance_count || 0) + countChange,
                     effective_balance: parseFloat(String(state.patientDetails.effective_balance || 0)) + balanceChange 
                   } 

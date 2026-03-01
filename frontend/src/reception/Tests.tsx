@@ -282,16 +282,7 @@ const Tests = () => {
   useEffect(() => {
     if (isFirstMount.current) {
       isFirstMount.current = false;
-      if (
-        records.length > 0 &&
-        statusFilter === "All" &&
-        paymentFilter === "All" &&
-        testTypeFilter === "All" &&
-        appliedSearchQuery === ""
-      ) {
-        fetchApprovals();
-        return;
-      }
+      fetchApprovals();
     }
     fetchTests(1, appliedSearchQuery);
   }, [statusFilter, paymentFilter, testTypeFilter]);

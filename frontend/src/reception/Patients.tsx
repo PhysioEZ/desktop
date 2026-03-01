@@ -88,16 +88,6 @@ const Patients = () => {
 
     if (isFirstMount.current) {
       isFirstMount.current = false;
-      if (
-        patients.length > 0 &&
-        filters.search === "" &&
-        filters.service_type === "" &&
-        filters.doctor === "" &&
-        filters.treatment === "" &&
-        filters.status === ""
-      ) {
-        return;
-      }
     }
 
     const runFetch = () => fetchPatients(user.branch_id as number);
@@ -154,20 +144,19 @@ const Patients = () => {
           }),
         });
         const data = await res.json();
+
         if (data.success || data.status === "success") {
-          toast.success("Attendance marked successfully");
-          // Optimistic local update
+          toast.success(data.message || "Attendance marked successfully");
           updateLocalPatientAttendance(patient.patient_id, "present", 1, -cost);
-          // fetchPatients(user!.branch_id, true); // Removed to prevent race conditions with background sync
+          fetchPatients(user!.branch_id);
+        } else if (
+          data.status === "payment_required" ||
+          data.message?.includes("Insufficient Balance") ||
+          data.message?.includes("insufficient")
+        ) {
+          setAttendanceModal({ open: true, patient });
         } else {
-          if (
-            data.status === "payment_required" ||
-            data.message?.includes("Insufficient Balance")
-          ) {
-            setAttendanceModal({ open: true, patient });
-          } else {
-            toast.error(data.message || "Failed to mark attendance");
-          }
+          toast.error(data.message || "Failed to mark attendance");
         }
       } catch (err) {
         toast.error("Error marking attendance");
@@ -205,7 +194,7 @@ const Patients = () => {
           cost,
         );
         setRevertModal({ open: false, patient: null });
-        // fetchPatients(user.branch_id, true); // Removed to prevent race conditions
+        fetchPatients(user.branch_id);
       } else {
         toast.error(data.message || "Failed to revert attendance");
       }
@@ -457,12 +446,17 @@ const Patients = () => {
                     className="flex flex-col gap-3 pb-40"
                   >
                     {patients.map((patient, idx) => {
-                      const totalDays = patient.treatment_days || 1;
+                      const totalDays = Math.max(
+                        patient.treatment_days || 1,
+                        patient.attendance_count || 1,
+                      );
                       const progress = Math.min(
                         100,
                         (patient.attendance_count / totalDays) * 100,
                       );
-                      const isPresent = patient.today_attendance === "present";
+                      const isPresent =
+                        patient.today_attendance === "present" ||
+                        patient.today_attendance === "pending";
                       const isPending = patient.today_attendance === "pending";
                       const effectiveBalance = isNaN(
                         parseFloat(String(patient.effective_balance)),
@@ -676,7 +670,7 @@ const Patients = () => {
             </div>
 
             {/* Compact Centered Pagination */}
-            <div className="flex justify-center mt-8">
+            <div className="flex justify-center mt-0">
               <div
                 className={`flex items-center gap-6 px-6 py-3 rounded-full border shadow-xl ${isDark ? "bg-[#141619] border-white/5" : "bg-white border-gray-100"}`}
               >
@@ -723,7 +717,7 @@ const Patients = () => {
         isOpen={attendanceModal.open}
         patient={attendanceModal.patient}
         onClose={() => setAttendanceModal({ open: false, patient: null })}
-        onSuccess={() => fetchPatients(user!.branch_id, true)}
+        onSuccess={() => fetchPatients(user!.branch_id)}
       />
       <TokenPreviewModal
         isOpen={tokenModal.open}

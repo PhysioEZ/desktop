@@ -582,10 +582,10 @@ const PatientDetailsModal = () => {
                           />
                           <StatCard
                             label="Treatment Days"
-                            value={`${data.attendance_count || 0}/${data.treatment_days || 0}`}
+                            value={`${data.attendance_count || 0}/${Math.max(data.treatment_days || 1, data.attendance_count || 1)}`}
                             icon={Calendar}
                             color="amber"
-                            subtext={`${Math.round(((data.attendance_count || 0) / (data.treatment_days || 1)) * 100)}% Complete`}
+                            subtext={`${Math.round(((data.attendance_count || 0) / Math.max(data.treatment_days || 1, data.attendance_count || 1)) * 100)}% Complete`}
                           />
                           <StatCard
                             label="Session Time"
@@ -727,7 +727,10 @@ const PatientDetailsModal = () => {
                                   70 *
                                   (1 -
                                     (data.attendance_count || 0) /
-                                      (data.treatment_days || 1))
+                                      Math.max(
+                                        data.treatment_days || 1,
+                                        data.attendance_count || 1,
+                                      ))
                                 }
                                 className="text-emerald-500 transition-all duration-1000 ease-out"
                               />
@@ -737,7 +740,11 @@ const PatientDetailsModal = () => {
                                 {data.attendance_count || 0}
                               </span>
                               <span className="text-[8px] font-bold text-slate-400 uppercase">
-                                of {data.treatment_days}
+                                of{" "}
+                                {Math.max(
+                                  data.treatment_days || 1,
+                                  data.attendance_count || 1,
+                                )}
                               </span>
                             </div>
                           </div>
@@ -1029,12 +1036,19 @@ const PatientDetailsModal = () => {
                           <div className="flex items-center justify-between text-xs font-bold">
                             <span className="text-slate-500">
                               Progress: {data.attendance_count || 0}/
-                              {data.treatment_days || 0} Sessions
+                              {Math.max(
+                                data.treatment_days || 1,
+                                data.attendance_count || 1,
+                              )}{" "}
+                              Sessions
                             </span>
                             <span className="text-emerald-500">
                               {Math.round(
                                 ((data.attendance_count || 0) /
-                                  (data.treatment_days || 1)) *
+                                  Math.max(
+                                    data.treatment_days || 1,
+                                    data.attendance_count || 1,
+                                  )) *
                                   100,
                               )}
                               %
@@ -1044,7 +1058,7 @@ const PatientDetailsModal = () => {
                             <div
                               className="h-full bg-emerald-500 transition-all duration-1000"
                               style={{
-                                width: `${Math.min(100, ((data.attendance_count || 0) / (data.treatment_days || 1)) * 100)}%`,
+                                width: `${Math.min(100, ((data.attendance_count || 0) / Math.max(data.treatment_days || 1, data.attendance_count || 1)) * 100)}%`,
                               }}
                             />
                           </div>
@@ -1353,36 +1367,51 @@ const PatientDetailsModal = () => {
                                 date: string;
                                 attendance_date: string;
                                 status: string;
+                                remarks?: string;
                               },
                               idx: number,
                             ) => (
                               <div
                                 key={idx}
-                                className="p-5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 flex items-center justify-between group hover:border-emerald-200 transition-all"
+                                className="p-5 rounded-2xl bg-slate-50 dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 flex flex-col gap-3 group hover:border-emerald-200 transition-all"
                               >
-                                <div>
-                                  <p className="text-sm font-black text-slate-800 dark:text-white">
-                                    {format(
-                                      att.date || att.attendance_date,
-                                      "dd MMM yyyy",
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <p className="text-sm font-black text-slate-800 dark:text-white">
+                                      {format(
+                                        att.date || att.attendance_date,
+                                        "dd MMM yyyy",
+                                      )}
+                                    </p>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
+                                      {format(
+                                        att.date || att.attendance_date,
+                                        "EEEE",
+                                      )}
+                                    </p>
+                                  </div>
+                                  <div
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${att.status === "present" ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"}`}
+                                  >
+                                    {att.status === "present" ? (
+                                      <CheckCircle2 size={14} />
+                                    ) : (
+                                      <AlertTriangle size={14} />
                                     )}
-                                  </p>
-                                  <p className="text-[10px] font-bold text-slate-400 uppercase mt-0.5">
-                                    {format(
-                                      att.date || att.attendance_date,
-                                      "EEEE",
-                                    )}
-                                  </p>
+                                  </div>
                                 </div>
-                                <div
-                                  className={`w-8 h-8 rounded-full flex items-center justify-center ${att.status === "present" ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"}`}
-                                >
-                                  {att.status === "present" ? (
-                                    <CheckCircle2 size={14} />
-                                  ) : (
-                                    <AlertTriangle size={14} />
-                                  )}
-                                </div>
+                                {att.remarks && (
+                                  <div className="pt-3 border-t border-slate-200 dark:border-white/10 flex items-start gap-2">
+                                    <div className="text-[10px] text-emerald-600 dark:text-emerald-400 flex-1 leading-relaxed">
+                                      <span className="font-bold uppercase tracking-wider block mb-0.5 opacity-60">
+                                        Message
+                                      </span>
+                                      <span className="font-medium">
+                                        {att.remarks}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ),
                           )}

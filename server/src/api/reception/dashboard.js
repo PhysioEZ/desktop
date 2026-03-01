@@ -39,29 +39,51 @@ exports.getDashboardData = async (req, res) => {
             lastRunDate = fs.readFileSync(cleanupFile, 'utf8').trim();
         }
 
-        if (lastRunDate !== today) {
-            const sqlCleanup = `
+        // 1. Auto-activation: If marked present today, they must be active
+        try {
+            await pool.query(`
                 UPDATE patients 
-                SET status = 'inactive'
-                WHERE branch_id = ? 
-                  AND status = 'active'
-                  AND (
-                      (patient_id IN (
-                          SELECT patient_id 
-                          FROM attendance 
-                          GROUP BY patient_id 
-                          HAVING MAX(attendance_date) < DATE_SUB(CURDATE(), INTERVAL 3 DAY)
-                      ))
-                      OR 
-                      (NOT EXISTS (SELECT 1 FROM attendance a WHERE a.patient_id = patients.patient_id) 
-                       AND created_at < DATE_SUB(NOW(), INTERVAL 3 DAY))
-                  )`;
-            await pool.query(sqlCleanup, [branchId]);
+                SET status = 'active'
+                WHERE status != 'active' AND status != 'completed' AND status != 'terminated'
+                  AND (branch_id = ? OR branch_id IS NULL OR branch_id = 0)
+                  AND EXISTS (
+                      SELECT 1 FROM attendance a 
+                      WHERE a.patient_id = patients.patient_id 
+                        AND DATE(a.attendance_date) = CURDATE()
+                        AND a.status = 'present'
+                  )
+            `, [branchId]);
+        } catch (e) {
+            console.error("Auto-activation error:", e);
+        }
 
-            if (!fs.existsSync(tmpDir)) {
-                fs.mkdirSync(tmpDir, { recursive: true });
+        if (lastRunDate !== today) {
+            try {
+                const sqlCleanup = `
+                    UPDATE patients 
+                    SET status = 'inactive'
+                    WHERE branch_id = ? 
+                      AND status = 'active'
+                      AND (
+                          (patient_id IN (
+                              SELECT patient_id 
+                              FROM attendance 
+                              GROUP BY patient_id 
+                              HAVING MAX(SUBSTR(attendance_date, 1, 10)) < DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+                          ))
+                          OR 
+                          (NOT EXISTS (SELECT 1 FROM attendance a WHERE a.patient_id = patients.patient_id) 
+                           AND created_at < DATE_SUB(NOW(), INTERVAL 3 DAY))
+                      )`;
+                await pool.query(sqlCleanup, [branchId]);
+
+                if (!fs.existsSync(tmpDir)) {
+                    fs.mkdirSync(tmpDir, { recursive: true });
+                }
+                fs.writeFileSync(cleanupFile, today);
+            } catch (error) {
+                console.error("Auto-deactivation failed:", error);
             }
-            fs.writeFileSync(cleanupFile, today);
         }
 
         // -------------------------------------------------------------------------
@@ -127,7 +149,7 @@ exports.getDashboardData = async (req, res) => {
                 SELECT COUNT(DISTINCT a.patient_id) as count 
                 FROM attendance a
                 JOIN patients p ON a.patient_id = p.patient_id
-                WHERE DATE(a.attendance_date) = ? AND (p.branch_id = ? OR p.branch_id IS NULL OR p.branch_id = 0)
+                WHERE DATE(a.attendance_date) = ? AND (p.branch_id = ? OR p.branch_id IS NULL OR p.branch_id = 0) AND a.status = 'present'
             `, [today, branchId]),
 
             // 8. totalPtsRows

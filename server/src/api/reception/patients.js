@@ -51,6 +51,24 @@ async function runDailyCleanup(branchId) {
         lastRunDate = fs.readFileSync(cleanupFile, "utf8").trim();
     }
 
+    // 1. Auto-activation: If marked present today, they must be active
+    try {
+        await pool.query(`
+            UPDATE patients 
+            SET status = 'active'
+            WHERE status != 'active' AND status != 'completed' AND status != 'terminated'
+              AND (branch_id = ? OR branch_id IS NULL OR branch_id = 0)
+              AND EXISTS (
+                  SELECT 1 FROM attendance a 
+                  WHERE a.patient_id = patients.patient_id 
+                    AND DATE(a.attendance_date) = CURDATE()
+                    AND a.status = 'present'
+              )
+        `, [branchId]);
+    } catch (e) {
+        console.error("Auto-activation error:", e);
+    }
+
     if (lastRunDate !== todayDate) {
         try {
             const sql = `
@@ -63,7 +81,7 @@ async function runDailyCleanup(branchId) {
                           SELECT patient_id 
                           FROM attendance 
                           GROUP BY patient_id 
-                          HAVING MAX(attendance_date) < DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+                          HAVING MAX(SUBSTR(attendance_date, 1, 10)) < DATE_SUB(CURDATE(), INTERVAL 3 DAY)
                       ))
                       OR 
                       (NOT EXISTS (SELECT 1 FROM attendance a WHERE a.patient_id = patients.patient_id) 
@@ -253,9 +271,19 @@ async function fetchPatients(req, res, branchId, input) {
             GROUP BY a.patient_id
         ) cur_att ON p.patient_id = cur_att.patient_id
         -- Today's Attendance Status
-        LEFT JOIN attendance today_att ON p.patient_id = today_att.patient_id AND today_att.attendance_date = CURDATE()
+        LEFT JOIN (
+            SELECT patient_id, MAX(status) as status
+            FROM attendance
+            WHERE DATE(attendance_date) = CURDATE()
+            GROUP BY patient_id
+        ) today_att ON p.patient_id = today_att.patient_id
         -- Today's Token Status
-        LEFT JOIN tokens today_tok ON p.patient_id = today_tok.patient_id AND today_tok.token_date = CURDATE()
+        LEFT JOIN (
+            SELECT patient_id, MAX(token_id) as token_id, COALESCE(SUM(print_count), 0) as print_count
+            FROM tokens
+            WHERE DATE(token_date) = CURDATE()
+            GROUP BY patient_id
+        ) today_tok ON p.patient_id = today_tok.patient_id
         WHERE ${whereSql}
         ORDER BY p.created_at DESC
         LIMIT ? OFFSET ?
@@ -417,7 +445,7 @@ async function fetchDetails(req, res, patientId) {
         combinedHistory = [...treatmentPayments, ...testPayments].sort((a, b) => new Date(b.payment_date) - new Date(a.payment_date));
 
         const [attendanceRows] = await pool.query(
-            "SELECT attendance_id, attendance_date, status, created_at FROM attendance WHERE patient_id = ? ORDER BY attendance_date DESC LIMIT 50",
+            "SELECT attendance_id, attendance_date, status, created_at, remarks FROM attendance WHERE patient_id = ? ORDER BY attendance_date DESC LIMIT 50",
             [patientId],
         );
         // Safe deduplication of attendance history log mapped objects to block sync UI lagging duplicate IDs

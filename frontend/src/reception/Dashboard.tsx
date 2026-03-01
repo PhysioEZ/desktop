@@ -236,9 +236,7 @@ const ReceptionDashboard = () => {
   const setData = useDashboardStore((s) => s.setData);
   const formOptions = useDashboardStore((s) => s.formOptions);
   const setFormOptions = useDashboardStore((s) => s.setFormOptions);
-  const lastSync = useDashboardStore((s) => s.lastSync);
   const setLastSync = useDashboardStore((s) => s.setLastSync);
-  const lastAccessTime = useDashboardStore((s) => s.lastAccessTime);
   const pendingApprovals = useDashboardStore((s) => s.pendingApprovals);
   const setPendingApprovals = useDashboardStore((s) => s.setPendingApprovals);
   const storeTimeSlots = useDashboardStore((s) => s.timeSlots);
@@ -672,14 +670,14 @@ const ReceptionDashboard = () => {
 
   const handleRefresh = async () => {
     if (refreshCooldown > 0 || !user?.branch_id) return;
+
+    // Explicitly command fetchAll to trigger the remote sync override flag for dashboard data
+    fetchAll(false, true);
+    setRefreshCooldown(30);
+
     smartRefresh(null, {
       onSuccess: () => {
-        // After smartRefresh completes its internal fetching, update local state
-        // by re-fetching dashboard data and approvals.
-        // The smartRefresh hook itself should handle the main data fetching.
-        // This part is for ensuring the UI reflects the latest state after smartRefresh.
-        fetchAll(false, true); // Re-fetch all data, but don't show global loading spinner
-        setRefreshCooldown(30);
+        // Post-sync hooks
       },
     });
   };
@@ -710,82 +708,9 @@ const ReceptionDashboard = () => {
     // Update last access time immediately as the "page is opened"
     useDashboardStore.setState({ lastAccessTime: now });
 
-    // If never synced or no data, do a full fetch
-    if (!data || !lastSync) {
-      await fetchAll();
-      return;
-    }
-
-    // Within 15s window - skip all server hits
-    // if (diff < 15) {
-    //   return;
-    // }
-
-    // Over 15s - check if DB actually changed before doing a heavy fetch
-    try {
-      const res = await authFetch(
-        `${API_BASE_URL}/reception/check_updates?branch_id=${user.branch_id}&last_sync=${lastSync}`,
-      );
-      const updateData = await res.json();
-
-      if (updateData.success && updateData.hasChanges) {
-        const syncTasks = [];
-
-        // Granular Sync Logic
-        const mainDataTables = [
-          "registration",
-          "tests",
-          "patients",
-          "quick_inquiry",
-          "test_inquiry",
-          "attendance",
-          "payments",
-        ];
-        const hasMainChanges = mainDataTables.some(
-          (table) => updateData.changes[table],
-        );
-
-        if (hasMainChanges) syncTasks.push(fetchMainDashboard());
-        if (updateData.changes["notifications"]) syncTasks.push(fetchNotifs());
-        if (updateData.changes["registration"] || updateData.changes["tests"])
-          syncTasks.push(fetchApprovals());
-
-        // If registration modal is open, always refresh slots if registration changes detected
-        if (
-          activeModal === "registration" &&
-          appointmentDate &&
-          updateData.changes["registration"]
-        ) {
-          syncTasks.push(fetchTimeSlots(appointmentDate));
-        }
-
-        if (syncTasks.length > 0) {
-          await Promise.all(syncTasks);
-          // Clear search cache if patients or related records changed
-          if (hasMainChanges) {
-            useDashboardStore.setState({ searchCache: {} });
-          }
-        }
-
-        if (updateData.serverTime) setLastSync(updateData.serverTime);
-      }
-    } catch (err) {
-      console.error("Smart update check failed:", err);
-    }
-  }, [
-    user?.branch_id,
-    lastAccessTime,
-    data,
-    lastSync,
-    fetchAll,
-    fetchMainDashboard,
-    fetchNotifs,
-    fetchApprovals,
-    activeModal,
-    appointmentDate,
-    fetchTimeSlots,
-    setLastSync,
-  ]);
+    // With local SQLite replica, we can fetch all instantly without check_updates overhead
+    await fetchAll(false, true);
+  }, [user?.branch_id, fetchAll]);
 
   // Fetch time slots when registration modal is opened
   useEffect(() => {

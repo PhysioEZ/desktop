@@ -63,14 +63,9 @@ export const useTestStore = create<TestStore>()(
       setTests: (tests) => set({ tests }),
       setLastFetched: (time) => set({ lastFetched: time }),
       fetchTests: async (branchId: number, pageNum = 1, limitNum = 15, forceRefresh = false) => {
-        const { tests, lastFetched } = get();
+        const { tests } = get();
         
-        // Use cache if not forced and we have data fetched recently
-        if (!forceRefresh && tests.length > 0 && lastFetched) {
-           return;
-        }
-
-        if (pageNum === 1) {
+        if (pageNum === 1 && tests.length === 0) {
           set({ isLoading: true });
         }
         
