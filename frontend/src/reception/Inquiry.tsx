@@ -236,6 +236,7 @@ const Inquiry = () => {
     setConsultations,
     setDiagnostics,
     setFollowUpLogs,
+    clearCache,
   } = useInquiryStore();
 
   // Local State
@@ -257,10 +258,35 @@ const Inquiry = () => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [refreshCooldown, setRefreshCooldown] = useState(0);
 
+  // Cache validation: Clean corrupted cache with duplicates on mount
+  useEffect(() => {
+    const validateCache = () => {
+      // Check for duplicate inquiry_ids in cached data
+      const hasConsultationDuplicates = consultations && consultations.length > new Set(consultations.map((c: any) => c.inquiry_id)).size;
+      const hasDiagnosticsDuplicates = diagnostics && diagnostics.length > new Set(diagnostics.map((d: any) => d.inquiry_id)).size;
+      
+      if (hasConsultationDuplicates || hasDiagnosticsDuplicates) {
+        console.warn('[InquiryCache] Detected duplicates in cached data, clearing cache completely');
+        clearCache();
+        // Force clear localStorage directly
+        try {
+          const cacheKey = localStorage.getItem('inquiry-cache');
+          if (cacheKey) {
+            localStorage.removeItem('inquiry-cache');
+            console.log('[InquiryCache] Removed localStorage inquiry-cache key');
+          }
+        } catch (e) {
+          console.error('[InquiryCache] Error clearing localStorage:', e);
+        }
+      }
+    };
+    validateCache();
+  }, [consultations, diagnostics, clearCache]);
+
   // Stats Data
   const [monthlyStats, setMonthlyStats] = useState({
-    consultation: { total: 0, visited: 0 },
-    test: { total: 0, visited: 0 },
+    consultation: { today: 0, total: 0, visited: 0 },
+    test: { today: 0, total: 0, visited: 0 },
   });
 
   // Refs
@@ -454,6 +480,29 @@ const Inquiry = () => {
     }
   }, [refreshCooldown]);
 
+  // Deduplication helper: removes duplicate inquiries by inquiry_id
+  const deduplicateInquiries = (inquiries: any[]): any[] => {
+    if (!inquiries || inquiries.length === 0) return inquiries;
+    
+    const seen = new Set<number>();
+    const duplicates: any[] = [];
+    
+    const dedupedList = inquiries.filter((inq) => {
+      if (seen.has(inq.inquiry_id)) {
+        duplicates.push(inq);
+        return false;
+      }
+      seen.add(inq.inquiry_id);
+      return true;
+    });
+    
+    if (duplicates.length > 0) {
+      console.warn('[Inquiry Dedup] Removed duplicates:', duplicates.map(d => `${d.inquiry_id}:${d.name}`).join(', '));
+    }
+    
+    return dedupedList;
+  };
+
   const fetchInquiries = useCallback(
     async (force = false) => {
       if (!user?.branch_id) return;
@@ -462,12 +511,14 @@ const Inquiry = () => {
       if (!force) {
         const { consultations, diagnostics } = useInquiryStore.getState();
         if (activeTab === "consultation" && consultations) {
-          updateMonthlyStats(consultations, "consultation");
+          const dedupedData = deduplicateInquiries(consultations);
+          updateMonthlyStats(dedupedData, "consultation");
           setIsLoading(false);
           return;
         }
         if (activeTab === "test" && diagnostics) {
-          updateMonthlyStats(diagnostics, "test");
+          const dedupedData = deduplicateInquiries(diagnostics);
+          updateMonthlyStats(dedupedData, "test");
           setIsLoading(false);
           return;
         }
@@ -486,9 +537,11 @@ const Inquiry = () => {
         });
         const data = await res.json();
         if (data.status === "success") {
-          if (activeTab === "consultation") setConsultations(data.data);
-          else setDiagnostics(data.data);
-          updateMonthlyStats(data.data, activeTab);
+          // Deduplicate before saving to store
+          const dedupedData = deduplicateInquiries(data.data || []);
+          if (activeTab === "consultation") setConsultations(dedupedData);
+          else setDiagnostics(dedupedData);
+          updateMonthlyStats(dedupedData, activeTab);
         }
       } catch (err) {
         showToast("Failed to load inquiries", "error");
@@ -500,20 +553,81 @@ const Inquiry = () => {
   );
 
   const updateMonthlyStats = (data: any[], type: string) => {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
     const total = data.length;
     const visited = data.filter((i) => i.status === "visited").length;
+    const today = data.filter((i) => {
+      const createdDate = new Date(i.created_at);
+      return createdDate >= todayStart && createdDate < new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+    }).length;
+    
     setMonthlyStats((prev) => ({
       ...prev,
-      [type]: { total, visited },
+      [type]: { today, total, visited },
     }));
   };
 
+  // Track if first mount to force fresh data fetch
+  const isFirstMountRef = useRef(true);
+  
   useEffect(() => {
-    fetchInquiries(false);
-  }, [fetchInquiries]);
+    // Force fresh fetch on first mount to ensure no stale cache duplicates
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      clearCache();
+      // Load both consultation and test data on mount
+      (async () => {
+        if (!user?.branch_id) return;
+        
+        setIsLoading(true);
+        try {
+          // Fetch consultation inquiries
+          const consultRes = await authFetch(`${API_BASE_URL}/reception/inquiry`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "fetch",
+              branch_id: user.branch_id,
+              type: "consultation",
+            }),
+          });
+          const consultData = await consultRes.json();
+          if (consultData.status === "success") {
+            const consultDedupedData = deduplicateInquiries(consultData.data || []);
+            setConsultations(consultDedupedData);
+            updateMonthlyStats(consultDedupedData, "consultation");
+          }
+          
+          // Fetch test inquiries
+          const testRes = await authFetch(`${API_BASE_URL}/reception/inquiry`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "fetch",
+              branch_id: user.branch_id,
+              type: "test",
+            }),
+          });
+          const testData = await testRes.json();
+          if (testData.status === "success") {
+            const testDedupedData = deduplicateInquiries(testData.data || []);
+            setDiagnostics(testDedupedData);
+            updateMonthlyStats(testDedupedData, "test");
+          }
+        } catch (err) {
+          console.error("Failed to load inquiries on mount", err);
+        } finally {
+          setIsLoading(false);
+        }
+      })();
+    }
+  }, [user?.branch_id, clearCache, setConsultations, setDiagnostics]);
 
-  const inquiries =
-    activeTab === "consultation" ? consultations || [] : diagnostics || [];
+  const inquiries = deduplicateInquiries(
+    activeTab === "consultation" ? consultations || [] : diagnostics || []
+  );
 
   const filteredInquiries = inquiries.filter((inq: any) => {
     const q = localSearchQuery.toLowerCase();
@@ -778,13 +892,7 @@ const Inquiry = () => {
                     <div
                       className={`text-7xl font-medium tracking-tighter leading-none ${isDark ? "text-white" : "text-[#0F172A]"}`}
                     >
-                      {
-                        inquiries.filter(
-                          (i) =>
-                            i.type === "consultation" &&
-                            isToday(parseISO(i.created_at)),
-                        ).length
-                      }
+                      {monthlyStats.consultation.today}
                     </div>
                     <div className="text-sm font-medium opacity-40 mt-2 text-[#1a1c1e] dark:text-[#e3e2e6]">
                       Today
@@ -838,13 +946,7 @@ const Inquiry = () => {
                     <div
                       className={`text-7xl font-medium tracking-tighter leading-none ${isDark ? "text-white" : "text-[#0F172A]"}`}
                     >
-                      {
-                        inquiries.filter(
-                          (i) =>
-                            i.type === "test" &&
-                            isToday(parseISO(i.created_at)),
-                        ).length
-                      }
+                      {monthlyStats.test.today}
                     </div>
                     <div className="text-sm font-medium opacity-40 mt-2 text-[#1a1c1e] dark:text-[#e3e2e6]">
                       Today

@@ -473,7 +473,9 @@ async function runPush() {
                             const pkName = tableName === 'patient_master' ? 'master_patient_id' :
                                 tableName === 'registration' ? 'registration_id' :
                                     tableName === 'patients' ? 'patient_id' :
-                                        tableName === 'tests' ? 'test_id' : 'id';
+                                        tableName === 'tests' ? 'test_id' :
+                                            tableName === 'quick_inquiry' ? 'inquiry_id' :
+                                                tableName === 'test_inquiry' ? 'inquiry_id' : 'id';
 
                             console.log(`[Sync Engine] Reconciling Local ID: ${tableName} ${localId} -> ${remoteId}`);
 

@@ -88,7 +88,23 @@ async function fetchInquiries(req, res, branch_id, input) {
     query += " ORDER BY created_at DESC LIMIT 100";
 
     const [rows] = await pool.query(query, params);
-    res.json({ status: 'success', data: rows });
+    
+    // Deduplicate by inquiry_id to ensure no duplicates are returned
+    const seen = new Set();
+    const deduplicatedRows = rows.filter(row => {
+        if (seen.has(row.inquiry_id)) {
+            console.warn(`[Inquiry Dedup] Removing duplicate inquiry_id ${row.inquiry_id} (${row.name}) from ${type} inquiries`);
+            return false;
+        }
+        seen.add(row.inquiry_id);
+        return true;
+    });
+    
+    if (rows.length !== deduplicatedRows.length) {
+        console.log(`[Inquiry Dedup] ${type}: Returned ${deduplicatedRows.length} unique records (filtered ${rows.length - deduplicatedRows.length} duplicates)`);
+    }
+    
+    res.json({ status: 'success', data: deduplicatedRows });
 }
 
 async function fetchOptions(req, res, branch_id) {
@@ -177,21 +193,25 @@ async function addFollowup(req, res, branch_id, employee_id, input) {
 // We need to keep the submit logic too.
 
 exports.submitInquiry = async (req, res) => {
-    // ... (Logic from previous step)
-    // Actually, to keep it clean, let's paste the submit logic here too.
     const data = req.body;
     const branch_id = req.user.branch_id || data.branch_id;
     const employee_id = req.user.employee_id || data.employee_id;
 
     if (!branch_id || !employee_id) return res.status(400).json({ success: false, message: 'Branch ID and Employee ID required' });
 
+    const connection = await pool.getConnection();
+
     try {
+        await connection.beginTransaction();
+
         const patient_name = (data.patient_name || '').trim();
         const age = (data.age || '').trim();
         const gender = data.gender || '';
         const phone = (data.phone || '').trim();
 
-        if (!patient_name || !age || !gender || !phone) return res.status(400).json({ success: false, message: "Required fields are missing: Name, Age, Gender, Phone." });
+        if (!patient_name || !age || !gender || !phone) {
+            throw new Error("Required fields are missing: Name, Age, Gender, Phone.");
+        }
 
         const conditionType = data.conditionType;
         let chief_complain = '';
@@ -201,44 +221,55 @@ exports.submitInquiry = async (req, res) => {
         const inquiry_type = data.inquiry_type || null;
         const communication_type = data.communication_type || null;
         const referralSource = data.referralSource || 'self';
+        const referred_by = data.referred_by || null;
         const remarks = data.remarks || null;
         const expected_date = data.expected_date || null;
 
-        const [result] = await pool.query(`
+        const [result] = await connection.query(`
             INSERT INTO quick_inquiry 
-            (name, age, gender, inquiry_type, communication_type, referralSource, chief_complain, phone_number, review, expected_visit_date, branch_id, created_by_employee_id) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (name, age, gender, inquiry_type, communication_type, referralSource, referred_by, chief_complain, phone_number, review, expected_visit_date, branch_id, created_by_employee_id) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             patient_name, age, gender, inquiry_type, communication_type, referralSource,
-            chief_complain, phone, remarks, expected_date, branch_id, employee_id
+            referred_by, chief_complain, phone, remarks, expected_date, branch_id, employee_id
         ]);
+
+        await connection.commit();
 
         res.json({ success: true, message: "Inquiry saved successfully.", inquiry_id: result.insertId });
     } catch (error) {
+        await connection.rollback();
         console.error("Submit Inquiry Error:", error);
         res.status(500).json({ success: false, message: error.message });
+    } finally {
+        connection.release();
     }
 };
 
 exports.submitTestInquiry = async (req, res) => {
-    // ... (Logic from previous step)
     const data = req.body;
     const branch_id = req.user.branch_id || data.branch_id;
     const employee_id = req.user.employee_id || data.employee_id;
 
     if (!branch_id || !employee_id) return res.status(400).json({ success: false, message: 'Branch ID and Employee ID required' });
 
+    const connection = await pool.getConnection();
+
     try {
+        await connection.beginTransaction();
+
         const patient_name = (data.patient_name || '').trim();
         const test_name = (data.test_name || '').trim();
         const phone_number = (data.phone_number || '').trim();
 
-        if (!patient_name || !test_name || !phone_number) return res.status(400).json({ success: false, message: "Required fields are missing: Patient Name, Test Name, Phone." });
+        if (!patient_name || !test_name || !phone_number) {
+            throw new Error("Required fields are missing: Patient Name, Test Name, Phone.");
+        }
 
         const referred_by = data.referred_by || null;
         const expected_visit_date = data.expected_visit_date || null;
 
-        const [result] = await pool.query(`
+        const [result] = await connection.query(`
             INSERT INTO test_inquiry 
             (name, testname, reffered_by, mobile_number, expected_visit_date, branch_id, created_by_employee_id) 
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -246,9 +277,14 @@ exports.submitTestInquiry = async (req, res) => {
             patient_name, test_name, referred_by, phone_number, expected_visit_date, branch_id, employee_id
         ]);
 
+        await connection.commit();
+
         res.json({ success: true, message: "Test inquiry saved successfully.", test_inquiry_id: result.insertId });
     } catch (error) {
+        await connection.rollback();
         console.error("Submit Test Inquiry Error:", error);
         res.status(500).json({ success: false, message: error.message });
+    } finally {
+        connection.release();
     }
 };

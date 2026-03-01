@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/useAuthStore";
+import { useInquiryStore } from "../store/useInquiryStore";
 import { API_BASE_URL, authFetch } from "../config";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSmartRefresh } from "../hooks/useSmartRefresh";
@@ -1264,10 +1265,11 @@ const ReceptionDashboard = () => {
           inquiry_type: formObject.inquiry_type || null,
           communication_type: formObject.communication_type || null,
           referralSource: formObject.referralSource || "self",
+          referred_by: formObject.referred_by || "",
           conditionType: formObject.conditionType || "",
           conditionType_other: formObject.conditionType_other || "",
           remarks: formObject.remarks || "",
-          expected_date: formObject.expected_date || null,
+          expected_date: formObject.expected_visit_date || null,
         };
       } else if (activeModal === "test_inquiry") {
         endpoint = `${API_BASE_URL}/reception/test_inquiry_submit`;
@@ -1276,7 +1278,7 @@ const ReceptionDashboard = () => {
           patient_name: formObject.patient_name,
           test_name: formObject.test_name,
           referred_by: formObject.referred_by || "",
-          phone_number: formObject.phone_number,
+          phone_number: formObject.phone,
           expected_visit_date: formObject.expected_visit_date || null,
         };
       }
@@ -1301,6 +1303,23 @@ const ReceptionDashboard = () => {
         // Smart refresh: Clear cached slots and trigger update check after successful submit
         if (activeModal === "registration") {
           useDashboardStore.setState({ timeSlots: null });
+        }
+
+        // Clear inquiry cache after successful inquiry/test_inquiry submission
+        if (activeModal === "inquiry" || activeModal === "test_inquiry") {
+          console.log("[Dashboard] Clearing inquiry cache after submission");
+          useInquiryStore.setState({ 
+            consultations: null, 
+            diagnostics: null, 
+            followUpLogs: {} 
+          });
+          // Also clear localStorage cache
+          try {
+            localStorage.removeItem("inquiry-cache");
+            console.log("[Dashboard] Cleared inquiry localStorage cache");
+          } catch (e) {
+            console.error("[Dashboard] Error clearing localStorage", e);
+          }
         }
 
         // Clear search cache on successful submission
@@ -3637,6 +3656,17 @@ const ReceptionDashboard = () => {
                                 value={inqSource}
                               />
                             </FormField>
+                            <FormField
+                              label="Referred By (Source)"
+                              icon={Search}
+                            >
+                              <input
+                                type="text"
+                                name="referred_by"
+                                className={inputClass}
+                                placeholder="Name of referring source/person"
+                              />
+                            </FormField>
                             <FormField label="Next Step / Plan" icon={Calendar}>
                               <div
                                 onClick={() => {
@@ -3658,7 +3688,7 @@ const ReceptionDashboard = () => {
                               </div>
                               <input
                                 type="hidden"
-                                name="plan_to_visit_date"
+                                name="expected_visit_date"
                                 value={inquiryDate}
                               />
                             </FormField>
@@ -3738,18 +3768,16 @@ const ReceptionDashboard = () => {
                                 required
                               />
                             </FormField>
-                            <FormField label="Expected Amount" icon={Wallet}>
-                              <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
-                                  ₹
-                                </span>
-                                <input
-                                  type="number"
-                                  name="expected_amount"
-                                  className="w-full bg-white border border-slate-200 rounded-lg pl-6 pr-3 py-2 text-sm font-bold outline-none focus:border-emerald-500"
-                                  placeholder="0"
-                                />
-                              </div>
+                            <FormField
+                              label="Referred By"
+                              icon={Search}
+                            >
+                              <input
+                                type="text"
+                                name="referred_by"
+                                className={inputClass}
+                                placeholder="Name of referring source/person"
+                              />
                             </FormField>
                             <FormField label="Expected Visit" icon={Calendar}>
                               <div

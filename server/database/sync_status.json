@@ -5,8 +5,6 @@
     "tests": "2000-01-01 00:00:00",
     "attendance": "2000-01-01 00:00:00",
     "payments": "2000-01-01 00:00:00",
-    "quick_inquiry": "2000-01-01 00:00:00",
-    "test_inquiry": "2000-01-01 00:00:00",
     "patient_master": "2000-01-01 00:00:00",
     "employees": "2000-01-01 00:00:00",
     "patients_treatment": "2000-01-01 00:00:00",
@@ -35,7 +33,9 @@
     "expense_categories": "2000-01-01 00:00:00",
     "registration_payments": "750.00",
     "payment_splits": "750.00",
-    "patient_appointments": "2000-01-01 00:00:00"
+    "patient_appointments": "2000-01-01 00:00:00",
+    "quick_inquiry": "2000-01-01 00:00:00",
+    "test_inquiry": "2000-01-01 00:00:00"
   },
   "global": "web_search",
   "branchId": 1,
@@ -45,6 +45,9 @@
     "patients:28": 1,
     "attendance:270": 1,
     "notifications:191": 1,
-    "tests:41": 1
+    "tests:41": 1,
+    "test_inquiry:4": 1,
+    "quick_inquiry:8": 2,
+    "test_inquiry:6": 2
   }
 }
