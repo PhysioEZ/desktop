@@ -52,9 +52,8 @@ router.get('/tests', async (req, res) => {
 
         const dataSql = `
             SELECT 
-                t.test_id, t.created_at, t.patient_name, t.age, t.gender,
-                t.phone_number, t.test_name, t.total_amount, t.advance_amount,
-                t.due_amount, t.payment_status, t.test_status, t.referred_by
+                t.*,
+                (SELECT COALESCE(SUM(amount), 0) FROM test_payments tp WHERE tp.test_id = t.test_id) as additional_paid
             FROM tests t
             ${whereSql}
             ORDER BY t.created_at DESC
@@ -63,8 +62,9 @@ router.get('/tests', async (req, res) => {
         const totalsSql = `
             SELECT 
                 SUM(t.total_amount) as total_revenue,
-                SUM(t.advance_amount) as total_collected,
-                SUM(t.due_amount) as total_outstanding
+                SUM(COALESCE(t.discount, 0)) as total_discount,
+                SUM(t.total_amount - COALESCE(t.discount, 0)) as total_billed,
+                SUM(t.advance_amount + (SELECT COALESCE(SUM(amount), 0) FROM test_payments tp WHERE tp.test_id = t.test_id)) as total_collected
             FROM tests t
             ${whereSql}
         `;
@@ -72,10 +72,33 @@ router.get('/tests', async (req, res) => {
         const [data] = await pool.query(dataSql, params);
         const [totalsRows] = await pool.query(totalsSql, params);
 
+        const processedData = data.map(row => {
+            const total = parseFloat(row.total_amount || 0);
+            const discount = parseFloat(row.discount || 0);
+            const advance = parseFloat(row.advance_amount || 0);
+            const additional = parseFloat(row.additional_paid || 0);
+
+            const billed = total - discount;
+            const paid = advance + additional;
+            const dues = billed - paid;
+
+            return {
+                ...row,
+                total: total,
+                discount: discount,
+                billed: billed,
+                paid: paid,
+                dues: dues
+            };
+        });
+
+        const totals = totalsRows[0] || { total_revenue: 0, total_discount: 0, total_billed: 0, total_collected: 0 };
+        totals.total_outstanding = totals.total_billed - totals.total_collected;
+
         res.json({
             success: true,
-            tests: data,
-            totals: totalsRows[0] || { total_revenue: 0, total_collected: 0, total_outstanding: 0 }
+            tests: processedData,
+            totals: totals
         });
     } catch (error) {
         console.error("Test Reports Error:", error);

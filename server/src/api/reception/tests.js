@@ -176,41 +176,33 @@ exports.submitTest = async (req, res) => {
             parent_test_id = parentResult.insertId;
         }
 
-        // 5. Insert Payment Splits
+        // 5. Process Initial Payment
+        let initial_paid_total = 0;
+        let initial_methods = [];
         const payment_amounts_split = data.payment_amounts || {};
         // Note: data.payment_amounts might be the split {cash: 100, online: 200}
         // Be careful not to confuse with test_amounts (amounts per test)
         // Usually frontend sends: payment_amounts: {cash: 100}, test_amounts: {Xray:500}
 
-        for (const [method, amt] of Object.entries(payment_amounts_split)) {
-            const val = parseFloat(amt);
-            if (val > 0) {
-                // 1. Record in test-specific transactions
-                await connection.query(
-                    "INSERT INTO test_payments (test_id, payment_method, amount) VALUES (?, ?, ?)",
-                    [parent_test_id, method, val]
-                );
+        // Count valid payment entries
+        const validPaymentEntries = Object.entries(payment_amounts_split).filter(([_, amt]) => parseFloat(amt) > 0);
+        const isSplitPayment = validPaymentEntries.length > 1;
 
-                // 2. Also record in global payments table for overall tracking
-                // We use patient_id if available, otherwise 0 or NULL
+        for (const [method, amt] of validPaymentEntries) {
+            const val = parseFloat(amt);
+            initial_paid_total += val;
+            initial_methods.push(method.toUpperCase());
+
+            // Only use test_payments table for split mode payments
+            // For single payment mode, amount is stored directly in tests.advance_amount
+            if (isSplitPayment) {
                 await connection.query(`
-                    INSERT INTO payments (
-                        patient_id, amount, payment_method, mode, 
-                        payment_date, remarks, branch_id, created_at, 
-                        processed_by_employee_id
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?)
-                `, [
-                    patient_id || null,
-                    val,
-                    method,
-                    method,
-                    today,
-                    `Test Payment (${newTestUid})`,
-                    branch_id,
-                    employee_id
-                ]);
+                    INSERT INTO test_payments (test_id, payment_method, amount, created_at)
+                    VALUES (?, ?, ?, NOW())
+                `, [parent_test_id, method, val]);
             }
         }
+
 
         // 6. Insert Child Items
         for (const single_test_name of test_names) {
@@ -257,18 +249,14 @@ exports.submitTest = async (req, res) => {
             }
         }
 
-        // 8. Recalculate Aggregated Totals and Status for the Session
-        const [aggRows] = await connection.query(`
-            SELECT 
-                COALESCE(SUM(amount), 0) as total_paid
-            FROM test_payments 
-            WHERE test_id = ?
-        `, [parent_test_id]);
-
-        const total_paid = parseFloat(aggRows[0].total_paid);
+        // 8. Calculate Final Status and Dues
+        // For initial submission, total_paid is what we just collected (initial_paid_total)
+        // No need to query test_payments since we just inserted (or didn't for single mode)
         const [currentParent] = await connection.query("SELECT total_amount, discount FROM tests WHERE test_id = ?", [parent_test_id]);
         const final_total = parseFloat(currentParent[0].total_amount);
         const final_discount = parseFloat(currentParent[0].discount);
+
+        const total_paid = initial_paid_total;
         const final_due = Math.max(0, final_total - total_paid - final_discount);
 
         let final_payment_status = 'pending';
@@ -280,9 +268,10 @@ exports.submitTest = async (req, res) => {
             UPDATE tests SET 
                 advance_amount = ?, 
                 due_amount = ?, 
-                payment_status = ? 
+                payment_status = ?,
+                payment_method = ?
             WHERE test_id = ?
-        `, [total_paid, final_due, final_payment_status, parent_test_id]);
+        `, [initial_paid_total, final_due, final_payment_status, initial_methods.join(', ') || payment_method, parent_test_id]);
 
         await connection.commit();
 
@@ -381,29 +370,31 @@ exports.addTestForPatient = async (req, res) => {
                 ) VALUES(?, 'General Test', ?, 0, ?, 'pending', NOW())
                     `, [testId, total, total]);
 
-        // 4. Insert into test_payments (Transaction Table)
+        // 4. Record Global Payment (Global Table Only for Initial)
         if (advance > 0) {
             await connection.query(`
-                INSERT INTO test_payments(test_id, payment_method, amount)
-            VALUES(?, 'Cash', ?)
-                `, [testId, advance]);
+                INSERT INTO payments(patient_id, amount, mode, payment_date, remarks, branch_id, created_at, processed_by_employee_id)
+                VALUES(?, ?, 'Cash', ?, 'Test Advance', ?, NOW(), ?)
+            `, [patientId, advance, today, patient.branch_id, req.user?.employee_id || 0]);
 
-            // Also record in global payments table for overall tracking if needed
+            // Also record in test_payments for consistency
             await connection.query(`
-                INSERT INTO payments(patient_id, amount, payment_method, mode, payment_date, remarks, branch_id, created_at, processed_by_employee_id)
-            VALUES(?, ?, 'Cash', 'Cash', ?, 'Test Advance', ?, NOW(), ?)
-                `, [patientId, advance, today, patient.branch_id, req.user?.employee_id || 0]);
+                INSERT INTO test_payments (test_id, payment_method, amount, created_at)
+                VALUES (?, 'Cash', ?, NOW())
+            `, [testId, advance]);
         }
 
         // 5. Recalculate Aggregated Totals
         const [aggRows] = await connection.query(`
-            SELECT COALESCE(SUM(amount), 0) as total_paid FROM test_payments WHERE test_id = ?
-                `, [testId]);
+            SELECT COALESCE(SUM(amount), 0) as total_from_additional FROM test_payments WHERE test_id = ?
+        `, [testId]);
 
-        const total_paid = parseFloat(aggRows[0].total_paid);
+        const total_from_additional = parseFloat(aggRows[0].total_from_additional);
         const [finalParent] = await connection.query("SELECT total_amount, discount FROM tests WHERE test_id = ?", [testId]);
         const final_total = parseFloat(finalParent[0].total_amount);
-        const final_discount = parseFloat(finalParent[0].discount);
+        const final_discount = parseFloat(finalParent[0].discount || 0);
+
+        const total_paid = total_from_additional;
         const final_due = Math.max(0, final_total - total_paid - final_discount);
 
         let final_status = 'pending';
@@ -412,8 +403,8 @@ exports.addTestForPatient = async (req, res) => {
 
         await connection.query(`
             UPDATE tests SET advance_amount = ?, due_amount = ?, payment_status = ?
-                WHERE test_id = ?
-                    `, [total_paid, final_due, final_status, testId]);
+            WHERE test_id = ?
+        `, [advance, final_due, final_status, testId]);
 
         await connection.commit();
         res.json({ success: true, message: 'Test added successfully' });
@@ -568,7 +559,7 @@ async function fetchTestDetails(req, res, branchId, testId) {
 
     // Get payments first to calculate correct amounts
     const [payments] = await pool.query("SELECT * FROM test_payments WHERE test_id = ? ORDER BY created_at DESC", [testId]);
-    
+
     // Recalculate amounts considering all payments
     const total_amount = parseFloat(mainTest.total_amount);
     const discount = parseFloat(mainTest.discount || 0);
@@ -576,20 +567,20 @@ async function fetchTestDetails(req, res, branchId, testId) {
     const additional_payments = payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
     const total_paid = advance_amount + additional_payments;
     const due_amount = Math.max(0, total_amount - discount - total_paid);
-    
+
     // Determine payment status
     let payment_status = 'pending';
     if (total_amount === 0) payment_status = 'paid';
     else if (due_amount <= 0) payment_status = 'paid';
     else if (total_paid > 0) payment_status = 'partial';
-    
+
     // Update mainTest with recalculated values
     mainTest.due_amount = due_amount;
     mainTest.payment_status = payment_status;
     mainTest.total_paid = total_paid;
 
     const [items] = await pool.query("SELECT * FROM test_items WHERE test_id = ? ORDER BY item_id ASC", [testId]);
-    
+
     // If no items exist in test_items, create a virtual item from the main test with recalculated values
     if (items.length === 0) {
         mainTest.test_items = [{
@@ -614,7 +605,7 @@ async function fetchTestDetails(req, res, branchId, testId) {
     }
 
     mainTest.test_payments = payments;
-    
+
     // Also add advance_amount as a transaction if it exists
     if (advance_amount > 0) {
         const advanceTransaction = {
@@ -652,13 +643,35 @@ async function fetchTestBill(req, res, branchId, testId) {
 
     const [payments] = await pool.query("SELECT amount, payment_method, created_at FROM test_payments WHERE test_id = ? ORDER BY created_at ASC", [testId]);
 
+    // Aggregate Amounts correctly (buckets: advance_amount + test_payments)
+    const advance_amount = parseFloat(mainTest.advance_amount || 0);
+    const additional_paid = payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+    const total_paid = advance_amount + additional_paid;
+
+    // History should include initial payment if exists
+    let history = [];
+    if (advance_amount > 0) {
+        history.push({
+            amount: advance_amount,
+            method: mainTest.payment_method || 'Cash',
+            date: new Date(mainTest.created_at).toLocaleDateString("en-GB")
+        });
+    }
+    payments.forEach(p => {
+        history.push({
+            amount: p.amount,
+            method: p.payment_method,
+            date: new Date(p.created_at).toLocaleDateString("en-GB")
+        });
+    });
+
     const billData = {
         uid: mainTest.test_uid,
         patient_name: mainTest.patient_name,
         test_name: mainTest.test_name,
         total_amount: mainTest.total_amount,
-        paid_amount: mainTest.advance_amount,
-        due_amount: mainTest.due_amount,
+        paid_amount: total_paid,
+        due_amount: Math.max(0, parseFloat(mainTest.total_amount) - parseFloat(mainTest.discount || 0) - total_paid),
         discount: mainTest.discount,
         payment_status: mainTest.payment_status,
         test_status: mainTest.test_status,
@@ -670,11 +683,7 @@ async function fetchTestBill(req, res, branchId, testId) {
             name: i.test_name,
             amount: i.total_amount
         })),
-        payments_history: payments.map(p => ({
-            amount: p.amount,
-            method: p.payment_method,
-            date: new Date(p.created_at).toLocaleDateString("en-GB")
-        }))
+        payments_history: history
     };
 
     res.json({ success: true, data: billData });
@@ -797,7 +806,7 @@ async function addTestPayment(req, res, branchId, input) {
         const final_total = parseFloat(currentParent[0].total_amount);
         const final_discount = parseFloat(currentParent[0].discount);
         const advance_amount = parseFloat(currentParent[0].advance_amount);
-        
+
         const [aggRows] = await connection.query(`
             SELECT COALESCE(SUM(amount), 0) as total_from_test_payments
             FROM test_payments 

@@ -5,12 +5,7 @@ import { useThemeStore } from "../../store/useThemeStore";
 import { useChatStore } from "../../store/useChatStore";
 import type { ChatUser, ChatMessage } from "../../store/useChatStore";
 import { API_BASE_URL, authFetch } from "../../config";
-import {
-  X,
-  Maximize2,
-  Minimize2,
-  Sparkles,
-} from "lucide-react";
+import { X, Maximize2, Minimize2, Sparkles } from "lucide-react";
 import ChatList from "./ChatList";
 import ChatThread from "./ChatThread";
 import FileViewer from "../FileViewer/FileViewer";
@@ -46,7 +41,7 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
   } | null>(null);
   const [refreshCooldown, setRefreshCooldown] = useState(0);
   const [deleteConfirmation, setDeleteConfirmation] = useState<number | null>(
-    null
+    null,
   );
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -238,56 +233,56 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
 
   if (!isOpen) return null;
 
-  // Container styles based on expand state
-  const containerClass = isExpanded
-    ? "fixed inset-0 z-[10010] pointer-events-auto p-4"
-    : "fixed inset-0 z-[10010] flex items-center justify-end p-6 md:p-10 pointer-events-none";
+  // Container and Modal styles with framer-motion layout support
 
-  // Width changes based on whether a chat is active
   const getModalWidth = () => {
     if (isExpanded) return "w-full h-full";
     if (activePartner) return "w-full max-w-[1100px] h-[calc(100vh-80px)]";
     return "w-full max-w-[420px] h-[calc(100vh-80px)]";
   };
 
-  const modalClass = isExpanded
-    ? `w-full h-full flex flex-col shadow-2xl pointer-events-auto rounded-2xl overflow-hidden ${
-        isDark ? "bg-zinc-900" : "bg-white"
-      }`
-    : `${getModalWidth()} rounded-[32px] border overflow-hidden flex flex-col shadow-xl pointer-events-auto transition-all duration-300 ${
-        isDark ? "bg-zinc-900 border-white/10" : "bg-white border-slate-200"
-      }`;
+  const modalBaseClass = `relative z-10 flex flex-col overflow-hidden pointer-events-auto transition-colors duration-500`;
+  const modalThemedClass = isDark
+    ? "bg-zinc-900 border-white/10 shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)]"
+    : "bg-white border-slate-200 shadow-2xl";
+  const modalRoundedClass = isExpanded
+    ? "rounded-2xl"
+    : "rounded-[32px] border";
 
   return (
-    <div className={containerClass}>
-      {/* Backdrop - only show when not expanded */}
-      {!isExpanded && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          onClick={handleClose}
-          className="absolute inset-0 bg-black/20 pointer-events-auto"
-        />
-      )}
+    <motion.div
+      animate={{
+        padding: isExpanded ? "16px" : "24px 40px",
+      }}
+      transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+      className="fixed inset-0 z-[10010] flex items-center justify-end pointer-events-none overflow-hidden"
+    >
+      {/* Backdrop */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={handleClose}
+        className="absolute inset-0 bg-black/20 backdrop-blur-[2px] pointer-events-auto"
+      />
 
       <motion.div
-        initial={isExpanded ? { opacity: 1 } : { x: 100, opacity: 0 }}
-        animate={isExpanded ? { opacity: 1 } : { x: 0, opacity: 1 }}
-        exit={isExpanded ? { opacity: 0 } : { x: 100, opacity: 0 }}
+        layout
+        initial={{ x: 100, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: 100, opacity: 0 }}
         transition={{
-          duration: 0.15,
-          ease: "easeOut"
+          layout: { duration: 0.5, ease: [0.4, 0, 0.2, 1] },
+          opacity: { duration: 0.3 },
+          x: { duration: 0.4, ease: "easeOut" },
         }}
-        className={`${modalClass} relative z-10`}
+        className={`${getModalWidth()} ${modalBaseClass} ${modalThemedClass} ${modalRoundedClass}`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Top Bar */}
         <div
           className={`px-6 py-4 shrink-0 border-b flex items-center justify-between ${
-            isDark
-              ? "bg-zinc-900 border-white/10"
-              : "bg-white border-slate-200"
+            isDark ? "bg-zinc-900 border-white/10" : "bg-white border-slate-200"
           }`}
         >
           <div className="flex items-center gap-2">
@@ -407,9 +402,9 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
                     isDark ? "text-white/40" : "text-slate-500"
                   }`}
                 >
-                  Select a colleague from the list to start a secure,
-                  end-to-end encrypted conversation. Share messages, images, and
-                  documents seamlessly.
+                  Select a colleague from the list to start a secure, end-to-end
+                  encrypted conversation. Share messages, images, and documents
+                  seamlessly.
                 </p>
               </div>
             </div>
@@ -485,7 +480,7 @@ const ChatModal = ({ isOpen, onClose }: ChatModalProps) => {
           </div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 };
 

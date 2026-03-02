@@ -222,6 +222,28 @@ const TestBillModal = ({ isOpen, onClose, testId }: TestBillModalProps) => {
                       )}
                     </span>
                   </div>
+
+                  {data.payments_history?.length > 1 && (
+                    <div className="pl-4 space-y-0.5 opacity-70 mb-2">
+                      {data.payments_history.map((p: any, idx: number) => (
+                        <div
+                          key={idx}
+                          className="flex justify-between text-[9px] font-bold"
+                        >
+                          <span>
+                            {p.date} • {p.method}
+                          </span>
+                          <span>
+                            ₹
+                            {parseFloat(p.amount).toLocaleString("en-IN", {
+                              minimumFractionDigits: 2,
+                            })}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="flex justify-between font-bold text-[11px] mb-2">
                     <span>BALANCE DUE:</span>
                     <span>

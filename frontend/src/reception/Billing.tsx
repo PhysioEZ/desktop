@@ -198,6 +198,13 @@ const Billing = () => {
         const json = await res.json();
         if (json.status === "success") {
           setGroupedTests(json.data);
+          if (json.stats) {
+            setStats(json.stats);
+            setStatsData({
+              methods: json.stats.methods || [],
+              trends: json.stats.trends || [],
+            });
+          }
         } else {
           toast.error(json.message || "Failed to fetch grouped tests");
         }
@@ -277,8 +284,33 @@ const Billing = () => {
     return 0;
   });
 
-  // Calculate stats from filtered records for consistency
+  // Calculate stats for the Range Context Card based on visible records
   const activeStats = useMemo(() => {
+    if (activeTab === "overview") {
+      return combinedRecords.reduce(
+        (acc, r) => {
+          acc.billed += parseNum(r.billed_amount);
+          acc.paid += parseNum(r.paid_amount);
+          acc.due +=
+            parseNum(r.billed_amount) -
+            parseNum(r.paid_amount) -
+            parseNum(r.discount);
+          return acc;
+        },
+        { billed: 0, paid: 0, due: 0 },
+      );
+    }
+    if (activeTab === "tests") {
+      return groupedTests.reduce(
+        (acc, r) => {
+          acc.billed += parseNum(r.total_billed);
+          acc.paid += parseNum(r.total_paid);
+          acc.due += parseNum(r.total_due);
+          return acc;
+        },
+        { billed: 0, paid: 0, due: 0 },
+      );
+    }
     return sortedRecords.reduce(
       (acc, r) => {
         const billed = parseNum(r.total_amount);
@@ -291,7 +323,7 @@ const Billing = () => {
       },
       { billed: 0, paid: 0, due: 0 },
     );
-  }, [sortedRecords]);
+  }, [activeTab, combinedRecords, sortedRecords, groupedTests]);
 
   // Redundant notification interval removed
 
@@ -648,116 +680,120 @@ const Billing = () => {
               {/* Stat 2: Separated Performance Sections */}
               <div className="space-y-6">
                 {/* Treatments Section */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 opacity-50 px-2">
-                    <Banknote size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">
-                      Patients (Treatments)
-                    </span>
-                  </div>
+                {(activeTab === "overview" || activeTab === "patients") && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 opacity-50 px-2">
+                      <Banknote size={16} />
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+                        Patients (Treatments)
+                      </span>
+                    </div>
 
-                  <div
-                    className={`p-5 rounded-3xl border flex flex-col gap-4 ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-gray-100 shadow-sm"}`}
-                  >
-                    <div className="flex justify-between items-center border-b pb-4 border-dashed border-gray-100 dark:border-[#2A2D2A]">
-                      <div>
-                        <div
-                          className={`text-2xl font-black ${isDark ? "text-white" : "text-gray-900"}`}
-                        >
-                          {fmt(stats.treatment?.billed || 0)}
+                    <div
+                      className={`p-5 rounded-3xl border flex flex-col gap-4 ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-gray-100 shadow-sm"}`}
+                    >
+                      <div className="flex justify-between items-center border-b pb-4 border-dashed border-gray-100 dark:border-[#2A2D2A]">
+                        <div>
+                          <div
+                            className={`text-2xl font-black ${isDark ? "text-white" : "text-gray-900"}`}
+                          >
+                            {fmt(stats.treatment?.billed || 0)}
+                          </div>
+                          <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
+                            Billed
+                          </div>
                         </div>
-                        <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
-                          Billed
-                        </div>
-                      </div>
-                      <div className="p-2 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20">
-                        <FileText size={18} strokeWidth={2.5} />
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center border-b pb-4 border-dashed border-gray-100 dark:border-[#2A2D2A]">
-                      <div>
-                        <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                          {fmt(stats.treatment?.paid || 0)}
-                        </div>
-                        <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
-                          Collected
+                        <div className="p-2 rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/20">
+                          <FileText size={18} strokeWidth={2.5} />
                         </div>
                       </div>
-                      <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20">
-                        <CheckCircle2 size={18} strokeWidth={2.5} />
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="text-2xl font-black text-red-500">
-                          {fmt(stats.treatment?.due || 0)}
+                      <div className="flex justify-between items-center border-b pb-4 border-dashed border-gray-100 dark:border-[#2A2D2A]">
+                        <div>
+                          <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                            {fmt(stats.treatment?.paid || 0)}
+                          </div>
+                          <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
+                            Collected
+                          </div>
                         </div>
-                        <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
-                          Balance Due
+                        <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20">
+                          <CheckCircle2 size={18} strokeWidth={2.5} />
                         </div>
                       </div>
-                      <div className="p-2 rounded-lg bg-red-50 text-red-600 dark:bg-red-900/20">
-                        <ArrowUpRight size={18} strokeWidth={2.5} />
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-2xl font-black text-red-500">
+                            {fmt(stats.treatment?.due || 0)}
+                          </div>
+                          <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
+                            Balance Due
+                          </div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-red-50 text-red-600 dark:bg-red-900/20">
+                          <ArrowUpRight size={18} strokeWidth={2.5} />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
 
                 {/* Tests Section */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3 opacity-50 px-2">
-                    <Zap size={16} className="text-purple-500" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em]">
-                      Diagnostic Tests
-                    </span>
-                  </div>
+                {(activeTab === "overview" || activeTab === "tests") && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 opacity-50 px-2">
+                      <Zap size={16} className="text-purple-500" />
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em]">
+                        Diagnostic Tests
+                      </span>
+                    </div>
 
-                  <div
-                    className={`p-5 rounded-3xl border flex flex-col gap-4 ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-purple-50 shadow-sm shadow-purple-500/5"}`}
-                  >
-                    <div className="flex justify-between items-center border-b pb-4 border-dashed border-purple-100 dark:border-[#2A2D2A]">
-                      <div>
-                        <div
-                          className={`text-2xl font-black ${isDark ? "text-white" : "text-gray-900"}`}
-                        >
-                          {fmt(stats.tests?.billed || 0)}
+                    <div
+                      className={`p-5 rounded-3xl border flex flex-col gap-4 ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-purple-50 shadow-sm shadow-purple-500/5"}`}
+                    >
+                      <div className="flex justify-between items-center border-b pb-4 border-dashed border-purple-100 dark:border-[#2A2D2A]">
+                        <div>
+                          <div
+                            className={`text-2xl font-black ${isDark ? "text-white" : "text-gray-900"}`}
+                          >
+                            {fmt(stats.tests?.billed || 0)}
+                          </div>
+                          <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
+                            Billed
+                          </div>
                         </div>
-                        <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
-                          Billed
-                        </div>
-                      </div>
-                      <div className="p-2 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-900/20">
-                        <FileText size={18} strokeWidth={2.5} />
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center border-b pb-4 border-dashed border-purple-100 dark:border-[#2A2D2A]">
-                      <div>
-                        <div className="text-2xl font-black text-purple-600 dark:text-purple-400">
-                          {fmt(stats.tests?.paid || 0)}
-                        </div>
-                        <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
-                          Collected
+                        <div className="p-2 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-900/20">
+                          <FileText size={18} strokeWidth={2.5} />
                         </div>
                       </div>
-                      <div className="p-2 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-900/20">
-                        <CheckCircle2 size={18} strokeWidth={2.5} />
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <div className="text-2xl font-black text-red-500">
-                          {fmt(stats.tests?.due || 0)}
+                      <div className="flex justify-between items-center border-b pb-4 border-dashed border-purple-100 dark:border-[#2A2D2A]">
+                        <div>
+                          <div className="text-2xl font-black text-purple-600 dark:text-purple-400">
+                            {fmt(stats.tests?.paid || 0)}
+                          </div>
+                          <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
+                            Collected
+                          </div>
                         </div>
-                        <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
-                          Balance Due
+                        <div className="p-2 rounded-lg bg-purple-50 text-purple-600 dark:bg-purple-900/20">
+                          <CheckCircle2 size={18} strokeWidth={2.5} />
                         </div>
                       </div>
-                      <div className="p-2 rounded-lg bg-red-50 text-red-600 dark:bg-red-900/20">
-                        <ArrowUpRight size={18} strokeWidth={2.5} />
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <div className="text-2xl font-black text-red-500">
+                            {fmt(stats.tests?.due || 0)}
+                          </div>
+                          <div className="text-[8px] font-black uppercase tracking-widest opacity-40 mt-1">
+                            Balance Due
+                          </div>
+                        </div>
+                        <div className="p-2 rounded-lg bg-red-50 text-red-600 dark:bg-red-900/20">
+                          <ArrowUpRight size={18} strokeWidth={2.5} />
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* NEW: Payment Methods Breakdown */}
@@ -792,63 +828,145 @@ const Billing = () => {
                 </div>
               )}
 
-              {/* NEW: Collection Trend (Simple Bars) */}
+              {/* NEW: Collection Trend (Stacked Bars) */}
               {statsData.trends && statsData.trends.length > 0 && (
                 <div
                   className={`p-5 rounded-3xl border ${isDark ? "bg-[#1A1C1A] border-[#2A2D2A]" : "bg-white border-gray-100 shadow-sm"}`}
                 >
-                  <div className="flex items-center gap-2 mb-4 px-1">
-                    <ArrowUpRight size={12} className="text-emerald-500" />
-                    <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-                      7-Day Collection Trend
-                    </span>
+                  <div className="flex items-center justify-between mb-4 px-1">
+                    <div className="flex items-center gap-2">
+                      <ArrowUpRight size={14} className="text-emerald-500" />
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-500">
+                        7-Day Trend
+                      </span>
+                    </div>
+                    {activeTab === "overview" && (
+                      <div className="flex items-center gap-3 bg-gray-500/5 px-2 py-1 rounded-lg">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-emerald-500/60" />
+                          <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600/70">
+                            Treatments
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-purple-500/60" />
+                          <span className="text-[9px] font-black uppercase tracking-widest text-purple-600/70">
+                            Tests
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
+
                   <div className="flex items-end gap-2 h-24 px-1">
                     {(() => {
                       const max = Math.max(
                         ...statsData.trends.map((t: any) => Number(t.total)),
                         1,
                       );
-                      return statsData.trends.map((t: any, idx: number) => (
-                        <div
-                          key={idx}
-                          className="flex-1 h-full flex flex-col justify-end group relative"
-                        >
-                          {/* Bar Background Track */}
-                          <div className="absolute inset-x-0 bottom-0 top-0 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-sm" />
+                      return statsData.trends.map((t: any, idx: number) => {
+                        const treatmentHeight =
+                          (Number(t.treatment_total || 0) / max) * 100;
+                        const testHeight =
+                          (Number(t.test_total || 0) / max) * 100;
 
-                          {/* Actual Bar */}
-                          <motion.div
-                            initial={{ height: 0 }}
-                            animate={{
-                              height: `${Math.max((Number(t.total) / max) * 100, 4)}%`,
-                            }}
-                            className="bg-emerald-500/40 group-hover:bg-emerald-500/70 transition-all rounded-t-sm w-full relative z-10"
-                          />
+                        return (
+                          <div
+                            key={idx}
+                            className="flex-1 h-full flex flex-col justify-end group relative"
+                          >
+                            {/* Bar Background Track */}
+                            <div className="absolute inset-x-0 bottom-0 top-0 bg-gray-500/5 dark:bg-white/5 rounded-sm" />
 
-                          {/* Tooltip on hover */}
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-all shadow-xl pointer-events-none z-50 transform scale-90 group-hover:scale-100">
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span className="opacity-60 text-[8px] uppercase font-black">
-                                {(() => {
-                                  const [y, m, d] = t.date.split("-");
-                                  return format(
-                                    new Date(
-                                      Number(y),
-                                      Number(m) - 1,
-                                      Number(d),
-                                    ),
-                                    "dd MMM",
-                                  );
-                                })()}
-                              </span>
-                              <span>{fmt(t.total)}</span>
+                            <div className="flex flex-col w-full h-full justify-end relative z-10">
+                              {/* Test Part (Purple) */}
+                              {testHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{
+                                    height: `${testHeight}%`,
+                                  }}
+                                  className={`bg-purple-500/50 group-hover:bg-purple-500/80 transition-all w-full ${treatmentHeight === 0 ? "rounded-t-sm" : ""}`}
+                                />
+                              )}
+
+                              {/* Treatment Part (Emerald) */}
+                              {treatmentHeight > 0 && (
+                                <motion.div
+                                  initial={{ height: 0 }}
+                                  animate={{
+                                    height: `${treatmentHeight}%`,
+                                  }}
+                                  className={`bg-emerald-500/50 group-hover:bg-emerald-500/80 transition-all rounded-t-sm w-full`}
+                                />
+                              )}
+
+                              {/* Invisible minimum hit target if total is 0 */}
+                              {t.total === 0 && (
+                                <div className="h-1 bg-gray-500/10 w-full rounded-t-sm" />
+                              )}
                             </div>
-                            {/* Little Arrow */}
-                            <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900 dark:border-t-gray-100" />
+
+                            {/* Enhanced Tooltip */}
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 px-3 py-2 bg-[#0F172A] text-white text-[10px] font-bold rounded-2xl opacity-0 group-hover:opacity-100 transition-all shadow-2xl pointer-events-none z-50 transform scale-90 group-hover:scale-110 min-w-[140px]">
+                              <div className="flex flex-col gap-1.5">
+                                <div className="border-b border-white/10 pb-1 mb-1 flex justify-between items-center">
+                                  <span className="opacity-40 text-[8px] uppercase font-black">
+                                    {(() => {
+                                      const [y, m, d] = t.date.split("-");
+                                      return format(
+                                        new Date(
+                                          Number(y),
+                                          Number(m) - 1,
+                                          Number(d),
+                                        ),
+                                        "dd MMM yyyy",
+                                      );
+                                    })()}
+                                  </span>
+                                  <span className="text-emerald-400">
+                                    {fmt(t.total)}
+                                  </span>
+                                </div>
+
+                                {activeTab === "overview" && (
+                                  <>
+                                    <div className="flex justify-between items-center text-[9px]">
+                                      <span className="opacity-50">
+                                        Treatments:
+                                      </span>
+                                      <span className="text-emerald-400 font-black">
+                                        {fmt(t.treatment_total)}
+                                      </span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-[9px]">
+                                      <span className="opacity-50">
+                                        Diagnostics:
+                                      </span>
+                                      <span className="text-purple-400 font-black">
+                                        {fmt(t.test_total)}
+                                      </span>
+                                    </div>
+                                  </>
+                                )}
+
+                                {activeTab === "patients" && (
+                                  <div className="text-center text-emerald-400 font-black">
+                                    {fmt(t.treatment_total)}
+                                  </div>
+                                )}
+                                {activeTab === "tests" && (
+                                  <div className="text-center text-purple-400 font-black">
+                                    {fmt(t.test_total)}
+                                  </div>
+                                )}
+                              </div>
+                              {/* Little Arrow */}
+                              <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-[#0F172A]" />
+                            </div>
                           </div>
-                        </div>
-                      ));
+                        );
+                      });
                     })()}
                   </div>
                 </div>

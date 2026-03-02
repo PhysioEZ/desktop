@@ -368,6 +368,12 @@ const ReceptionDashboard = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const [showRegPayment, setShowRegPayment] = useState(false);
   const [showTestPayment, setShowTestPayment] = useState(false);
+  const [regPaymentMode, setRegPaymentMode] = useState<"single" | "split">(
+    "single",
+  );
+  const [testPaymentMode, setTestPaymentMode] = useState<"single" | "split">(
+    "single",
+  );
 
   // Test form Logic
   const [selectedTests, setSelectedTests] = useState<
@@ -1216,6 +1222,7 @@ const ReceptionDashboard = () => {
 
         payload = {
           ...payload,
+          patient_id: null,
           patient_name: formObject.patient_name,
           age: formObject.age,
           gender: formObject.gender,
@@ -2282,12 +2289,11 @@ const ReceptionDashboard = () => {
             onClick={(e) => e.target === e.currentTarget && closeModal()}
           >
             <motion.div
-              layout
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-              className={`relative w-full ${isChunkedFlow ? "max-w-[980px]" : "max-w-[1500px]"} max-h-[90vh] overflow-y-auto overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50 shadow-2xl transition-all duration-300 dark:border-slate-700 dark:bg-slate-950`}
+              className={`relative w-full ${isChunkedFlow ? "max-w-[980px]" : "max-w-[1500px]"} max-h-[90vh] overflow-y-auto overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50 shadow-2xl dark:border-slate-700 dark:bg-slate-950`}
             >
               <div className="sticky top-0 z-999 flex items-center justify-between border-b border-slate-200/80 bg-white/90 px-8 py-5 backdrop-blur-xl transition-colors dark:border-slate-700 dark:bg-slate-950/90">
                 <div>
@@ -2704,115 +2710,280 @@ const ReceptionDashboard = () => {
                             </FormField>
 
                             {(parseFloat(regAmount) || 0) > 0 && (
-                              <>
-                                <div className="space-y-3">
+                              <div className="space-y-4 pt-1">
+                                {/* Mode Selection */}
+                                <div className="space-y-2">
                                   <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 px-1">
-                                    Payment Method *
+                                    Payment Format *
                                   </label>
-                                  <div
-                                    onClick={() =>
-                                      setShowRegPayment(!showRegPayment)
-                                    }
-                                    className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 p-4 transition hover:bg-slate-200 dark:hover:bg-white/10"
-                                  >
-                                    <div className="flex items-center gap-3">
-                                      <CreditCard
-                                        size={18}
-                                        className="text-emerald-400"
-                                      />
-                                      <div>
-                                        <p className="text-sm font-bold text-slate-900 dark:text-white">
-                                          Methods
-                                        </p>
-                                        <p className="text-[10px] text-slate-500 dark:text-slate-400">
-                                          {Object.keys(regPaymentSplits)
-                                            .length || "Select"}{" "}
-                                          methods
-                                        </p>
-                                      </div>
-                                    </div>
-                                    <ChevronDown
-                                      size={18}
-                                      className={`text-slate-500 transition-transform ${showRegPayment ? "rotate-180" : ""}`}
-                                    />
+                                  <div className="flex bg-slate-50 dark:bg-white/5 p-1 rounded-xl border border-slate-100 dark:border-white/10">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setRegPaymentMode("single");
+                                        setRegPaymentSplits({});
+                                      }}
+                                      className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${regPaymentMode === "single" ? "bg-white dark:bg-emerald-500 text-emerald-600 dark:text-white shadow-sm" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"}`}
+                                    >
+                                      Single Mode
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setRegPaymentMode("split");
+                                        if (
+                                          Object.keys(regPaymentSplits)
+                                            .length === 0
+                                        ) {
+                                          setRegPaymentSplits({
+                                            CASH: parseFloat(regAmount) || 0,
+                                          });
+                                        }
+                                      }}
+                                      className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${regPaymentMode === "split" ? "bg-white dark:bg-emerald-500 text-emerald-600 dark:text-white shadow-sm" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"}`}
+                                    >
+                                      Split Mode (
+                                      {Object.keys(regPaymentSplits).length})
+                                    </button>
                                   </div>
                                 </div>
 
-                                <AnimatePresence>
-                                  {showRegPayment && (
-                                    <motion.div
-                                      initial={{ height: 0, opacity: 0 }}
-                                      animate={{ height: "auto", opacity: 1 }}
-                                      exit={{ height: 0, opacity: 0 }}
-                                      className="overflow-hidden space-y-2 pt-1"
+                                {regPaymentMode === "single" ? (
+                                  <FormField
+                                    label="Registration Payment"
+                                    required
+                                    icon={CreditCard}
+                                  >
+                                    <CustomSelect
+                                      value={
+                                        Object.keys(regPaymentSplits)[0] || ""
+                                      }
+                                      onChange={(val) =>
+                                        setRegPaymentSplits({
+                                          [val]: parseFloat(regAmount) || 0,
+                                        })
+                                      }
+                                      options={
+                                        formOptions?.paymentMethods.map(
+                                          (m: any) => ({
+                                            label: m.method_name,
+                                            value: m.method_code,
+                                          }),
+                                        ) || []
+                                      }
+                                      placeholder="Select Method"
+                                    />
+                                    <input
+                                      type="hidden"
+                                      name="payment_method_single"
+                                      required
+                                      value={
+                                        Object.keys(regPaymentSplits)[0] || ""
+                                      }
+                                    />
+                                  </FormField>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <div
+                                      onClick={() =>
+                                        setShowRegPayment(!showRegPayment)
+                                      }
+                                      className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 p-4 transition hover:bg-slate-200 dark:hover:bg-white/10"
                                     >
-                                      {formOptions?.paymentMethods.map(
-                                        (m: any) => (
-                                          <div
-                                            key={m.method_code}
-                                            onClick={() => {
-                                              const newSplits = {
-                                                ...regPaymentSplits,
-                                              };
-                                              if (
-                                                newSplits[m.method_code] !==
-                                                undefined
-                                              )
-                                                delete newSplits[m.method_code];
-                                              else newSplits[m.method_code] = 0;
-                                              setRegPaymentSplits(newSplits);
-                                            }}
-                                            className={`flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 transition-colors ${regPaymentSplits[m.method_code] !== undefined ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-slate-100 dark:bg-white/5 border border-transparent hover:bg-slate-200 dark:hover:bg-white/10"}`}
-                                          >
-                                            <div className="flex items-center gap-3">
-                                              <div
-                                                className={`h-4 w-4 rounded border flex items-center justify-center ${regPaymentSplits[m.method_code] !== undefined ? "bg-emerald-500 border-emerald-500" : "border-slate-300 dark:border-white/20"}`}
-                                              >
-                                                {regPaymentSplits[
+                                      <div className="flex items-center gap-3">
+                                        <CreditCard
+                                          size={18}
+                                          className="text-emerald-400"
+                                        />
+                                        <div>
+                                          <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                            Split Logic
+                                          </p>
+                                          <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                                            {Object.keys(regPaymentSplits)
+                                              .length || "Select"}{" "}
+                                            instruments selected
+                                          </p>
+                                        </div>
+                                      </div>
+                                      <ChevronDown
+                                        size={18}
+                                        className={`text-slate-500 transition-transform ${showRegPayment ? "rotate-180" : ""}`}
+                                      />
+                                    </div>
+
+                                    <AnimatePresence>
+                                      {showRegPayment && (
+                                        <motion.div
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{
+                                            height: "auto",
+                                            opacity: 1,
+                                          }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          className="overflow-hidden space-y-2 pt-1"
+                                        >
+                                          {formOptions?.paymentMethods.map(
+                                            (m: any) => {
+                                              const isSelected =
+                                                regPaymentSplits[
                                                   m.method_code
-                                                ] !== undefined && (
-                                                  <Check
-                                                    size={10}
-                                                    className="text-white"
-                                                  />
-                                                )}
-                                              </div>
-                                              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                                {m.method_name}
-                                              </span>
-                                            </div>
-                                            {regPaymentSplits[m.method_code] !==
-                                              undefined && (
-                                              <input
-                                                type="number"
-                                                value={
-                                                  regPaymentSplits[
-                                                    m.method_code
-                                                  ] || ""
-                                                }
-                                                onClick={(e) =>
-                                                  e.stopPropagation()
-                                                }
-                                                onChange={(e) =>
-                                                  setRegPaymentSplits({
-                                                    ...regPaymentSplits,
-                                                    [m.method_code]:
-                                                      parseFloat(
-                                                        e.target.value,
-                                                      ) || 0,
-                                                  })
-                                                }
-                                                className="w-20 bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-md px-2 py-1 text-xs font-bold text-slate-900 dark:text-white text-right outline-none focus:border-emerald-500"
-                                                placeholder="0.00"
-                                              />
-                                            )}
-                                          </div>
-                                        ),
+                                                ] !== undefined;
+                                              return (
+                                                <div
+                                                  key={m.method_code}
+                                                  onClick={() => {
+                                                    const newSplits = {
+                                                      ...regPaymentSplits,
+                                                    };
+                                                    if (isSelected) {
+                                                      delete newSplits[
+                                                        m.method_code
+                                                      ];
+                                                    } else {
+                                                      const currentSum =
+                                                        Object.values(
+                                                          newSplits,
+                                                        ).reduce(
+                                                          (a, b) => a + b,
+                                                          0,
+                                                        );
+                                                      const totalAmt =
+                                                        parseFloat(regAmount) ||
+                                                        0;
+                                                      newSplits[m.method_code] =
+                                                        Math.max(
+                                                          0,
+                                                          totalAmt - currentSum,
+                                                        );
+                                                    }
+                                                    setRegPaymentSplits(
+                                                      newSplits,
+                                                    );
+                                                  }}
+                                                  className={`flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 transition-all ${isSelected ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 hover:border-emerald-500/30 dark:hover:border-emerald-500/30"}`}
+                                                >
+                                                  <div className="flex items-center gap-3">
+                                                    <div
+                                                      className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${isSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300 dark:border-white/10"}`}
+                                                    >
+                                                      {isSelected && (
+                                                        <Check
+                                                          size={10}
+                                                          className="text-white"
+                                                        />
+                                                      )}
+                                                    </div>
+                                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                      {m.method_name}
+                                                    </span>
+                                                  </div>
+                                                  {isSelected && (
+                                                    <div className="relative group">
+                                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-black text-emerald-500/50">
+                                                        ₹
+                                                      </span>
+                                                      <input
+                                                        type="number"
+                                                        value={
+                                                          regPaymentSplits[
+                                                            m.method_code
+                                                          ] || ""
+                                                        }
+                                                        onClick={(e) =>
+                                                          e.stopPropagation()
+                                                        }
+                                                        onChange={(e) => {
+                                                          const val =
+                                                            parseFloat(
+                                                              e.target.value,
+                                                            ) || 0;
+                                                          const targetTotal =
+                                                            parseFloat(
+                                                              regAmount,
+                                                            ) || 0;
+                                                          const otherKeys =
+                                                            Object.keys(
+                                                              regPaymentSplits,
+                                                            ).filter(
+                                                              (k) =>
+                                                                k !==
+                                                                m.method_code,
+                                                            );
+
+                                                          const newSplits: Record<
+                                                            string,
+                                                            number
+                                                          > = {
+                                                            ...regPaymentSplits,
+                                                            [m.method_code]:
+                                                              val,
+                                                          };
+
+                                                          if (
+                                                            otherKeys.length ===
+                                                            1
+                                                          ) {
+                                                            newSplits[
+                                                              otherKeys[0]
+                                                            ] = Math.max(
+                                                              0,
+                                                              targetTotal - val,
+                                                            );
+                                                          } else if (
+                                                            otherKeys.length > 1
+                                                          ) {
+                                                            // Adjust CASH if it's one of the others, or the first other
+                                                            const adjustmentTarget =
+                                                              otherKeys.includes(
+                                                                "CASH",
+                                                              )
+                                                                ? "CASH"
+                                                                : otherKeys[0];
+                                                            const sumOfFixedOthers =
+                                                              otherKeys
+                                                                .filter(
+                                                                  (k) =>
+                                                                    k !==
+                                                                    adjustmentTarget,
+                                                                )
+                                                                .reduce(
+                                                                  (a, k) =>
+                                                                    a +
+                                                                    newSplits[
+                                                                      k
+                                                                    ],
+                                                                  0,
+                                                                );
+                                                            newSplits[
+                                                              adjustmentTarget
+                                                            ] = Math.max(
+                                                              0,
+                                                              targetTotal -
+                                                                val -
+                                                                sumOfFixedOthers,
+                                                            );
+                                                          }
+
+                                                          setRegPaymentSplits(
+                                                            newSplits,
+                                                          );
+                                                        }}
+                                                        className="w-34 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg pl-5 pr-2 py-1.5 text-xs font-black text-slate-900 dark:text-white text-right outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                        placeholder="0.00"
+                                                      />
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            },
+                                          )}
+                                        </motion.div>
                                       )}
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
-                              </>
+                                    </AnimatePresence>
+                                  </div>
+                                )}
+                              </div>
                             )}
 
                             <FormField
@@ -3260,9 +3431,6 @@ const ReceptionDashboard = () => {
                               className="!gap-1"
                             >
                               <div className="relative">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
-                                  ₹
-                                </span>
                                 <input
                                   type="number"
                                   name="total_amount"
@@ -3283,9 +3451,6 @@ const ReceptionDashboard = () => {
                                 className="!gap-1"
                               >
                                 <div className="relative">
-                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
-                                    ₹
-                                  </span>
                                   <input
                                     type="number"
                                     name="advance_amount"
@@ -3304,9 +3469,6 @@ const ReceptionDashboard = () => {
                                 className="!gap-1"
                               >
                                 <div className="relative">
-                                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-xs">
-                                    ₹
-                                  </span>
                                   <input
                                     type="number"
                                     name="discount"
@@ -3337,108 +3499,274 @@ const ReceptionDashboard = () => {
 
                             {/* Payment Methods for Test */}
                             {(parseFloat(advanceAmount) || 0) > 0 && (
-                              <div className="space-y-3 pt-2">
-                                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 px-1">
-                                  Advance Payment Method *
-                                </label>
-                                <div
-                                  onClick={() =>
-                                    setShowTestPayment(!showTestPayment)
-                                  }
-                                  className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 p-4 transition hover:bg-slate-200 dark:hover:bg-white/10"
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <CreditCard
-                                      size={18}
-                                      className="text-emerald-400"
-                                    />
-                                    <p className="text-sm font-bold text-slate-900 dark:text-white">
-                                      {Object.keys(testPaymentSplits).length ||
-                                        "Select"}{" "}
-                                      Methods
-                                    </p>
+                              <div className="space-y-4 pt-2">
+                                <div className="space-y-2">
+                                  <label className="text-[10px] font-bold uppercase tracking-wide text-slate-400 px-1">
+                                    Payment Format *
+                                  </label>
+                                  <div className="flex bg-slate-50 dark:bg-white/5 p-1 rounded-xl border border-slate-100 dark:border-white/10">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setTestPaymentMode("single");
+                                        setTestPaymentSplits({});
+                                      }}
+                                      className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${testPaymentMode === "single" ? "bg-white dark:bg-emerald-500 text-emerald-600 dark:text-white shadow-sm" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"}`}
+                                    >
+                                      Single Mode
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setTestPaymentMode("split");
+                                        if (
+                                          Object.keys(testPaymentSplits)
+                                            .length === 0
+                                        ) {
+                                          setTestPaymentSplits({
+                                            CASH:
+                                              parseFloat(advanceAmount) || 0,
+                                          });
+                                        }
+                                      }}
+                                      className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-lg transition-all ${testPaymentMode === "split" ? "bg-white dark:bg-emerald-500 text-emerald-600 dark:text-white shadow-sm" : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"}`}
+                                    >
+                                      Split Mode (
+                                      {Object.keys(testPaymentSplits).length})
+                                    </button>
                                   </div>
-                                  <ChevronDown
-                                    size={18}
-                                    className={`text-slate-500 transition-transform ${showTestPayment ? "rotate-180" : ""}`}
-                                  />
                                 </div>
 
-                                <AnimatePresence>
-                                  {showTestPayment && (
-                                    <motion.div
-                                      initial={{ height: 0, opacity: 0 }}
-                                      animate={{ height: "auto", opacity: 1 }}
-                                      exit={{ height: 0, opacity: 0 }}
-                                      className="overflow-hidden space-y-2 pt-1"
+                                {testPaymentMode === "single" ? (
+                                  <FormField
+                                    label="Advance Payment"
+                                    required
+                                    icon={CreditCard}
+                                  >
+                                    <CustomSelect
+                                      value={
+                                        Object.keys(testPaymentSplits)[0] || ""
+                                      }
+                                      onChange={(val) =>
+                                        setTestPaymentSplits({
+                                          [val]: parseFloat(advanceAmount) || 0,
+                                        })
+                                      }
+                                      options={
+                                        formOptions?.paymentMethods.map(
+                                          (m: any) => ({
+                                            label: m.method_name,
+                                            value: m.method_code,
+                                          }),
+                                        ) || []
+                                      }
+                                      placeholder="Select Method"
+                                    />
+                                    <input
+                                      type="hidden"
+                                      name="test_payment_method_single"
+                                      required
+                                      value={
+                                        Object.keys(testPaymentSplits)[0] || ""
+                                      }
+                                    />
+                                  </FormField>
+                                ) : (
+                                  <div className="space-y-3">
+                                    <div
+                                      onClick={() =>
+                                        setShowTestPayment(!showTestPayment)
+                                      }
+                                      className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-white/5 p-4 transition hover:bg-slate-200 dark:hover:bg-white/10"
                                     >
-                                      {formOptions?.paymentMethods.map(
-                                        (m: any) => (
-                                          <div
-                                            key={m.method_code}
-                                            onClick={() => {
-                                              const newSplits = {
-                                                ...testPaymentSplits,
-                                              };
-                                              if (
-                                                newSplits[m.method_code] !==
-                                                undefined
-                                              )
-                                                delete newSplits[m.method_code];
-                                              else newSplits[m.method_code] = 0;
-                                              setTestPaymentSplits(newSplits);
-                                            }}
-                                            className={`flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 transition-colors ${testPaymentSplits[m.method_code] !== undefined ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-slate-100 dark:bg-white/5 border border-transparent hover:bg-slate-200 dark:hover:bg-white/10"}`}
-                                          >
-                                            <div className="flex items-center gap-3">
-                                              <div
-                                                className={`h-4 w-4 rounded border flex items-center justify-center ${testPaymentSplits[m.method_code] !== undefined ? "bg-emerald-500 border-emerald-500" : "border-slate-300 dark:border-white/20"}`}
-                                              >
-                                                {testPaymentSplits[
+                                      <div className="flex items-center gap-3">
+                                        <CreditCard
+                                          size={18}
+                                          className="text-emerald-400"
+                                        />
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white">
+                                          {Object.keys(testPaymentSplits)
+                                            .length || "Select"}{" "}
+                                          Instruments
+                                        </p>
+                                      </div>
+                                      <ChevronDown
+                                        size={18}
+                                        className={`text-slate-500 transition-transform ${showTestPayment ? "rotate-180" : ""}`}
+                                      />
+                                    </div>
+
+                                    <AnimatePresence>
+                                      {showTestPayment && (
+                                        <motion.div
+                                          initial={{ height: 0, opacity: 0 }}
+                                          animate={{
+                                            height: "auto",
+                                            opacity: 1,
+                                          }}
+                                          exit={{ height: 0, opacity: 0 }}
+                                          className="overflow-hidden space-y-2 pt-1"
+                                        >
+                                          {formOptions?.paymentMethods.map(
+                                            (m: any) => {
+                                              const isSelected =
+                                                testPaymentSplits[
                                                   m.method_code
-                                                ] !== undefined && (
-                                                  <Check
-                                                    size={10}
-                                                    className="text-white"
-                                                  />
-                                                )}
-                                              </div>
-                                              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                                {m.method_name}
-                                              </span>
-                                            </div>
-                                            {testPaymentSplits[
-                                              m.method_code
-                                            ] !== undefined && (
-                                              <input
-                                                type="number"
-                                                value={
-                                                  testPaymentSplits[
-                                                    m.method_code
-                                                  ] || ""
-                                                }
-                                                onClick={(e) =>
-                                                  e.stopPropagation()
-                                                }
-                                                onChange={(e) =>
-                                                  setTestPaymentSplits({
-                                                    ...testPaymentSplits,
-                                                    [m.method_code]:
-                                                      parseFloat(
-                                                        e.target.value,
-                                                      ) || 0,
-                                                  })
-                                                }
-                                                className="w-20 bg-white dark:bg-black/20 border border-slate-200 dark:border-white/10 rounded-md px-2 py-1 text-xs font-bold text-slate-900 dark:text-white text-right outline-none focus:border-emerald-500"
-                                                placeholder="0"
-                                              />
-                                            )}
-                                          </div>
-                                        ),
+                                                ] !== undefined;
+                                              return (
+                                                <div
+                                                  key={m.method_code}
+                                                  onClick={() => {
+                                                    const newSplits = {
+                                                      ...testPaymentSplits,
+                                                    };
+                                                    if (isSelected) {
+                                                      delete newSplits[
+                                                        m.method_code
+                                                      ];
+                                                    } else {
+                                                      const currentSum =
+                                                        Object.values(
+                                                          newSplits,
+                                                        ).reduce(
+                                                          (a, b) => a + b,
+                                                          0,
+                                                        );
+                                                      const totalAmt =
+                                                        parseFloat(
+                                                          advanceAmount,
+                                                        ) || 0;
+                                                      newSplits[m.method_code] =
+                                                        Math.max(
+                                                          0,
+                                                          totalAmt - currentSum,
+                                                        );
+                                                    }
+                                                    setTestPaymentSplits(
+                                                      newSplits,
+                                                    );
+                                                  }}
+                                                  className={`flex cursor-pointer items-center justify-between rounded-lg px-4 py-3 transition-all ${isSelected ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-white dark:bg-white/[0.02] border border-slate-100 dark:border-white/5 hover:border-emerald-500/30 dark:hover:border-emerald-500/30"}`}
+                                                >
+                                                  <div className="flex items-center gap-3">
+                                                    <div
+                                                      className={`h-4 w-4 rounded border flex items-center justify-center transition-colors ${isSelected ? "bg-emerald-500 border-emerald-500" : "border-slate-300 dark:border-white/10"}`}
+                                                    >
+                                                      {isSelected && (
+                                                        <Check
+                                                          size={10}
+                                                          className="text-white"
+                                                        />
+                                                      )}
+                                                    </div>
+                                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                      {m.method_name}
+                                                    </span>
+                                                  </div>
+                                                  {isSelected && (
+                                                    <div className="relative group">
+                                                      <span className="absolute left-2 top-1/2 -translate-y-1/2 text-[9px] font-black text-emerald-500/50">
+                                                        ₹
+                                                      </span>
+                                                      <input
+                                                        type="number"
+                                                        value={
+                                                          testPaymentSplits[
+                                                            m.method_code
+                                                          ] || ""
+                                                        }
+                                                        onClick={(e) =>
+                                                          e.stopPropagation()
+                                                        }
+                                                        onChange={(e) => {
+                                                          const val =
+                                                            parseFloat(
+                                                              e.target.value,
+                                                            ) || 0;
+                                                          const targetTotal =
+                                                            parseFloat(
+                                                              advanceAmount,
+                                                            ) || 0;
+                                                          const otherKeys =
+                                                            Object.keys(
+                                                              testPaymentSplits,
+                                                            ).filter(
+                                                              (k) =>
+                                                                k !==
+                                                                m.method_code,
+                                                            );
+
+                                                          const newSplits: Record<
+                                                            string,
+                                                            number
+                                                          > = {
+                                                            ...testPaymentSplits,
+                                                            [m.method_code]:
+                                                              val,
+                                                          };
+
+                                                          if (
+                                                            otherKeys.length ===
+                                                            1
+                                                          ) {
+                                                            newSplits[
+                                                              otherKeys[0]
+                                                            ] = Math.max(
+                                                              0,
+                                                              targetTotal - val,
+                                                            );
+                                                          } else if (
+                                                            otherKeys.length > 1
+                                                          ) {
+                                                            const adjustmentTarget =
+                                                              otherKeys.includes(
+                                                                "CASH",
+                                                              )
+                                                                ? "CASH"
+                                                                : otherKeys[0];
+                                                            const sumOfFixedOthers =
+                                                              otherKeys
+                                                                .filter(
+                                                                  (k) =>
+                                                                    k !==
+                                                                    adjustmentTarget,
+                                                                )
+                                                                .reduce(
+                                                                  (a, k) =>
+                                                                    a +
+                                                                    newSplits[
+                                                                      k
+                                                                    ],
+                                                                  0,
+                                                                );
+                                                            newSplits[
+                                                              adjustmentTarget
+                                                            ] = Math.max(
+                                                              0,
+                                                              targetTotal -
+                                                                val -
+                                                                sumOfFixedOthers,
+                                                            );
+                                                          }
+
+                                                          setTestPaymentSplits(
+                                                            newSplits,
+                                                          );
+                                                        }}
+                                                        className="w-32 bg-white dark:bg-black/40 border border-slate-200 dark:border-white/10 rounded-lg pl-5 pr-2 py-1.5 text-xs font-black text-slate-900 dark:text-white text-right outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                                        placeholder="0"
+                                                      />
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            },
+                                          )}
+                                        </motion.div>
                                       )}
-                                    </motion.div>
-                                  )}
-                                </AnimatePresence>
+                                    </AnimatePresence>
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>

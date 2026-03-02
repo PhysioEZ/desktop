@@ -14,6 +14,11 @@ import {
   ArrowUpRight,
   LayoutGrid,
   Table as TableIcon,
+  ChevronRight,
+  ChevronLeft,
+  CalendarRange,
+  RotateCcw,
+  Target,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -29,6 +34,13 @@ import {
   PieChart,
   Pie,
   Cell,
+  LineChart,
+  Line,
+  ComposedChart,
+  Radar,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
 } from "recharts";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "../store/useAuthStore";
@@ -44,6 +56,9 @@ import NotesDrawer from "../components/NotesDrawer";
 import ActionFAB from "../components/ActionFAB";
 import CustomSelect from "../components/ui/CustomSelect";
 import ChatModal from "../components/Chat/ChatModal";
+import RangePicker from "../components/ui/RangePicker";
+import FileViewer from "../components/FileViewer/FileViewer";
+import { startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
 
 type TabType = "tests" | "registrations" | "patients" | "inquiries";
 
@@ -67,15 +82,31 @@ const Reports = () => {
   const [showNotes, setShowNotes] = useState(false);
   const [refreshCooldown, setRefreshCooldown] = useState(0);
 
-  // Filters
-  const [dateRange, setDateRange] = useState({
-    start_date: format(
-      new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-      "yyyy-MM-dd",
-    ),
-    end_date: format(new Date(), "yyyy-MM-dd"),
+  // Custom Range States (same as Billing)
+  const [isCustomRange, setIsCustomRange] = useState(false);
+  const [rangeStart, setRangeStart] = useState<string | null>(null);
+  const [rangeEnd, setRangeEnd] = useState<string | null>(null);
+  const [showRangePicker, setShowRangePicker] = useState<
+    "start" | "end" | null
+  >(null);
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+
+  // File Viewer config
+  const [fileViewerConfig, setFileViewerConfig] = useState<{
+    isOpen: boolean;
+    url: string;
+    fileName: string;
+    downloadUrl?: string;
+    downloadFileName?: string;
+  }>({
+    isOpen: false,
+    url: "",
+    fileName: "",
+    downloadUrl: "",
+    downloadFileName: "",
   });
 
+  // Filters
   const [filterOptions, setFilterOptions] = useState<any>({});
   const [activeFilters, setActiveFilters] = useState<any>({});
 
@@ -89,7 +120,7 @@ const Reports = () => {
   useEffect(() => {
     fetchFilters();
     fetchData();
-  }, [activeTab]);
+  }, [activeTab, rangeStart, rangeEnd, isCustomRange, currentMonth]);
 
   const fetchFilters = async () => {
     try {
@@ -107,11 +138,19 @@ const Reports = () => {
 
   const fetchData = async () => {
     setLoading(true);
+    const start =
+      isCustomRange && rangeStart
+        ? rangeStart
+        : format(startOfMonth(currentMonth), "yyyy-MM-dd");
+    const end =
+      isCustomRange && rangeEnd
+        ? rangeEnd
+        : format(endOfMonth(currentMonth), "yyyy-MM-dd");
+
     try {
       const params = new URLSearchParams();
-      if (dateRange.start_date)
-        params.append("start_date", dateRange.start_date);
-      if (dateRange.end_date) params.append("end_date", dateRange.end_date);
+      if (start) params.append("start_date", start);
+      if (end) params.append("end_date", end);
       if (activeFilters.search) params.append("search", activeFilters.search);
 
       Object.entries(activeFilters).forEach(([key, val]) => {
@@ -178,12 +217,253 @@ const Reports = () => {
     });
     const csvUrl = window.URL.createObjectURL(csvBlob);
 
-    const link = document.createElement("a");
-    link.href = csvUrl;
-    link.download = `${activeTab}_report_${format(new Date(), "yyyyMMdd")}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    setFileViewerConfig({
+      isOpen: true,
+      url: csvUrl,
+      fileName: `${activeTab}_report_${format(new Date(), "yyyyMMdd")}.csv`,
+    });
+  };
+
+  const exportToPDF = () => {
+    if (!records || records.length === 0) return;
+    const start =
+      isCustomRange && rangeStart
+        ? format(new Date(rangeStart), "dd MMM yyyy")
+        : format(startOfMonth(currentMonth), "dd MMM yyyy");
+    const end =
+      isCustomRange && rangeEnd
+        ? format(new Date(rangeEnd), "dd MMM yyyy")
+        : format(endOfMonth(currentMonth), "dd MMM yyyy");
+
+    const getReportConfig = () => {
+      const formatCurrency = (v: any, _row?: any) => {
+        const num = parseFloat(v);
+        return isNaN(num) ? "₹0" : `₹${num.toLocaleString()}`;
+      };
+
+      switch (activeTab) {
+        case "tests":
+          return {
+            columns: [
+              {
+                header: "Date",
+                key: "created_at",
+                format: (v: any, _r?: any) =>
+                  v ? format(new Date(v), "MMM dd, yyyy") : "—",
+              },
+              { header: "Patient", key: "patient_name" },
+              { header: "Test", key: "test_name" },
+              { header: "Billed", key: "billed", format: formatCurrency },
+              { header: "Paid", key: "paid", format: formatCurrency },
+              { header: "Dues", key: "dues", format: formatCurrency },
+              { header: "Status", key: "test_status" },
+            ],
+            summary: [
+              {
+                label: "Gross Billed",
+                value: formatCurrency(totals.total_billed),
+              },
+              {
+                label: "Total Collected",
+                value: formatCurrency(totals.total_collected),
+              },
+              {
+                label: "Total Outstanding",
+                value: formatCurrency(totals.total_outstanding),
+              },
+            ],
+          };
+        case "registrations":
+          return {
+            columns: [
+              {
+                header: "Date",
+                key: "created_at",
+                format: (v: any, _r?: any) =>
+                  v ? format(new Date(v), "MMM dd, yyyy") : "—",
+              },
+              { header: "Patient", key: "patient_name" },
+              { header: "Complaint", key: "chief_complain" },
+              {
+                header: "Amount",
+                key: "consultation_amount",
+                format: formatCurrency,
+              },
+              { header: "Status", key: "status" },
+            ],
+            summary: [
+              {
+                label: "Consultation Revenue",
+                value: formatCurrency(totals.consulted_sum),
+              },
+              {
+                label: "Expected Revenue (Pending)",
+                value: formatCurrency(totals.pending_sum),
+              },
+            ],
+          };
+        case "patients":
+          return {
+            columns: [
+              { header: "Patient", key: "patient_name" },
+              { header: "Doctor", key: "assigned_doctor" },
+              { header: "Treatment", key: "treatment_type" },
+              {
+                header: "Billed",
+                key: "calculated_billed",
+                format: formatCurrency,
+              },
+              {
+                header: "Paid",
+                key: "calculated_paid_all_time",
+                format: formatCurrency,
+              },
+              { header: "Due", key: "calculated_due", format: formatCurrency },
+            ],
+            summary: [
+              {
+                label: "Period Billing",
+                value: formatCurrency(totals.total_sum),
+              },
+              {
+                label: "Period Collections",
+                value: formatCurrency(totals.paid_sum),
+              },
+              {
+                label: "Current Receivables",
+                value: formatCurrency(totals.due_sum),
+              },
+            ],
+          };
+        case "inquiries":
+          return {
+            columns: [
+              {
+                header: "Date",
+                key: "created_at",
+                format: (v: any, _r?: any) =>
+                  v ? format(new Date(v), "MMM dd, yyyy") : "—",
+              },
+              { header: "Lead Name", key: "name" },
+              { header: "Source", key: "referralSource" },
+              { header: "Status", key: "status" },
+            ],
+            summary: [
+              {
+                label: "Total Leads",
+                value: totals.total_inquiries,
+                isCurrency: false,
+              },
+              {
+                label: "Conversions",
+                value: totals.registered_count,
+                isCurrency: false,
+              },
+              {
+                label: "Success Rate",
+                value: `${Math.round((totals.registered_count / (totals.total_inquiries || 1)) * 100)}%`,
+                isCurrency: false,
+              },
+            ],
+          };
+        default:
+          return { columns: [], summary: [] };
+      }
+    };
+
+    const reportConfig = getReportConfig();
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
+          body { font-family: 'Outfit', sans-serif; padding: 60px; color: #0f172a; background: #fff; line-height: 1.5; }
+          .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 50px; }
+          .brand-box { border-left: 8px solid #10b981; padding-left: 24px; }
+          .brand { font-size: 28px; font-weight: 900; letter-spacing: -0.04em; color: #0f172a; }
+          .brand span { color: #10b981; }
+          .report-info { text-align: right; }
+          .report-title { font-size: 36px; font-weight: 900; margin: 0; letter-spacing: -0.05em; color: #0f172a; text-transform: uppercase; }
+          .report-range { font-size: 13px; font-weight: 700; color: #64748b; margin-top: 6px; letter-spacing: 0.1em; }
+          
+          .summary-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-bottom: 60px; }
+          .summary-card { background: #f8fafc; padding: 24px; rounded: 24px; border: 1px solid #f1f5f9; border-radius: 24px; }
+          .summary-label { font-size: 10px; font-weight: 900; color: #64748b; text-transform: uppercase; letter-spacing: 0.15em; margin-bottom: 8px; }
+          .summary-value { font-size: 24px; font-weight: 900; color: #0f172a; letter-spacing: -0.02em; }
+
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+          th { text-align: left; padding: 20px 16px; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.15em; color: #64748b; border-bottom: 2px solid #f1f5f9; background: #fff; }
+          td { padding: 18px 16px; font-size: 13px; font-weight: 600; color: #334155; border-bottom: 1px solid #f8fafc; }
+          tr:nth-child(even) td { background: #fafafa; }
+          
+          .footer { margin-top: 80px; font-size: 11px; font-weight: 700; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 30px; letter-spacing: 0.05em; }
+          .badge { padding: 4px 10px; border-radius: 10px; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="brand-box">
+            <div class="brand">PRO<span>SPINE</span></div>
+            <div style="font-size: 11px; font-weight: 800; color: #64748b; text-transform: uppercase; letter-spacing: 0.2em; margin-top: 4px;">Clinical Intelligence</div>
+          </div>
+          <div class="report-info">
+            <h1 class="report-title">${activeTab} Statistics</h1>
+            <p class="report-range">${start} &nbsp;—&nbsp; ${end}</p>
+          </div>
+        </div>
+
+        <div class="summary-grid">
+          ${reportConfig.summary
+            .map(
+              (s) => `
+            <div class="summary-card">
+              <div class="summary-label">${s.label}</div>
+              <div class="summary-value">${s.value}</div>
+            </div>
+          `,
+            )
+            .join("")}
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              ${reportConfig.columns.map((c) => `<th>${c.header}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>
+            ${records
+              .map(
+                (r: any) => `
+              <tr>
+                ${reportConfig.columns
+                  .map((c) => {
+                    const val = r[c.key];
+                    return `<td>${c.format ? c.format(val, r) : val || "—"}</td>`;
+                  })
+                  .join("")}
+              </tr>
+            `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+        <div class="footer">Generated by PhysioEZ Management Console on ${format(new Date(), "PPpp")} &nbsp;•&nbsp; Confidential</div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+
+    setFileViewerConfig({
+      isOpen: true,
+      url: url,
+      fileName: `${activeTab}_report_${format(new Date(), "yyyyMMdd")}.html`,
+    });
   };
 
   const COLORS = [
@@ -196,295 +476,657 @@ const Reports = () => {
   ];
 
   const renderAnalytics = () => {
-    // Generate some mock chart data based on records if real stats aren't available
-    const chartData =
-      records.length > 0
-        ? records.slice(0, 10).map((r, i) => ({
-            name: format(new Date(r.created_at || new Date()), "MMM dd"),
-            value: parseFloat(
-              r.total_amount ||
-                r.consultation_amount ||
-                r.calculated_billed ||
-                100,
-            ),
-            label: r.patient_name || r.name || `Record ${i + 1}`,
-            sub: r.test_name || r.chief_complain || r.treatment_type || "N/A",
-          }))
-        : [
-            { name: "Day 1", value: 400, label: "Demo Item", sub: "Category" },
-            {
-              name: "Day 2",
-              value: 300,
-              label: "Demo Item 2",
-              sub: "Category",
-            },
-          ];
+    // Shared Data Helpers
+    const aggregateByDate = (field: string = "count") => {
+      const map: any = {};
+      records.forEach((r) => {
+        const d = format(new Date(r.created_at || new Date()), "MMM dd");
+        map[d] =
+          (map[d] || 0) + (field === "count" ? 1 : parseFloat(r[field] || 0));
+      });
+      return Object.entries(map)
+        .map(([name, value]) => ({ name, value: value as number }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+    };
 
-    const paymentData = [
-      { name: "Cash", value: totals.cash_sum || 45 },
-      { name: "UPI", value: totals.upi_sum || 30 },
-      { name: "Card", value: totals.card_sum || 15 },
-      { name: "Others", value: totals.other_sum || 10 },
-    ].filter((d) => d.value > 0);
+    const aggregateByField = (field: string, metric: string = "count") => {
+      const map: any = {};
+      records.forEach((r) => {
+        const k = r[field] || "Unspecified";
+        if (!map[k]) map[k] = { name: k, value: 0 };
+        map[k].value += metric === "count" ? 1 : parseFloat(r[metric] || 0);
+      });
+      return Object.values(map).sort((a: any, b: any) => b.value - a.value);
+    };
 
-    // Fallback data if no payment data exists
-    const displayPaymentData =
-      paymentData.length > 0
-        ? paymentData
-        : [
-            { name: "Cash", value: 60 },
-            { name: "UPI", value: 25 },
-            { name: "Card", value: 15 },
-          ];
-
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="flex flex-col gap-8"
+    const Card = ({
+      children,
+      className = "",
+    }: {
+      children: React.ReactNode;
+      className?: string;
+    }) => (
+      <div
+        className={`p-6 rounded-3xl border ${isDark ? "bg-[#0A0A0B] border-white/5 shadow-xl" : "bg-white border-slate-100 shadow-sm"} ${className}`}
       >
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Main Trend Chart */}
-          <div
-            className={`p-8 rounded-[40px] border ${isDark ? "bg-[#141619] border-white/5 shadow-2xl" : "bg-white border-slate-100 shadow-xl shadow-black/[0.02]"}`}
-          >
-            <div className="flex items-center justify-between mb-10">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500 mb-1">
-                  Performance Trend
-                </p>
-                <h3 className="text-2xl font-serif italic text-slate-900 dark:text-white">
-                  Revenue Velocity
-                </h3>
-              </div>
-              <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-500">
-                <TrendingUp size={20} />
-              </div>
-            </div>
+        {children}
+      </div>
+    );
 
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    vertical={false}
-                    stroke={
-                      isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"
-                    }
-                  />
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 10, fontWeight: 700, fill: "#94a3b8" }}
-                    dy={10}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 10, fontWeight: 700, fill: "#94a3b8" }}
-                    tickFormatter={(v) => `₹${v}`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: isDark ? "#1A1C1E" : "#FFFFFF",
-                      borderRadius: "16px",
-                      border: "none",
-                      boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1)",
-                    }}
-                    itemStyle={{ fontWeight: 900, color: "#10b981" }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke="#10b981"
-                    strokeWidth={4}
-                    fillOpacity={1}
-                    fill="url(#colorVal)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+    const ChartHeader = ({
+      title,
+      sub,
+      icon: Icon,
+      color,
+    }: {
+      title: string;
+      sub: string;
+      icon: any;
+      color: string;
+    }) => (
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <span
+            className={`text-[10px] font-black uppercase tracking-widest ${color} block mb-1`}
+          >
+            {sub}
+          </span>
+          <h4 className="text-xl font-bold dark:text-white tracking-tight">
+            {title}
+          </h4>
+        </div>
+        <div
+          className={`p-2.5 rounded-xl ${color.replace("text-", "bg-")}/10 ${color}`}
+        >
+          <Icon size={18} />
+        </div>
+      </div>
+    );
+
+    const Leaderboard = ({
+      data,
+      title,
+      metricLabel,
+      isCurrency,
+    }: {
+      data: any[];
+      title: string;
+      metricLabel: string;
+      isCurrency?: boolean;
+    }) => (
+      <div className="mt-6 space-y-4">
+        <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-white/5 pb-2 mb-4">
+          {title}
+        </h5>
+        {data.slice(0, 5).map((d, i) => (
+          <div key={i} className="flex items-center justify-between group">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-white/5 flex items-center justify-center text-[10px] font-black text-slate-400 shrink-0">
+                0{i + 1}
+              </div>
+              <span className="text-sm font-bold text-slate-600 dark:text-slate-300 truncate group-hover:text-emerald-500 transition-colors">
+                {d.name || d.patient_name || "Anonymous Patient"}
+              </span>
             </div>
+            <span className="text-xs font-black text-slate-900 dark:text-white shrink-0">
+              {isCurrency
+                ? `₹${d.value.toLocaleString()}`
+                : `${d.value} ${metricLabel}`}
+            </span>
           </div>
+        ))}
+        {data.length === 0 && (
+          <div className="text-[10px] text-slate-400 italic py-4">
+            Insufficient data for breakdown
+          </div>
+        )}
+      </div>
+    );
 
-          {/* Payment Distribution */}
-          <div
-            className={`p-8 rounded-[40px] border ${isDark ? "bg-[#141619] border-white/5 shadow-2xl" : "bg-white border-slate-100 shadow-xl shadow-black/[0.02]"}`}
-          >
-            <div className="flex items-center justify-between mb-10">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-500 mb-1">
-                  Financial Split
-                </p>
-                <h3 className="text-2xl font-serif italic text-slate-900 dark:text-white">
-                  Payment Methods
-                </h3>
-              </div>
-              <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-500">
-                <PieChartIcon size={20} />
-              </div>
-            </div>
+    const renderTestsAnalytics = () => {
+      const trendData = aggregateByDate("billed");
+      const testSplit = aggregateByField("test_name", "billed");
+      const paymentData = aggregateByField("payment_status");
+      const topTests = aggregateByField("test_name");
 
-            <div className="h-[300px] w-full flex flex-col md:flex-row items-center">
-              <div className="flex-1 w-full h-full">
+      return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2">
+              <ChartHeader
+                title="Revenue Timeline"
+                sub="Financial Momentum"
+                icon={TrendingUp}
+                color="text-emerald-500"
+              />
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={trendData}>
+                    <defs>
+                      <linearGradient id="tG" x1="0" y1="0" x2="0" y2="1">
+                        <stop
+                          offset="5%"
+                          stopColor="#10b981"
+                          stopOpacity={0.2}
+                        />
+                        <stop
+                          offset="95%"
+                          stopColor="#10b981"
+                          stopOpacity={0}
+                        />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      strokeOpacity={0.05}
+                    />
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 9, fill: "#94a3b8" }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 9, fill: "#94a3b8" }}
+                      tickFormatter={(v) =>
+                        `₹${v >= 1000 ? (v / 1000).toFixed(1) + "k" : v}`
+                      }
+                    />
+                    <Tooltip
+                      contentStyle={{ borderRadius: "16px", border: "none" }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke="#10b981"
+                      strokeWidth={4}
+                      fill="url(#tG)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <Card>
+              <ChartHeader
+                title="Payment Mix"
+                sub="Collection Health"
+                icon={PieChartIcon}
+                color="text-indigo-500"
+              />
+              <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={displayPaymentData}
+                      data={paymentData}
                       innerRadius={60}
-                      outerRadius={100}
-                      paddingAngle={5}
+                      outerRadius={80}
+                      paddingAngle={8}
                       dataKey="value"
                     >
-                      {displayPaymentData.map((_, index) => (
-                        <Cell
-                          key={`cell-${index}`}
-                          fill={COLORS[index % COLORS.length]}
-                        />
+                      {paymentData.map((_, i) => (
+                        <Cell key={i} fill={COLORS[i % COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              <div className="flex flex-col gap-4 min-w-[150px]">
-                {displayPaymentData.map((d, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: COLORS[i % COLORS.length] }}
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                {paymentData.slice(0, 4).map((d: any, i: number) => (
+                  <div
+                    key={i}
+                    className="p-2 rounded-xl bg-slate-50 dark:bg-white/5 border border-transparent"
+                  >
+                    <p className="text-[9px] font-bold text-slate-400 uppercase">
+                      {d.name}
+                    </p>
+                    <p className="text-sm font-black dark:text-white">
+                      {d.value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <ChartHeader
+                title="Diagnostic Performance"
+                sub="Yield Analysis"
+                icon={BarChart3}
+                color="text-amber-500"
+              />
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart
+                    cx="50%"
+                    cy="50%"
+                    outerRadius="70%"
+                    data={testSplit.slice(0, 6)}
+                  >
+                    <PolarGrid strokeOpacity={0.1} />
+                    <PolarAngleAxis
+                      dataKey="name"
+                      tick={{ fontSize: 8, fill: "#64748b" }}
                     />
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                        {d.name}
+                    <Radar
+                      name="Revenue"
+                      dataKey="value"
+                      stroke="#f59e0b"
+                      fill="#f59e0b"
+                      fillOpacity={0.4}
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+            <Card>
+              <ChartHeader
+                title="High Volume Tests"
+                sub="Demand Spectrum"
+                icon={Activity}
+                color="text-rose-500"
+              />
+              <Leaderboard
+                data={topTests}
+                title="Top Diagnostics by Volume"
+                metricLabel="Cases"
+              />
+            </Card>
+          </div>
+        </div>
+      );
+    };
+
+    const renderRegistrationsAnalytics = () => {
+      const regTrend = aggregateByDate();
+      const complaintData = aggregateByField("chief_complain");
+      const typeData = aggregateByField("consultation_type");
+
+      return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+          <Card>
+            <div className="flex justify-between items-start mb-8">
+              <ChartHeader
+                title="Clinical Inflow Pulse"
+                sub="Admission Velocity"
+                icon={TrendingUp}
+                color="text-blue-500"
+              />
+              <div className="text-right">
+                <span className="text-4xl font-black tracking-tighter text-blue-500">
+                  {records.length}
+                </span>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                  Global Admissions
+                </p>
+              </div>
+            </div>
+            <div className="h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={regTrend}>
+                  <CartesianGrid
+                    strokeDasharray="5 5"
+                    vertical={false}
+                    strokeOpacity={0.05}
+                  />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 9, fill: "#94a3b8" }}
+                  />
+                  <Tooltip contentStyle={{ borderRadius: "16px" }} />
+                  <Bar
+                    dataKey="value"
+                    fill="#3b82f6"
+                    radius={[8, 8, 8, 8]}
+                    barSize={20}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#3b82f6"
+                    strokeWidth={3}
+                    dot={{
+                      r: 4,
+                      fill: "#fff",
+                      strokeWidth: 2,
+                      stroke: "#3b82f6",
+                    }}
+                  />
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <ChartHeader
+                title="Clinical Concerns"
+                sub="Pathological Spectrum"
+                icon={Activity}
+                color="text-rose-500"
+              />
+              <div className="space-y-4">
+                {complaintData.slice(0, 6).map((c: any, i: number) => (
+                  <div key={i}>
+                    <div className="flex justify-between text-[10px] font-bold uppercase mb-1.5">
+                      <span className="text-slate-500 truncate max-w-[200px]">
+                        {c.name}
                       </span>
-                      <span className="text-sm font-black text-slate-900 dark:text-white">
-                        {activeTab === "inquiries"
-                          ? d.value
-                          : `₹${d.value.toLocaleString()}`}
-                      </span>
+                      <span className="text-rose-500">{c.value} PTS</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{
+                          width: `${(c.value / Math.max(1, records.length)) * 100}%`,
+                        }}
+                        className="h-full bg-rose-500"
+                      />
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* BOTTOM SECTION: Analysis & Leaderboard */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Service Analysis (Vertical Bar) */}
-          <div
-            className={`lg:col-span-2 p-8 rounded-[40px] border ${isDark ? "bg-[#141619] border-white/5 shadow-2xl" : "bg-white border-slate-100 shadow-xl shadow-black/[0.02]"}`}
-          >
-            <div className="flex items-center justify-between mb-10">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500 mb-1">
-                  Service Breakdown
-                </p>
-                <h3 className="text-2xl font-serif italic text-slate-900 dark:text-white">
-                  {activeTab === "tests"
-                    ? "Popular Tests"
-                    : activeTab === "registrations"
-                      ? "Common Complaints"
-                      : "Inquiry Trends"}
-                </h3>
+            </Card>
+            <Card>
+              <ChartHeader
+                title="Consultation Split"
+                sub="Admission Architecture"
+                icon={PieChartIcon}
+                color="text-slate-500"
+              />
+              <div className="h-[180px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={typeData}
+                      innerRadius={50}
+                      outerRadius={70}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {typeData.map((_, i) => (
+                        <Cell key={i} fill={COLORS[(i + 2) % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
               </div>
-              <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-500">
-                <BarChart3 size={20} />
-              </div>
-            </div>
-
-            <div className="h-[350px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  layout="vertical"
-                  data={chartData.slice(0, 6)}
-                  margin={{ left: 100 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    horizontal={false}
-                    stroke={
-                      isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"
-                    }
-                  />
-                  <XAxis type="number" hide />
-                  <YAxis
-                    dataKey="sub"
-                    type="category"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fontSize: 9, fontWeight: 900, fill: "#94a3b8" }}
-                    width={120}
-                  />
-                  <Tooltip
-                    cursor={{ fill: "transparent" }}
-                    contentStyle={{ borderRadius: "16px", border: "none" }}
-                  />
-                  <Bar dataKey="value" radius={[0, 10, 10, 0]} barSize={30}>
-                    {chartData.map((_, index) => (
-                      <Cell
-                        key={`cell-${index}`}
-                        fill={COLORS[index % COLORS.length]}
-                        opacity={0.8}
-                      />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Performance Leaderboard */}
-          <div
-            className={`p-8 rounded-[40px] border ${isDark ? "bg-[#141619] border-white/5 shadow-2xl" : "bg-white border-slate-100 shadow-xl shadow-black/[0.02]"}`}
-          >
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-500 mb-1">
-              Performance
-            </p>
-            <h3 className="text-2xl font-serif italic text-slate-900 dark:text-white mb-8">
-              Top Records
-            </h3>
-
-            <div className="space-y-6">
-              {chartData.slice(0, 5).map((item, idx) => (
-                <div key={idx} className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-black text-slate-700 dark:text-slate-300 truncate max-w-[150px]">
-                      {item.label}
-                    </span>
-                    <span className="text-xs font-black text-emerald-500">
-                      ₹{item.value.toLocaleString()}
+              <div className="mt-4 flex flex-wrap gap-3 justify-center">
+                {typeData.map((d: any, i: number) => (
+                  <div key={i} className="flex items-center gap-1.5">
+                    <div
+                      className="w-2 h-2 rounded-full"
+                      style={{
+                        backgroundColor: COLORS[(i + 2) % COLORS.length],
+                      }}
+                    />
+                    <span className="text-[9px] font-bold text-slate-400 uppercase">
+                      {d.name}
                     </span>
                   </div>
-                  <div className="w-full h-1.5 bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+                ))}
+              </div>
+            </Card>
+          </div>
+        </div>
+      );
+    };
+
+    const renderPatientsAnalytics = () => {
+      const billingData = aggregateByDate("calculated_billed");
+      const doctorLoad = aggregateByField("assigned_doctor");
+      const treatmentMix = aggregateByField("treatment_type");
+
+      return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            <Card className="lg:col-span-4">
+              <ChartHeader
+                title="Practioner Allocation"
+                sub="Case Load"
+                icon={Users}
+                color="text-indigo-500"
+              />
+              <div className="space-y-4">
+                {doctorLoad.slice(0, 5).map((d: any, i: number) => (
+                  <div
+                    key={i}
+                    className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-white/5 border border-transparent hover:border-indigo-500/10 transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center font-bold text-indigo-500">
+                        {d.name.charAt(0)}
+                      </div>
+                      <div>
+                        <h6 className="text-[13px] font-bold dark:text-white line-clamp-1">
+                          {d.name === "Unspecified"
+                            ? "Not Assigned"
+                            : `Dr. ${d.name}`}
+                        </h6>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">
+                          {d.value} Active Cases
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card className="lg:col-span-8">
+              <ChartHeader
+                title="Revenue Accrual"
+                sub="Growth Trends"
+                icon={TrendingUp}
+                color="text-emerald-500"
+              />
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={billingData}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      strokeOpacity={0.05}
+                    />
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 9, fill: "#94a3b8" }}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 9, fill: "#94a3b8" }}
+                    />
+                    <Tooltip cursor={{ fill: "rgba(0,0,0,0.02)" }} />
+                    <Bar
+                      dataKey="value"
+                      fill="#10b981"
+                      radius={[6, 6, 6, 6]}
+                      barSize={40}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+
+          <Card>
+            <ChartHeader
+              title="Treatment Spectrum"
+              sub="Retention Analysis"
+              icon={Activity}
+              color="text-amber-500"
+            />
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 py-4">
+              {treatmentMix.slice(0, 4).map((t: any, i: number) => (
+                <div
+                  key={i}
+                  className="group border-r border-slate-100 dark:border-white/5 last:border-0 pr-4"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      {t.name}
+                    </span>
+                    <ArrowUpRight
+                      size={12}
+                      className="text-slate-300 group-hover:text-amber-500 transition-colors"
+                    />
+                  </div>
+                  <div className="flex items-baseline gap-2">
+                    <h5 className="text-3xl font-black dark:text-white tracking-tighter">
+                      {t.value}
+                    </h5>
+                    <span className="text-[10px] font-bold text-slate-300">
+                      Cycles
+                    </span>
+                  </div>
+                  <div className="h-1 w-full bg-slate-100 dark:bg-white/5 rounded-full mt-3 overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{
-                        width: `${(item.value / (chartData[0]?.value || 1)) * 100}%`,
-                      }}
-                      transition={{ duration: 1, delay: idx * 0.1 }}
-                      className="h-full bg-emerald-500 rounded-full"
+                      animate={{ width: "100%" }}
+                      transition={{ duration: 1.5, delay: i * 0.2 }}
+                      className="h-full bg-amber-500"
                     />
                   </div>
                 </div>
               ))}
+              {treatmentMix.length === 0 && (
+                <div className="col-span-full text-center text-[10px] text-slate-400 italic">
+                  No treatment data captured for this period
+                </div>
+              )}
             </div>
-
-            <button className="w-full mt-10 py-4 rounded-2xl border-2 border-dashed border-slate-200 dark:border-white/10 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:border-slate-300 transition-all">
-              View All Insights
-            </button>
-          </div>
+          </Card>
         </div>
-      </motion.div>
-    );
+      );
+    };
+
+    const renderInquiriesAnalytics = () => {
+      const leadTrend = aggregateByDate();
+      const sourceMix = aggregateByField("referralSource");
+      const statusMix = aggregateByField("status");
+
+      return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2">
+              <ChartHeader
+                title="Lead Acquisition"
+                sub="Captured Velocity"
+                icon={Search}
+                color="text-fuchsia-500"
+              />
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={leadTrend}>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      strokeOpacity={0.05}
+                    />
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 9, fill: "#94a3b8" }}
+                    />
+                    <Tooltip />
+                    <Line
+                      type="stepAfter"
+                      dataKey="value"
+                      stroke="#d946ef"
+                      strokeWidth={3}
+                      dot={{
+                        r: 4,
+                        fill: "#fff",
+                        strokeWidth: 2,
+                        stroke: "#d946ef",
+                      }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <Card>
+              <ChartHeader
+                title="Top Channels"
+                sub="Traffic Performance"
+                icon={PieChartIcon}
+                color="text-blue-500"
+              />
+              <Leaderboard
+                data={sourceMix}
+                title="Referral Source Breakdown"
+                metricLabel="Leads"
+              />
+            </Card>
+          </div>
+
+          <Card>
+            <ChartHeader
+              title="Conversion Funnel Health"
+              sub="Pipeline Snapshot"
+              icon={Target}
+              color="text-emerald-500"
+            />
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 py-4">
+              {statusMix.map((s: any, i: number) => (
+                <div
+                  key={i}
+                  className="p-4 rounded-2xl bg-slate-50 dark:bg-white/5 border border-transparent relative overflow-hidden group"
+                >
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">
+                    {s.name}
+                  </span>
+                  <div className="flex items-baseline gap-2 relative z-10">
+                    <h5 className="text-4xl font-black dark:text-white tracking-tighter leading-none">
+                      {s.value}
+                    </h5>
+                    <span className="text-[10px] font-bold text-emerald-500 uppercase">
+                      Leads
+                    </span>
+                  </div>
+                  <Target
+                    size={48}
+                    className="absolute -bottom-2 -right-2 text-black/5 dark:text-white/5 group-hover:scale-110 transition-transform"
+                  />
+                </div>
+              ))}
+              {statusMix.length === 0 && (
+                <div className="col-span-full text-center text-[10px] text-slate-400 italic">
+                  No lead status data available
+                </div>
+              )}
+            </div>
+          </Card>
+        </div>
+      );
+    };
+
+    switch (activeTab) {
+      case "tests":
+        return renderTestsAnalytics();
+      case "registrations":
+        return renderRegistrationsAnalytics();
+      case "patients":
+        return renderPatientsAnalytics();
+      case "inquiries":
+        return renderInquiriesAnalytics();
+      default:
+        return null;
+    }
   };
 
   const renderFilters = () => {
@@ -505,36 +1147,83 @@ const Reports = () => {
             />
           </div>
 
-          {/* DATE RANGE */}
+          {/* DATE RANGE: RANGE PICKER INTEGRATION */}
           <div
-            className={`flex items-center gap-2 p-1 rounded-[20px] border transition-all flex-none ${isDark ? "bg-black/20 border-white/5 shadow-inner" : "bg-white border-slate-100 shadow-sm"}`}
+            className={`flex items-center gap-3 px-4 py-2 rounded-2xl border transition-all ${isDark ? "bg-black/20 border-white/5" : "bg-white border-slate-100 shadow-sm"}`}
           >
-            <div className="relative group">
-              <input
-                type="date"
-                value={dateRange.start_date}
-                onChange={(e) =>
-                  setDateRange((p) => ({ ...p, start_date: e.target.value }))
-                }
-                className="bg-transparent border-none text-[11px] font-bold focus:ring-0 px-3 py-1.5 text-slate-700 dark:text-slate-200"
-              />
-              <label className="absolute -top-1.5 left-3 text-[7px] font-black uppercase tracking-widest text-emerald-500 bg-white dark:bg-[#0A0B0A] px-1 pointer-events-none">
+            <button
+              onClick={() => setShowRangePicker("start")}
+              className="flex flex-col items-start min-w-[100px]"
+            >
+              <span className="text-[7px] font-black uppercase tracking-widest text-emerald-500 mb-0.5">
                 From
-              </label>
-            </div>
-            <div className="h-3 w-px bg-slate-200 dark:bg-white/10" />
-            <div className="relative group">
-              <input
-                type="date"
-                value={dateRange.end_date}
-                onChange={(e) =>
-                  setDateRange((p) => ({ ...p, end_date: e.target.value }))
-                }
-                className="bg-transparent border-none text-[11px] font-bold focus:ring-0 px-3 py-1.5 text-slate-700 dark:text-slate-200"
-              />
-              <label className="absolute -top-1.5 left-3 text-[7px] font-black uppercase tracking-widest text-emerald-500 bg-white dark:bg-[#0A0B0A] px-1 pointer-events-none">
+              </span>
+              <div className="flex items-center gap-2">
+                <CalendarRange size={12} className="text-slate-400" />
+                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                  {rangeStart
+                    ? format(new Date(rangeStart), "dd MMM, yyyy")
+                    : format(startOfMonth(currentMonth), "dd MMM, yyyy")}
+                </span>
+              </div>
+            </button>
+
+            <div className="w-px h-8 bg-slate-100 dark:bg-white/10" />
+
+            <button
+              onClick={() => setShowRangePicker("end")}
+              className="flex flex-col items-start min-w-[100px]"
+            >
+              <span className="text-[7px] font-black uppercase tracking-widest text-emerald-500 mb-0.5">
                 To
-              </label>
+              </span>
+              <div className="flex items-center gap-2">
+                <CalendarRange size={12} className="text-slate-400" />
+                <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                  {rangeEnd
+                    ? format(new Date(rangeEnd), "dd MMM, yyyy")
+                    : format(endOfMonth(currentMonth), "dd MMM, yyyy")}
+                </span>
+              </div>
+            </button>
+
+            {(isCustomRange || rangeStart || rangeEnd) && (
+              <button
+                onClick={() => {
+                  setIsCustomRange(false);
+                  setRangeStart(null);
+                  setRangeEnd(null);
+                }}
+                className={`ml-2 p-1.5 rounded-lg hover:bg-rose-500/10 text-rose-500 transition-colors ${!isCustomRange && !rangeStart && !rangeEnd ? "hidden" : ""}`}
+                title="Reset Range"
+              >
+                <RotateCcw size={12} strokeWidth={3} />
+              </button>
+            )}
+
+            <div className="flex items-center gap-1 border-l border-slate-100 dark:border-white/10 pl-3 ml-2">
+              <button
+                onClick={() => {
+                  setCurrentMonth(subMonths(currentMonth, 1));
+                  setIsCustomRange(false);
+                }}
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
+              >
+                <ChevronLeft size={14} strokeWidth={3} />
+              </button>
+              <button
+                onClick={() => {
+                  setCurrentMonth(addMonths(currentMonth, 1));
+                  setIsCustomRange(false);
+                }}
+                className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/5 transition-colors"
+                disabled={
+                  format(currentMonth, "MM-yyyy") ===
+                  format(new Date(), "MM-yyyy")
+                }
+              >
+                <ChevronRight size={14} strokeWidth={3} />
+              </button>
             </div>
           </div>
 
@@ -584,7 +1273,6 @@ const Reports = () => {
                 </div>
               </>
             )}
-
             {activeTab === "registrations" && (
               <>
                 <div className="flex-1 min-w-[120px]">
@@ -630,7 +1318,6 @@ const Reports = () => {
                 </div>
               </>
             )}
-
             {activeTab === "patients" && (
               <>
                 <div className="flex-1 min-w-[120px]">
@@ -679,7 +1366,6 @@ const Reports = () => {
                 </div>
               </>
             )}
-
             {activeTab === "inquiries" && (
               <>
                 <div className="flex-1 min-w-[120px]">
@@ -726,7 +1412,6 @@ const Reports = () => {
                 </div>
               </>
             )}
-
             <button
               onClick={applyFilters}
               disabled={loading}
@@ -738,18 +1423,36 @@ const Reports = () => {
         </div>
 
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-4">
             <button
               onClick={exportToCSV}
-              className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 border ${isDark ? "hover:bg-white/5 border-white/5 text-slate-300" : "bg-white border-slate-100 text-slate-600 hover:shadow-lg"}`}
+              className={`group flex items-center gap-3 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${
+                isDark
+                  ? "bg-emerald-500/5 border-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-black hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/20"
+                  : "bg-white border-slate-200 text-slate-600 hover:border-slate-900 hover:text-slate-900 hover:shadow-xl hover:shadow-black/[0.05]"
+              }`}
             >
-              <Download size={12} /> Export CSV
+              <div
+                className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${isDark ? "bg-emerald-500/10 group-hover:bg-black/20" : "bg-slate-100 group-hover:bg-slate-900 group-hover:text-white"}`}
+              >
+                <Download size={12} strokeWidth={3} />
+              </div>
+              Preview CSV
             </button>
             <button
-              onClick={() => {}}
-              className={`px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-[0.2em] transition-all flex items-center gap-2 border ${isDark ? "hover:bg-white/5 border-white/5 text-slate-300" : "bg-white border-slate-100 text-slate-600 hover:shadow-lg"}`}
+              onClick={exportToPDF}
+              className={`group flex items-center gap-3 px-6 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] transition-all border ${
+                isDark
+                  ? "bg-rose-500/5 border-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white hover:border-rose-500 hover:shadow-lg hover:shadow-rose-500/20"
+                  : "bg-white border-slate-200 text-slate-600 hover:border-slate-900 hover:text-slate-900 hover:shadow-xl hover:shadow-black/[0.05]"
+              }`}
             >
-              <FileText size={12} /> Export PDF
+              <div
+                className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors ${isDark ? "bg-rose-500/10 group-hover:bg-black/20" : "bg-slate-100 group-hover:bg-slate-900 group-hover:text-white"}`}
+              >
+                <FileText size={12} strokeWidth={3} />
+              </div>
+              Review Report
             </button>
           </div>
 
@@ -811,8 +1514,12 @@ const Reports = () => {
                   <>
                     <Th>Date</Th>
                     <Th>Patient</Th>
-                    <Th>Test Name</Th>
-                    <Th>Amount</Th>
+                    <Th>Test</Th>
+                    <Th>Total</Th>
+                    <Th>Disc</Th>
+                    <Th>Billed</Th>
+                    <Th>Paid</Th>
+                    <Th>Dues</Th>
                     <Th>Status</Th>
                   </>
                 )}
@@ -876,8 +1583,30 @@ const Reports = () => {
                         </span>
                       </Td>
                       <Td>
-                        <span className="text-[14px] font-black text-emerald-600 dark:text-emerald-400">
-                          ₹{parseFloat(row.total_amount).toLocaleString()}
+                        <span className="text-[14px] font-black text-slate-500">
+                          ₹{parseFloat(row.total || 0).toLocaleString()}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[14px] font-black text-rose-500">
+                          ₹{parseFloat(row.discount || 0).toLocaleString()}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[14px] font-black text-slate-900 dark:text-white">
+                          ₹{parseFloat(row.billed || 0).toLocaleString()}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span className="text-[14px] font-black text-emerald-600">
+                          ₹{parseFloat(row.paid || 0).toLocaleString()}
+                        </span>
+                      </Td>
+                      <Td>
+                        <span
+                          className={`text-[14px] font-black ${parseFloat(row.dues || 0) > 0 ? "text-rose-500" : "text-emerald-500"}`}
+                        >
+                          ₹{parseFloat(row.dues || 0).toLocaleString()}
                         </span>
                       </Td>
                       <Td>
@@ -1051,6 +1780,73 @@ const Reports = () => {
                 <div className="flex flex-col gap-6">
                   <div className="flex items-center justify-between px-2">
                     <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
+                      Module Navigation
+                    </p>
+                    <div className="w-12 h-px bg-slate-100 dark:bg-white/5" />
+                  </div>
+
+                  <div className="flex flex-col gap-2 p-2 rounded-[32px] bg-slate-50 dark:bg-white/5 border border-slate-100 dark:border-white/5">
+                    {tabs.map((tab) => {
+                      const isActive = activeTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => {
+                            setActiveTab(tab.id);
+                            setActiveFilters({});
+                          }}
+                          className={`
+                            flex items-center justify-between px-6 py-4 rounded-[24px] transition-all duration-300 group
+                            ${
+                              isActive
+                                ? "bg-white dark:bg-white/10 shadow-xl shadow-black/[0.05] translate-x-1"
+                                : "hover:bg-white/50 dark:hover:bg-white/5 hover:translate-x-1"
+                            }
+                          `}
+                        >
+                          <div className="flex items-center gap-4">
+                            <div
+                              className={`
+                                w-10 h-10 rounded-2xl flex items-center justify-center transition-all duration-500
+                                ${
+                                  isActive
+                                    ? "bg-slate-900 dark:bg-white text-white dark:text-black scale-110 rotate-3"
+                                    : "bg-slate-100 dark:bg-white/5 text-slate-400 group-hover:bg-white dark:group-hover:bg-white/10 group-hover:text-slate-900 dark:group-hover:text-white"
+                                }
+                              `}
+                            >
+                              <tab.icon
+                                size={18}
+                                strokeWidth={isActive ? 3 : 2}
+                              />
+                            </div>
+                            <div className="flex flex-col items-start">
+                              <span
+                                className={`text-[11px] font-black uppercase tracking-widest ${isActive ? "text-slate-900 dark:text-white" : "text-slate-500"}`}
+                              >
+                                {tab.label}
+                              </span>
+                              {isActive && (
+                                <motion.span
+                                  layoutId="active-indicator"
+                                  className="text-[8px] font-bold text-emerald-500 uppercase tracking-widest mt-0.5"
+                                >
+                                  Active Analysis
+                                </motion.span>
+                              )}
+                            </div>
+                          </div>
+                          <ChevronRight
+                            size={14}
+                            className={`transition-all duration-300 ${isActive ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-2 group-hover:opacity-40"}`}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="flex items-center justify-between px-2">
+                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">
                       Financial Intelligence
                     </p>
                     <div className="w-12 h-px bg-slate-100 dark:bg-white/5" />
@@ -1062,7 +1858,7 @@ const Reports = () => {
                         <LargeStatBox
                           label="Total Revenue"
                           value={totals.total_revenue}
-                          sub="Billed Amount"
+                          sub={`Billed: ₹${(totals.total_billed || 0).toLocaleString()}`}
                           color="emerald"
                         />
                         <div className="grid grid-cols-2 gap-4">
@@ -1190,31 +1986,7 @@ const Reports = () => {
           </aside>
 
           <main className="flex-1 overflow-y-auto custom-scrollbar relative flex flex-col p-6 md:p-8 lg:p-10 gap-8 bg-[#FAFAFA] dark:bg-[#0A0A0A] pb-40">
-            {/* NEW: Module Tabs moved to Top Right */}
-            <div className="flex items-center justify-end w-full">
-              <div className="flex items-center gap-1.5 p-1.5 rounded-[24px] bg-white dark:bg-white/5 border border-slate-100 dark:border-white/5 shadow-sm">
-                {tabs.map((tab) => {
-                  const isActive = activeTab === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => {
-                        setActiveTab(tab.id);
-                        setActiveFilters({});
-                      }}
-                      className={`flex items-center gap-2 px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                        isActive
-                          ? "bg-slate-900 dark:bg-white text-white dark:text-black shadow-lg shadow-black/10 scale-[1.02]"
-                          : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                      }`}
-                    >
-                      <tab.icon size={13} strokeWidth={3} />
-                      <span>{tab.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+            {/* Module Tabs moved to Top Right - Removed */}
 
             {renderFilters()}
             <AnimatePresence mode="wait">
@@ -1258,6 +2030,29 @@ const Reports = () => {
       <ChatModal
         isOpen={showChatModal}
         onClose={() => setShowChatModal(false)}
+      />
+
+      {showRangePicker && (
+        <RangePicker
+          startDate={rangeStart}
+          endDate={rangeEnd}
+          onChange={(start, end) => {
+            setRangeStart(start);
+            setRangeEnd(end);
+            setIsCustomRange(true);
+            setShowRangePicker(null);
+          }}
+          onClose={() => setShowRangePicker(null)}
+        />
+      )}
+
+      <FileViewer
+        isOpen={fileViewerConfig.isOpen}
+        onClose={() => setFileViewerConfig((p) => ({ ...p, isOpen: false }))}
+        url={fileViewerConfig.url}
+        fileName={fileViewerConfig.fileName}
+        downloadUrl={fileViewerConfig.downloadUrl}
+        downloadFileName={fileViewerConfig.downloadFileName}
       />
 
       <LogoutConfirmation

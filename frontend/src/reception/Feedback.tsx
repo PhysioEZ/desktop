@@ -1105,13 +1105,13 @@ const Feedback = () => {
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setSelectedRecord(null)}
-                className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100]"
+                className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[10010]"
               />
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl rounded-[32px] border shadow-2xl z-[101] overflow-hidden flex flex-col max-h-[90vh] ${isDark ? "bg-[#121212] border-white/10" : "bg-white border-slate-200"}`}
+                className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl rounded-[32px] border shadow-2xl z-[10011] overflow-hidden flex flex-col max-h-[90vh] ${isDark ? "bg-[#121212] border-white/10" : "bg-white border-slate-200"}`}
               >
                 <div className="p-8 border-b dark:border-white/5 flex items-center justify-between shadow-sm z-10">
                   <div>

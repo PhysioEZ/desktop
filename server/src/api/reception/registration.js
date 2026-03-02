@@ -107,10 +107,17 @@ exports.submitRegistration = async (req, res) => {
         const paymentAmounts = data.payment_amounts;
         if (paymentAmounts && typeof paymentAmounts === 'object') {
             for (const [method, amt] of Object.entries(paymentAmounts)) {
-                if (parseFloat(amt) > 0) {
+                const val = parseFloat(amt);
+                if (val > 0) {
                     await connection.query(`
                         INSERT INTO registration_payments (registration_id, payment_method, amount, branch_id) VALUES (?, ?, ?, ?)
-                    `, [newRegistrationId, method, parseFloat(amt), branch_id]);
+                    `, [newRegistrationId, method, val, branch_id]);
+
+                    // Also record in global payments table
+                    await connection.query(`
+                        INSERT INTO payments (patient_id, branch_id, payment_date, amount, mode, remarks, processed_by_employee_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    `, [masterPatientId, branch_id, today, val, method, `Registration Payment (${newRegistrationId})`, employee_id]);
                 }
             }
         }

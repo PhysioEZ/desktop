@@ -100,6 +100,8 @@ async function fetchBillingOverview(req, res, branchId) {
 
         trends.push({
             date: dateStr,
+            treatment_total: match ? match.total : 0,
+            test_total: 0,
             total: match ? match.total : 0
         });
     }
@@ -187,9 +189,11 @@ async function fetchBillingOverview(req, res, branchId) {
         data: {
             stats: {
                 today_collection: todayCollection,
-                range_billed: rangeBilled,
-                range_paid: rangePaid,
-                range_due: rangeDue,
+                treatment: {
+                    billed: rangeBilled,
+                    paid: rangePaid,
+                    due: rangeDue
+                },
                 methods: methodRows,
                 trends: trends
             },
@@ -293,6 +297,55 @@ async function fetchCombinedOverview(req, res, branchId) {
                     WHERE (t2.branch_id = ? OR t2.branch_id IS NULL OR t2.branch_id = 0) AND DATE(tp.created_at) = ?) as total
         `, [branchId, today, branchId, today, branchId, today]);
 
+        // 7-day Trends (Separated for Graph)
+        const [treatmentTrendRows] = await pool.query(`
+            SELECT DATE(payment_date) as date, SUM(amount) as total
+            FROM payments
+            WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND payment_date >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+            GROUP BY DATE(payment_date)
+        `, [branchId]);
+
+        const [testTrendRows] = await pool.query(`
+            SELECT date, SUM(total) as total FROM (
+                SELECT DATE(created_at) as date, SUM(advance_amount) as total 
+                FROM tests 
+                WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND test_status != 'cancelled'
+                GROUP BY DATE(created_at)
+                UNION ALL
+                SELECT DATE(tp.created_at) as date, SUM(tp.amount) as total
+                FROM test_payments tp
+                JOIN tests t2 ON tp.test_id = t2.test_id
+                WHERE (t2.branch_id = ? OR t2.branch_id IS NULL OR t2.branch_id = 0) AND tp.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                GROUP BY DATE(tp.created_at)
+            ) as combined_trends GROUP BY date
+        `, [branchId, branchId]);
+
+        const trends = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toISOString().split('T')[0];
+
+            const tMatch = treatmentTrendRows.find(row => {
+                const rowDate = row.date instanceof Date ? row.date.toISOString().split('T')[0] : row.date;
+                return rowDate === dateStr;
+            });
+            const testMatch = testTrendRows.find(row => {
+                const rowDate = row.date instanceof Date ? row.date.toISOString().split('T')[0] : row.date;
+                return rowDate === dateStr;
+            });
+
+            const tTotal = tMatch ? parseFloat(tMatch.total) : 0;
+            const testTotal = testMatch ? parseFloat(testMatch.total) : 0;
+
+            trends.push({
+                date: dateStr,
+                treatment_total: tTotal,
+                test_total: testTotal,
+                total: tTotal + testTotal
+            });
+        }
+
         const stats = {
             treatment: {
                 billed: parseFloat(treatmentStats[0].billed),
@@ -304,7 +357,8 @@ async function fetchCombinedOverview(req, res, branchId) {
                 paid: parseFloat(testPaid[0].paid),
                 due: parseFloat(testStats[0].due)
             },
-            today_collection: parseFloat(todayCollection[0].total)
+            today_collection: parseFloat(todayCollection[0].total),
+            trends: trends
         };
 
         // Fetch Records (Treatments)
@@ -401,11 +455,83 @@ async function fetchGroupedTests(req, res, branchId) {
 
         const [rows] = await pool.query(query, params);
 
+        // Stats for the left panel
+        const [testStats] = await pool.query(`
+            SELECT 
+                COALESCE(SUM(t.total_amount - t.discount), 0) as billed,
+                COALESCE(SUM(t.due_amount), 0) as due
+            FROM tests t
+            WHERE ${whereSql}
+        `, params);
+
+        const [testPaid] = await pool.query(`
+            SELECT 
+                COALESCE(SUM(t.advance_amount), 0) +
+                COALESCE((SELECT SUM(tp.amount) FROM test_payments tp
+                    JOIN tests t2 ON tp.test_id = t2.test_id
+                    WHERE (t2.branch_id = ? OR t2.branch_id IS NULL OR t2.branch_id = 0) AND tp.created_at BETWEEN ? AND ?), 0) as paid
+            FROM tests t
+            WHERE (t.branch_id = ? OR t.branch_id IS NULL OR t.branch_id = 0) AND t.created_at BETWEEN ? AND ? AND t.test_status != 'cancelled'
+            LIMIT 1
+        `, [branchId, start, end, branchId, start, end]);
+
+        const today = new Date().toISOString().slice(0, 10);
+        const [todayCollection] = await pool.query(`
+            SELECT 
+                (SELECT COALESCE(SUM(advance_amount), 0) FROM tests t WHERE (t.branch_id = ? OR t.branch_id IS NULL OR t.branch_id = 0) AND DATE(t.created_at) = ? AND t.test_status != 'cancelled') +
+                (SELECT COALESCE(SUM(tp.amount), 0) FROM test_payments tp
+                    JOIN tests t2 ON tp.test_id = t2.test_id
+                    WHERE (t2.branch_id = ? OR t2.branch_id IS NULL OR t2.branch_id = 0) AND DATE(tp.created_at) = ?) as total
+        `, [branchId, today, branchId, today]);
+
+        // 7-day Trend for Tests
+        const [testTrendRows] = await pool.query(`
+            SELECT date, SUM(total) as total FROM (
+                SELECT DATE(created_at) as date, SUM(advance_amount) as total 
+                FROM tests 
+                WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) AND test_status != 'cancelled'
+                GROUP BY DATE(created_at)
+                UNION ALL
+                SELECT DATE(tp.created_at) as date, SUM(tp.amount) as total
+                FROM test_payments tp
+                JOIN tests t2 ON tp.test_id = t2.test_id
+                WHERE (t2.branch_id = ? OR t2.branch_id IS NULL OR t2.branch_id = 0) AND tp.created_at >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)
+                GROUP BY DATE(tp.created_at)
+            ) as combined_trends GROUP BY date
+        `, [branchId, branchId]);
+
+        const trends = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toISOString().split('T')[0];
+            const match = testTrendRows.find(row => {
+                const rowDate = row.date instanceof Date ? row.date.toISOString().split('T')[0] : row.date;
+                return rowDate === dateStr;
+            });
+            trends.push({
+                date: dateStr,
+                treatment_total: 0,
+                test_total: match ? match.total : 0,
+                total: match ? match.total : 0
+            });
+        }
+
         res.json({
             status: "success",
-            data: rows
+            data: rows,
+            stats: {
+                today_collection: parseFloat(todayCollection[0].total),
+                tests: {
+                    billed: parseFloat(testStats[0].billed),
+                    paid: parseFloat(testPaid[0].paid),
+                    due: parseFloat(testStats[0].due)
+                },
+                trends: trends
+            }
         });
     } catch (error) {
+        console.error("fetchGroupedTests Error:", error);
         res.status(500).json({ status: "error", message: error.message });
     }
 }
