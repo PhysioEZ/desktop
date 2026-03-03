@@ -405,12 +405,12 @@ async function fetchCombinedOverview(req, res, branchId) {
         // Fetch Records (Grouped Tests)
         let testSql = `
             SELECT 
-                ANY_VALUE(t.patient_id) as patient_id, ANY_VALUE(t.patient_name) as patient_name, ANY_VALUE(t.phone_number) as phone_number, 'test' as billing_type,
+                MAX(t.patient_id) as patient_id, MAX(t.patient_name) as patient_name, MAX(t.phone_number) as phone_number, 'test' as billing_type,
                 SUM(t.total_amount - t.discount) as billed_amount, 
                 SUM(t.discount) as discount,
                 SUM(t.advance_amount + COALESCE(tp_agg.total_paid, 0)) as paid_amount,
                 COALESCE(MAX(GREATEST(t.created_at, COALESCE(t.updated_at, t.created_at))), MAX(t.created_at)) as last_activity,
-                ANY_VALUE(CASE WHEN t.patient_id IS NOT NULL AND t.patient_id > 0 THEN 1 ELSE 0 END) as is_registered
+                MAX(CASE WHEN t.patient_id IS NOT NULL AND t.patient_id > 0 THEN 1 ELSE 0 END) as is_registered
             FROM tests t
             LEFT JOIN (
                 SELECT test_id, SUM(amount) as total_paid FROM test_payments GROUP BY test_id
@@ -463,7 +463,7 @@ async function fetchGroupedTests(req, res, branchId) {
         // Group by person. We'll use patient_id if available, otherwise patient_name + phone_number
         const query = `
             SELECT 
-                ANY_VALUE(t.patient_id) as patient_id, ANY_VALUE(t.patient_name) as patient_name, ANY_VALUE(t.phone_number) as phone_number,
+                MAX(t.patient_id) as patient_id, MAX(t.patient_name) as patient_name, MAX(t.phone_number) as phone_number,
                 COUNT(t.test_id) as test_count,
                 SUM(t.total_amount) as total_billed,
                 SUM(t.advance_amount + COALESCE(tp_agg.total_paid, 0)) as total_paid,
