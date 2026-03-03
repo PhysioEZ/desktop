@@ -31,7 +31,7 @@ function getMysqlPool() {
       console.log(`🔒 Connecting to ${connectionOptions.host}:${connectionOptions.port} with SSL`);
       connectionOptions.ssl = {
         ca: caCertificate,
-        rejectUnauthorized: true,
+        rejectUnauthorized: false,
       };
     } else {
       console.log(`🔓 Connecting to ${connectionOptions.host}:${connectionOptions.port} without SSL`);
