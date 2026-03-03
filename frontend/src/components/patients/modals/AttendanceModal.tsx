@@ -59,7 +59,7 @@ const AttendanceModal = ({
     } else {
       const numAmount = parseFloat(amount) || 0;
       if (numAmount > 0) {
-        setRemarks(`Auto: Payment of ₹${numAmount} received`);
+        setRemarks(`Auto: Payment of Rs.${numAmount} received`);
       } else {
         setRemarks("Auto: Debited from Balance");
       }

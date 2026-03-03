@@ -253,6 +253,24 @@ async function fetchCombinedOverview(req, res, branchId) {
     const end = endDate ? `${endDate} 23:59:59` : new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().slice(0, 19).replace('T', ' ');
 
     try {
+        // Payment Method Breakdown (Overall for the period)
+        const [methodRows] = await pool.query(`
+            SELECT mode as payment_method, SUM(amount) as total
+            FROM (
+                SELECT mode, amount FROM payments WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND payment_date BETWEEN ? AND ?
+                UNION ALL
+                SELECT tp.payment_method as mode, tp.amount FROM test_payments tp JOIN tests t ON tp.test_id = t.test_id 
+                WHERE (t.branch_id = ? OR t.branch_id IS NULL OR t.branch_id = 0) AND tp.created_at BETWEEN ? AND ?
+                UNION ALL
+                SELECT t.payment_method as mode, t.advance_amount as amount FROM tests t
+                WHERE (t.branch_id = ? OR t.branch_id IS NULL OR t.branch_id = 0) 
+                  AND t.created_at BETWEEN ? AND ? 
+                  AND t.advance_amount > 0
+                  AND NOT EXISTS (SELECT 1 FROM test_payments tp2 WHERE tp2.test_id = t.test_id)
+            ) as combined_payments
+            GROUP BY mode
+        `, [branchId, start, end, branchId, start, end, branchId, start, end]);
+
         // Range Stats (Separated)
         const [treatmentStats] = await pool.query(`
             SELECT 
@@ -291,7 +309,7 @@ async function fetchCombinedOverview(req, res, branchId) {
         const [todayCollection] = await pool.query(`
             SELECT 
                 (SELECT COALESCE(SUM(amount), 0) FROM payments WHERE (branch_id = ? OR branch_id IS NULL OR branch_id = 0) AND DATE(payment_date) = ?) +
-                (SELECT COALESCE(SUM(advance_amount), 0) FROM tests t WHERE (t.branch_id = ? OR t.branch_id IS NULL OR t.branch_id = 0) AND DATE(t.created_at) = ? AND t.test_status != 'cancelled') +
+                (SELECT COALESCE(SUM(advance_amount), 0) FROM tests t WHERE (t.branch_id = ? OR t.branch_id IS NULL OR t.branch_id = 0) AND DATE(t.created_at) = ? AND t.test_status != 'cancelled' AND NOT EXISTS (SELECT 1 FROM test_payments tp WHERE tp.test_id = t.test_id)) +
                 (SELECT COALESCE(SUM(tp.amount), 0) FROM test_payments tp
                     JOIN tests t2 ON tp.test_id = t2.test_id
                     WHERE (t2.branch_id = ? OR t2.branch_id IS NULL OR t2.branch_id = 0) AND DATE(tp.created_at) = ?) as total
@@ -358,7 +376,8 @@ async function fetchCombinedOverview(req, res, branchId) {
                 due: parseFloat(testStats[0].due)
             },
             today_collection: parseFloat(todayCollection[0].total),
-            trends: trends
+            trends: trends,
+            methods: methodRows
         };
 
         // Fetch Records (Treatments)
@@ -368,7 +387,7 @@ async function fetchCombinedOverview(req, res, branchId) {
                 p.total_amount as billed_amount, 
                 p.discount_amount as discount,
                 COALESCE((SELECT SUM(amount) FROM payments WHERE patient_id = p.patient_id AND payment_date BETWEEN ? AND ?), 0) as paid_amount,
-                GREATEST(p.created_at, COALESCE((SELECT MAX(payment_date) FROM payments WHERE patient_id = p.patient_id), p.created_at)) as last_activity
+                COALESCE(GREATEST(p.created_at, COALESCE((SELECT MAX(payment_date) FROM payments WHERE patient_id = p.patient_id), p.created_at)), p.created_at) as last_activity
             FROM patients p
             JOIN registration r ON p.registration_id = r.registration_id
             WHERE (p.branch_id = ? OR p.branch_id IS NULL OR p.branch_id = 0) AND (
@@ -386,13 +405,16 @@ async function fetchCombinedOverview(req, res, branchId) {
         // Fetch Records (Grouped Tests)
         let testSql = `
             SELECT 
-                t.patient_id, t.patient_name, t.phone_number, 'test' as billing_type,
+                ANY_VALUE(t.patient_id) as patient_id, ANY_VALUE(t.patient_name) as patient_name, ANY_VALUE(t.phone_number) as phone_number, 'test' as billing_type,
                 SUM(t.total_amount - t.discount) as billed_amount, 
                 SUM(t.discount) as discount,
-                SUM(t.advance_amount + COALESCE((SELECT SUM(tp.amount) FROM test_payments tp WHERE tp.test_id = t.test_id), 0)) as paid_amount,
-                GREATEST(MAX(t.created_at), MAX(t.updated_at), COALESCE((SELECT MAX(created_at) FROM test_payments tp2 WHERE tp2.test_id IN (SELECT test_id FROM tests WHERE patient_id = t.patient_id OR (patient_name = t.patient_name AND phone_number = t.phone_number))), MAX(t.created_at))) as last_activity,
-                CASE WHEN t.patient_id IS NOT NULL AND t.patient_id > 0 THEN 1 ELSE 0 END as is_registered
+                SUM(t.advance_amount + COALESCE(tp_agg.total_paid, 0)) as paid_amount,
+                COALESCE(MAX(GREATEST(t.created_at, COALESCE(t.updated_at, t.created_at))), MAX(t.created_at)) as last_activity,
+                ANY_VALUE(CASE WHEN t.patient_id IS NOT NULL AND t.patient_id > 0 THEN 1 ELSE 0 END) as is_registered
             FROM tests t
+            LEFT JOIN (
+                SELECT test_id, SUM(amount) as total_paid FROM test_payments GROUP BY test_id
+            ) tp_agg ON t.test_id = tp_agg.test_id
             WHERE (t.branch_id = ? OR t.branch_id IS NULL OR t.branch_id = 0) AND (
                 t.created_at BETWEEN ? AND ? 
                 OR t.updated_at BETWEEN ? AND ?
@@ -441,13 +463,16 @@ async function fetchGroupedTests(req, res, branchId) {
         // Group by person. We'll use patient_id if available, otherwise patient_name + phone_number
         const query = `
             SELECT 
-                t.patient_id, t.patient_name, t.phone_number,
+                ANY_VALUE(t.patient_id) as patient_id, ANY_VALUE(t.patient_name) as patient_name, ANY_VALUE(t.phone_number) as phone_number,
                 COUNT(t.test_id) as test_count,
                 SUM(t.total_amount) as total_billed,
-                SUM(t.advance_amount) as total_paid,
+                SUM(t.advance_amount + COALESCE(tp_agg.total_paid, 0)) as total_paid,
                 SUM(t.due_amount) as total_due,
                 MAX(t.created_at) as last_test_date
             FROM tests t
+            LEFT JOIN (
+                SELECT test_id, SUM(amount) as total_paid FROM test_payments GROUP BY test_id
+            ) tp_agg ON t.test_id = tp_agg.test_id
             WHERE ${whereSql}
             GROUP BY COALESCE(t.patient_id, CONCAT(t.patient_name, t.phone_number))
             ORDER BY last_test_date DESC

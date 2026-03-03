@@ -1403,7 +1403,9 @@ const Billing = () => {
                           className={`flex items-center px-8 py-4 transition-all cursor-pointer group hover:bg-gray-50 dark:hover:bg-white/5 border-b dark:border-white/5 last:border-0`}
                         >
                           <div className="w-[10%] text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                            {format(new Date(row.last_activity), "dd MMM yy")}
+                            {row.last_activity
+                              ? format(new Date(row.last_activity), "dd MMM yy")
+                              : "--"}
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
@@ -1585,10 +1587,12 @@ const Billing = () => {
                               <div className="w-1 h-1 rounded-full bg-slate-200" />
                               <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest">
                                 Last:{" "}
-                                {format(
-                                  new Date(row.last_test_date),
-                                  "dd MMM yy",
-                                )}
+                                {row.last_test_date
+                                  ? format(
+                                      new Date(row.last_test_date),
+                                      "dd MMM yy",
+                                    )
+                                  : "--"}
                               </span>
                             </div>
                           </div>
