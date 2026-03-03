@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAuthStore } from "../store/useAuthStore";
 import { useThemeStore } from "../store/useThemeStore";
 import { useUIStore } from "../store/useUIStore";
+import { useConfigStore } from "../store/useConfigStore";
 import {
   LayoutGrid,
   Calendar,
@@ -43,8 +44,14 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
   const { user, logout } = useAuthStore();
   const { isDark, toggleTheme } = useThemeStore();
   const { hasDashboardAnimated } = useUIStore();
-
+  const { appVersion, fetchAppVersion } = useConfigStore();
   const [showProfilePopup, setShowProfilePopup] = useState(false);
+
+  React.useEffect(() => {
+    fetchAppVersion();
+  }, []);
+
+  const currentVersion = appVersion || APP_VERSION;
 
   const sidebarEntrance = {
     hidden: { x: -50, opacity: 0 },
@@ -373,25 +380,29 @@ const Sidebar: React.FC<SidebarProps> = ({ onShowChat, onShowShortcuts }) => {
                   </span>
                   <div className="flex items-center gap-2">
                     {(() => {
-                      const vStr = APP_VERSION.toLowerCase();
-                      const isAlpha = vStr.includes("a");
-                      const isBeta = vStr.includes("b");
+                      const vStr = currentVersion.toLowerCase();
+                      const isAlpha =
+                        vStr.includes("alpha") ||
+                        vStr.includes("-a") ||
+                        (vStr.includes("a") && !vStr.includes("beta"));
+                      const isBeta =
+                        vStr.includes("beta") || vStr.includes("-b");
 
                       return (
                         <>
                           <span
                             className={`text-[8px] font-black px-1.5 py-0.5 rounded-[6px] uppercase tracking-widest ${
-                              isAlpha
-                                ? "bg-amber-500/10 text-amber-500"
-                                : isBeta
-                                  ? "bg-blue-500/10 text-blue-500"
+                              isBeta
+                                ? "bg-blue-500/10 text-blue-500"
+                                : isAlpha
+                                  ? "bg-amber-500/10 text-amber-500"
                                   : "bg-emerald-500/10 text-emerald-500"
                             }`}
                           >
-                            {isAlpha ? "Alpha" : isBeta ? "Beta" : "Stable"}
+                            {isBeta ? "Beta" : isAlpha ? "Alpha" : "Stable"}
                           </span>
                           <span className="text-[13px] font-black text-slate-500 dark:text-slate-400 tabular-nums">
-                            v{APP_VERSION}
+                            v{currentVersion}
                           </span>
                         </>
                       );
